@@ -36,7 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -56,6 +55,7 @@
 #include <SushiAI/eager/session.hpp>
 #include <SushiAI/eager/step.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/in_memory_descent_recorder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
@@ -69,78 +69,6 @@ namespace SushiAI::Eager::Support
 {
     /** @brief Holds the rows of every batch the device tests feed. */
     inline constexpr int64_t K_ROWS = 8;
-
-    /** @brief Records parameter -= rate * gradient for each pair it holds. */
-    class PlainDescent final : public Graph::StepRecorder
-    {
-        public:
-            /** @brief Starts with no pair. */
-            explicit PlainDescent(float rate) noexcept : rate_(rate)
-            {
-
-            }
-
-            /** @brief Adds one parameter and the tensor its gradient is written into. */
-            void add(const SushiBLAS::Tensor& parameter, const SushiBLAS::Tensor& gradient)
-            {
-                pairs_.emplace_back(parameter, gradient);
-            }
-
-            /** @brief Records one axpy per pair and returns how many it recorded. */
-            [[nodiscard]] Result<std::size_t> record_into_step(
-                const Graph::StepRecording& recording) override
-            {
-                ++records_;
-                return ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Record, [&]()
-                {
-                    SushiBLAS::BLASOps blas(recording.tasks());
-                    for (std::pair<SushiBLAS::Tensor, SushiBLAS::Tensor>& pair : pairs_)
-                        blas.axpy(-rate_, pair.second, pair.first);
-
-                    return pairs_.size();
-                });
-            }
-
-            /** @brief Counts the runs that are about to start. */
-            void before_replay() override
-            {
-                ++before_;
-            }
-
-            /** @brief Counts the runs that have finished. */
-            void after_replay() override
-            {
-                ++after_;
-            }
-
-            /** @brief Returns how many times the update was recorded. */
-            [[nodiscard]] std::size_t record_count() const noexcept
-            {
-                return records_;
-            }
-
-            /** @brief Returns how many runs called after_replay(). */
-            [[nodiscard]] std::size_t replay_count() const noexcept
-            {
-                return after_;
-            }
-
-        private:
-            /// @brief The step size.
-            float rate_;
-
-            /// @brief Each parameter with its gradient.
-            std::vector<std::pair<SushiBLAS::Tensor, SushiBLAS::Tensor>> pairs_;
-
-            /// @brief How many times record_into_step() ran.
-            std::size_t records_ = 0;
-
-            /// @brief How many times before_replay() ran.
-            std::size_t before_ = 0;
-
-            /// @brief How many times after_replay() ran.
-            std::size_t after_ = 0;
-    };
 
     /** @brief Holds one linear layer: its two states and their tensors. */
     struct LinearState
@@ -248,7 +176,7 @@ namespace SushiAI::Eager::Support
      * @param update Receives one pair per state, weight before bias, layer by layer.
      */
     [[nodiscard]] inline Status bind_model(Session& session, const std::vector<LinearState>& model,
-                                           PlainDescent& update)
+                                           Graph::InMemoryDescentRecorder& update)
     {
         for (const LinearState& layer : model)
         {
@@ -396,7 +324,7 @@ namespace SushiAI::Eager::Support
         ScopePartitioner partitioner;   /**< Cuts each step where a scope opens or closes. */
         RegionExecutor executor;        /**< Runs each step. */
         Session session;                /**< The session under test. */
-        PlainDescent update;            /**< The update applied behind each step. */
+        Graph::InMemoryDescentRecorder update; /**< The update applied behind each step. */
         std::vector<LinearState> model; /**< The layers, bound to the session. */
         SushiBLAS::Tensor inputs;       /**< The [K_ROWS, first width] batch. */
         SushiBLAS::Tensor targets;      /**< The [K_ROWS, last width] targets. */
@@ -431,7 +359,7 @@ namespace SushiAI::Eager::Support
         InMemoryStepExecutor executor;  /**< Journals each step and runs no region. */
         ScopePartitioner partitioner;   /**< Cuts each step where a scope opens or closes. */
         Session session;                /**< The session under test. */
-        PlainDescent update;            /**< The update applied behind each step. */
+        Graph::InMemoryDescentRecorder update; /**< The update applied behind each step. */
         std::vector<LinearState> model; /**< The layers, bound to the session. */
         SushiBLAS::Tensor inputs;       /**< The [K_ROWS, first width] batch. */
         SushiBLAS::Tensor targets;      /**< The [K_ROWS, last width] targets. */

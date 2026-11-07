@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-07 — graph: Added InMemoryDescentRecorder and InMemoryLateIncrementRecorder, StepRecorders that record real device tasks (RW-162, `in_memory_descent_recorder.hpp`, `in_memory_late_increment_recorder.hpp`).
 - 2026-11-07 — test_tree: Build the darknet_reference and distribution seams the M7 and M9 records need (RW-160, `ab74f5b8`).
 - 2026-11-07 — distribution: Added check_exchange_targets, check_exchange_dtypes, check_node_buffers, InMemoryReplicaModel and InMemoryReplicaModelFactory (RW-160, `exchange_targets.hpp`).
 - 2026-11-07 — programs: Added ClusterWorkerWatch and InMemoryWorkerWatch beside WorkerWatch (`cluster_worker_watch.hpp`, `in_memory_worker_watch.hpp`).

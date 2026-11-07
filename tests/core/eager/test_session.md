@@ -13,7 +13,7 @@ This file needs an engine. Its cases are the acceptance list of
 `Support::Loop` owns a `ScopePartitioner`, a `RegionExecutor`, a `Session`, a model of linear
 layers and one batch. `step(options)` traces the model, differentiates, applies the update and
 reads the loss. `TraceOptions::scoping` says where scopes open: nowhere, one per layer, one
-between the first layer and its activation, or "encoder" and "head". `PlainDescent` is the
+between the first layer and its activation, or "encoder" and "head". `Graph::InMemoryDescentRecorder` is the
 update: one `axpy` of minus the rate times the gradient per parameter. It is a
 `Graph::StepRecorder` and counts its recordings and its replays. `make_model` fills every tensor
 with `fill_wave`, so two models of the same widths start from the same numbers.
@@ -23,7 +23,7 @@ with `fill_wave`, so two models of the same widths start from the same numbers.
 `make_compiled` traces the same two-layer model in the same order, differentiates it, runs the
 cast and fusion passes with the leaves, the loss and the gradients observed, plans the memory
 with the loss and the gradients pinned, binds the same tensors and compiles the graph with a
-`PlainDescent` behind it through `Graph::CompiledStep`.
+`Graph::InMemoryDescentRecorder` behind it through `Graph::CompiledStep`.
 
 ## AnUnscopedStepGivesTheLossBytesOfTheCompiledStep
 

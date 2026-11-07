@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 are done; M11, M21 and M30 to M52 are left
+**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M21 and M30 to M52 are left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -29,7 +29,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M8 | the tests of `core/data` (9 files): 25 rewrite, 9 resize, 1 split, 22 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seams built in 7a34fa48, not yet built or run) |
 | M9 | the tests of `core/distribution` (13 files): 27 rewrite, 3 resize, 11 split, 25 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-160 closed in ab74f5b8, not yet built or run) |
 | M10 | the tests of `core/dtype` (1 file): 1 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M11 | the tests of `core/eager` (19 files): 38 rewrite, 8 resize, 12 split, 21 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; seven test_step resizes (a Session over the host backend and an in-memory executor), the three test_region_partitioner rewrites (InMemoryRegionPartitioner over a ScopePartitioner or with a scripted refusal) and the Small_ storage_bank half are built; open in RW-162: the ReadScalar resize, and the two trailing-work rewrites of test_region_executor |
+| M11 | the tests of `core/eager` (19 files): 38 rewrite, 8 resize, 12 split, 21 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-162 closed, not yet built or run) |
 | M12 | the tests of `core/engine_fixture` (3 files): 1 rewrite, 1 resize, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M13 | the tests of `core/execution` (1 file): 2 rewrite, 1 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M14 | the tests of `core/failure` (3 files): 14 rewrite, 4 resize, 6 split, 1 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seams built, not yet built or run) |

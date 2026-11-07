@@ -44,6 +44,7 @@
 #include <SushiAI/eager/step.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/in_memory_descent_recorder.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 using namespace SushiAI;
@@ -108,7 +109,7 @@ namespace
 
         Eager::RegionExecutor executor;          /**< Runs each step. */
         Eager::Session session;                  /**< The session under test. */
-        Support::PlainDescent update;            /**< The update behind each step. */
+        Graph::InMemoryDescentRecorder update;   /**< The update behind each step. */
         std::vector<Support::LinearState> model; /**< The layers, bound to the session. */
         SushiBLAS::Tensor inputs;                /**< The [K_ROWS, 6] batch. */
         SushiBLAS::Tensor targets;               /**< The [K_ROWS, 3] targets. */

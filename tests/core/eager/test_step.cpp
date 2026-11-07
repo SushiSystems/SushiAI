@@ -34,7 +34,6 @@
 #include "eager_run_support.hpp"
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/step.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/traced.hpp>
@@ -42,17 +41,10 @@
 using namespace SushiAI;
 using Graph::ValueID;
 
-// SaTest stays reachable inside a TEST_F body; see tests/core/eager/README.md.
-namespace SaTest = SushiAI::Test;
 namespace Support = SushiAI::Eager::Support;
 
 namespace
 {
-    /** @brief Provides the Engine every case runs on. */
-    class Medium_EagerStep : public SaTest::EngineTest
-    {
-    };
-
     /** @brief Names the entry points of a step that hand back the refusal of a failed trace. */
     enum class EntryPoint : std::uint8_t
     {
@@ -60,9 +52,8 @@ namespace
         ReadScalar, /**< read_scalar() of the refused value. */
     };
 
-    /** @brief Provides the Engine every row of an entry point runs on. */
-    class Medium_EagerStepRefusal : public SaTest::EngineTest,
-                                    public ::testing::WithParamInterface<EntryPoint>
+    /** @brief Names the rows of the entry points; no case needs an engine of its own. */
+    class Small_EagerStepRefusal : public ::testing::TestWithParam<EntryPoint>
     {
     };
 
@@ -150,10 +141,10 @@ TEST(Small_EagerStep, BackwardIsCalledOnce)
 }
 
 /** @brief Tests that read_scalar() runs the step but refuses a value of many elements. */
-TEST_F(Medium_EagerStep, ReadScalarRefusesAValueOfManyElements)
+TEST(Small_EagerStep, ReadScalarRefusesAValueOfManyElements)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
@@ -165,10 +156,10 @@ TEST_F(Medium_EagerStep, ReadScalarRefusesAValueOfManyElements)
 }
 
 /** @brief Tests that an entry point of a step hands back the refusal a failed trace holds. */
-TEST_P(Medium_EagerStepRefusal, AnEntryPointReturnsTheRefusalOfAFailedTrace)
+TEST_P(Small_EagerStepRefusal, AnEntryPointReturnsTheRefusalOfAFailedTrace)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
@@ -178,7 +169,7 @@ TEST_P(Medium_EagerStepRefusal, AnEntryPointReturnsTheRefusalOfAFailedTrace)
     EXPECT_FALSE(step.has_run());
 }
 
-INSTANTIATE_TEST_SUITE_P(Rows, Medium_EagerStepRefusal,
+INSTANTIATE_TEST_SUITE_P(Rows, Small_EagerStepRefusal,
                          ::testing::Values(EntryPoint::Backward, EntryPoint::ReadScalar));
 
 /** @brief Tests that backward() refuses a graph holding a refusal whose result was dropped. */

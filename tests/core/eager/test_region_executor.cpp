@@ -36,8 +36,6 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -45,7 +43,6 @@
 #include "eager_test_support.hpp"
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/failure/result.hpp>
-#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
 #include <SushiAI/eager/region_executor.hpp>
@@ -56,6 +53,8 @@
 #include <SushiAI/eager/storage_id.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/in_memory_descent_recorder.hpp>
+#include <SushiAI/graph/in_memory_late_increment_recorder.hpp>
 #include <SushiAI/graph/in_memory_step_recorder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
@@ -170,55 +169,6 @@ namespace
         StepPlan plan;              /**< The decisions of the last planned step. */
         RegionExecutor executor;    /**< The executor under test. */
         std::uint64_t runs = 0;     /**< Counts the steps prepared. */
-    };
-
-    /** @brief Adds one to the leading elements of a tensor, as many as a count tensor holds. */
-    class LateIncrement final : public Graph::StepRecorder
-    {
-        public:
-            /**
-             * @brief Binds the update to the tensor it adds to and the count of its width.
-             * @param count A one-element INT32 tensor in host memory.
-             */
-            LateIncrement(const SushiBLAS::Tensor& out, const SushiBLAS::Tensor& count)
-                : out_(out), count_(count)
-            {
-
-            }
-
-            /** @brief Records one late-count task over out and returns 1. */
-            [[nodiscard]] Result<std::size_t> record_into_step(
-                const Graph::StepRecording& recording) override
-            {
-                return ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Record, [&]()
-                {
-                    SushiBLAS::OperandSet operands;
-                    operands.reads(count_);
-                    operands.writes(out_);
-                    float* const data = out_.data_as<float>();
-                    const std::int32_t* const width = count_.data_as<std::int32_t>();
-                    recording.tasks().record_late_pair(
-                        SushiBLAS::TaskDescription(), operands, "test", count_,
-                        static_cast<std::size_t>(out_.num_elements),
-                        [data, width]()
-                        {
-                            for (std::int32_t i = 0; i < width[0]; ++i)
-                                data[i] += 1.0f;
-                        },
-                        [data](std::size_t i)
-                        {
-                            data[i] += 1.0f;
-                        });
-                    return std::size_t{1};
-                });
-            }
-
-        private:
-            /// @brief The tensor each replay adds to.
-            SushiBLAS::Tensor out_;
-
-            /// @brief The count of elements each replay adds to.
-            SushiBLAS::Tensor count_;
     };
 
     /** @brief Returns @p values negated. */
@@ -440,7 +390,7 @@ TEST_F(Medium_RegionExecutor, TheTrailingWorkRunsBehindEveryRegion)
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor negated,
                             allocate_like(*engine, harness.tensor_of(step.hidden)));
     SaTest::write_tensor(negated, std::vector<double>(32, 0.0));
-    Support::PlainDescent update(1.0f);
+    Graph::InMemoryDescentRecorder update(1.0f);
     update.add(negated, harness.tensor_of(step.hidden));
 
     work.trailing = &update;
@@ -460,7 +410,7 @@ TEST_F(Medium_RegionExecutor, ALateTrailingTaskReplaysAfterItsRecorderIsGone)
     SushiBLAS::Tensor count = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int32,
                                                     SushiRuntime::Residency::Host);
     count.data_as<std::int32_t>()[0] = 2;
-    LateIncrement update(out, count);
+    Graph::InMemoryLateIncrementRecorder update(out, count);
 
     // The first step records the update through a recorder that dies with record_trailing().
     run_with_trailing(harness, update);

@@ -46,6 +46,8 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/state_id.hpp` | `StateID`, `K_NO_STATE`, `StateIdentity` |
 | `SushiAI/graph/step_recorder.hpp` | `StepRecorder`, `StepRecorderList` |
 | `SushiAI/graph/in_memory_step_recorder.hpp` | `InMemoryStepRecorder` |
+| `SushiAI/graph/in_memory_descent_recorder.hpp` | `InMemoryDescentRecorder` |
+| `SushiAI/graph/in_memory_late_increment_recorder.hpp` | `InMemoryLateIncrementRecorder` |
 | `SushiAI/graph/run_counter.hpp` | `RunCounter` |
 | `SushiAI/graph/step_recording.hpp` | `StepRecording` |
 | `SushiAI/graph/tensor_pool.hpp` | `TensorPool` |
@@ -80,6 +82,10 @@ Each seam keeps the default behaviour: a `TensorPool` built over an `Engine` all
 - `InMemoryStepRecorder(member, journal, tasks)` appends each call it receives to a
   `Journal` shared by several members, which shows the order of the calls across them.
   `StepRecording::detached()` is the recording to give such a recorder, which never reads it.
+- `InMemoryDescentRecorder(rate)` records parameter -= rate * gradient as one axpy task per
+  pair; `InMemoryLateIncrementRecorder(out, count)` records one late-count task that adds one to
+  as many leading elements of `out` as the host tensor `count` holds. Both record real tasks on
+  whatever engine the recording belongs to.
 - `RunCounter` holds the count of runs of a `CompiledStep` and the rule that a restore comes before
   the first run. `check_node_range` holds the rule of a node range and `check_compilable` the
   refusal of a graph with a dropped refusal. Both are decided on values, without a step.

@@ -65,12 +65,12 @@ record.
 ## TheTrailingWorkRunsBehindEveryRegion
 
 The update subtracts the region's result from a zeroed tensor, so that tensor holds the negated
-result only if the update ran after the region. This case keeps `PlainDescent` because only a
-recorder that writes device tasks can show the order.
+result only if the update ran after the region. `Graph::InMemoryDescentRecorder` records the axpy that
+subtracts, and its tasks are real device tasks, so only they can show the order.
 
 ## ALateTrailingTaskReplaysAfterItsRecorderIsGone
 
-The trailing work records one late-count task, which adds one to as many elements of a tensor as
+`Graph::InMemoryLateIncrementRecorder` records one late-count task, which adds one to as many elements of a tensor as
 a host count holds. The executor records it once, through a `TaskRecorder` that lives only inside
 `record_trailing`, and runs it on two steps. Both runs add, so the hold the executor owns kept the
 task's storages after the recorder was gone.

@@ -13,7 +13,7 @@ ships.
 ## Rig
 
 `Rig` owns the in-memory executor, a `ScopePartitioner`, a session over both and a
-`PlainDescent` update, and binds the two-layer model of `eager_run_support.hpp`. Its `step()`
+`Graph::InMemoryDescentRecorder` update, and binds the two-layer model of `eager_run_support.hpp`. Its `step()`
 traces the model with one scope per layer, differentiates it, and runs it through `apply()` or
 `finish()`.
 

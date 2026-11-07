@@ -56,6 +56,7 @@
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/fusion.hpp>
+#include <SushiAI/graph/in_memory_descent_recorder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/state_id.hpp>
@@ -111,7 +112,7 @@ namespace
 
         Graph::Graph graph;                        /**< The differentiated, fused graph. */
         Graph::TensorPool pool;                    /**< Holds the tensor of each value. */
-        Support::PlainDescent update;              /**< The update recorded behind the graph. */
+        Graph::InMemoryDescentRecorder update;     /**< The update recorded behind the graph. */
         std::vector<Support::LinearState> model;   /**< The layers; their tensors are bound. */
         SushiBLAS::Tensor inputs;                  /**< The batch, bound as the input leaf. */
         SushiBLAS::Tensor targets;                 /**< The targets, bound as their leaf. */

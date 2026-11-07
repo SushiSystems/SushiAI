@@ -1,13 +1,13 @@
 # tests/core/eager/test_step.cpp
 
 
-Suites: `Medium_EagerStep`, `Medium_EagerStepRefusal`.
+Suites: `Small_EagerStep`, `Small_EagerStepRefusal`.
 
 Tests what a `Step` accepts while it traces and when it runs.
 
-A step belongs to a `Session`, which needs an engine on a CPU SYCL device, so the file is
-medium. Every case builds the `Loop` of `eager_run_support.hpp` over the two-layer model and
-opens one step on its session. `test_session.md` covers training through steps, reading values
+A step belongs to a `Session`. Every case builds the `SmallLoop` of `eager_run_support.hpp`
+over the two-layer model, on the host backend and an executor that runs no region, and opens one
+step on its session, so the file is small. `test_session.md` covers training through steps, reading values
 and the refusals that involve the session's states.
 
 ## AStateIsDeclaredOncePerStep

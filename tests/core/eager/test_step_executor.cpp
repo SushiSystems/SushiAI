@@ -43,6 +43,7 @@
 #include <SushiAI/eager/storage_bank.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/in_memory_descent_recorder.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 using namespace SushiAI;
@@ -99,7 +100,7 @@ namespace
         Eager::InMemoryStepExecutor executor;    /**< The executor under test. */
         Eager::ScopePartitioner partitioner;     /**< Cuts each step at its scopes. */
         Eager::Session session;                  /**< Hands each step to the executor. */
-        Support::PlainDescent update;            /**< The update behind each step. */
+        Graph::InMemoryDescentRecorder update;   /**< The update behind each step. */
         std::vector<Support::LinearState> model; /**< The layers, bound to the session. */
         SushiBLAS::Tensor inputs;                /**< The [K_ROWS, 6] batch. */
         SushiBLAS::Tensor targets;               /**< The [K_ROWS, 3] targets. */

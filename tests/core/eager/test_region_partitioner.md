@@ -20,7 +20,7 @@ count of the last one, and returns what `ScopePartitioner` returns for the same 
 
 ## Rig
 
-`Rig` owns a `RegionExecutor`, a session over the given partitioner and a `PlainDescent` update,
+`Rig` owns a `RegionExecutor`, a session over the given partitioner and a `Graph::InMemoryDescentRecorder` update,
 and binds the two-layer model of `eager_run_support.hpp` to the session. Its `step()` traces the
 model with one scope per layer, differentiates it at the loss and applies the update.
 
