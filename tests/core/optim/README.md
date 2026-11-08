@@ -488,6 +488,8 @@ power of two, so the values are compared exactly.
 `Medium_SetLearningRate`, a death test: `set_learning_rate(-0.5)` on an SGD stops the process, and
 the report names the rate and says it is negative or not finite. The refusal itself is tested
 small on `check_learning_rate`; this case checks only that `set_learning_rate` stops on it.
+The suite has its own fixture, which holds a host backend and one slot, so a child of the death run
+builds nothing it does not use.
 
 ### SGDDecaysOnlyTheSlotsThatTakeIt
 

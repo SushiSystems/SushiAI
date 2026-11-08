@@ -157,9 +157,31 @@ namespace
             }
     };
 
-    /** @brief Runs the death case on the slots of Small_ParameterDecay; it starts a child. */
-    class Medium_SetLearningRate : public Small_ParameterDecay
+    /** @brief Provides a host backend and one slot for the death case; it starts a child. */
+    class Medium_SetLearningRate : public ::testing::Test
     {
+        protected:
+            /** @brief Returns one slot "weight" of K_START with a zero gradient. */
+            std::vector<Optim::ParameterSlot> make_slots()
+            {
+                Result<SushiBLAS::Tensor> parameter =
+                    allocate_tensor(backend.engine(), Shape{K_ELEMENTS}, DType::Float32);
+                Result<SushiBLAS::Tensor> gradient =
+                    allocate_tensor(backend.engine(), Shape{K_ELEMENTS}, DType::Float32);
+                EXPECT_TRUE(parameter.status().is_ok());
+                EXPECT_TRUE(gradient.status().is_ok());
+
+                SaTest::write_tensor(parameter.value(), each(K_START));
+                SaTest::write_tensor(gradient.value(), each(0.0));
+
+                std::vector<Optim::ParameterSlot> slots;
+                slots.push_back(Optim::ParameterSlot{"weight", std::move(parameter).value(),
+                                                     std::move(gradient).value()});
+                return slots;
+            }
+
+            /** @brief Holds the host adapter the optimizer is built on. */
+            HostExecutionBackend backend;
     };
 
     /** @brief Runs a case once per update kernel. */
