@@ -70,8 +70,7 @@ endif()
 #
 # Defaulted ON because `sa test` expects a test binary to exist, but it is an
 # option at all so a consumer that pulls this tree in with add_subdirectory is
-# not forced to compile - and, through gtest_discover_tests, to enumerate and
-# register - someone else's suite. SushiRuntime's SR_BUILD_TESTS defaults OFF
+# not forced to compile - and to register the shards of - someone else's suite. SushiRuntime's SR_BUILD_TESTS defaults OFF
 # for the opposite reason (its own docs call that a wart, since a direct cmake
 # build then has nothing for ctest to run); ON is the honest default here.
 option(SA_BUILD_TESTS "Build the SushiAI test suite" ON)

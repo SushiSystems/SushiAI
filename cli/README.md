@@ -164,10 +164,13 @@ whole, the gate's state and the generated docs with the trees.
 
 ### Sizes and CTest labels
 
-`cmake/SushiAITestProgram.cmake` registers tests through `gtest_discover_tests` and gives each
-case the CTest label of its size, `small`, `medium` or `large`, from the GTest suite-name
-prefix, with the size's timeout. A case named in `SUSHIAI_QUARANTINED_TESTS` also carries
-`quarantined`. The `Suite` enum lists those labels, and `sa test --label` takes one.
+`cmake/SushiAITestProgram.cmake` registers the cases of each test program in shards, CTest tests
+that each run the program with `GTEST_TOTAL_SHARDS` and `GTEST_SHARD_INDEX`, and gives each shard
+the CTest label of its size, `small`, `medium` or `large`, from the GTest suite-name prefix, with
+the size's timeout per case. The cases of a size named in `SUSHIAI_QUARANTINED_TESTS` run in a
+test of their own that carries `quarantined` beside the size. A shard is named
+`<program>.<size>_shard_<i>of<N>`, so `--filter` selects shards; a single case runs through
+`sa run <program> -- --gtest_filter=<Suite.Case>`. The `Suite` enum lists those labels, and `sa test --label` takes one.
 
 `_SUITE_LABEL_REGEX` maps each label to the regex `ctest -L` receives. `gating`, the default, is
 an alternation over `small` and `medium`, and its run also passes `-LE quarantined`. `all`

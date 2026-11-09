@@ -153,9 +153,9 @@ prove it.
 `SA_BUILD_TESTS` (default `ON`) guards `enable_testing()` and
 `add_subdirectory(tests)` together, matching SushiRuntime's `SR_BUILD_TESTS`
 shape exactly. It exists for the other consumption mode: a superproject that
-`add_subdirectory`s SushiAI would otherwise be made to compile the suite,
-have `gtest_discover_tests` enumerate it, and register 1803 tests it never
-asked for into its own CTest run. SushiBLAS guards its suite the same way:
+`add_subdirectory`s SushiAI would otherwise be made to compile the suite
+and register its test shards, which it never asked for, into its own CTest
+run. SushiBLAS guards its suite the same way:
 `SB_BUILD_TESTS` defaults to on only when SushiBLAS is the top-level project,
 so its tests do not enter this tree. The default is `ON` rather than
 SushiRuntime's `OFF` because `sa test` expects a test binary to exist and a

@@ -15,11 +15,33 @@ tier into `sushiai_<tier>_tests`; a program repeats the device link of the libra
 program per tier pays it once. An application builds `sushiai_<app>_tests`. Run one through the
 CLI, for example `sa run sushiai_core_tests -- --gtest_filter=Small_Ir.*`.
 
-A case's suite prefix gives its size, which is its ctest label and sets its timeout: `Small_` is
-`small` (60 s), `Medium_` is `medium` (300 s) and `Large_` is `large` (900 s). A small case uses
-one process and no device, a medium one a CPU SYCL device, threads or files, and a large one a
-real GPU or a run longer than medium allows. A suite without one of these prefixes fails the
-configure. A case named in `SUSHIAI_QUARANTINED_TESTS` also carries the label `quarantined`.
+A case's suite prefix gives its size, which is its ctest label and sets its timeout per case:
+`Small_` is `small` (60 s), `Medium_` is `medium` (300 s) and `Large_` is `large` (900 s). A small
+case uses one process and no device, a medium one a CPU SYCL device, threads or files, and a large
+one a real GPU or a run longer than medium allows. A suite without one of these prefixes fails the
+configure. The cases of a size named in `SUSHIAI_QUARANTINED_TESTS` run in a test of their own with
+the label `quarantined` beside the size.
+
+### Shards
+
+A case run in a process of its own pays the process and runtime start-up, which was most of a
+small case's 55 ms. The cmake file registers the cases of a program in shards instead: per
+program and per size, N CTest tests named `<program>.<size>_shard_<i>of<N>`, each running the
+program with `--gtest_filter=<prefix>*:*/<prefix>*` (without the quarantined cases),
+`GTEST_TOTAL_SHARDS=N` and `GTEST_SHARD_INDEX=i`. GoogleTest splits the filtered cases between the
+shards, so every case runs in exactly one. N is the case count of the size divided by the cases
+one shard holds, rounded up and at least 1: `SUSHIAI_SHARD_CASES_SMALL` (300), `_MEDIUM` (25) and
+`_LARGE` (1), each with its reason in the cmake file. The count comes from the `TEST`, `TEST_F`,
+`TEST_P`, `TYPED_TEST` and `TYPED_TEST_P` declarations in the program's sources, so a
+parametrised suite counts once and N is a floor. A shard's timeout is the size's timeout times the
+cases it holds.
+
+Each shard writes its cases to `test_results/gtest/<shard>.xml` in the build tree.
+`tools/testing/test_budget.py --cases <folder>` reads those files, so the per-case limits apply to
+a case in a shard; the shard's own CTest entry has no size and counts nowhere. `GTEST_SHUFFLE`
+and `GTEST_RANDOM_SEED` of the calling environment reach every shard, and a death test's child
+process runs outside the sharding. No program needs a process per case, and nothing registers
+`RESOURCE_GROUPS` yet.
 
 The code the tests of several modules share lives in internal modules, such as
 `modules/core/engine_fixture/`, which holds `main()`. They are never installed. Each one's README
