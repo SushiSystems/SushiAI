@@ -48,7 +48,7 @@ namespace
     using SushiAI::Vision::Detect::Anchor::measure_head_cost;
 
     /**
-     * @brief Holds the absolute the tolerance of the cost sums; they are exact in double for these
+     * @brief Holds the absolute tolerance of the cost sums; they are exact in double for these
      *        inputs: 16384 times the double unit roundoff, the smallest power of two not tighter
      *        than the earlier 1e-12.
      */

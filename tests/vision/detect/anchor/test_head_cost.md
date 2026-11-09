@@ -5,7 +5,7 @@ Suites: `Small_DetectAnchorCost`.
 
 Tests `measure_head_cost`
 over a head with two classes whose delta the file builds by hand. Its box part sums to 5.25 and
-its non-box part to 26, over a batch of 2. Every number is compared to 1e-12.
+its non-box part to 26, over a batch of 2. Every number is compared to 16384 times the double unit roundoff.
 
 ## SquaredErrorSplitsBoxFromNonBoxAndDividesByBatch
 
