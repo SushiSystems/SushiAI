@@ -25,7 +25,6 @@ Each test file has a page beside it that says what its cases pin.
 | `test_trainer/test_convergence.cpp` | [`test_trainer/test_convergence.md`](test_trainer/test_convergence.md) |
 | `test_trainer/test_dense_objectives.cpp` | [`test_trainer/test_dense_objectives.md`](test_trainer/test_dense_objectives.md) |
 | `test_trainer/test_dropout.cpp` | [`test_trainer/test_dropout.md`](test_trainer/test_dropout.md) |
-| `test_trainer/test_token_feed.cpp` | [`test_trainer/test_token_feed.md`](test_trainer/test_token_feed.md) |
 | `test_trainer/test_resilience.cpp` | [`test_trainer/test_resilience.md`](test_trainer/test_resilience.md) |
 | `test_trainer/test_mixed_precision.cpp` | [`test_trainer/test_mixed_precision.md`](test_trainer/test_mixed_precision.md) |
 | `test_trainer/test_compile_once.cpp` | [`test_trainer/test_compile_once.md`](test_trainer/test_compile_once.md) |

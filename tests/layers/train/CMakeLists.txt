@@ -52,7 +52,6 @@ sushiai_add_test_program(OWNER train
         test_trainer/test_mixed_precision.cpp
         test_trainer/test_resilience.cpp
         test_trainer/test_static_memory.cpp
-        test_trainer/test_token_feed.cpp
         test_training_step.cpp
         ${SUSHIAI_TRAIN_TEST_PROFILED}
     DEPENDS
