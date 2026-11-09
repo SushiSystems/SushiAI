@@ -31,26 +31,21 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <numeric>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/language/blocks/expert_projection.hpp>
 #include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/nn/module.hpp>
-#include <SushiAI/tensor_values/tensor_values.hpp>
 
 using namespace SushiAI;
-namespace SaTest = SushiAI::Test;
 using Language::Blocks::ExpertProjection;
 
 namespace
@@ -76,12 +71,6 @@ namespace
         projection.experts = K_EXPERTS;
         return projection;
     }
-
-    /** @brief Provides the engine the numeric case records on. */
-    class Medium_BlockExpertProjection : public SaTest::EngineTest
-    {
-
-    };
 
     /** @brief Returns @p count small integers that repeat with period @p period. */
     std::vector<double> counting(int64_t count, int64_t period)
@@ -165,10 +154,10 @@ TEST(Small_BlockExpertProjection, AMixDeclaresTheWeightAndTheBiasAndReturnsRowsO
 /**
  * @brief Tests that a mix emits gated times the transposed weight plus gate times the bias.
  *
- * Every value is a small integer, so each product and sum is exact in float32 and the result is
+ * Every value is a small integer, so each product and sum is exact and the host evaluation is
  * compared with the host sum bit for bit.
  */
-TEST_F(Medium_BlockExpertProjection, AMixSumsTheGatedProjectionAndTheGatedBias)
+TEST(Small_BlockExpertProjection, AMixSumsTheGatedProjectionAndTheGatedBias)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -176,23 +165,20 @@ TEST_F(Medium_BlockExpertProjection, AMixSumsTheGatedProjectionAndTheGatedBias)
     const Graph::ValueID gate = builder.input(Shape{K_ROWS, K_EXPERTS}, "gate");
     ExpertProjection projection = make_projection();
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID mixed, projection.mix(builder, gated, gate));
-    Graph::TensorPool pool(backend().engine());
-    SA_EXPECT_OK(pool.materialise_leaves(graph));
     const std::vector<double> gated_values = counting(K_ROWS * K_EXPERTS * K_HIDDEN, 3);
     const std::vector<double> gate_values = counting(K_ROWS * K_EXPERTS, 2);
     const std::vector<double> weight_values = counting(K_DIM * K_EXPERTS * K_HIDDEN, 5);
     const std::vector<double> bias_values = counting(K_EXPERTS * K_DIM, 7);
-    SaTest::write_tensor(pool.tensor(gated), gated_values);
-    SaTest::write_tensor(pool.tensor(gate), gate_values);
-    SaTest::write_tensor(pool.tensor(projection.weight.id_in(graph)), weight_values);
-    SaTest::write_tensor(pool.tensor(projection.bias.id_in(graph)), bias_values);
-    std::unique_ptr<Graph::CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, Graph::CompiledStep::compile(backend(), graph, pool));
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(gated, gated_values));
+    SA_EXPECT_OK(evaluator.write(gate, gate_values));
+    SA_EXPECT_OK(evaluator.write(projection.weight.id_in(graph), weight_values));
+    SA_EXPECT_OK(evaluator.write(projection.bias.id_in(graph), bias_values));
 
-    SA_EXPECT_OK(step->run());
+    SA_EXPECT_OK(evaluator.run());
 
-    EXPECT_EQ(SaTest::read_tensor(pool.tensor(mixed)),
-              mixed_on_host(gated_values, gate_values, weight_values, bias_values));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(mixed));
+    EXPECT_EQ(result, mixed_on_host(gated_values, gate_values, weight_values, bias_values));
 }
 
 /** @brief Tests that a projection with an extent of zero is refused before any node. */

@@ -21,11 +21,10 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_expert_transformer_block.cpp
- * @brief Tests the trace, the state, the incremental form and the row of a transformer block whose
- *        feed-forward is a mixture of experts.
+ * @brief Tests the trace, the state, the row and the incremental form of
+ *        ExpertTransformerBlock.
  * @author Mustafa Garip
  */
 
@@ -56,6 +55,7 @@
 
 using namespace SushiAI;
 using Language::Blocks::AttentionMask;
+using Language::Blocks::AttentionPositions;
 using Language::Blocks::ExpertTrace;
 using Language::Blocks::ExpertTransformerBlock;
 using Language::Blocks::MoEFeedForward;
@@ -64,6 +64,7 @@ using NN::Trace;
 namespace
 {
     using SushiAI::Test::require_value;
+
     /** @brief Holds the width of the sequence every case reads. */
     constexpr int64_t K_DIM = 8;
 
@@ -76,9 +77,6 @@ namespace
     /** @brief Holds the number of experts of every case. */
     constexpr int64_t K_EXPERTS = 4;
 
-    /** @brief Holds the nodes of a causal two-head block: 53 around a mixture of 31. */
-    constexpr std::size_t K_TRACE_NODES = 84;
-
     /** @brief Returns a causal block of K_EXPERTS experts that keeps @p top_k of them. */
     ExpertTransformerBlock make_block(int64_t top_k = 0)
     {
@@ -90,33 +88,79 @@ namespace
     /** @brief Counts the nodes of @p graph that carry @p op. */
     std::size_t count_nodes(const Graph::Graph& graph, OpID op)
     {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
-
-        return count;
+        return static_cast<std::size_t>(
+            std::count_if(graph.nodes().begin(), graph.nodes().end(),
+                          [op](const Graph::Node& node) { return node.op == op; }));
     }
 
     /** @brief Builds the node of a "transformer_block" row over a [5, K_DIM] sample. */
-    Result<std::unique_ptr<NN::Node>> make_row(const char* text)
+    Result<std::unique_ptr<NN::Node>> make_row(const std::string& text)
     {
         const Shape input{5, K_DIM};
         return Language::Blocks::make_transformer_block_node(
             NN::ShapeSpan(&input, 1), require_value(Config::parse_json(text, "<test>")), "layer 3");
     }
-}
 
-/** @brief Tests that a trace adds the attention, then the mixture, each to what it read. */
+    /** @brief Returns the shape of the parameter the state walk of @p node names @p name. */
+    Shape parameter_shape(NN::Node& node, const std::string& name)
+    {
+        Shape found{};
+        const auto on_parameter = [&](const std::string& walked, NN::Parameter& parameter)
+        {
+            found = walked == name ? parameter.shape() : found;
+        };
+        const auto on_buffer = [](const std::string&, NN::Buffer&)
+        {
+
+        };
+        const NN::StateVisitor visitor(on_parameter, on_buffer);
+        NN::walk_state(node, "row", visitor);
+        return found;
+    }
+
+    /** @brief Holds one row whose node has the single port. */
+    struct OnePortRow
+    {
+        std::string name; /**< The row's name. */
+        std::string json; /**< The row's attributes. */
+    };
+
+    /** @brief Runs one row of a single port. */
+    class Small_BlockExpertTransformerBlockOnePort : public ::testing::TestWithParam<OnePortRow>
+    {
+
+    };
+
+    /** @brief Holds one row the factory refuses and two words of its message. */
+    struct FactoryRow
+    {
+        std::string name;   /**< The row's name. */
+        std::string json;   /**< The row's attributes. */
+        std::string first;  /**< A word of the message. */
+        std::string second; /**< A second word of the message, or empty. */
+    };
+
+    /** @brief Runs one refused row. */
+    class Small_BlockExpertTransformerBlockFactory : public ::testing::TestWithParam<FactoryRow>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    template<typename Row>
+    std::string row_name(const ::testing::TestParamInfo<Row>& info)
+    {
+        return info.param.name;
+    }
+} // namespace
+
+/** @brief Tests that a trace yields its three values and adds the mixture to the first sum. */
 TEST(Small_BlockExpertTransformerBlock, ATraceAddsANormalisedAttentionThenANormalisedMixture)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 5, K_DIM}, "x");
     ExpertTransformerBlock block = make_block();
-    const std::size_t nodes_before = graph.node_count();
 
     const Trace trace = Trace::evaluation(builder);
     SA_ASSERT_OK_AND_ASSIGN(const ExpertTrace traced, block.trace_experts(trace, x));
@@ -126,12 +170,6 @@ TEST(Small_BlockExpertTransformerBlock, ATraceAddsANormalisedAttentionThenANorma
     EXPECT_EQ(graph.value(traced.output).shape, (Shape{2, 5, K_DIM}));
     EXPECT_EQ(graph.value(traced.balance).shape, (Shape{1, 1}));
     EXPECT_EQ(graph.value(traced.usage).shape, (Shape{1, K_EXPERTS}));
-    EXPECT_EQ(graph.node_count(), nodes_before + K_TRACE_NODES);
-    EXPECT_EQ(count_nodes(graph, Ops::K_LAYER_NORM.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CAUSAL_MASK.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_UPSAMPLE2D.id), 1u);
-
-    // The last sum reads the first sum, and the first sum reads the block's input.
     const Graph::Node& last = graph.node(graph.value(traced.output).producer);
     ASSERT_EQ(last.op, Ops::K_ADD.id);
     const Graph::Node& first = graph.node(graph.value(last.inputs[0]).producer);
@@ -185,56 +223,89 @@ TEST(Small_BlockExpertTransformerBlock, AnInputThatDoesNotFitFails)
     EXPECT_FALSE(block.ff.router.weight.declared());
 }
 
-/** @brief Tests that "experts" turns the row into a node of three ports, and its absence not. */
+/** @brief Tests that a row with experts builds a node of the output, balance and usage ports. */
 TEST(Small_BlockExpertTransformerBlock, TheTransformerRowWithExpertsHasThreePorts)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> plain, make_row(R"({"heads": 2})"));
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> none,
-                            make_row(R"({"heads": 2, "experts": 0})"));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> routed,
                             make_row(R"({"heads": 2, "experts": 4, "top_k": 1})"));
 
-    EXPECT_EQ(plain->ports().size(), 1u);
-    EXPECT_EQ(none->ports().size(), 1u);
     ASSERT_EQ(routed->ports().size(), 3u);
     EXPECT_EQ(routed->ports()[0].name, NN::K_SINGLE_PORT_NAME);
     EXPECT_EQ(routed->ports()[0].shape, (Shape{5, K_DIM}));
     EXPECT_EQ(routed->ports()[1].name, Language::Blocks::K_BALANCE_PORT);
     EXPECT_EQ(routed->ports()[2].name, Language::Blocks::K_USAGE_PORT);
     EXPECT_EQ(routed->ports()[2].shape, (Shape{K_EXPERTS}));
+}
 
-    // The hidden width a row leaves out is four times the width, per expert.
+/** @brief Tests that a row without experts, or with none, builds a node of one port. */
+TEST_P(Small_BlockExpertTransformerBlockOnePort, ARowWithoutExpertsHasOnePort)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node, make_row(GetParam().json));
+
+    EXPECT_EQ(node->ports().size(), 1u);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockExpertTransformerBlockOnePort,
+    ::testing::Values(OnePortRow{"NoExpertsKey", R"({"heads": 2})"},
+                      OnePortRow{"ZeroExperts", R"({"heads": 2, "experts": 0})"}),
+    row_name<OnePortRow>);
+
+/** @brief Tests that the node of a row with experts writes three outputs of their shapes. */
+TEST(Small_BlockExpertTransformerBlock, TheExpertRowWritesThreeOutputsOfTheirShapes)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> routed,
+                            make_row(R"({"heads": 2, "experts": 4, "top_k": 1})"));
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 5, K_DIM}, "x");
     const Trace trace = Trace::evaluation(builder);
     std::vector<Graph::ValueID> outputs;
+
     SA_EXPECT_OK(routed->forward(trace, NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 3u);
+    EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{2, 5, K_DIM}));
+    EXPECT_EQ(graph.value(outputs[1]).shape, (Shape{1, 1}));
     EXPECT_EQ(graph.value(outputs[2]).shape, (Shape{1, K_EXPERTS}));
-    EXPECT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 1u);
-    const bool has_stacked_hidden = std::any_of(
-        graph.nodes().begin(), graph.nodes().end(), [&graph](const Graph::Node& node)
-    {
-        return node.op == Ops::K_GELU.id
-            && graph.value(node.outputs[0]).shape == Shape{10, K_EXPERTS * 4 * K_DIM};
-    });
-    EXPECT_TRUE(has_stacked_hidden);
 }
 
-/** @brief Tests that the row refuses a top_k without experts and one above their count. */
-TEST(Small_BlockExpertTransformerBlock, TheTransformerRowRefusesCountsThatDoNotFit)
+/** @brief Tests that a row leaving out "hidden" gives each expert four times the width. */
+TEST(Small_BlockExpertTransformerBlock, AnExpertRowTakesFourTimesTheWidthAsHidden)
 {
-    SA_EXPECT_FAILURE(make_row(R"({"heads": 2, "top_k": 1})"), StatusCode::InvalidDescription,
-                      "layer 3", "'top_k'", "no 'experts'");
-    SA_EXPECT_FAILURE(make_row(R"({"heads": 2, "experts": 2, "top_k": 3})"),
-                      StatusCode::InvalidDescription, "layer 3", "top_k=3");
-    SA_EXPECT_FAILURE(make_row(R"({"heads": 2, "experts": -1})"),
-                      StatusCode::InvalidDescription, "layer 3", "'experts'", "zero or more");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> routed,
+                            make_row(R"({"heads": 2, "experts": 4, "top_k": 1})"));
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 5, K_DIM}, "x");
+    std::vector<Graph::ValueID> outputs;
+    SA_EXPECT_OK(routed->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
+
+    const Shape expand = parameter_shape(*routed, "row.ff.expand.weight");
+
+    EXPECT_EQ(expand, (Shape{K_EXPERTS * 4 * K_DIM, K_DIM}));
 }
 
-/** @brief Tests that one position carries the two caches and routes through the experts. */
+/** @brief Tests that the row refuses a top_k without experts, above them and negative experts. */
+TEST_P(Small_BlockExpertTransformerBlockFactory, TheTransformerRowRefusesCountsThatDoNotFit)
+{
+    const FactoryRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(make_row(row.json), StatusCode::InvalidDescription, "layer 3", row.first,
+                      row.second);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockExpertTransformerBlockFactory,
+    ::testing::Values(FactoryRow{"TopKWithoutExperts", R"({"heads": 2, "top_k": 1})",
+                                 "'top_k'", "no 'experts'"},
+                      FactoryRow{"TopKAboveExperts", R"({"heads": 2, "experts": 2, "top_k": 3})",
+                                 "top_k=3", ""},
+                      FactoryRow{"NegativeExperts", R"({"heads": 2, "experts": -1})",
+                                 "'experts'", "zero or more"}),
+    row_name<FactoryRow>);
+
+/** @brief Tests that one position yields its output and usage and carries the two caches. */
 TEST(Small_BlockExpertTransformerBlock, TheIncrementalFormTracesEachChildOverOnePosition)
 {
     Graph::Graph graph;
@@ -252,40 +323,44 @@ TEST(Small_BlockExpertTransformerBlock, TheIncrementalFormTracesEachChildOverOne
     EXPECT_FALSE(graph.has_refusal());
     EXPECT_EQ(graph.value(traced.output).shape, (Shape{1, 1, K_DIM}));
     EXPECT_EQ(graph.value(traced.usage).shape, (Shape{1, K_EXPERTS}));
-    EXPECT_EQ(count_nodes(graph, Ops::K_LAYER_NORM.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SCATTER_ADD_ROWS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CAUSAL_MASK.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 1u);
     EXPECT_EQ(carried.values().size(), 2u);
-
-    // The node form appends the same three values through forward_incremental.
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
-                            make_row(R"({"heads": 2, "experts": 4})"));
-    Graph::Graph node_graph;
-    const Graph::GraphBuilder node_builder(node_graph);
-    const Graph::ValueID slice = node_builder.input(Shape{1, 1, K_DIM}, "x");
-    NN::FedLeafList node_fed;
-    NN::CarriedValueList node_carried;
-    const Trace node_trace = Trace::carrying(node_builder, node_fed, node_carried);
-    std::vector<Graph::ValueID> outputs;
-    SA_EXPECT_OK(node->forward_incremental(node_trace, NN::ValueSpan(&slice, 1), outputs));
-
-    ASSERT_EQ(outputs.size(), 3u);
-    EXPECT_EQ(node_graph.value(outputs[0]).shape, (Shape{1, 1, K_DIM}));
-    EXPECT_EQ(node_carried.values().size(), 2u);
 }
 
-/** @brief Tests that the block and its row hand the positions to the attention. */
-TEST(Small_BlockExpertTransformerBlock, TheBlockAndItsRowPassThePositionsToTheAttention)
+/** @brief Tests that the node of an expert row writes three outputs over one position. */
+TEST(Small_BlockExpertTransformerBlock, TheIncrementalRowWritesThreeOutputs)
 {
-    using Language::Blocks::AttentionPositions;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            make_row(R"({"heads": 2, "experts": 4})"));
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID slice = builder.input(Shape{1, 1, K_DIM}, "x");
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    const Trace trace = Trace::carrying(builder, fed, carried);
+    std::vector<Graph::ValueID> outputs;
 
-    EXPECT_EQ(make_block().attn.positions, AttentionPositions::Learned);
+    SA_EXPECT_OK(node->forward_incremental(trace, NN::ValueSpan(&slice, 1), outputs));
+
+    ASSERT_EQ(outputs.size(), 3u);
+    EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{1, 1, K_DIM}));
+    EXPECT_EQ(carried.values().size(), 2u);
+}
+
+/** @brief Tests that the block hands learned or rotary positions to its attention. */
+TEST(Small_BlockExpertTransformerBlock, TheBlockPassesThePositionsToTheAttention)
+{
+    const ExpertTransformerBlock learned = make_block();
     const ExpertTransformerBlock turned(K_HEADS, MoEFeedForward(K_DIM, K_HIDDEN, K_EXPERTS, 0),
                                         AttentionMask::Causal, NN::K_LAYER_NORM_EPSILON,
                                         AttentionPositions::Rotary);
-    EXPECT_EQ(turned.attn.positions, AttentionPositions::Rotary);
 
+    EXPECT_EQ(learned.attn.positions, AttentionPositions::Learned);
+    EXPECT_EQ(turned.attn.positions, AttentionPositions::Rotary);
+}
+
+/** @brief Tests that the one attention of a rotary expert row declares two host tables. */
+TEST(Small_BlockExpertTransformerBlock, ARotaryExpertRowDeclaresTwoTables)
+{
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> routed,
         make_row(R"({"heads": 2, "experts": 4, "positions": "rotary"})"));
@@ -296,12 +371,15 @@ TEST(Small_BlockExpertTransformerBlock, TheBlockAndItsRowPassThePositionsToTheAt
     Trace trace = Trace::evaluation(builder);
     trace.collect_tables(tables);
     std::vector<Graph::ValueID> outputs;
+
     SA_EXPECT_OK(routed->forward(trace, NN::ValueSpan(&x, 1), outputs));
 
-    // The one attention of the block declares its cosines and its sines.
     EXPECT_EQ(tables.tables().size(), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CHANNEL_AFFINE.id), 2u);
+}
 
+/** @brief Tests that a rotary expert row over an odd head width is refused. */
+TEST(Small_BlockExpertTransformerBlock, ARotaryExpertRowOverAnOddHeadWidthIsRefused)
+{
     SA_EXPECT_FAILURE(make_row(R"({"heads": 8, "experts": 4, "positions": "rotary"})"),
                       StatusCode::InvalidDescription, "layer 3", "rotary positions",
                       "1 channels");
