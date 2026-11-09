@@ -1,20 +1,15 @@
 # tests/layers/nn/test_silu.cpp
 
 
-Suites: `Small_SiLU`.
+Suites: `Small_SiLU`, `Medium_SiLUValues`.
 
 Tests the SiLU layer's trace, shape inference and empty state.
 
-This file needs no device. `NN::SiLU` in `modules/layers/nn/include/SushiAI/nn/silu.hpp` has no parameter and no
+The trace cases need no device; the value case runs on the engine. `NN::SiLU` in `modules/layers/nn/include/SushiAI/nn/silu.hpp` has no parameter and no
 attribute.
 
 Three `static_assert` lines at the top of the file hold that `SiLU` is a `Module`, is not a
 `ModuleContainer`, and that `SiLU::fields()` is an empty tuple.
-
-## ForwardEmitsOneSiLUNodeReadingTheInput
-
-`forward` adds one node. Its operation is `Ops::K_SILU`, its one input is the value passed in
-and its one output is the value returned.
 
 ## ForwardKeepsTheShapeAndTypeOfAFeatureBatch
 
@@ -36,3 +31,9 @@ converted value's shape.
 ## TheParameterWalkVisitsNothing
 
 After a trace, `NN::for_each_parameter` calls its visitor zero times.
+
+## Medium_SiLUValues.MatchesTheExactFormAtTheAcceptancePoints
+
+The layer runs over a FLOAT32 row of -20, -1, 0, 1 and 20 on the engine. Each result is within
+`K_RELATIVE_TOLERANCE` (32 float unit roundoffs) of x / (1 + exp(-x)) computed in double. The
+case is medium because the SILU kernel runs on the device and has no host evaluation.

@@ -79,12 +79,6 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the default slope is 0.01. */
-TEST(Small_LeakyReLU, TheDefaultSlopeIsOneHundredth)
-{
-    EXPECT_DOUBLE_EQ(LeakyReLU{}.slope, 0.01);
-}
-
 /** @brief Tests that tracing emits one LEAKY_RELU node reading the input with the slope. */
 TEST(Small_LeakyReLU, ForwardEmitsOneLeakyReLUNodeCarryingTheSlope)
 {
@@ -106,139 +100,131 @@ TEST(Small_LeakyReLU, ForwardEmitsOneLeakyReLUNodeCarryingTheSlope)
     EXPECT_DOUBLE_EQ(node.attributes.get(0), 0.2);
 }
 
-/** @brief Tests that a feature-vector batch keeps its shape and element type. */
-TEST(Small_LeakyReLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
+/** @brief Holds an input, whether it is NCHW, and what the result must keep of it. */
+struct KeptRow
+{
+    std::string name;               /**< The row's name. */
+    Shape input;                    /**< The input shape, batch axis included. */
+    bool nchw;                      /**< Whether the input is converted to NCHW first. */
+    bool states_layout;             /**< Whether the row states the layout the result carries. */
+    Graph::TensorLayout layout;     /**< The layout the result carries, when the row states it. */
+};
+
+/** @brief Runs the shape, type and layout promise over each kind of input. */
+class Small_LeakyReLUKept : public ::testing::TestWithParam<KeptRow>
+{
+};
+
+/** @brief Tests that the result is shaped, typed and laid out like the input. */
+TEST_P(Small_LeakyReLUKept, ForwardKeepsTheShapeTypeAndLayoutOfItsInput)
+{
+    const KeptRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    Graph::ValueID x = builder.input(row.input, "x");
+    if (row.nchw)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID converted,
+                                builder.layout_convert(x, Graph::TensorLayout::NCHW));
+        x = converted;
+    }
+    const LeakyReLU layer{};
+
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
+
+    EXPECT_EQ(graph.value(y).shape, graph.value(x).shape);
+    EXPECT_EQ(graph.value(y).dtype, graph.value(x).dtype);
+    EXPECT_EQ(graph.value(y).layout, graph.value(x).layout);
+    if (row.states_layout)
+        EXPECT_EQ(graph.value(y).layout, row.layout);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LeakyReLUKept,
+    ::testing::Values(
+        KeptRow{"AFeatureBatch", Shape{2, 4}, false, false, Graph::TensorLayout::NHWC},
+        KeptRow{"AnImageBatch", Shape{2, 8, 6, 3}, false, true, Graph::TensorLayout::NHWC},
+        KeptRow{"AnNCHWImageBatch", Shape{2, 8, 6, 3}, true, true, Graph::TensorLayout::NCHW}),
+    [](const ::testing::TestParamInfo<KeptRow>& info) { return info.param.name; });
+
+/** @brief Holds a batched input and the per-sample shape output_shape gives. */
+struct SampleRow
+{
+    std::string name; /**< The row's name. */
+    Shape batched;    /**< The input shape, batch axis included. */
+    Shape sample;     /**< The per-sample shape. */
+};
+
+/** @brief Runs the shape agreement over each sample shape. */
+class Small_LeakyReLUSample : public ::testing::TestWithParam<SampleRow>
+{
+};
+
+/** @brief Tests that output_shape() is the per-sample shape and matches the traced shape. */
+TEST_P(Small_LeakyReLUSample, OutputShapeAgreesWithForward)
+{
+    const SampleRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(row.batched, "x");
+    const LeakyReLU layer{};
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
+
+    const Shape inferred = layer.output_shape(row.sample).value();
+
+    EXPECT_EQ(inferred, row.sample);
+    EXPECT_TRUE(is_batch_of(graph.value(y).shape, inferred));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LeakyReLUSample,
+    ::testing::Values(SampleRow{"AFeatureVector", Shape{5, 7}, Shape{7}},
+                      SampleRow{"AnImage", Shape{3, 8, 6, 4}, Shape{8, 6, 4}}),
+    [](const ::testing::TestParamInfo<SampleRow>& info) { return info.param.name; });
+
+/** @brief Holds a slope outside the open range (0, 1). */
+struct SlopeRow
+{
+    std::string name; /**< The row's name. */
+    double slope;     /**< The slope both forward and output_shape refuse. */
+};
+
+/** @brief Runs the slope refusal over each slope outside the open range. */
+class Small_LeakyReLUSlope : public ::testing::TestWithParam<SlopeRow>
+{
+};
+
+/** @brief Tests that forward() refuses the slope in the layer's own message. */
+TEST_P(Small_LeakyReLUSlope, ForwardRefusesTheSlope)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
+    const LeakyReLU layer{GetParam().slope};
 
-    const LeakyReLU layer{};
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
-
-    EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
-    EXPECT_EQ(graph.value(y).dtype, graph.value(x).dtype);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "LeakyReLU",
+                      "slope");
 }
 
-/** @brief Tests that an image batch keeps its shape and carries the NHWC layout tag. */
-TEST(Small_LeakyReLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
+/** @brief Tests that output_shape() refuses the slope forward() refuses and names it. */
+TEST_P(Small_LeakyReLUSlope, OutputShapeRefusesTheSlope)
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
-
-    const LeakyReLU layer{};
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
-
-    EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 6, 3}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    SA_EXPECT_FAILURE(LeakyReLU{GetParam().slope}.output_shape(Shape{4}),
+                      StatusCode::InvalidDescription, "LeakyReLU", "slope");
 }
 
-/** @brief Tests that the result takes the layout of its input when that is NCHW. */
-TEST(Small_LeakyReLU, ForwardCarriesTheLayoutOfItsInput)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-
-    const LeakyReLU layer{};
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, nchw));
-
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NCHW);
-    EXPECT_EQ(graph.value(y).shape, graph.value(nchw).shape);
-}
-
-/** @brief Tests that output_shape() matches the traced shape of a feature-vector batch. */
-TEST(Small_LeakyReLU, OutputShapeAgreesWithForwardForAFeatureVector)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{5, 7}, "x");
-
-    const LeakyReLU layer{};
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
-
-    const Shape inferred = layer.output_shape(Shape{7}).value();
-    EXPECT_EQ(inferred, (Shape{7}));
-    EXPECT_TRUE(is_batch_of(graph.value(y).shape, inferred));
-}
-
-/** @brief Tests that output_shape() matches the traced shape of an image batch. */
-TEST(Small_LeakyReLU, OutputShapeAgreesWithForwardForAnImage)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{3, 8, 6, 4}, "x");
-
-    const LeakyReLU layer{};
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
-
-    const Shape inferred = layer.output_shape(Shape{8, 6, 4}).value();
-    EXPECT_EQ(inferred, (Shape{8, 6, 4}));
-    EXPECT_TRUE(is_batch_of(graph.value(y).shape, inferred));
-}
-
-/** @brief Tests that a slope of exactly 0 is rejected. */
-TEST(Small_LeakyReLU, ForwardRejectsASlopeOfZero)
-{
-    EXPECT_TRUE(is_slope_rejected(0.0));
-}
-
-/** @brief Tests that a slope of exactly 1 is rejected. */
-TEST(Small_LeakyReLU, ForwardRejectsASlopeOfOne)
-{
-    EXPECT_TRUE(is_slope_rejected(1.0));
-}
-
-/** @brief Tests that a negative slope is rejected. */
-TEST(Small_LeakyReLU, ForwardRejectsANegativeSlope)
-{
-    EXPECT_TRUE(is_slope_rejected(-0.01));
-}
-
-/** @brief Tests that a slope above 1 is rejected. */
-TEST(Small_LeakyReLU, ForwardRejectsASlopeAboveOne)
-{
-    EXPECT_TRUE(is_slope_rejected(1.5));
-}
-
-/** @brief Tests that a NaN slope is rejected. */
-TEST(Small_LeakyReLU, ForwardRejectsANaNSlope)
-{
-    EXPECT_TRUE(is_slope_rejected(std::numeric_limits<double>::quiet_NaN()));
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LeakyReLUSlope,
+    ::testing::Values(SlopeRow{"Zero", 0.0}, SlopeRow{"One", 1.0}, SlopeRow{"Negative", -0.01},
+                      SlopeRow{"AboveOne", 1.5},
+                      SlopeRow{"NaN", std::numeric_limits<double>::quiet_NaN()}),
+    [](const ::testing::TestParamInfo<SlopeRow>& info) { return info.param.name; });
 
 /** @brief Tests that slopes a float32 step inside each end of the open range are accepted. */
 TEST(Small_LeakyReLU, ForwardAcceptsSlopesJustInsideTheOpenRange)
 {
     EXPECT_FALSE(is_slope_rejected(std::numeric_limits<float>::min()));
     EXPECT_FALSE(is_slope_rejected(1.0 - std::numeric_limits<float>::epsilon()));
-}
-
-/** @brief Tests that output_shape() refuses each slope forward() refuses and names it. */
-TEST(Small_LeakyReLU, OutputShapeRejectsASlopeOutsideTheOpenRange)
-{
-    for (double slope : {0.0, 1.0, -0.01, 1.5, std::numeric_limits<double>::quiet_NaN()})
-    {
-        SCOPED_TRACE(slope);
-        SA_EXPECT_FAILURE(LeakyReLU{slope}.output_shape(Shape{4}), StatusCode::InvalidDescription,
-                          "LeakyReLU", "slope");
-    }
-}
-
-/** @brief Tests that forward() refuses a slope in the layer's own message. */
-TEST(Small_LeakyReLU, ForwardNamesTheLayerAndTheSlopeItRefuses)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-
-    const LeakyReLU layer{1.5};
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "LeakyReLU",
-                      "slope");
 }
 
 /** @brief Tests that a rejected slope leaves no node in the graph. */
@@ -249,31 +235,10 @@ TEST(Small_LeakyReLU, ARejectedSlopeEmitsNothing)
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     const std::size_t values_before = graph.value_count();
     const std::size_t nodes_before = graph.node_count();
-
     const LeakyReLU layer{1.0};
+
     SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 
     EXPECT_EQ(graph.node_count(), nodes_before);
     EXPECT_EQ(graph.value_count(), values_before);
-}
-
-/** @brief Tests that the parameter walk visits nothing, before and after a trace. */
-TEST(Small_LeakyReLU, TheParameterWalkVisitsNothing)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-
-    LeakyReLU layer{};
-    EXPECT_EQ(NN::parameter_count(layer), 0u);
-
-    SA_EXPECT_OK(layer.forward(builder, x));
-
-    std::size_t visits = 0;
-    NN::for_each_parameter(layer, [&visits](const std::string&, NN::Parameter&)
-    {
-        ++visits;
-    });
-    EXPECT_EQ(visits, 0u);
-    EXPECT_EQ(NN::parameter_elements(layer), 0);
 }

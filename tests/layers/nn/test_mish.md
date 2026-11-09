@@ -1,19 +1,13 @@
 # tests/layers/nn/test_mish.cpp
 
 
-Suites: `Medium_Mish`.
+Suites: `Small_Mish`, `Medium_MishValues`.
 
 Tests `NN::Mish` in `modules/layers/nn/include/SushiAI/nn/mish.hpp`, which has no parameter and
 no attribute.
 
 Three `static_assert` lines at the top of the file hold that `Mish` is a `Module`, is not a
 `ModuleContainer`, and that `Mish::fields()` is an empty tuple.
-
-## ForwardEmitsSoftplusTanhThenMulReadingTheInput
-
-`forward` adds three nodes in the order SOFTPLUS, TANH, MUL. SOFTPLUS reads the input, TANH
-reads the SOFTPLUS result, and MUL reads the input and then the TANH result and writes the
-value `forward` returns.
 
 ## ForwardKeepsTheShapeAndTypeOfAFeatureBatch
 
@@ -35,3 +29,10 @@ converted value's shape.
 ## TheParameterWalkVisitsNothing
 
 After a trace, `NN::for_each_parameter` calls its visitor zero times.
+
+## Medium_MishValues.SweepMatchesTheExactForm
+
+The layer runs over a FLOAT32 row from -30 to 30 in steps of 0.5 on the engine. Each result is
+within `K_RELATIVE_TOLERANCE` (32 float unit roundoffs) of x * tanh(log1p(exp(x))) computed in
+double; the sweep holds the points -20, -1, 0, 1 and 20. The case is medium because the
+kernels run on the device and have no host evaluation.

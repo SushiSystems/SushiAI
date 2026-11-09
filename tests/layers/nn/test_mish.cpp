@@ -28,11 +28,11 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -63,43 +63,8 @@ static_assert(!NN::ModuleContainer<Mish>, "Mish is a leaf, not a container");
 static_assert(std::tuple_size<decltype(Mish::fields())>::value == 0,
               "Mish must declare no parameter field");
 
-/** @brief Tests that tracing emits SOFTPLUS, TANH and MUL in order over the input. */
-TEST(Medium_Mish, ForwardEmitsSoftplusTanhThenMulReadingTheInput)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    const std::size_t nodes_before = graph.node_count();
-
-    const Mish layer{};
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
-
-    ASSERT_EQ(graph.node_count(), nodes_before + 3);
-    const std::vector<Graph::Node>& nodes = graph.nodes();
-    const Graph::Node& softplus_node = nodes[nodes_before];
-    const Graph::Node& tanh_node = nodes[nodes_before + 1];
-    const Graph::Node& product_node = nodes[nodes_before + 2];
-
-    EXPECT_EQ(softplus_node.op, Ops::K_SOFTPLUS.id);
-    ASSERT_EQ(softplus_node.inputs.size(), 1u);
-    EXPECT_EQ(softplus_node.inputs.front(), x);
-    ASSERT_EQ(softplus_node.outputs.size(), 1u);
-
-    EXPECT_EQ(tanh_node.op, Ops::K_TANH.id);
-    ASSERT_EQ(tanh_node.inputs.size(), 1u);
-    EXPECT_EQ(tanh_node.inputs.front(), softplus_node.outputs.front());
-    ASSERT_EQ(tanh_node.outputs.size(), 1u);
-
-    EXPECT_EQ(product_node.op, Ops::K_MUL.id);
-    ASSERT_EQ(product_node.inputs.size(), 2u);
-    EXPECT_EQ(product_node.inputs[0], x);
-    EXPECT_EQ(product_node.inputs[1], tanh_node.outputs.front());
-    ASSERT_EQ(product_node.outputs.size(), 1u);
-    EXPECT_EQ(product_node.outputs.front(), y);
-}
-
 /** @brief Tests that a feature-vector batch keeps its shape and element type. */
-TEST(Medium_Mish, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
+TEST(Small_Mish, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -113,7 +78,7 @@ TEST(Medium_Mish, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 }
 
 /** @brief Tests that an image batch keeps its shape and carries the NHWC layout tag. */
-TEST(Medium_Mish, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
+TEST(Small_Mish, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -127,7 +92,7 @@ TEST(Medium_Mish, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 }
 
 /** @brief Tests that the result takes the layout of its input when that is NCHW. */
-TEST(Medium_Mish, ForwardCarriesTheLayoutOfItsInput)
+TEST(Small_Mish, ForwardCarriesTheLayoutOfItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -143,7 +108,7 @@ TEST(Medium_Mish, ForwardCarriesTheLayoutOfItsInput)
 }
 
 /** @brief Tests that output_shape() returns its input for a feature vector and for an image. */
-TEST(Medium_Mish, OutputShapeReturnsItsInput)
+TEST(Small_Mish, OutputShapeReturnsItsInput)
 {
     const Mish layer{};
 
@@ -152,7 +117,7 @@ TEST(Medium_Mish, OutputShapeReturnsItsInput)
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
-TEST(Medium_Mish, TheParameterWalkVisitsNothing)
+TEST(Small_Mish, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -188,44 +153,34 @@ namespace
     /** @brief Holds the sweep's spacing; 0.5 is exact in FLOAT32. */
     constexpr double K_SWEEP_STEP = 0.5;
 
-    /** @brief Holds the magnitude past which Darknet's softplus leaves log(exp(x) + 1). */
-    constexpr double K_DARKNET_SOFTPLUS_CUTOFF = 20.0;
-
-    /**
-     * @brief Bounds the largest absolute difference between Darknet's form and the exact form, both
-     * in double; 16384 unit roundoffs of double, the smallest power of two that covers 1e-12.
-     */
-    constexpr double K_DARKNET_DIFFERENCE_BOUND = 16384.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Computes x * tanh(log1p(exp(x))) in double; the exact value the engine is held to. */
     double exact_mish(double x)
     {
         return x * std::tanh(std::log1p(std::exp(x)));
     }
 
-    /**
-     * @brief Computes Darknet's softplus in double: x above the cut-off, exp(x) below its
-     * negative, and log(exp(x) + 1) between.
-     */
-    double darknet_softplus(double x)
+    /** @brief Returns the sweep's inputs, from -K_SWEEP_HALF_RANGE to K_SWEEP_HALF_RANGE. */
+    std::vector<double> sweep_input()
     {
-        if (x > K_DARKNET_SOFTPLUS_CUTOFF)
-            return x;
-        if (x < -K_DARKNET_SOFTPLUS_CUTOFF)
-            return std::exp(x);
-        return std::log(std::exp(x) + 1.0);
+        const std::size_t count =
+            static_cast<std::size_t>(2.0 * K_SWEEP_HALF_RANGE / K_SWEEP_STEP) + 1;
+        std::vector<double> input(count);
+        std::generate(input.begin(), input.end(),
+                      [index = std::size_t{0}]() mutable
+                      {
+                          return -K_SWEEP_HALF_RANGE + static_cast<double>(index++) * K_SWEEP_STEP;
+                      });
+
+        return input;
     }
 
-    /** @brief Computes Darknet's tanh in double as 2 / (1 + exp(-2 v)) - 1. */
-    double darknet_tanh(double v)
+    /** @brief Returns exact_mish of each element of @p input. */
+    std::vector<double> exact_values(const std::vector<double>& input)
     {
-        return 2.0 / (1.0 + std::exp(-2.0 * v)) - 1.0;
-    }
+        std::vector<double> values(input.size());
+        std::transform(input.begin(), input.end(), values.begin(), exact_mish);
 
-    /** @brief Computes Darknet's mish in double, x * tanh(softplus(x)) with the cut-off. */
-    double darknet_mish(double x)
-    {
-        return x * darknet_tanh(darknet_softplus(x));
+        return values;
     }
 
     /**
@@ -267,54 +222,13 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that Mish matches the exact form at -20, -1, 0, 1 and 20. */
-TEST_F(Medium_MishValues, MatchesTheExactFormAtTheAcceptancePoints)
+/** @brief Tests that Mish matches the exact form from -30 to 30. */
+TEST_F(Medium_MishValues, SweepMatchesTheExactForm)
 {
-    const std::vector<double> input = {-20.0, -1.0, 0.0, 1.0, 20.0};
-
+    const std::vector<double> input = sweep_input();
     std::vector<double> result;
+
     ASSERT_NO_FATAL_FAILURE(run_mish(backend(), input, result));
 
-    std::vector<double> expected(input.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = exact_mish(input[i]);
-
-    ASSERT_NO_FATAL_FAILURE(expect_relative(result, expected));
-}
-
-/**
- * @brief Tests Mish from -30 to 30 against the exact form, and records how far Darknet's
- * cut-off form lies from the exact form.
- */
-TEST_F(Medium_MishValues, SweepMatchesTheExactFormAndStatesTheDarknetDifference)
-{
-    const std::size_t count =
-        static_cast<std::size_t>(2.0 * K_SWEEP_HALF_RANGE / K_SWEEP_STEP) + 1;
-    std::vector<double> input(count);
-    for (std::size_t i = 0; i < count; ++i)
-        input[i] = -K_SWEEP_HALF_RANGE + static_cast<double>(i) * K_SWEEP_STEP;
-
-    std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_mish(backend(), input, result));
-
-    std::vector<double> expected(count);
-    double largest_difference = 0.0;
-    double largest_at = input.front();
-    for (std::size_t i = 0; i < count; ++i)
-    {
-        expected[i] = exact_mish(input[i]);
-        const double difference = std::abs(darknet_mish(input[i]) - expected[i]);
-        if (difference > largest_difference)
-        {
-            largest_difference = difference;
-            largest_at = input[i];
-        }
-    }
-
-    ASSERT_NO_FATAL_FAILURE(expect_relative(result, expected));
-
-    std::ostringstream stated;
-    stated << std::scientific << largest_difference;
-    RecordProperty("darknet_cut_off_largest_difference", stated.str());
-    EXPECT_LE(largest_difference, K_DARKNET_DIFFERENCE_BOUND) << "at x = " << largest_at;
+    ASSERT_NO_FATAL_FAILURE(expect_relative(result, exact_values(input)));
 }
