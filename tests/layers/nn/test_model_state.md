@@ -1,11 +1,17 @@
 # tests/layers/nn/test_model_state.cpp
 
 
-Suites: `Medium_ModelState`, `Medium_ModelStateDeathTest`.
+Suites: `Small_ModelState`, `Medium_ModelState`, `Medium_ModelStateDeathTest`.
 
 `NN::ModelState` lists a model's parameters and buffers in walk order, finds them by name or by
 identity, refuses two entries with one name, stops on an entry with no identity, and attaches its
 storage to a graph and a pool. The cases pin each of those.
+
+The listing, lookup and refusal cases run in `Small_ModelState` on a `HostExecutionBackend`, whose
+engine holds the host storage `create` and `from_entries` allocate. The cases that bind storage
+to a pool and share it between pools, and the death case, stay in `Medium_ModelState`: the first
+two see device memory and a death test starts a child process. `CreateListsBuffersAfterATrainingTrace`
+stays medium as its record says, and compares the constant starting values with equality.
 
 ## CreateListsParametersInWalkOrder
 

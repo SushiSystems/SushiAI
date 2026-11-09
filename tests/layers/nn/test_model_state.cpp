@@ -38,6 +38,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -57,6 +58,14 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     class Medium_ModelState : public SaTest::EngineTest {};
+
+    /** @brief Provides the host backend whose engine the small cases create their state on. */
+    class Small_ModelState : public ::testing::Test
+    {
+        protected:
+            /** @brief The backend whose tasks run on the host. */
+            SushiAI::HostExecutionBackend backend;
+    };
 
     using Medium_ModelStateDeathTest = Medium_ModelState;
 
@@ -88,13 +97,13 @@ namespace
 } // namespace
 
 /** @brief Tests that a traced Sequential lists its parameters in walk order with their shapes. */
-TEST_F(Medium_ModelState, CreateListsParametersInWalkOrder)
+TEST_F(Small_ModelState, CreateListsParametersInWalkOrder)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
 
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
     const auto entries = state.entries();
     ASSERT_EQ(entries.size(), 4u);
     EXPECT_EQ(entries[0].name, "0.weight");
@@ -136,42 +145,42 @@ TEST_F(Medium_ModelState, CreateListsBuffersAfterATrainingTrace)
     EXPECT_EQ(entries[2].name, "bn.running_mean");
     EXPECT_EQ(entries[2].kind, NN::StateKind::Buffer);
     EXPECT_EQ(entries[2].init.kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_DOUBLE_EQ(entries[2].init.constant, 0.0);
+    EXPECT_EQ(entries[2].init.constant, 0.0);
     EXPECT_EQ(entries[3].name, "bn.running_var");
     EXPECT_EQ(entries[3].kind, NN::StateKind::Buffer);
     EXPECT_EQ(entries[3].init.kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_DOUBLE_EQ(entries[3].init.constant, 1.0);
+    EXPECT_EQ(entries[3].init.constant, 1.0);
 }
 
 /** @brief Tests that a model never traced gives a valid state with no entries. */
-TEST_F(Medium_ModelState, AnUntracedModelGivesAnEmptyState)
+TEST_F(Small_ModelState, AnUntracedModelGivesAnEmptyState)
 {
     MLP model = make_mlp();
 
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
     EXPECT_TRUE(state.entries().empty());
 }
 
 /** @brief Tests that a prefix given to create() is joined to every entry name. */
-TEST_F(Medium_ModelState, APrefixIsJoinedToEveryName)
+TEST_F(Small_ModelState, APrefixIsJoinedToEveryName)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::create(*engine, model, "model"));
+                            NN::ModelState::create(backend.engine(), model, "model"));
     const auto entries = state.entries();
     ASSERT_FALSE(entries.empty());
     EXPECT_EQ(entries[0].name, "model.0.weight");
 }
 
 /** @brief Tests that two entries sharing a name are refused and the name is reported. */
-TEST_F(Medium_ModelState, TwoEntriesWithOneNameAreRefused)
+TEST_F(Small_ModelState, TwoEntriesWithOneNameAreRefused)
 {
     std::vector<NN::StateEntry> entries{make_entry("shared", 1), make_entry("shared", 2)};
 
-    const auto result = NN::ModelState::from_entries(*engine, std::move(entries));
+    const auto result = NN::ModelState::from_entries(backend.engine(), std::move(entries));
     SA_EXPECT_FAILURE(result, StatusCode::InvalidDescription, "shared");
 }
 
@@ -185,12 +194,12 @@ TEST_F(Medium_ModelStateDeathTest, AnEntryWithNoIdentityIsFatal)
 }
 
 /** @brief Tests that the name form and the identity form return the same tensor. */
-TEST_F(Medium_ModelState, TensorByNameAndByStateAreTheSameStorage)
+TEST_F(Small_ModelState, TensorByNameAndByStateAreTheSameStorage)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
 
     const Graph::StateID id = state.entries()[0].state;
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* by_name, state.tensor("0.weight"));
@@ -199,12 +208,12 @@ TEST_F(Medium_ModelState, TensorByNameAndByStateAreTheSameStorage)
 }
 
 /** @brief Tests that an unknown name is refused, and the refusal names it and the entry count. */
-TEST_F(Medium_ModelState, AnUnknownNameIsRefusedAndNamed)
+TEST_F(Small_ModelState, AnUnknownNameIsRefusedAndNamed)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
 
     SA_EXPECT_FAILURE(state.tensor("missing.weight"), StatusCode::InvalidDescription,
                       "missing.weight", "4 entries");
@@ -229,18 +238,18 @@ TEST_F(Medium_ModelState, AttachBindsEveryStateLeafToTheStatesStorage)
 }
 
 /** @brief Tests that attach() refuses a graph traced from a different model. */
-TEST_F(Medium_ModelState, AttachRefusesAGraphOfAnotherModel)
+TEST_F(Small_ModelState, AttachRefusesAGraphOfAnotherModel)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
 
     MLP other = make_mlp();
     Graph::Graph other_graph;
     trace_mlp(other, other_graph);
 
-    Graph::TensorPool pool(*engine);
+    Graph::TensorPool pool(backend.engine());
     SA_EXPECT_FAILURE(state.attach(other_graph, pool), StatusCode::Incompatible);
 }
 
@@ -259,5 +268,5 @@ TEST_F(Medium_ModelState, TwoPoolsAttachedToOneStateShareStorage)
 
     const Graph::ValueID leaf = graph.state_leaves().front().second;
     first.tensor(leaf).data_as<float>()[0] = 42.5f;
-    EXPECT_DOUBLE_EQ(second.tensor(leaf).data_as<float>()[0], 42.5);
+    EXPECT_EQ(second.tensor(leaf).data_as<float>()[0], 42.5f);
 }
