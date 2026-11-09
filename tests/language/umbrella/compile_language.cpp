@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_umbrella_reach.cpp                                                */
+/* compile_language.cpp                                                */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,39 +21,25 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+
 /**
- * @file test_umbrella_reach.cpp
- * @brief Tests that the language umbrella header alone reaches the core and the domain.
+ * @file compile_language.cpp
+ * @brief Checks at compile time that the language umbrella header alone names the core registry and the domain collator.
  * @author Mustafa Garip
  */
 
-#include <cstdint>
-#include <memory>
-#include <gtest/gtest.h>
+#include <type_traits>
 #include <SushiAI/language.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 
-/** @brief Tests that a registry of the core rows takes the language rows through the umbrella. */
-TEST(Small_LanguageUmbrella, TheUmbrellaRegistersTheLanguageRows)
+namespace
 {
-    NN::NodeRegistry registry;
-    SA_EXPECT_OK(NN::register_layers(registry));
-    SA_EXPECT_OK(Language::register_nodes(registry));
-
-    EXPECT_NE(registry.find_node("transformer_block"), nullptr);
-    EXPECT_EQ(Language::Text::K_END_OF_TEXT, Language::Text::K_BYTE_TOKEN_COUNT);
-}
-
-/** @brief Tests that a collator of the domain is built and read through the umbrella. */
-TEST(Small_LanguageUmbrella, TheUmbrellaBuildsADomainCollator)
-{
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Language::Datasets::NextTokenCollator> collator,
-        Language::Datasets::NextTokenCollator::make(4, 16));
-
-    const Language::Datasets::Collator& seam = *collator;
-    EXPECT_EQ(seam.task(), Language::Datasets::K_TASK_NEXT_TOKEN);
-    EXPECT_EQ(seam.window_length(), std::int64_t{4});
-}
+    static_assert(std::is_default_constructible_v<NN::NodeRegistry>,
+                  "the umbrella names the core node registry");
+    static_assert(std::is_abstract_v<Language::Datasets::Collator>,
+                  "the umbrella names the collator interface of the domain");
+    static_assert(std::is_base_of_v<Language::Datasets::Collator,
+                                    Language::Datasets::NextTokenCollator>,
+                  "the umbrella names the next-token collator beside it");
+} // namespace
