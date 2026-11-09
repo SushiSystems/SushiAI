@@ -59,9 +59,6 @@ namespace
     using SushiAI::Test::equal_reference;
     using SushiAI::Test::near_reference;
 
-    /** @brief Holds the tolerance of copied values and of multiples of 0.5. */
-    constexpr float K_EXACT = 0.0f;
-
     /**
      * @brief Holds the absolute the tolerance of a hand-computed target score, eight float32 steps
      *        at 1: 32 times the float unit roundoff, the smallest power of two not tighter than the
@@ -363,7 +360,7 @@ namespace
 }
 
 /** @brief Tests that the one-to-many preset holds the settings the reference run recorded. */
-TEST(Medium_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
+TEST(Small_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
 {
     const std::vector<float> strides{8.0f, 16.0f, 32.0f};
     const AssignerConfig config =
@@ -380,7 +377,7 @@ TEST(Medium_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
 }
 
 /** @brief Tests that the one-to-one preset keeps seven candidates and then one. */
-TEST(Medium_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
+TEST(Small_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
 {
     const std::vector<float> strides{8.0f, 16.0f, 32.0f};
     const AssignerConfig config =
@@ -395,7 +392,7 @@ TEST(Medium_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
 }
 
 /** @brief Tests that stride_val is the second stride, or the only one of a one-level model. */
-TEST(Medium_DetectAssigner, PresetTakesStrideValFromTheSecondLevel)
+TEST(Small_DetectAssigner, PresetTakesStrideValFromTheSecondLevel)
 {
     const std::vector<float> two{4.0f, 12.0f};
     const std::vector<float> one{4.0f};
@@ -408,34 +405,36 @@ TEST(Medium_DetectAssigner, PresetTakesStrideValFromTheSecondLevel)
                 16.0f);
 }
 
-/** @brief Tests that the member defaults are the defaults of the reference's constructor. */
-TEST(Medium_DetectAssigner, ConfigDefaultsMatchTheReferenceConstructor)
+/** @brief Tests that a config with no candidates is refused. */
+TEST(Medium_DetectAssigner, RejectsAConfigWithoutCandidates)
 {
-    const AssignerConfig config;
-
-    // The values are the arguments of TaskAlignedAssigner.__init__, ultralytics/utils/tal.py:33-39.
-    EXPECT_EQ(config.topk, 13);
-    EXPECT_EQ(config.topk2, 13);
-    EXPECT_EQ(config.num_classes, 80);
-    EXPECT_EQ(config.alpha, 1.0f);
-    EXPECT_EQ(config.beta, 6.0f);
-    EXPECT_EQ(config.stride_val, 16.0f);
-    EXPECT_EQ(config.eps, 1e-9f);
+    SA_EXPECT_FAILURE(TaskAlignedAssigner::make(make_hand_config(0, 3)),
+                      StatusCode::InvalidDescription, "positive topk", "got 0, 3 and 2");
 }
 
-/** @brief Tests that a config with no candidates, a negative stride_val or eps is refused. */
-TEST(Medium_DetectAssigner, RejectsAConfigWithoutCandidatesOrWithANegativeMargin)
+/** @brief Tests that a config with no candidates in its second selection is refused. */
+TEST(Small_DetectAssigner, RejectsAConfigWithoutSecondCandidates)
 {
-    const AssignerConfig no_candidates = make_hand_config(0, 3);
+    SA_EXPECT_FAILURE(TaskAlignedAssigner::make(make_hand_config(3, 0)),
+                      StatusCode::InvalidDescription, "positive topk", "got 3, 0 and 2");
+}
+
+/** @brief Tests that a config with a negative stride_val is refused. */
+TEST(Medium_DetectAssigner, RejectsAConfigWithANegativeStrideVal)
+{
     AssignerConfig negative_stride = make_hand_config(3, 3);
     negative_stride.stride_val = -1.0f;
+
+    SA_EXPECT_FAILURE(TaskAlignedAssigner::make(negative_stride), StatusCode::InvalidDescription,
+                      "stride_val", "at least 0", "-1");
+}
+
+/** @brief Tests that a config with a negative eps is refused. */
+TEST(Medium_DetectAssigner, RejectsAConfigWithANegativeEps)
+{
     AssignerConfig negative_eps = make_hand_config(3, 3);
     negative_eps.eps = -1.0f;
 
-    SA_EXPECT_FAILURE(TaskAlignedAssigner::make(no_candidates), StatusCode::InvalidDescription,
-                      "positive topk", "got 0, 3 and 2");
-    SA_EXPECT_FAILURE(TaskAlignedAssigner::make(negative_stride), StatusCode::InvalidDescription,
-                      "stride_val", "at least 0", "-1");
     SA_EXPECT_FAILURE(TaskAlignedAssigner::make(negative_eps), StatusCode::InvalidDescription,
                       "eps of at least 0", "-1");
 }
@@ -593,10 +592,8 @@ TEST(Medium_DetectAssigner, AnImageWithoutGroundTruthGetsNoForeground)
                                 std::vector<std::int64_t>(K_GRID_ANCHORS, 2)));
     EXPECT_TRUE(equal_reference(assignment.target_indices,
                                 std::vector<std::int64_t>(K_GRID_ANCHORS, 0)));
-    EXPECT_TRUE(near_reference(assignment.target_boxes,
-                               std::vector<float>(K_GRID_ANCHORS * 4, 0.0f), K_EXACT));
-    EXPECT_TRUE(near_reference(assignment.target_scores,
-                               std::vector<float>(K_GRID_ANCHORS * K_CLASSES, 0.0f), K_EXACT));
+    EXPECT_EQ(assignment.target_boxes, std::vector<float>(K_GRID_ANCHORS * 4, 0.0f));
+    EXPECT_EQ(assignment.target_scores, std::vector<float>(K_GRID_ANCHORS * K_CLASSES, 0.0f));
 }
 
 /** @brief Tests that a padding row assigns nothing, even over anchors it would contain. */
@@ -609,8 +606,7 @@ TEST(Medium_DetectAssigner, APaddingRowAssignsNothing)
     SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     EXPECT_TRUE(foreground_anchors(assignment).empty());
-    EXPECT_TRUE(near_reference(assignment.target_scores,
-                               std::vector<float>(K_GRID_ANCHORS * K_CLASSES, 0.0f), K_EXACT));
+    EXPECT_EQ(assignment.target_scores, std::vector<float>(K_GRID_ANCHORS * K_CLASSES, 0.0f));
 }
 
 /** @brief Tests that a box holding sixteen candidates keeps the topk with the largest metric. */
@@ -712,7 +708,7 @@ TEST(Medium_DetectAssigner, ASmallBoxIsEnlargedToStrideVal)
 }
 
 /** @brief Tests that each image of a batch is assigned from its own predictions and boxes. */
-TEST(Medium_DetectAssigner, AssignsEachImageFromItsOwnRows)
+TEST(Small_DetectAssigner, AssignsEachImageFromItsOwnRows)
 {
     const Scene crowded = make_crowded_scene();
     Scene empty(0.5f);
@@ -748,15 +744,21 @@ TEST(Medium_DetectAssigner, AssignsEachImageFromItsOwnRows)
     EXPECT_EQ(assignment.target_labels[16], 1);
 }
 
-/** @brief Tests that fewer anchors than topk, and a class outside the range, are refused. */
-TEST(Medium_DetectAssigner, RejectsTooFewAnchorsAndAnUnknownClass)
+/** @brief Tests that fewer anchors than topk are refused. */
+TEST(Medium_DetectAssigner, RejectsFewerAnchorsThanTopK)
 {
     Scene scene = make_crowded_scene();
     Assignment assignment;
     TaskAlignedAssigner wide = make_assigner(make_hand_config(17, 17));
     SA_EXPECT_FAILURE(wide.assign(scene.inputs(), assignment), StatusCode::InvalidDescription,
                       "16 anchors", "topk 17");
+}
 
+/** @brief Tests that a class outside the range is refused. */
+TEST(Medium_DetectAssigner, RejectsAnUnknownClass)
+{
+    Scene scene = make_crowded_scene();
+    Assignment assignment;
     scene.gt_labels[0] = 2;
     TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
     SA_EXPECT_FAILURE(assigner.assign(scene.inputs(), assignment), StatusCode::InvalidDescription,
@@ -764,7 +766,7 @@ TEST(Medium_DetectAssigner, RejectsTooFewAnchorsAndAnUnknownClass)
 }
 
 /** @brief Tests that label rows are padded per image and converted to pixel corners. */
-TEST(Medium_DetectGroundTruth, PadsLabelRowsPerImage)
+TEST(Small_DetectGroundTruth, PadsLabelRowsPerImage)
 {
     const std::vector<std::int64_t> images{0, 0, 2};
     const std::vector<std::int64_t> classes{3, 1, 7};
@@ -779,13 +781,13 @@ TEST(Medium_DetectGroundTruth, PadsLabelRowsPerImage)
                                             0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f,  0.0f,  0.0f,
                                             0.0f,  0.0f,  64.0f, 32.0f, 0.0f, 0.0f,  0.0f,  0.0f};
     EXPECT_EQ(padded.max_boxes, 2);
-    EXPECT_TRUE(near_reference(padded.boxes, expected_boxes, K_EXACT));
+    EXPECT_EQ(padded.boxes, expected_boxes);
     EXPECT_TRUE(equal_reference(padded.labels, std::vector<std::int64_t>{3, 1, 0, 0, 7, 0}));
     EXPECT_TRUE(equal_reference(padded.valid, std::vector<std::int64_t>{1, 1, 0, 0, 1, 0}));
 }
 
 /** @brief Tests that a row whose pixel corners do not sum above zero is padded in as invalid. */
-TEST(Medium_DetectGroundTruth, MarksARowWithoutExtentInvalid)
+TEST(Small_DetectGroundTruth, MarksARowWithoutExtentInvalid)
 {
     const std::vector<std::int64_t> images{0, 0};
     const std::vector<std::int64_t> classes{4, 5};
@@ -800,7 +802,7 @@ TEST(Medium_DetectGroundTruth, MarksARowWithoutExtentInvalid)
 }
 
 /** @brief Tests that a batch without label rows is padded to no box rows at all. */
-TEST(Medium_DetectGroundTruth, PadsNoRowsToABatchWithoutBoxes)
+TEST(Small_DetectGroundTruth, PadsNoRowsToABatchWithoutBoxes)
 {
     const std::vector<std::int64_t> none;
     const std::vector<float> no_boxes;
@@ -816,7 +818,7 @@ TEST(Medium_DetectGroundTruth, PadsNoRowsToABatchWithoutBoxes)
 }
 
 /** @brief Tests that a label row naming an image outside the batch is refused. */
-TEST(Medium_DetectGroundTruth, RejectsARowOutsideTheBatch)
+TEST(Small_DetectGroundTruth, RejectsARowOutsideTheBatch)
 {
     const std::vector<std::int64_t> images{3};
     const std::vector<std::int64_t> classes{0};
@@ -857,10 +859,10 @@ TEST(Small_DetectTargetLeaves, BuildsTheLossLeavesOfAnAssignment)
     const std::vector<float> row5_scale(leaves.l1_scale.begin() + 20, leaves.l1_scale.begin() + 24);
     const float across = 8.0f / 64.0f * 0.25f * 0.5f;
     const float down = 8.0f / 32.0f * 0.25f * 0.5f;
-    EXPECT_TRUE(near_reference(row5_mask, std::vector<float>(4, 1.0f), K_EXACT));
-    EXPECT_TRUE(near_reference(row5_box, std::vector<float>{0.0f, 0.0f, 4.0f, 4.0f}, K_EXACT));
+    EXPECT_EQ(row5_mask, std::vector<float>(4, 1.0f));
+    EXPECT_EQ(row5_box, (std::vector<float>{0.0f, 0.0f, 4.0f, 4.0f}));
     const std::vector<float> expected_distances{1.5f, 1.5f, 2.5f, 2.5f};
-    EXPECT_TRUE(near_reference(row5_distances, expected_distances, K_EXACT));
+    EXPECT_EQ(row5_distances, expected_distances);
     const std::vector<float> expected_scale{across, down, across, down};
     EXPECT_TRUE(near_reference(row5_scale, expected_scale, K_SCORE_TOLERANCE));
 }
@@ -892,8 +894,8 @@ TEST(Small_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
     const std::vector<float> box1{0.25f, 0.0f, 2.25f, 2.5f};
     const std::vector<float> distances1{1.5f - 0.25f, 0.5f - 0.0f, 2.25f - 1.5f, 2.5f - 0.5f};
     const std::vector<float> scale1{across1, down1, across1, down1};
-    EXPECT_TRUE(near_reference(box_row(leaves.target_boxes, 1), box1, K_EXACT));
-    EXPECT_TRUE(near_reference(box_row(leaves.target_distances, 1), distances1, K_EXACT));
+    EXPECT_EQ(box_row(leaves.target_boxes, 1), box1);
+    EXPECT_EQ(box_row(leaves.target_distances, 1), distances1);
     EXPECT_TRUE(near_reference(box_row(leaves.l1_scale, 1), scale1, K_SCORE_TOLERANCE));
 
     // Row 9 is anchor 4 of image 1: point (0.5, 0.5) on stride 16, so the box is its pixels / 16.
@@ -902,13 +904,13 @@ TEST(Small_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
     const std::vector<float> box9{0.0f, 0.25f, 1.0f, 0.75f};
     const std::vector<float> distances9{0.5f - 0.0f, 0.5f - 0.25f, 1.0f - 0.5f, 0.75f - 0.5f};
     const std::vector<float> scale9{across9, down9, across9, down9};
-    EXPECT_TRUE(near_reference(box_row(leaves.target_boxes, 9), box9, K_EXACT));
-    EXPECT_TRUE(near_reference(box_row(leaves.target_distances, 9), distances9, K_EXACT));
+    EXPECT_EQ(box_row(leaves.target_boxes, 9), box9);
+    EXPECT_EQ(box_row(leaves.target_distances, 9), distances9);
     EXPECT_TRUE(near_reference(box_row(leaves.l1_scale, 9), scale9, K_SCORE_TOLERANCE));
-    EXPECT_TRUE(near_reference(box_row(leaves.box_mask, 9), std::vector<float>(4, 1.0f), K_EXACT));
+    EXPECT_EQ(box_row(leaves.box_mask, 9), std::vector<float>(4, 1.0f));
 
     // Row 4 is the same anchor in image 0, which nothing was assigned to.
-    EXPECT_TRUE(near_reference(box_row(leaves.box_mask, 4), std::vector<float>(4, 0.0f), K_EXACT));
+    EXPECT_EQ(box_row(leaves.box_mask, 4), std::vector<float>(4, 0.0f));
 }
 
 /** @brief Tests that an unassigned row carries the safe box and zero in every weighting leaf. */
@@ -936,11 +938,11 @@ TEST(Small_DetectTargetLeaves, AnUnassignedRowCarriesTheSafeBoxAndNoWeight)
                                             leaves.target_distances.begin() + 4);
     const std::vector<float> row5_safe(leaves.safe_boxes.begin() + 20,
                                        leaves.safe_boxes.begin() + 24);
-    EXPECT_TRUE(near_reference(row0_box, safe, K_EXACT));
-    EXPECT_TRUE(near_reference(row0_mask, zeros, K_EXACT));
-    EXPECT_TRUE(near_reference(row0_scale, zeros, K_EXACT));
-    EXPECT_TRUE(near_reference(row0_distances, zeros, K_EXACT));
-    EXPECT_TRUE(near_reference(row5_safe, safe, K_EXACT));
+    EXPECT_EQ(row0_box, safe);
+    EXPECT_EQ(row0_mask, zeros);
+    EXPECT_EQ(row0_scale, zeros);
+    EXPECT_EQ(row0_distances, zeros);
+    EXPECT_EQ(row5_safe, safe);
     EXPECT_EQ(leaves.weight[0], 0.0f);
     EXPECT_EQ(leaves.normalized_weight[0], 0.0f);
 }

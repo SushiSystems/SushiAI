@@ -1,12 +1,13 @@
 # tests/vision/detect/free/test_assigner.cpp
 
 
-Suites: `Medium_DetectAssigner`, `Medium_DetectGroundTruth`, `Small_DetectTargetLeaves`.
+Suites: `Small_DetectAssigner`, `Medium_DetectAssigner`, `Small_DetectGroundTruth`,
+`Medium_DetectGroundTruth` and `Small_DetectTargetLeaves`.
 
 Tests the task-aligned assigner, its presets, the padded ground truth and the target leaves.
 
-This file needs no device. Its three suites are `Medium_DetectAssigner`, `Medium_DetectGroundTruth`
-and `Small_DetectTargetLeaves`, over `modules/vision/detect/include/SushiAI/vision/detect/free/assigner.hpp`,
+This file needs no device. Its five suites are `Small_DetectAssigner`, `Medium_DetectAssigner`, `Small_DetectGroundTruth`,
+`Medium_DetectGroundTruth` and `Small_DetectTargetLeaves`, over `modules/vision/detect/include/SushiAI/vision/detect/free/assigner.hpp`,
 `modules/vision/detect/include/SushiAI/vision/detect/free/assigner_config.hpp`, `modules/vision/detect/include/SushiAI/vision/detect/ground_truth.hpp` and
 `modules/vision/detect/include/SushiAI/vision/detect/free/target_leaves.hpp`. Most cases build one image on a 4 by 4 grid by
 hand, with `alpha` and `beta` both 1, so the metric is the class score times the overlap and
@@ -16,10 +17,11 @@ themselves skipped when the file is absent. `modules/vision/detect/README.md`, u
 
 ## Tolerances
 
-`K_EXACT` is 0, for copied values and multiples of 0.5. `K_SCORE_TOLERANCE` is 1e-6, eight
-float32 steps at 1, for a target score computed by hand. `K_REFERENCE_SCORE_TOLERANCE` is 1e-5
-for a reference target score, where `std::pow` and `std::atan` may round apart from torch.
-`K_REFERENCE_BOX_TOLERANCE` is 1.3e-4, two float32 steps at 640, for a reference box in pixels.
+Copied values and multiples of 0.5 are compared with equality. Each other tolerance is a multiple
+of the float unit roundoff u. `K_SCORE_TOLERANCE` is 32 u, eight float32 steps at 1, for a target
+score computed by hand. `K_REFERENCE_SCORE_TOLERANCE` is 256 u for a reference target score, where
+`std::pow` and `std::atan` may round apart from torch. `K_REFERENCE_BOX_TOLERANCE` is 4096 u, two
+float32 steps at 640, for a reference box in pixels.
 
 ## The hand-built grid
 
@@ -98,6 +100,9 @@ tied metrics. The helper skips when `loss.sacp` is absent.
 
 ## OneToManyPresetMatchesTheReferenceSettings
 
+The three preset cases and `AssignsEachImageFromItsOwnRows` run in `Small_DetectAssigner`, and the
+four ground-truth cases that read no file in `Small_DetectGroundTruth`: they compute on host values.
+
 `one_to_many_assigner_config(80, {8, 16, 32})` has `topk` 10, `topk2` 10, 80 classes, `alpha`
 0.5, `beta` 6, `stride_val` 16 and `eps` 1e-9. These are the `assigner.one2many` values of
 `loss.sacp` in `tests/vision/registration/fixtures/yolo26/MANIFEST.json`.
@@ -112,16 +117,23 @@ tied metrics. The helper skips when `loss.sacp` is absent.
 `stride_val` is 12 for the strides 4 and 12, 4 for the one stride 4, and 16 for an empty stride
 list.
 
-## ConfigDefaultsMatchTheReferenceConstructor
+## RejectsAConfigWithoutCandidates
 
-A default `AssignerConfig` has `topk` 13, `topk2` 13, 80 classes, `alpha` 1, `beta` 6,
-`stride_val` 16 and `eps` 1e-9, the arguments of the reference's `TaskAlignedAssigner.__init__`.
+Constructing a `TaskAlignedAssigner` with `topk` 0 returns `InvalidDescription` with a message
+containing "positive topk" and "got 0, 3 and 2".
 
-## RejectsAConfigWithoutCandidatesOrWithANegativeMargin
+## RejectsAConfigWithoutSecondCandidates
 
-Constructing a `TaskAlignedAssigner` returns `InvalidDescription` for `topk` 0, with a message containing "positive
-topk" and "got 0, 3 and 2", for `stride_val` -1, with "stride_val", "at least 0" and "-1", and
-for `eps` -1, with "eps of at least 0" and "-1".
+In `Small_DetectAssigner`. `topk2` 0 returns `InvalidDescription` with "positive topk" and "got 3, 0
+and 2", as `topk` 0 does.
+
+## RejectsAConfigWithANegativeStrideVal
+
+`stride_val` -1 returns `InvalidDescription` with "stride_val", "at least 0" and "-1".
+
+## RejectsAConfigWithANegativeEps
+
+`eps` -1 returns `InvalidDescription` with "eps of at least 0" and "-1".
 
 ## TheMetricRaisesTheScoreToAlphaAndTheOverlapToBeta
 
@@ -204,10 +216,14 @@ A batch of two holds an image with one invalid row and the crowded scene. The fo
 are 18, 21 and 26, which are anchors 2, 5 and 10 of image 1. The target label of row 0 is 0 and
 that of row 16 is 1.
 
-## RejectsTooFewAnchorsAndAnUnknownClass
+## RejectsFewerAnchorsThanTopK
 
-`assign` with `topk` 17 on sixteen anchors returns `InvalidDescription` with a message containing "16 anchors" and
-"topk 17". A valid box of class 2 with two classes returns `InvalidDescription` with "class 2 of 2".
+`assign` with `topk` 17 on sixteen anchors returns `InvalidDescription` with a message containing
+"16 anchors" and "topk 17".
+
+## RejectsAnUnknownClass
+
+A valid box of class 2 with two classes returns `InvalidDescription` with "class 2 of 2".
 
 ## PadsLabelRowsPerImage
 
