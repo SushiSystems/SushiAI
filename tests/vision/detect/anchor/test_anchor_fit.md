@@ -4,17 +4,24 @@
 Suites: `Small_DetectAnchorFit`.
 
 Tests `measure_anchor_fit`, which measures how well the anchors of an `AnchorLayout` fit a list
-of box sizes. Every number is compared to 1e-9.
+of box sizes. Every number is compared within 16777216 times the double unit roundoff.
 
 ## OneBoxPerAnchorGivesOneEverywhere
 
 One box at each of three anchors' sizes gives 3 boxes, a mean best IoU, a best possible recall
 and a tenth percentile of 1, an unowned share of 0 and a share of 1/3 per anchor.
 
-## HalfSizedBoxesGiveAQuarterAndAreRecalledAtAQuarter
+## HalfSizedBoxesGiveAQuarter
 
-Boxes at half each anchor's sides give a mean best IoU and a tenth percentile of 0.25. The best
-possible recall is 1 with `recall_iou` 0.25 and 0 with `recall_iou` 0.3.
+Boxes at half each anchor's sides give a mean best IoU and a tenth percentile of 0.25.
+
+## HalfSizedBoxesAreRecalledAtAQuarter
+
+With `recall_iou` 0.25 the best possible recall of the same boxes is 1.
+
+## HalfSizedBoxesAreNotRecalledAboveAQuarter
+
+With `recall_iou` 0.3 the best possible recall of the same boxes is 0.
 
 ## V4TinyMasksLeaveASixthOfTheBoxesUnowned
 
@@ -27,13 +34,13 @@ size give 600 boxes, an unowned share of 1/6, a best possible recall of 5/6, a m
 With the heads listing all six anchors, the same boxes give an unowned share of 0 and a best
 possible recall of 1.
 
-## FourNumbersEqualTheBoxByBoxSums
+## FourNumbersAndTheSharesMatchHandValues
 
-For four anchors, of which no head lists anchor 0, and twelve boxes, the case finds each box's
-best anchor with `shape_iou` and sums by hand. The mean best IoU, the recall at 0.5, the unowned
-share, the tenth percentile, which is the second smallest best IoU, and the four anchor shares
-equal those sums. The case also asserts that some boxes are unowned, some recalled and some
-neither.
+Four anchors, 0.25 x 0.125 (listed by no head), 0.5 x 0.5, 0.5 x 0.125 and 0.125 x 0.5, and six
+boxes: one at each anchor's size, one of 0.0625 x 0.0625 and one of 0.5 x 0.0625. Every side is
+a power of two, so the best IoUs are exact: 1, 1, 1, 1, 1/8 and 1/2. The mean best IoU is
+4.625 / 6, the recall at 0.5 is 4/6, the unowned share is 2/6, the tenth percentile is the
+smallest best IoU, 1/8, and the anchor shares are 2/6, 1/6, 2/6 and 1/6.
 
 ## TenthPercentileOfTenBoxesIsTheSmallest
 
@@ -53,6 +60,6 @@ An empty box list fails with `Incompatible`.
 
 A layout whose head names an anchor past the list fails with `InvalidDescription`.
 
-## RefusesARecallIoUOutsideZeroToOne
+## ARecallIoUOutsideZeroToOneIsRefused
 
-A `recall_iou` of -0.1, of 1.5 and of NaN each fail with `InvalidDescription`.
+One row per `recall_iou`: -0.1, 1.5 and NaN. Each fails with `InvalidDescription`.

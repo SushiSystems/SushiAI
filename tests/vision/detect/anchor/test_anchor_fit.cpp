@@ -21,17 +21,17 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_anchor_fit.cpp
  * @brief Tests the fit report of an anchor layout on hand-built boxes.
  * @author Mustafa Garip
  */
 
-#include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <string>
 #include <vector>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -49,13 +49,31 @@ namespace
     using SushiAI::Vision::Detect::Anchor::AnchorSize;
     using SushiAI::Vision::Detect::Anchor::FitOptions;
     using SushiAI::Vision::Detect::Anchor::measure_anchor_fit;
-    using SushiAI::Vision::Detect::Anchor::shape_iou;
 
     /**
      * @brief Holds the absolute tolerance of a share or a mean summed in double: 16777216 times the
      *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-9.
      */
     constexpr double K_FIT_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
+
+    /** @brief Holds a recall_iou the fit refuses and the name of its row. */
+    struct RefusedRecall
+    {
+        std::string name; /**< The row's name. */
+        float recall_iou; /**< The recall_iou outside zero to one. */
+    };
+
+    /** @brief Runs one recall_iou the fit refuses. */
+    class Small_DetectAnchorFitRecall : public ::testing::TestWithParam<RefusedRecall>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string recall_name(const ::testing::TestParamInfo<RefusedRecall>& info)
+    {
+        return info.param.name;
+    }
 
     /** @brief Returns three anchors whose half-size boxes fit no other anchor above 0.2. */
     AnchorLayout make_separated_layout()
@@ -113,31 +131,50 @@ TEST(Small_DetectAnchorFit, OneBoxPerAnchorGivesOneEverywhere)
     EXPECT_NEAR(fit.best_iou_tenth_percentile, 1.0, K_FIT_TOLERANCE);
     EXPECT_NEAR(fit.unowned_share, 0.0, K_FIT_TOLERANCE);
     ASSERT_EQ(fit.anchor_share.size(), 3u);
-    for (const double share : fit.anchor_share)
-        EXPECT_NEAR(share, 1.0 / 3.0, K_FIT_TOLERANCE);
+    EXPECT_THAT(fit.anchor_share,
+                ::testing::Each(::testing::DoubleNear(1.0 / 3.0, K_FIT_TOLERANCE)));
 }
 
-/** @brief Tests that boxes at half an anchor's sides measure 0.25 and are recalled at 0.25. */
-TEST(Small_DetectAnchorFit, HalfSizedBoxesGiveAQuarterAndAreRecalledAtAQuarter)
+/** @brief Tests that boxes at half an anchor's sides measure 0.25 in mean and tenth percentile. */
+TEST(Small_DetectAnchorFit, HalfSizedBoxesGiveAQuarter)
 {
     const AnchorLayout layout = make_separated_layout();
     const std::vector<AnchorSize> boxes = make_scaled_boxes(layout, 0.5f);
-    FitOptions at_quarter;
-    at_quarter.recall_iou = 0.25f;
-    FitOptions above_quarter;
-    above_quarter.recall_iou = 0.3f;
 
-    const Result<AnchorFit> reached = measure_anchor_fit(boxes, layout, at_quarter);
-    const Result<AnchorFit> missed = measure_anchor_fit(boxes, layout, above_quarter);
+    const Result<AnchorFit> outcome = measure_anchor_fit(boxes, layout, FitOptions{});
 
     // Every side is a power of two, so each area ratio is 0.25 without rounding.
-    ASSERT_TRUE(reached.has_value()) << reached.status().message();
-    ASSERT_TRUE(missed.has_value()) << missed.status().message();
-    EXPECT_NEAR(reached.value().mean_best_iou, 0.25, K_FIT_TOLERANCE);
-    EXPECT_NEAR(reached.value().best_iou_tenth_percentile, 0.25, K_FIT_TOLERANCE);
-    EXPECT_NEAR(reached.value().best_possible_recall, 1.0, K_FIT_TOLERANCE);
-    EXPECT_NEAR(missed.value().mean_best_iou, 0.25, K_FIT_TOLERANCE);
-    EXPECT_NEAR(missed.value().best_possible_recall, 0.0, K_FIT_TOLERANCE);
+    ASSERT_TRUE(outcome.has_value()) << outcome.status().message();
+    EXPECT_NEAR(outcome.value().mean_best_iou, 0.25, K_FIT_TOLERANCE);
+    EXPECT_NEAR(outcome.value().best_iou_tenth_percentile, 0.25, K_FIT_TOLERANCE);
+}
+
+/** @brief Tests that a recall_iou of 0.25 recalls every half-sized box. */
+TEST(Small_DetectAnchorFit, HalfSizedBoxesAreRecalledAtAQuarter)
+{
+    const AnchorLayout layout = make_separated_layout();
+    const std::vector<AnchorSize> boxes = make_scaled_boxes(layout, 0.5f);
+    FitOptions options;
+    options.recall_iou = 0.25f;
+
+    const Result<AnchorFit> outcome = measure_anchor_fit(boxes, layout, options);
+
+    ASSERT_TRUE(outcome.has_value()) << outcome.status().message();
+    EXPECT_NEAR(outcome.value().best_possible_recall, 1.0, K_FIT_TOLERANCE);
+}
+
+/** @brief Tests that a recall_iou of 0.3 recalls none of the half-sized boxes. */
+TEST(Small_DetectAnchorFit, HalfSizedBoxesAreNotRecalledAboveAQuarter)
+{
+    const AnchorLayout layout = make_separated_layout();
+    const std::vector<AnchorSize> boxes = make_scaled_boxes(layout, 0.5f);
+    FitOptions options;
+    options.recall_iou = 0.3f;
+
+    const Result<AnchorFit> outcome = measure_anchor_fit(boxes, layout, options);
+
+    ASSERT_TRUE(outcome.has_value()) << outcome.status().message();
+    EXPECT_NEAR(outcome.value().best_possible_recall, 0.0, K_FIT_TOLERANCE);
 }
 
 /** @brief Tests that the yolov4-tiny masks leave the boxes of anchor 0 without a head. */
@@ -155,8 +192,8 @@ TEST(Small_DetectAnchorFit, V4TinyMasksLeaveASixthOfTheBoxesUnowned)
     EXPECT_NEAR(fit.best_possible_recall, 5.0 / 6.0, K_FIT_TOLERANCE);
     EXPECT_NEAR(fit.mean_best_iou, 1.0, K_FIT_TOLERANCE);
     ASSERT_EQ(fit.anchor_share.size(), 6u);
-    for (const double share : fit.anchor_share)
-        EXPECT_NEAR(share, 1.0 / 6.0, K_FIT_TOLERANCE);
+    EXPECT_THAT(fit.anchor_share,
+                ::testing::Each(::testing::DoubleNear(1.0 / 6.0, K_FIT_TOLERANCE)));
 }
 
 /** @brief Tests that masks covering every anchor bring the unowned share of that case to 0. */
@@ -173,64 +210,39 @@ TEST(Small_DetectAnchorFit, MasksOverEveryAnchorLeaveNoBoxUnowned)
     EXPECT_NEAR(outcome.value().best_possible_recall, 1.0, K_FIT_TOLERANCE);
 }
 
-/** @brief Tests the four numbers and the shares against sums the test makes box by box. */
-TEST(Small_DetectAnchorFit, FourNumbersEqualTheBoxByBoxSums)
+/**
+ * @brief Tests the four numbers and the shares against values worked out by hand. Every side is
+ *        a power of two, so each IoU is exact. Anchors 0.25 x 0.125 (listed by no head),
+ *        0.5 x 0.5, 0.5 x 0.125 and 0.125 x 0.5; the first four boxes equal an anchor each and
+ *        have IoU 1, the box 0.0625 x 0.0625 has IoU 1/8 with anchor 0, and the box 0.5 x 0.0625
+ *        has IoU 1/2 with anchor 2. Best IoUs are 1, 1, 1, 1, 1/8 and 1/2; boxes 0 and 4 belong
+ *        to anchor 0 and so are unowned; boxes 1, 2, 3 and 5 are owned and recalled at 0.5.
+ */
+TEST(Small_DetectAnchorFit, FourNumbersAndTheSharesMatchHandValues)
 {
     AnchorLayout layout;
-    layout.anchors = {{0.1f, 0.1f}, {0.2f, 0.3f}, {0.5f, 0.4f}, {0.8f, 0.9f}};
+    layout.anchors = {{0.25f, 0.125f}, {0.5f, 0.5f}, {0.5f, 0.125f}, {0.125f, 0.5f}};
     layout.head_anchors = {{2, 3}, {1}};
-    const std::vector<AnchorSize> boxes = {
-        {0.09f, 0.12f}, {0.05f, 0.04f}, {0.21f, 0.28f}, {0.3f, 0.3f},  {0.45f, 0.5f},
-        {0.6f, 0.2f},   {0.9f, 0.9f},   {0.7f, 1.0f},   {0.02f, 0.6f}, {0.15f, 0.2f},
-        {0.4f, 0.4f},   {0.25f, 0.35f}};
+    const std::vector<AnchorSize> boxes = {{0.25f, 0.125f}, {0.5f, 0.5f},       {0.5f, 0.125f},
+                                           {0.125f, 0.5f},  {0.0625f, 0.0625f}, {0.5f, 0.0625f}};
     FitOptions options;
     options.recall_iou = 0.5f;
-
-    std::vector<double> expected_best;
-    std::vector<double> expected_share(layout.anchors.size(), 0.0);
-    double expected_sum = 0.0;
-    double expected_recalled = 0.0;
-    double expected_unowned = 0.0;
-    for (const AnchorSize& box : boxes)
-    {
-        std::size_t best_index = 0;
-        float best_iou = -1.0f;
-        for (std::size_t index = 0; index < layout.anchors.size(); ++index)
-        {
-            const float iou = shape_iou(box, layout.anchors[index]);
-            if (iou > best_iou)
-            {
-                best_iou = iou;
-                best_index = index;
-            }
-        }
-        expected_best.push_back(static_cast<double>(best_iou));
-        expected_sum += static_cast<double>(best_iou);
-        expected_share[best_index] += 1.0 / 12.0;
-        // Anchor 0 is the one no head lists.
-        if (best_index == 0)
-            expected_unowned += 1.0;
-        else if (best_iou >= 0.5f)
-            expected_recalled += 1.0;
-    }
-    std::sort(expected_best.begin(), expected_best.end());
 
     const Result<AnchorFit> outcome = measure_anchor_fit(boxes, layout, options);
 
     ASSERT_TRUE(outcome.has_value()) << outcome.status().message();
     const AnchorFit& fit = outcome.value();
-    EXPECT_EQ(fit.boxes, 12);
-    EXPECT_NEAR(fit.mean_best_iou, expected_sum / 12.0, K_FIT_TOLERANCE);
-    EXPECT_NEAR(fit.best_possible_recall, expected_recalled / 12.0, K_FIT_TOLERANCE);
-    EXPECT_NEAR(fit.unowned_share, expected_unowned / 12.0, K_FIT_TOLERANCE);
-    // Twelve boxes put the tenth percentile at rank ceil(1.2) = 2, the second smallest.
-    EXPECT_NEAR(fit.best_iou_tenth_percentile, expected_best[1], K_FIT_TOLERANCE);
-    EXPECT_GT(expected_unowned, 0.0);
-    EXPECT_GT(expected_recalled, 0.0);
-    EXPECT_LT(expected_recalled + expected_unowned, 12.0);
-    ASSERT_EQ(fit.anchor_share.size(), expected_share.size());
-    for (std::size_t index = 0; index < expected_share.size(); ++index)
-        EXPECT_NEAR(fit.anchor_share[index], expected_share[index], K_FIT_TOLERANCE);
+    EXPECT_EQ(fit.boxes, 6);
+    EXPECT_NEAR(fit.mean_best_iou, 4.625 / 6.0, K_FIT_TOLERANCE);
+    EXPECT_NEAR(fit.best_possible_recall, 4.0 / 6.0, K_FIT_TOLERANCE);
+    EXPECT_NEAR(fit.unowned_share, 2.0 / 6.0, K_FIT_TOLERANCE);
+    // Six boxes put the tenth percentile at rank ceil(0.6) = 1, the smallest best IoU.
+    EXPECT_NEAR(fit.best_iou_tenth_percentile, 0.125, K_FIT_TOLERANCE);
+    ASSERT_EQ(fit.anchor_share.size(), 4u);
+    EXPECT_NEAR(fit.anchor_share[0], 2.0 / 6.0, K_FIT_TOLERANCE);
+    EXPECT_NEAR(fit.anchor_share[1], 1.0 / 6.0, K_FIT_TOLERANCE);
+    EXPECT_NEAR(fit.anchor_share[2], 2.0 / 6.0, K_FIT_TOLERANCE);
+    EXPECT_NEAR(fit.anchor_share[3], 1.0 / 6.0, K_FIT_TOLERANCE);
 }
 
 /** @brief Tests that the tenth percentile of ten boxes is the smallest best IoU. */
@@ -293,20 +305,21 @@ TEST(Small_DetectAnchorFit, RefusesALayoutThatDoesNotValidate)
 }
 
 /** @brief Tests that a recall_iou below 0, above 1 or not a number is InvalidDescription. */
-TEST(Small_DetectAnchorFit, RefusesARecallIoUOutsideZeroToOne)
+TEST_P(Small_DetectAnchorFitRecall, ARecallIoUOutsideZeroToOneIsRefused)
 {
-    const AnchorLayout layout = make_separated_layout();
     const std::vector<AnchorSize> boxes = {{0.5f, 0.5f}};
-    const float refused[3] = {-0.1f, 1.5f, std::numeric_limits<float>::quiet_NaN()};
+    FitOptions options;
+    options.recall_iou = GetParam().recall_iou;
 
-    for (const float recall_iou : refused)
-    {
-        FitOptions options;
-        options.recall_iou = recall_iou;
+    const Result<AnchorFit> outcome = measure_anchor_fit(boxes, make_separated_layout(), options);
 
-        const Result<AnchorFit> outcome = measure_anchor_fit(boxes, layout, options);
-
-        ASSERT_FALSE(outcome.has_value());
-        EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
-    }
+    ASSERT_FALSE(outcome.has_value());
+    EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorFitRecall,
+                         ::testing::Values(RefusedRecall{"BelowZero", -0.1f},
+                                           RefusedRecall{"AboveOne", 1.5f},
+                                           RefusedRecall{"NotANumber",
+                                                         std::numeric_limits<float>::quiet_NaN()}),
+                         recall_name);
