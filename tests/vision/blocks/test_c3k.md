@@ -39,6 +39,22 @@ prefix, in walk order.
 
 `first_node` returns the index of the first node of a graph that carries one operation.
 
+## count_norms
+
+`count_norms` counts the running means a walk lists, one per norm.
+
+## count_bottlenecks
+
+`count_bottlenecks` counts the records under a prefix that name the first convolution weight of a bottleneck.
+
+## input_shapes
+
+`input_shapes` lists the shape of each input of a node, in order.
+
+## conv_records
+
+`conv_records` writes the five records of one `Conv` under a prefix: the weight, then the norm's weight, bias, running mean and running variance.
+
 ## one_input
 
 `one_input` views one shape as the `NN::ShapeSpan` of a one-input row.
@@ -58,30 +74,23 @@ graph and the given momentum on every update of a list.
 
 ## TheChainHoldsOneBottleneckPerRepeat
 
-`C3k(64, 64, 3, true)` has `m.size()` 3.
+The walk of a traced `C3k(64, 64, 3, true)` under "b" lists three bottlenecks, `b.m.0`, `b.m.1` and `b.m.2`.
 
-## ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat
+## ATrainingTraceUpdatesEveryNorm
 
-A training trace of `C3k(64, 64, 2, true)` over [2, 4, 4, 64] emits seven each of K_MATMUL,
-K_BATCHNORM2D and K_SILU, two K_ADD, one K_CONCAT_CHANNELS and no K_SLICE_CHANNELS. The list holds 14
-updates and the result has the shape [2, 4, 4, 64]. Seven is three `Conv` blocks of the C3k
-plus two in each of the two bottlenecks.
+A training trace of `C3k(64, 64, 2, true)` over [2, 4, 4, 64] yields [2, 4, 4, 64]. The list holds two updates, a mean and a variance, for each norm the state walk lists.
 
-## TheJoinReadsTheChainThenTheSecondBranch
+## TheJoinTakesTheChainAndTheSecondBranch
 
-The K_CONCAT_CHANNELS node has two inputs. The first is produced by an K_ADD, the end of the last
-bottleneck, and the second by a K_SILU, the end of `cv2`. Each is [2, 4, 4, 32] and the joined
-value is [2, 4, 4, 64].
+The one K_CONCAT_CHANNELS node has two inputs of [2, 4, 4, 32] each and yields [2, 4, 4, 64].
 
 ## NoShortcutTracesNoAdd
 
-With the shortcut argument false, an evaluation trace holds seven K_MATMUL and no K_ADD.
+With the shortcut argument false, an evaluation trace holds no K_ADD.
 
 ## TheHiddenWidthIsHalfTheOutputWidthRoundedDown
 
-`C3k(8, 7, 1, true)` has a hidden width of 3. The traced weights are [3, 1, 1, 8] for `cv1`
-and `cv2`, [7, 1, 1, 6] for `cv3` and [3, 3, 3, 3] for the bottleneck's `cv1`. The result is
-[2, 4, 4, 7], and `output_shape([4, 4, 8])` is [4, 4, 7].
+`C3k(8, 7, 1, true)` has a hidden width of 3. The walk under "b" lists the weights [3, 1, 1, 8] for `cv1` and `cv2`, [7, 1, 1, 6] for `cv3` and [3, 3, 3, 3] for the bottleneck's `cv1` and `cv2`, each with its four norm records. The result is [2, 4, 4, 7], and `output_shape([4, 4, 8])` is [4, 4, 7].
 
 ## StateMatchesManifestRow6Inner
 
@@ -93,25 +102,28 @@ variance as buffers. The weights are [32, 1, 1, 64] for `cv1` and `cv2`, [64, 1,
 
 ## TheFactoryDefaultsToOneBottleneckWithAShortcut
 
-`make_c3k_node` over [4, 4, 64] with only 32 filters has one port of shape [4, 4, 32]. Its
-evaluation trace appends one [2, 4, 4, 32] value and holds five K_MATMUL and one K_ADD: one
-bottleneck that adds its input.
+`make_c3k_node` over [4, 4, 64] with only 32 filters has one port of shape [4, 4, 32]. Its evaluation trace appends one [2, 4, 4, 32] value and holds one K_ADD: one bottleneck that adds its input.
 
 ## TheFactoryReadsRepeatsAndShortcut
 
-With 64 filters, `repeats` 2 and `shortcut` false, the trace holds seven K_MATMUL and no K_ADD. The
-walk under "model.6.m.0" yields 35 records, and record 30 is "model.6.m.0.m.1.cv2.conv.weight"
-[32, 3, 3, 32].
+With 64 filters, `repeats` 2 and `shortcut` false, the trace holds no K_ADD. The walk under "model.6.m.0" yields 35 records, and record 30 is "model.6.m.0.m.1.cv2.conv.weight" [32, 3, 3, 32].
 
 ## TheFactoryRefusesAWidthThatLeavesNoHiddenChannel
 
 `filters` 1 fails with `InvalidDescription` and a message containing "layer 5 'c3k'",
 "'filters'" and "at least 2".
 
-## TheFactoryRefusesARowThatDoesNotFit
+## TheFactoryRefusesAnUnknownKey
 
-The key `hidden` fails with the context and "'hidden'". A row without `filters` fails with
-"'filters'" and "absent". `repeats` 0 fails with "'repeats'" and "positive".
+The key `hidden` fails with the context and "'hidden'".
+
+## TheFactoryRefusesAnAbsentFilterCount
+
+A row without `filters` fails with "'filters'" and "absent".
+
+## TheFactoryRefusesZeroRepeats
+
+`repeats` 0 fails with "'repeats'" and "positive".
 
 ## TheFactoryRefusesTwoInputs
 
