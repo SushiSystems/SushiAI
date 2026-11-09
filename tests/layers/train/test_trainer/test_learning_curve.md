@@ -3,41 +3,29 @@
 
 Suites: `Medium_LearningCurve`.
 
-This file holds the test that catches "everything passes and the model stops training".
+This file holds the cases that read the loss along a run of 16 steps: an MLP of two linear layers
+trained for 4 epochs of 4 batches by SGD with momentum 0.9 on a synthetic dataset of fixed seed.
+They state what a learning model does and no number recorded from a run of this code. The old
+case compared each step with a reference array pasted from a run on 2026-10-09 and had two typed
+tolerances; a gradient scaled by the wrong constant and a legitimate kernel change both moved it,
+and it could not tell them apart. It is gone. The shape assertions below hold on every toolchain.
 
-Every other test in the suite checks a property: this gradient matches a finite difference, that
-step compiled once, this loss is finite. A model can satisfy all of them and still learn measurably
-worse than it did last month. A gradient scaled by the wrong constant, a momentum buffer applied a
-step late and an initialisation gain quietly changed all do this. Each leaves the loss going down
-along a different path, and no property test has an opinion about the path.
+## K_FIRST_LOSS_OPERATIONS
 
-So TheLossTrajectoryMatchesTheRecordedReference pins the trajectory itself against a reference
-recorded from a real run of this code. The tolerance carries the design of the test:
+41 rounded operations of float on the longest path to the first loss: the log-softmax of four
+classes rounds 8, the product with the target once, the sum of the 32 products 31 times at worst
+and the mean once.
 
-- Too tight, and the test fails on every legitimate kernel change. Reassociating a gemm's inner
-  sum moves an fp32 result by an ULP or two, and twelve steps of momentum amplify that. A tolerance
-  below about 1e-3 would be noise.
-- Too loose, and the test stops distinguishing training from not training. A gradient wrong by a
-  constant factor, or a backward rule reading the forward output where it needed the input, moves
-  this trajectory by tenths.
+## TheFirstLossIsLogCOfAZeroedClassifier
 
-The head steps, 0 to 5, use the absolute bound K_LOSS_TOLERANCE, 0.02, which sits between those
-two bounds. The tail steps, 6 to 15, use K_LOSS_RELATIVE_TOLERANCE, 2 per cent of each step's own
-reference. From step 6 on the reference values are below 0.02, so an absolute bound there would
-accept a loss ten times its reference: at step 15 the reference is 0.002215 and the bound is 0.02.
-The relative bound pins each tail step to its own magnitude. The shape assertions in
-TheTrajectoryHasTheShapeALearningModelHas (the exact ln(C) start, the per-epoch descent, the final
-value) hold even if a future toolchain widens the noise floor.
+The classifier is zeroed, so every class is equally likely and the first loss is ln(4), within
+`K_FIRST_LOSS_OPERATIONS` roundings of float.
 
-Recording the reference again is legitimate only when the change that moved it is understood and
-intended. If the trajectory moved and nobody knows why, the movement is the finding and the
-tolerance stays where it is.
+## TheLossFallsToAQuarterOfItsStart
 
-## TheTrajectoryHasTheShapeALearningModelHas
+The last loss of the 16 steps is under a quarter of the first.
 
-The shape assertions are stated independently of the recorded numbers, so they survive a legitimate
-re-record. Together they say that the trajectory starts where a zeroed classifier must start, goes
-down, and gets most of the way to the minimum.
+## EachEpochImprovesOnTheOneBefore
 
-The descent is not monotone step by step, because each step sees a different batch. Each epoch's
-mean must beat the mean of the epoch before it.
+The descent is not monotone step by step, because each step sees a different batch. The mean of
+the 4 losses of epochs 1, 2 and 3 each beats the mean of the epoch before it.

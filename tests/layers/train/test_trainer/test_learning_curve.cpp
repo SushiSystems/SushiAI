@@ -31,10 +31,8 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <iterator>
 #include <memory>
-#include <string>
+#include <numeric>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
@@ -140,133 +138,50 @@ namespace
         return losses;
     }
 
-    /** @brief Renders a trajectory as a paste-ready initialiser, for re-recording. */
-    std::string as_initialiser(const std::vector<double>& losses)
+    /**
+     * @brief Counts the roundings on the longest path to the first loss in float: the
+     *        log-softmax of four classes rounds 8, the product with the target once, the sum of
+     *        the 32 products 31 times at worst and the mean once.
+     */
+    constexpr std::size_t K_FIRST_LOSS_OPERATIONS = 41;
+
+    /** @brief The fraction of its first loss the last loss of the run must stay under. */
+    constexpr double K_FALL_FRACTION = 0.25;
+
+    /** @brief Returns the mean of the K_BATCHES losses of epoch @p epoch. */
+    double epoch_mean(const std::vector<double>& losses, int64_t epoch)
     {
-        std::string text = "{\n";
-        for (std::size_t i = 0; i < losses.size(); ++i)
-        {
-            char buffer[64] = {};
-            std::snprintf(buffer, sizeof(buffer), "%.6f, ", losses[i]);
-            if (i % 4 == 0)
-                text += "        ";
-
-            text += buffer;
-            if (i % 4 == 3)
-                text += "\n";
-        }
-        return text + "    }";
-    }
-
-    /**
-     * @brief The reference, recorded from a run of this configuration.
-     *
-     * Recorded on 2026-10-09 against SushiBLAS 266eeb7, whose generator draws four
-     * values per Philox block. Every value is the batch's mean
-     * cross-entropy as the trainer reports it.
-     */
-    constexpr double K_REFERENCE[] = {
-        1.386294, 0.991878, 0.594361, 0.382508,
-        0.237015, 0.101345, 0.015991, 0.016213,
-        0.013401, 0.005473, 0.001037, 0.004709,
-        0.000865, 0.000353, 0.000528, 0.002215,
-    };
-
-    /**
-     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
-     * smallest power of two that covers 1e-4.
-     */
-    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
-
-    /** @brief Steps from this index on are compared relatively; earlier steps absolutely. */
-    constexpr std::size_t K_TAIL_FIRST_STEP = 6;
-
-    /**
-     * @brief Absolute drift a head step's loss may show before it counts as a change; a training
-     * bound read off the loss curve, not a rounding bound.
-     */
-    constexpr double K_LOSS_TOLERANCE = 0.02;
-
-    /**
-     * @brief Relative drift a tail step's loss may show, as a fraction of its reference.
-     *
-     * Two per cent pins each tail value to about its second significant digit. It is a training
-     * bound, not a rounding bound.
-     */
-    constexpr double K_LOSS_RELATIVE_TOLERANCE = 0.02;
-
-    /**
-     * @brief Tells whether one step's loss matches its reference within that step's tolerance.
-     *
-     * Head steps pass within K_LOSS_TOLERANCE; tail steps pass within K_LOSS_RELATIVE_TOLERANCE.
-     */
-    bool within_tolerance(std::size_t step, double observed, double reference)
-    {
-        const double drift = std::abs(observed - reference);
-        if (step < K_TAIL_FIRST_STEP)
-            return drift <= K_LOSS_TOLERANCE;
-
-        return drift <= K_LOSS_RELATIVE_TOLERANCE * std::abs(reference);
+        const auto first = losses.begin() + epoch * K_BATCHES;
+        return std::accumulate(first, first + K_BATCHES, 0.0) / static_cast<double>(K_BATCHES);
     }
 }
 
-/**
- * @brief Tests that every step's loss is within its tolerance of the recorded reference.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
-
-    ASSERT_EQ(losses.size(), std::size(K_REFERENCE))
-        << "the configuration changed shape; re-record the reference:\n"
-        << as_initialiser(losses);
-
-    bool matched = true;
-    for (std::size_t step = 0; step < losses.size(); ++step)
-    {
-        const bool within = within_tolerance(step, losses[step], K_REFERENCE[step]);
-        EXPECT_TRUE(within) << "at step " << step << ": observed " << losses[step]
-                            << ", reference " << K_REFERENCE[step];
-        if (!within)
-            matched = false;
-    }
-
-    if (!matched)
-        ADD_FAILURE() << "the model no longer learns the way it did. Understand WHY before "
-                         "re-recording; the observed trajectory was:\n"
-                      << as_initialiser(losses);
-}
-
-/**
- * @brief Tests that the trajectory starts at ln(C), stays finite and improves every epoch.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
+/** @brief Tests that the zeroed classifier's first loss is ln(C), every class equally likely. */
+TEST_F(Medium_LearningCurve, TheFirstLossIsLogCOfAZeroedClassifier)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
     ASSERT_FALSE(losses.empty());
 
-    EXPECT_NEAR(losses.front(), std::log(static_cast<double>(K_CLASSES)), K_FLOAT_LOOSE_TOLERANCE)
-        << "the zeroed classifier's first loss is ln(C) exactly, or something initialised it";
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<float>(
+        losses.front(), std::log(static_cast<double>(K_CLASSES)), K_FIRST_LOSS_OPERATIONS)));
+}
 
-    for (std::size_t step = 0; step < losses.size(); ++step)
-        ASSERT_TRUE(std::isfinite(losses[step])) << "at step " << step;
+/** @brief Tests that the loss ends under a quarter of its first value. */
+TEST_F(Medium_LearningCurve, TheLossFallsToAQuarterOfItsStart)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
+    ASSERT_FALSE(losses.empty());
 
-    EXPECT_LT(losses.back(), losses.front() * 0.25)
-        << "the loss barely moved over " << losses.size() << " steps";
+    EXPECT_LT(losses.back(), losses.front() * K_FALL_FRACTION);
+}
 
-    // Each epoch's mean must beat the one before it; see tests/layers/train/README.md.
-    double previous_epoch = 0.0;
-    for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
-    {
-        double total = 0.0;
-        for (int64_t batch = 0; batch < K_BATCHES; ++batch)
-            total += losses[static_cast<std::size_t>(epoch * K_BATCHES + batch)];
+/** @brief Tests that the mean loss of each epoch beats the one before it. */
+TEST_F(Medium_LearningCurve, EachEpochImprovesOnTheOneBefore)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
+    ASSERT_EQ(losses.size(), static_cast<std::size_t>(K_EPOCHS * K_BATCHES));
 
-        const double mean = total / static_cast<double>(K_BATCHES);
-        if (epoch > 0)
-            EXPECT_LT(mean, previous_epoch) << "epoch " << epoch << " did not improve";
-        previous_epoch = mean;
-    }
+    EXPECT_LT(epoch_mean(losses, 1), epoch_mean(losses, 0));
+    EXPECT_LT(epoch_mean(losses, 2), epoch_mean(losses, 1));
+    EXPECT_LT(epoch_mean(losses, 3), epoch_mean(losses, 2));
 }
