@@ -7,10 +7,17 @@
 
 sushiai_add_test_program(OWNER language/generation
     SOURCES
+        compile_fed_leaves.cpp
+        compile_one_position_step.cpp
+        compile_window_logits.cpp
         test_cached_generator.cpp
         test_generation_task.cpp
         test_generator.cpp
         test_greedy_sampler.cpp
+        test_in_memory_fed_leaves.cpp
+        test_in_memory_generator.cpp
+        test_in_memory_one_position_step.cpp
+        test_in_memory_window_logits.cpp
         test_nucleus_sampler.cpp
         test_position_feed.cpp
         test_ring_position_feed.cpp

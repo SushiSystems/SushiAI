@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* window_generator.cpp                                                   */
+/* window_generator.cpp                                                  */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,7 +23,7 @@
 
 /**
  * @file window_generator.cpp
- * @brief Implements WindowGenerator over an evaluation step of a fixed window.
+ * @brief Implements WindowGenerator over a source of window logits.
  * @author Mustafa Garip
  */
 
@@ -32,11 +32,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <utility>
-#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/seam/seam.hpp>
-#include <SushiAI/shape/shape.hpp>
-#include <SushiAI/data/input.hpp>
-#include <SushiAI/data/materialised_dataset.hpp>
+#include "evaluation_window_logits.hpp"
 #include "request.hpp"
 
 namespace SushiAI::Language::Generation
@@ -46,50 +43,41 @@ namespace SushiAI::Language::Generation
         /** @brief Names this unit in a message. */
         constexpr std::string_view K_GENERATOR = "WindowGenerator";
 
-        /** @brief Names the rank of the [1, T, V] logits. */
-        constexpr std::int32_t K_LOGITS_RANK = 3;
-
     } // namespace
 
     Result<std::unique_ptr<WindowGenerator>> WindowGenerator::make(SushiBLAS::Engine& engine,
                                                                   Train::EvaluationStep& step,
                                                                   std::string_view output) noexcept
     {
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, step.output(output));
-        SA_FAIL_IF(logits->rank != K_LOGITS_RANK || logits->shape[0] != 1 ||
-                       logits->dtype != DType::Float32,
-                   StatusCode::InvalidDescription,
-                   "{}: the output '{}' has rank {} and the element type {}; it reads "
-                   "float32 logits of [1, T, V]",
-                   K_GENERATOR, output, logits->rank, dtype_name(logits->dtype));
+        SA_TRY_ASSIGN(std::unique_ptr<WindowLogits> source,
+                      Detail::EvaluationWindowLogits::make(engine, step, output));
 
-        Data::Batch feed;
-        SA_TRY(Data::prepare_batch(engine, 1,
-                                   Data::InputDescription{Shape{logits->shape[1]}, DType::Int32},
-                                   {}, feed));
+        return make(std::move(source));
+    }
 
+    Result<std::unique_ptr<WindowGenerator>> WindowGenerator::make(
+        std::unique_ptr<WindowLogits> source) noexcept
+    {
         return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
         {
-            return std::unique_ptr<WindowGenerator>(
-                new WindowGenerator(step, *logits, std::move(feed)));
+            return std::unique_ptr<WindowGenerator>(new WindowGenerator(std::move(source)));
         });
     }
 
-    WindowGenerator::WindowGenerator(Train::EvaluationStep& step,
-                                     const SushiBLAS::Tensor& logits, Data::Batch feed) noexcept
-        : step_(&step), logits_(&logits), feed_(std::move(feed))
+    WindowGenerator::WindowGenerator(std::unique_ptr<WindowLogits> source) noexcept
+        : source_(std::move(source))
     {
 
     }
 
     std::int64_t WindowGenerator::window() const noexcept
     {
-        return logits_->shape[1];
+        return source_->window();
     }
 
     std::int64_t WindowGenerator::vocabulary() const noexcept
     {
-        return logits_->shape[2];
+        return source_->vocabulary();
     }
 
     Status WindowGenerator::generate(SushiRuntime::span<const Text::TokenID> prompt,
@@ -100,21 +88,20 @@ namespace SushiAI::Language::Generation
         SA_TRY(Detail::check_request(prompt, count, vocabulary(), K_GENERATOR));
 
         const std::size_t length = static_cast<std::size_t>(window());
-        const std::size_t scores = static_cast<std::size_t>(vocabulary());
         const std::size_t kept = std::min(prompt.size(), length);
         std::vector<Text::TokenID> context(prompt.end() - static_cast<std::ptrdiff_t>(kept),
                                            prompt.end());
 
-        Text::TokenID* const fed = feed_.inputs.data_as<Text::TokenID>();
+        std::vector<Text::TokenID> ids(length);
         for (std::int64_t made = 0; made < count; ++made)
         {
             // A position behind the context holds 0, which no earlier position reads.
-            std::fill(fed, fed + length, Text::TokenID{0});
-            std::copy(context.begin(), context.end(), fed);
-            SA_TRY(step_->run(feed_.inputs));
+            std::fill(ids.begin(), ids.end(), Text::TokenID{0});
+            std::copy(context.begin(), context.end(), ids.begin());
+            SA_TRY(source_->run(SushiRuntime::span<const Text::TokenID>(ids.data(), ids.size())));
 
             const std::size_t last = context.size() - 1;
-            const LogitSpan row(logits_->data_as<float>() + last * scores, scores);
+            const LogitSpan row = source_->row(last);
             SA_TRY(Detail::check_finite(row, last, K_GENERATOR));
 
             const Text::TokenID token = sampler.sample(row, random);

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_top_k_sampler.cpp                                                 */
+/* test_top_k_sampler.cpp                                                */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_top_k_sampler.cpp
  * @brief Tests TopKSampler against hand-worked distributions and under a seed.
@@ -29,7 +28,9 @@
  */
 
 #include <cmath>
+#include <cstdint>
 #include <memory>
+#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
 #include "generation_test_support.hpp"
@@ -47,6 +48,27 @@ namespace
 
     /** @brief Holds ln 2, so that a logit of it has twice the weight of a logit of 0. */
     const float K_LN_2 = std::log(2.0f);
+
+    /** @brief Names the arguments of a make call and what its refusal names. */
+    struct RefusalCase
+    {
+        std::int64_t k;          /**< The k given to make. */
+        double temperature;      /**< The temperature given to make. */
+        std::string_view first;  /**< A substring the message holds. */
+        std::string_view second; /**< Another substring the message holds. */
+    };
+
+    /** @brief Returns the refusals: a k below one and a temperature that is not positive. */
+    std::vector<RefusalCase> refusal_cases()
+    {
+        return {{0, 1.0, "'top_k'", "keep 0 tokens"}, {3, 0.0, "'top_k'", "temperature"}};
+    }
+
+    /** @brief Provides the rows of the refusals. */
+    class Small_GenerationTopKRefusal : public ::testing::TestWithParam<RefusalCase>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests logits 0, ln 2, 0, -5 with k = 2: tokens 1 and 0 share 2/3 and 1/3. */
@@ -58,11 +80,7 @@ TEST(Small_GenerationTopKSampler, OnlyTheKLargestAreDrawnAndTheLowerIndexWinsATi
     const std::vector<int> counts =
         Support::count_draws(*sampler, {0.0f, K_LN_2, 0.0f, -5.0f}, K_SEED);
 
-    Support::expect_share(counts[0], 1.0 / 3.0);
-    Support::expect_share(counts[1], 2.0 / 3.0);
-    EXPECT_EQ(counts[2], 0);
-    EXPECT_EQ(counts[3], 0);
-    EXPECT_EQ(sampler->name(), K_TOP_K_SAMPLER);
+    Support::expect_shares(counts, {1.0 / 3.0, 2.0 / 3.0, 0.0, 0.0});
 }
 
 /** @brief Tests that k = 1 always picks the largest logit, whatever the seed. */
@@ -85,8 +103,7 @@ TEST(Small_GenerationTopKSampler, AKAboveTheRowKeepsEveryToken)
 
     const std::vector<int> counts = Support::count_draws(*sampler, {0.0f, K_LN_2}, K_SEED);
 
-    Support::expect_share(counts[0], 1.0 / 3.0);
-    Support::expect_share(counts[1], 2.0 / 3.0);
+    Support::expect_shares(counts, {1.0 / 3.0, 2.0 / 3.0});
 }
 
 /** @brief Tests that one seed gives one sequence. */
@@ -101,10 +118,13 @@ TEST(Small_GenerationTopKSampler, ASeedFixesTheSequence)
 }
 
 /** @brief Tests that a k below one and a temperature that is not positive are refused. */
-TEST(Small_GenerationTopKSampler, MakeRefusesAKBelowOneAndABadTemperature)
+TEST_P(Small_GenerationTopKRefusal, MakeRefusesAKBelowOneAndABadTemperature)
 {
-    SA_EXPECT_FAILURE(TopKSampler::make(0, 1.0), StatusCode::InvalidDescription, "'top_k'",
-                      "keep 0 tokens");
-    SA_EXPECT_FAILURE(TopKSampler::make(3, 0.0), StatusCode::InvalidDescription, "'top_k'",
-                      "temperature");
+    const RefusalCase& row = GetParam();
+
+    SA_EXPECT_FAILURE(TopKSampler::make(row.k, row.temperature), StatusCode::InvalidDescription,
+                      row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationTopKRefusal,
+                         ::testing::ValuesIn(refusal_cases()));

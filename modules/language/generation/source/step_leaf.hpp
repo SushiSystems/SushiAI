@@ -32,12 +32,11 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
+#include <SushiAI/language/generation/fed_leaves.hpp>
 
 namespace SushiAI::Language::Generation::Detail
 {
@@ -50,14 +49,13 @@ namespace SushiAI::Language::Generation::Detail
     /** @brief Stands for any positive count of columns in fitting_leaf(). */
     inline constexpr std::int64_t K_ANY_COLUMNS = 0;
 
-    /** @brief Reports whether @p step is fed a leaf named @p name; no leaf has no name. */
-    [[nodiscard]] inline bool is_fed(const Train::EvaluationStep& step,
-                                     std::string_view name) noexcept
+    /** @brief Reports whether @p leaves lists a leaf named @p name; no leaf has no name. */
+    [[nodiscard]] inline bool is_fed(const FedLeaves& leaves, std::string_view name) noexcept
     {
         if (name.empty())
             return false;
 
-        for (const std::string& fed : step.input_names())
+        for (const std::string& fed : leaves.names())
         {
             if (fed == name)
                 return true;
@@ -67,22 +65,24 @@ namespace SushiAI::Language::Generation::Detail
     }
 
     /**
-     * @brief Returns the leaf @p name of @p step once it is known to be [1, columns].
+     * @brief Returns the facts of the leaf @p name of @p leaves once it is known to be
+     *        [1, columns].
      * @param columns The second extent, or K_ANY_COLUMNS for any positive one.
      * @return InvalidDescription for a leaf that is absent or does not fit.
      */
-    [[nodiscard]] inline Result<const SushiBLAS::Tensor*> fitting_leaf(
-        const Train::EvaluationStep& step, std::string_view name, std::int64_t columns,
-        DType dtype)
+    [[nodiscard]] inline Result<LeafFacts> fitting_leaf(const FedLeaves& leaves,
+                                                        std::string_view name,
+                                                        std::int64_t columns, DType dtype)
     {
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const leaf, step.input(name));
-        SA_FAIL_IF(leaf->rank != K_LEAF_RANK || leaf->shape[0] != 1 || leaf->shape[1] < 1 ||
-                       (columns != K_ANY_COLUMNS && leaf->shape[1] != columns) ||
-                       leaf->dtype != dtype,
+        SA_TRY_ASSIGN(const LeafFacts leaf, leaves.leaf(name));
+        SA_FAIL_IF(leaf.shape.rank() != K_LEAF_RANK || leaf.shape[0] != 1 ||
+                       leaf.shape[1] < 1 ||
+                       (columns != K_ANY_COLUMNS && leaf.shape[1] != columns) ||
+                       leaf.dtype != dtype,
                    StatusCode::InvalidDescription,
                    "{}: the leaf '{}' has rank {} and the element type {}; it reads a {} "
                    "leaf of [1, {}]",
-                   K_CACHED_GENERATOR, name, leaf->rank, dtype_name(leaf->dtype),
+                   K_CACHED_GENERATOR, name, leaf.shape.rank(), dtype_name(leaf.dtype),
                    dtype_name(dtype),
                    columns == K_ANY_COLUMNS ? std::string("n") : std::to_string(columns));
 

@@ -39,6 +39,7 @@
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/language/generation/position_feed.hpp>
+#include "evaluation_one_position_step.hpp"
 #include "request.hpp"
 #include "step_leaf.hpp"
 
@@ -61,52 +62,69 @@ namespace SushiAI::Language::Generation
         SushiBLAS::Engine& engine, Train::EvaluationStep& step, std::string_view output,
         const CachedStepLeaves& leaves) noexcept
     {
-        SA_FAIL_IF(!step.carries_state(), StatusCode::InvalidDescription,
+        SA_TRY_ASSIGN(std::unique_ptr<OnePositionStep> adapter,
+                      SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                      {
+                          return std::unique_ptr<OnePositionStep>(
+                              new Detail::EvaluationOnePositionStep(step));
+                      }));
+
+        return make(engine, std::move(adapter), output, leaves);
+    }
+
+    Result<std::unique_ptr<CachedGenerator>> CachedGenerator::make(
+        SushiBLAS::Engine& engine, std::unique_ptr<OnePositionStep> step,
+        std::string_view output, const CachedStepLeaves& leaves) noexcept
+    {
+        SA_FAIL_IF(!step->carries_state(), StatusCode::InvalidDescription,
                    "{}: the step keeps nothing between runs; it reads a step traced with "
                    "Train::build_incremental_graph",
                    K_GENERATOR);
 
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, step.output(output));
-        SA_FAIL_IF(logits->rank != K_LOGITS_RANK || logits->shape[0] != 1 ||
-                       logits->shape[1] != 1 || logits->dtype != DType::Float32,
+        SA_TRY_ASSIGN(const LeafFacts logits, step->output(output));
+        SA_FAIL_IF(logits.shape.rank() != K_LOGITS_RANK || logits.shape[0] != 1 ||
+                       logits.shape[1] != 1 || logits.dtype != DType::Float32,
                    StatusCode::InvalidDescription,
                    "{}: the output '{}' has rank {} and the element type {}; it reads "
                    "float32 logits of [1, 1, V]",
-                   K_GENERATOR, output, logits->rank, dtype_name(logits->dtype));
+                   K_GENERATOR, output, logits.shape.rank(), dtype_name(logits.dtype));
 
-        SA_TRY(Detail::fitting_leaf(step, Train::K_MODEL_INPUT_NAME, 1, DType::Int32));
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const mask,
-                      Detail::fitting_leaf(step, leaves.mask, Detail::K_ANY_COLUMNS,
+        SA_TRY(Detail::fitting_leaf(*step, Train::K_MODEL_INPUT_NAME, 1, DType::Int32));
+        SA_TRY_ASSIGN(const LeafFacts mask,
+                      Detail::fitting_leaf(*step, leaves.mask, Detail::K_ANY_COLUMNS,
                                            DType::Float32));
         SA_TRY_ASSIGN(std::unique_ptr<Detail::PositionFeed> positions,
-                      Detail::make_position_feed(engine, step, leaves, mask->shape[1]));
-        SA_FAIL_IF(step.input_names().size() != K_OWN_LEAVES + positions->feeds().size(),
+                      Detail::make_position_feed(engine, *step, leaves, mask.shape[1]));
+        SA_FAIL_IF(step->names().size() != K_OWN_LEAVES + positions->feeds().size(),
                    StatusCode::InvalidDescription,
                    "{}: the step is fed {} leaves; it fills '{}', '{}' and the {} that place "
                    "a token",
-                   K_GENERATOR, step.input_names().size(), Train::K_MODEL_INPUT_NAME,
+                   K_GENERATOR, step->names().size(), Train::K_MODEL_INPUT_NAME,
                    leaves.mask, positions->feeds().size());
 
         Feeds feeds;
         SA_TRY(Data::prepare_batch(engine, 1, Data::InputDescription{Shape{1}, DType::Int32},
                                    {}, feeds.id));
         SA_TRY(Data::prepare_batch(
-            engine, 1, Data::InputDescription{Shape{mask->shape[1]}, DType::Float32}, {},
+            engine, 1, Data::InputDescription{Shape{mask.shape[1]}, DType::Float32}, {},
             feeds.mask));
 
         return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
         {
             return std::unique_ptr<CachedGenerator>(new CachedGenerator(
-                step, *logits, std::move(feeds), std::move(positions), leaves));
+                std::move(step), output, logits.shape[2], std::move(feeds),
+                std::move(positions), leaves));
         });
     }
 
-    CachedGenerator::CachedGenerator(Train::EvaluationStep& step,
-                                     const SushiBLAS::Tensor& logits, Feeds feeds,
+    CachedGenerator::CachedGenerator(std::unique_ptr<OnePositionStep> step,
+                                     std::string_view output, std::int64_t vocabulary,
+                                     Feeds feeds,
                                      std::unique_ptr<Detail::PositionFeed> positions,
                                      const CachedStepLeaves& leaves)
-        : step_(&step),
-          logits_(&logits),
+        : step_(std::move(step)),
+          output_(output),
+          vocabulary_(vocabulary),
           feeds_(std::move(feeds)),
           positions_(std::move(positions)),
           mask_name_(leaves.mask),
@@ -128,7 +146,7 @@ namespace SushiAI::Language::Generation
 
     std::int64_t CachedGenerator::vocabulary() const noexcept
     {
-        return logits_->shape[2];
+        return vocabulary_;
     }
 
     Status CachedGenerator::advance(Text::TokenID id)
@@ -145,7 +163,7 @@ namespace SushiAI::Language::Generation
         positions_->place(next_position_);
         ++next_position_;
 
-        return step_->run_by_name(
+        return step_->run(
             SushiRuntime::span<const Train::NamedFeed>(fed_.data(), fed_.size()));
     }
 
@@ -167,7 +185,6 @@ namespace SushiAI::Language::Generation
         SA_TRY(Detail::check_request(prompt, count, vocabulary(), K_GENERATOR));
 
         const std::size_t length = static_cast<std::size_t>(window());
-        const std::size_t scores = static_cast<std::size_t>(vocabulary());
         const std::size_t kept = std::min(prompt.size(), length);
         std::vector<Text::TokenID> context(prompt.end() - static_cast<std::ptrdiff_t>(kept),
                                            prompt.end());
@@ -176,7 +193,7 @@ namespace SushiAI::Language::Generation
         for (std::int64_t made = 0; made < count; ++made)
         {
             // The last run fed the last id of the context, so the logits score what follows.
-            const LogitSpan row(logits_->data_as<float>(), scores);
+            const LogitSpan row = step_->logits(output_);
             SA_TRY(Detail::check_finite(row, context.size() - 1, K_GENERATOR));
 
             const Text::TokenID token = sampler.sample(row, random);

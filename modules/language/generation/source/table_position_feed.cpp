@@ -40,9 +40,9 @@
 namespace SushiAI::Language::Generation::Detail
 {
     Result<std::unique_ptr<PositionFeed>> TablePositionFeed::make(
-        SushiBLAS::Engine& engine, const Train::EvaluationStep& step, std::string_view name)
+        SushiBLAS::Engine& engine, const FedLeaves& fed, std::string_view name)
     {
-        SA_TRY(fitting_leaf(step, name, 1, DType::Int32));
+        SA_TRY(fitting_leaf(fed, name, 1, DType::Int32));
 
         Data::Batch position;
         SA_TRY(Data::prepare_batch(engine, 1, Data::InputDescription{Shape{1}, DType::Int32},

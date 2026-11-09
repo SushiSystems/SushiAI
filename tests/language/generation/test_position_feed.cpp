@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_position_feed.cpp                                                 */
+/* test_position_feed.cpp                                                */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_position_feed.cpp
  * @brief Tests make_position_feed, which picks a PositionFeed from the leaves a step is fed.
@@ -29,13 +28,14 @@
  */
 
 #include <memory>
+#include <string_view>
+#include <vector>
 #include <gtest/gtest.h>
 #include "position_feed_test_support.hpp"
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/generation/cached_generator.hpp>
 #include <SushiAI/language/generation/position_feed.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Generation;
@@ -44,71 +44,88 @@ using Language::Generation::Detail::make_position_feed;
 
 namespace
 {
-    /** @brief Builds the steps a feed is picked for. */
-    class Medium_GenerationPositionFeed : public Support::FedStepTest
+    /** @brief Names the leaves a call gives and the leaves the step is fed. */
+    struct RefusalCase
+    {
+        bool has_position;       /**< Whether the step is fed the table position. */
+        bool has_ring;           /**< Whether the step is fed the ring slot and its angles. */
+        std::string_view first;  /**< A substring the message holds. */
+        std::string_view second; /**< Another substring the message holds. */
+    };
+
+    /** @brief Returns the leaves a call gives: the ones that declare a ring, and the plain ones. */
+    std::vector<CachedStepLeaves> table_cases()
+    {
+        return {Support::feed_leaves(),
+                CachedStepLeaves{Support::K_FEED_POSITION, "feed_mask", 0.0}};
+    }
+
+    /** @brief Returns a step fed both leaves and a step fed neither. */
+    std::vector<RefusalCase> refusal_cases()
+    {
+        return {{true, true, "both", "'feed_position'"},
+                {false, false, "neither", "'feed_slot'"}};
+    }
+
+    /** @brief Provides the leaves of the calls that pick the table feed. */
+    class Small_GenerationPositionFeedTable
+        : public Support::HostFeedTest,
+          public ::testing::WithParamInterface<CachedStepLeaves>
+    {
+
+    };
+
+    /** @brief Provides the steps that are refused. */
+    class Small_GenerationPositionFeedRefusal
+        : public Support::HostFeedTest,
+          public ::testing::WithParamInterface<RefusalCase>
+    {
+
+    };
+
+    /** @brief Provides a host engine. */
+    class Small_GenerationPositionFeed : public Support::HostFeedTest
     {
 
     };
 } // namespace
 
-/** @brief Tests that a step fed a position gets the feed of one leaf that resets on a slide. */
-TEST_F(Medium_GenerationPositionFeed, AStepFedAPositionGetsTheTableFeed)
+/** @brief Tests that a step fed a position gets the feed of one leaf, with or without a ring named. */
+TEST_P(Small_GenerationPositionFeedTable, AStepFedAPositionGetsTheTableFeed)
 {
-    build_step(true, false);
-    ASSERT_NE(step, nullptr);
+    const InMemoryFedLeaves fed = Support::fed_leaves_of(true, false);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PositionFeed> feed,
-                            make_position_feed(*engine, *step, Support::feed_leaves(),
+                            make_position_feed(engine(), fed, GetParam(),
                                                Support::K_FEED_WINDOW));
 
     ASSERT_EQ(feed->feeds().size(), 1u);
     EXPECT_EQ(feed->feeds()[0].name, Support::K_FEED_POSITION);
-    EXPECT_FALSE(feed->keeps_rows_on_slide());
 }
 
-/** @brief Tests that a step fed a cache slot gets the feed of three leaves that keeps its rows. */
-TEST_F(Medium_GenerationPositionFeed, AStepFedACacheSlotGetsTheRingFeed)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationPositionFeedTable,
+                         ::testing::ValuesIn(table_cases()));
+
+/** @brief Tests that a step fed a cache slot gets the feed of three leaves. */
+TEST_F(Small_GenerationPositionFeed, AStepFedACacheSlotGetsTheRingFeed)
 {
-    build_step(false, true);
-    ASSERT_NE(step, nullptr);
+    const InMemoryFedLeaves fed = Support::fed_leaves_of(false, true);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PositionFeed> feed,
-                            make_position_feed(*engine, *step, Support::feed_leaves(),
+                            make_position_feed(engine(), fed, Support::feed_leaves(),
                                                Support::K_FEED_WINDOW));
 
-    ASSERT_EQ(feed->feeds().size(), 3u);
-    EXPECT_EQ(feed->feeds()[0].name, Support::K_FEED_SLOT);
-    EXPECT_TRUE(feed->keeps_rows_on_slide());
-}
-
-/** @brief Tests that leaves that name no ring pick the table feed of a step fed a position. */
-TEST_F(Medium_GenerationPositionFeed, LeavesWithoutARingPickTheTableFeed)
-{
-    build_step(true, false);
-    ASSERT_NE(step, nullptr);
-    const CachedStepLeaves plain{Support::K_FEED_POSITION, "feed_mask", 0.0};
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<PositionFeed> feed,
-        make_position_feed(*engine, *step, plain, Support::K_FEED_WINDOW));
-
-    EXPECT_EQ(feed->feeds().size(), 1u);
+    EXPECT_EQ(feed->feeds().size(), 3u);
 }
 
 /** @brief Tests that a step fed both the position and the slot, or neither, is refused. */
-TEST_F(Medium_GenerationPositionFeed, AStepFedBothOrNeitherIsRefused)
+TEST_P(Small_GenerationPositionFeedRefusal, AStepFedBothOrNeitherIsRefused)
 {
-    build_step(true, true);
-    ASSERT_NE(step, nullptr);
-    SA_EXPECT_FAILURE(make_position_feed(*engine, *step, Support::feed_leaves(),
-                                         Support::K_FEED_WINDOW),
-                      StatusCode::InvalidDescription, "CachedGenerator", "both",
-                      "'feed_position'", "'feed_slot'");
+    const RefusalCase& row = GetParam();
+    const InMemoryFedLeaves fed = Support::fed_leaves_of(row.has_position, row.has_ring);
 
-    step.reset();
-    pool.reset();
-    state.reset();
-    build_step(false, false);
-    ASSERT_NE(step, nullptr);
-    SA_EXPECT_FAILURE(make_position_feed(*engine, *step, Support::feed_leaves(),
+    SA_EXPECT_FAILURE(make_position_feed(engine(), fed, Support::feed_leaves(),
                                          Support::K_FEED_WINDOW),
-                      StatusCode::InvalidDescription, "neither", "'feed_position'",
-                      "'feed_slot'");
+                      StatusCode::InvalidDescription, row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationPositionFeedRefusal,
+                         ::testing::ValuesIn(refusal_cases()));

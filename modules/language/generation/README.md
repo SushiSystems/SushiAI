@@ -31,7 +31,14 @@ keys and the values of the positions before it. Everything is in namespace
 | `<SushiAI/language/generation/generation_task.hpp>` | `GenerationTask`, `read_generation_task`, `K_GENERATION_TASK_TYPE`, `K_DEFAULT_GENERATED_TOKENS`, `K_DEFAULT_GENERATION_CACHE` |
 | `<SushiAI/language/generation/generator.hpp>` | `Generator` |
 | `<SushiAI/language/generation/window_generator.hpp>` | `WindowGenerator` |
+| `<SushiAI/language/generation/window_logits.hpp>` | `WindowLogits` |
+| `<SushiAI/language/generation/in_memory_window_logits.hpp>` | `InMemoryWindowLogits` |
+| `<SushiAI/language/generation/in_memory_generator.hpp>` | `InMemoryGenerator` |
 | `<SushiAI/language/generation/cached_generator.hpp>` | `CachedStepLeaves`, `RingStepLeaves`, `AngleRows`, `CachedGenerator` |
+| `<SushiAI/language/generation/fed_leaves.hpp>` | `FedLeaves`, `LeafFacts` |
+| `<SushiAI/language/generation/in_memory_fed_leaves.hpp>` | `InMemoryFedLeaves`, `NamedLeafFacts` |
+| `<SushiAI/language/generation/one_position_step.hpp>` | `OnePositionStep` |
+| `<SushiAI/language/generation/in_memory_one_position_step.hpp>` | `InMemoryOnePositionStep` |
 | `<SushiAI/language/generation/position_feed.hpp>` | `Detail::PositionFeed`, `Detail::make_position_feed` |
 | `<SushiAI/language/generation/ring_position_feed.hpp>` | `Detail::RingPositionFeed` |
 | `<SushiAI/language/generation/table_position_feed.hpp>` | `Detail::TablePositionFeed` |
@@ -60,6 +67,23 @@ The three samplers that draw share `source/weights.hpp`: the weights
 `exp((logit - largest) / temperature)`, their sum, and a draw by running sum over them. A
 sampler allocates one vector of doubles per call, or two for top-k and nucleus. A logit that
 is not finite is the caller's to refuse, and both generators do so before they sample.
+
+## Seams and their in-memory adapters
+
+The loops and the feeds do not reach a compiled step directly. Three ports stand between them
+and `Train::EvaluationStep`, each with an adapter over the step (private, in `source/`) and an
+in-memory adapter that ships beside the port, so the decisions of a loop run in a small test.
+
+| Port | Used by | Device adapter | In-memory adapter |
+| --- | --- | --- | --- |
+| `WindowLogits`: score a window of `T` ids, read the row of a position | `WindowGenerator::make(std::unique_ptr<WindowLogits>)` | `EvaluationWindowLogits` | `InMemoryWindowLogits`: 1 at the successor of each id, modulo `V`; keeps the windows it was run on |
+| `FedLeaves`: the names, shapes and types of the leaves a step is fed | `make_position_feed`, `RingPositionFeed::make`, `TablePositionFeed::make` | the leaves of `EvaluationOnePositionStep` | `InMemoryFedLeaves` |
+| `OnePositionStep` (a `FedLeaves`): state, output facts, reset, run, the logits of the last run | `CachedGenerator::make(engine, std::unique_ptr<OnePositionStep>, ...)` | `EvaluationOnePositionStep` | `InMemoryOnePositionStep`: the same successor logits; keeps the ids it was fed and the resets it saw |
+
+`make(engine, step, output, leaves)` over a `Train::EvaluationStep&` keeps its signature and
+builds the device adapter. `InMemoryGenerator` is a `Generator` that runs no model, for a test
+of the interface and of its contract: it continues a prompt with successors and refuses what
+the other two refuse. `generator.hpp` is tested over all three generators in one suite.
 
 ## The task section
 
@@ -158,7 +182,8 @@ runs, 48 of them in the six slides.
 
 Under a greedy sampler the tokens equal those of `WindowGenerator` for a prompt that fits and
 for one whose context slides; `tests/language/generation/test_cached_generator.cpp` checks both, the
-logits of one position against the window's, and that the step is compiled once.
+logits of one position against the window's. That a prompt longer than the window feeds its last
+`T` ids runs small, over an `InMemoryOnePositionStep`.
 
 ### A step fed a cache slot
 
@@ -191,8 +216,8 @@ What the ring computes is the model over a cache of unbounded rows in which each
 reads the last `T`: `tests/language/generation/test_cached_generator.cpp` checks a two-block ring
 against a 64-row cache that never wraps and is masked to the last 8 positions, token for
 token over 26 tokens. The same file checks a one-block ring against `WindowGenerator` over 26
-tokens and its logits at each of 30 fed positions, the count of runs, and that a slot written
-twice holds the second row. A model that must equal the window form at depth after a slide
+tokens and its logits at each of 30 fed positions, and that a slot written twice holds the
+second row. A model that must equal the window form at depth after a slide
 runs with `"cache": false`.
 
 ### What the layers below give it

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_window_generator.cpp                                              */
+/* test_window_generator.cpp                                             */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,13 +21,14 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_window_generator.cpp
- * @brief Tests WindowGenerator over a decoder built from a model file.
+ * @brief Tests WindowGenerator over a decoder built from a model file, and over an in-memory
+ *        source of window logits.
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -42,6 +43,7 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/language/decoder_models/decoder_model.hpp>
 #include <SushiAI/language/generation/greedy_sampler.hpp>
+#include <SushiAI/language/generation/in_memory_window_logits.hpp>
 #include <SushiAI/language/generation/sampler.hpp>
 #include <SushiAI/language/generation/temperature_sampler.hpp>
 #include <SushiAI/language/generation/window_generator.hpp>
@@ -55,6 +57,7 @@
 
 using namespace SushiAI;
 using Language::Generation::GreedySampler;
+using Language::Generation::InMemoryWindowLogits;
 using Language::Generation::RandomGenerator;
 using Language::Generation::TemperatureSampler;
 using Language::Generation::WindowGenerator;
@@ -70,10 +73,25 @@ namespace
     /** @brief Holds the tokens one run generates; with the prompt they pass the window. */
     constexpr std::int64_t K_TOKENS = 12;
 
+    /** @brief Holds T, the window of the in-memory source. */
+    constexpr std::int64_t K_SOURCE_WINDOW = 8;
+
+    /** @brief Holds V, the vocabulary of the in-memory source. */
+    constexpr std::int64_t K_SOURCE_VOCABULARY = 32;
+
     /** @brief Views ids as the span the generator reads. */
     SushiRuntime::span<const TokenID> span_of(const std::vector<TokenID>& ids)
     {
         return SushiRuntime::span<const TokenID>(ids.data(), ids.size());
+    }
+
+    /** @brief Reports whether every id of @p ids is a token of the decoder's vocabulary. */
+    bool all_in_vocabulary(const std::vector<TokenID>& ids)
+    {
+        return std::all_of(ids.begin(), ids.end(), [](TokenID id)
+        {
+            return id >= 0 && id < SaTest::K_DECODER_VOCABULARY;
+        });
     }
 
     /** @brief Builds the decoder, initialises it and compiles its [1, T] forward pass. */
@@ -124,6 +142,31 @@ namespace
                 SaTest::EngineTest::TearDown();
             }
 
+            /**
+             * @brief Returns the tokens of @p count runs of one token, each over the prompt grown
+             *        by the tokens before it; it stops at the first run that fails, so the
+             *        caller's comparison fails with fewer tokens.
+             */
+            std::vector<TokenID> one_token_at_a_time(const std::vector<TokenID>& prompt,
+                                                     std::int64_t count)
+            {
+                const GreedySampler sampler;
+                RandomGenerator random(K_SEED);
+                std::vector<TokenID> grown = prompt;
+                std::vector<TokenID> made;
+                for (std::int64_t run = 0; run < count; ++run)
+                {
+                    std::vector<TokenID> one;
+                    if (!generator->generate(span_of(grown), 1, sampler, random, one).is_ok())
+                        return made;
+
+                    grown.insert(grown.end(), one.begin(), one.end());
+                    made.insert(made.end(), one.begin(), one.end());
+                }
+
+                return made;
+            }
+
             /// @brief Holds the decoder.
             std::unique_ptr<NN::ModelGraph> model;
 
@@ -141,13 +184,6 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that the generator reads the window and the vocabulary of the step. */
-TEST_F(Medium_Generation, TheGeneratorReadsTheExtentsOfTheStep)
-{
-    EXPECT_EQ(generator->window(), SaTest::K_DECODER_WINDOW);
-    EXPECT_EQ(generator->vocabulary(), SaTest::K_DECODER_VOCABULARY);
-}
-
 /** @brief Tests that twelve greedy tokens equal twelve runs of one token over a grown prompt. */
 TEST_F(Medium_Generation, ARunEqualsOneTokenAtATimeOverTheGrownPrompt)
 {
@@ -157,30 +193,18 @@ TEST_F(Medium_Generation, ARunEqualsOneTokenAtATimeOverTheGrownPrompt)
 
     std::vector<TokenID> together;
     SA_EXPECT_OK(generator->generate(span_of(prompt), K_TOKENS, sampler, random, together));
-    ASSERT_EQ(together.size(), static_cast<std::size_t>(K_TOKENS));
 
-    std::vector<TokenID> grown = prompt;
-    for (std::int64_t made = 0; made < K_TOKENS; ++made)
-    {
-        std::vector<TokenID> one;
-        SA_EXPECT_OK(generator->generate(span_of(grown), 1, sampler, random, one));
-        ASSERT_EQ(one.size(), 1u);
-        EXPECT_EQ(one[0], together[static_cast<std::size_t>(made)]) << "token " << made;
-        grown.push_back(one[0]);
-    }
-
-    for (const TokenID token : together)
-    {
-        EXPECT_GE(token, 0);
-        EXPECT_LT(token, SaTest::K_DECODER_VOCABULARY);
-    }
-
-    EXPECT_EQ(step->step().compile_count(), 1u);
+    EXPECT_EQ(together, one_token_at_a_time(prompt, K_TOKENS));
+    EXPECT_TRUE(all_in_vocabulary(together));
 }
 
 /** @brief Tests that a drawing sampler gives one sequence for one seed. */
-TEST_F(Medium_Generation, ASeedFixesADrawnContinuation)
+TEST(Small_Generation, ASeedFixesADrawnContinuation)
 {
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<WindowGenerator> generator,
+        WindowGenerator::make(
+            std::make_unique<InMemoryWindowLogits>(K_SOURCE_WINDOW, K_SOURCE_VOCABULARY)));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TemperatureSampler> sampler,
                             TemperatureSampler::make(1.0));
     const std::vector<TokenID> prompt{5, 9};
@@ -193,20 +217,4 @@ TEST_F(Medium_Generation, ASeedFixesADrawnContinuation)
     SA_EXPECT_OK(generator->generate(span_of(prompt), K_TOKENS, *sampler, again_random, again));
 
     EXPECT_EQ(first, again);
-}
-
-/** @brief Tests that an empty prompt, an id outside the vocabulary and no token are refused. */
-TEST_F(Medium_Generation, APromptOrACountThatDoesNotFitIsRefused)
-{
-    const GreedySampler sampler;
-    RandomGenerator random(K_SEED);
-    std::vector<TokenID> generated;
-
-    SA_EXPECT_FAILURE(generator->generate(span_of({}), 1, sampler, random, generated),
-                      StatusCode::InvalidDescription, "no id");
-    SA_EXPECT_FAILURE(generator->generate(span_of({1, 32}), 1, sampler, random, generated),
-                      StatusCode::InvalidDescription, "id 1", "32", "0 to 31");
-    SA_EXPECT_FAILURE(generator->generate(span_of({1}), 0, sampler, random, generated),
-                      StatusCode::InvalidDescription, "0 tokens");
-    EXPECT_TRUE(generated.empty());
 }

@@ -35,6 +35,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/language/generation/cached_generator.hpp>
+#include <SushiAI/language/generation/fed_leaves.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 
 namespace SushiAI::Language::Generation::Detail
@@ -61,14 +62,15 @@ namespace SushiAI::Language::Generation::Detail
     };
 
     /**
-     * @brief Builds the feed of @p step: a table position when the step is fed the position
-     *        leaf of @p leaves, a ring slot when it is fed the slot leaf of its ring.
+     * @brief Builds the feed of a step: a table position when @p fed lists the position
+     *        leaf of @p leaves, a ring slot when it lists the slot leaf of its ring.
+     * @param fed The leaves the step is fed.
      * @param window T, the rows of a cache.
      * @return The feed, or InvalidDescription for a step fed both leaves or neither, or
      *         for a leaf that does not fit.
      */
     [[nodiscard]] Result<std::unique_ptr<PositionFeed>> make_position_feed(
-        SushiBLAS::Engine& engine, const Train::EvaluationStep& step,
-        const CachedStepLeaves& leaves, std::int64_t window);
+        SushiBLAS::Engine& engine, const FedLeaves& fed, const CachedStepLeaves& leaves,
+        std::int64_t window);
 
 } // namespace SushiAI::Language::Generation::Detail

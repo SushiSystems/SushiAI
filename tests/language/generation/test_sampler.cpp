@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_sampler.cpp                                                       */
+/* test_sampler.cpp                                                      */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,62 +23,71 @@
 
 /**
  * @file test_sampler.cpp
- * @brief Tests the random generator a sampler draws from and the Sampler interface.
+ * @brief Tests the random generator a sampler draws from and the Sampler contract over the
+ *        four samplers of the module.
  * @author Mustafa Garip
  */
 
-#include <cstddef>
-#include <cstdint>
 #include <memory>
-#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
+#include "generation_test_support.hpp"
+#include <SushiAI/language/generation/greedy_sampler.hpp>
+#include <SushiAI/language/generation/nucleus_sampler.hpp>
 #include <SushiAI/language/generation/sampler.hpp>
-#include <SushiAI/language/text/token.hpp>
+#include <SushiAI/language/generation/temperature_sampler.hpp>
+#include <SushiAI/language/generation/top_k_sampler.hpp>
 
 using namespace SushiAI::Language;
-using Generation::LogitSpan;
 using Generation::RandomGenerator;
 using Generation::Sampler;
 
 namespace
 {
-    /** @brief Picks the token whose logit is largest and draws nothing. */
-    class LargestSampler final : public Sampler
-    {
-        public:
-            [[nodiscard]] std::string_view name() const noexcept override
-            {
-                return "largest";
-            }
+    /** @brief Builds one sampler of the module. */
+    using SamplerMaker = std::unique_ptr<Sampler> (*)();
 
-            [[nodiscard]] Text::TokenID sample(LogitSpan logits,
-                                               RandomGenerator&) const override
-            {
-                std::size_t best = 0;
-                for (std::size_t i = 1; i < logits.size(); ++i)
-                {
-                    if (logits[i] > logits[best])
-                        best = i;
-                }
-                return static_cast<Text::TokenID>(best);
-            }
+    /** @brief Names a sampler and the draws one pick of it takes from the generator. */
+    struct SamplerCase
+    {
+        SamplerMaker make; /**< Builds the sampler. */
+        int draws;         /**< How many values one pick takes from the generator. */
     };
 
-    /** @brief Picks the token at the index of one draw, modulo the vocabulary. */
-    class DrawingSampler final : public Sampler
+    /** @brief Builds the greedy sampler, which draws nothing. */
+    std::unique_ptr<Sampler> greedy()
     {
-        public:
-            [[nodiscard]] std::string_view name() const noexcept override
-            {
-                return "drawing";
-            }
+        return std::make_unique<Generation::GreedySampler>();
+    }
 
-            [[nodiscard]] Text::TokenID sample(LogitSpan logits,
-                                               RandomGenerator& random) const override
-            {
-                return static_cast<Text::TokenID>(random() % logits.size());
-            }
+    /** @brief Builds a temperature sampler of temperature 1. */
+    std::unique_ptr<Sampler> temperature()
+    {
+        return Generation::TemperatureSampler::make(1.0).value();
+    }
+
+    /** @brief Builds a top-k sampler of k = 2. */
+    std::unique_ptr<Sampler> top_k()
+    {
+        return Generation::TopKSampler::make(2, 1.0).value();
+    }
+
+    /** @brief Builds a nucleus sampler of mass 0.9. */
+    std::unique_ptr<Sampler> nucleus()
+    {
+        return Generation::NucleusSampler::make(0.9, 1.0).value();
+    }
+
+    /** @brief Returns the four samplers: greedy takes no draw, each other takes one. */
+    std::vector<SamplerCase> sampler_cases()
+    {
+        return {{&greedy, 0}, {&temperature, 1}, {&top_k, 1}, {&nucleus, 1}};
+    }
+
+    /** @brief Provides the samplers of the module, each behind its interface. */
+    class Small_LanguageGenerationSamplerContract : public ::testing::TestWithParam<SamplerCase>
+    {
+
     };
 } // namespace
 
@@ -92,33 +101,37 @@ TEST(Small_LanguageGenerationSampler, TheGeneratorYieldsTheValueTheStandardFixes
     EXPECT_EQ(random(), 9981545732273789042ull);
 }
 
-/** @brief Tests that a sampler that draws nothing leaves the generator as it was. */
-TEST(Small_LanguageGenerationSampler, ASamplerThatDrawsNothingLeavesTheGenerator)
+/** @brief Tests that a pick takes at most one value from the generator: none for greedy. */
+TEST_P(Small_LanguageGenerationSamplerContract, APickTakesAtMostOneDrawFromTheGenerator)
 {
-    const std::vector<float> logits{0.5f, 2.0f, -1.0f};
-    const LargestSampler largest;
-    const Sampler& sampler = largest;
+    const SamplerCase& row = GetParam();
+    const std::unique_ptr<Sampler> owned = row.make();
+    const Sampler& sampler = *owned;
     RandomGenerator random(42);
-    const RandomGenerator before = random;
+    RandomGenerator expected = random;
+    expected.discard(static_cast<unsigned long long>(row.draws));
 
-    EXPECT_EQ(sampler.sample(LogitSpan(logits.data(), logits.size()), random), 1);
-    EXPECT_EQ(sampler.name(), "largest");
-    EXPECT_EQ(random, before);
+    static_cast<void>(sampler.sample(Generation::Support::span_of({0.5f, 2.0f, -1.0f}), random));
+
+    EXPECT_EQ(random, expected);
 }
 
-/** @brief Tests that two generators of one seed lead a drawing sampler to the same tokens. */
-TEST(Small_LanguageGenerationSampler, OneSeedRepeatsTheTokensOfADrawingSampler)
+/** @brief Tests that two generators of one seed lead a sampler to the same token. */
+TEST_P(Small_LanguageGenerationSamplerContract, OneSeedGivesOneTokenAndOneGeneratorState)
 {
-    const std::vector<float> logits(7, 0.0f);
-    const std::unique_ptr<Sampler> sampler = std::make_unique<DrawingSampler>();
+    const SamplerCase& row = GetParam();
+    const std::unique_ptr<Sampler> owned = row.make();
+    const Sampler& sampler = *owned;
     RandomGenerator first(1234);
     RandomGenerator second(1234);
+    const std::vector<float> logits{0.5f, 2.0f, -1.0f, 0.0f, 1.0f, 0.25f, 1.5f};
 
-    for (int draw = 0; draw < 8; ++draw)
-    {
-        EXPECT_EQ(sampler->sample(LogitSpan(logits.data(), logits.size()), first),
-                  sampler->sample(LogitSpan(logits.data(), logits.size()), second))
-            << draw;
-    }
+    const auto from_first = sampler.sample(Generation::Support::span_of(logits), first);
+    const auto from_second = sampler.sample(Generation::Support::span_of(logits), second);
+
+    EXPECT_EQ(from_first, from_second);
     EXPECT_EQ(first, second);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageGenerationSamplerContract,
+                         ::testing::ValuesIn(sampler_cases()));

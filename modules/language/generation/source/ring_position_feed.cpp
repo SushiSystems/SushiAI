@@ -43,21 +43,21 @@
 namespace SushiAI::Language::Generation::Detail
 {
     Result<std::unique_ptr<PositionFeed>> RingPositionFeed::make(
-        SushiBLAS::Engine& engine, const Train::EvaluationStep& step,
-        const RingStepLeaves& leaves, std::int64_t window)
+        SushiBLAS::Engine& engine, const FedLeaves& fed, const RingStepLeaves& leaves,
+        std::int64_t window)
     {
         SA_FAIL_IF(leaves.angles == nullptr, StatusCode::InvalidDescription,
                    "{}: the step is fed the cache slot '{}', but the ring names no function "
                    "that fills '{}' and '{}'",
                    K_CACHED_GENERATOR, leaves.slot, leaves.cosine, leaves.sine);
 
-        SA_TRY(fitting_leaf(step, leaves.slot, 1, DType::Int32));
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const cosine,
-                      fitting_leaf(step, leaves.cosine, K_ANY_COLUMNS, DType::Float32));
-        SA_TRY(fitting_leaf(step, leaves.sine, cosine->shape[1], DType::Float32));
+        SA_TRY(fitting_leaf(fed, leaves.slot, 1, DType::Int32));
+        SA_TRY_ASSIGN(const LeafFacts cosine,
+                      fitting_leaf(fed, leaves.cosine, K_ANY_COLUMNS, DType::Float32));
+        SA_TRY(fitting_leaf(fed, leaves.sine, cosine.shape[1], DType::Float32));
 
         Feeds feeds;
-        const Data::InputDescription angles{Shape{cosine->shape[1]}, DType::Float32};
+        const Data::InputDescription angles{Shape{cosine.shape[1]}, DType::Float32};
         SA_TRY(Data::prepare_batch(engine, 1, Data::InputDescription{Shape{1}, DType::Int32},
                                    {}, feeds.slot));
         SA_TRY(Data::prepare_batch(engine, 1, angles, {}, feeds.cosine));

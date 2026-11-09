@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* window_generator.hpp                                                   */
+/* window_generator.hpp                                                  */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -34,13 +34,12 @@
 #include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/data/dataset.hpp>
 #include <SushiAI/language/generation/generator.hpp>
 #include <SushiAI/language/generation/sampler.hpp>
+#include <SushiAI/language/generation/window_logits.hpp>
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 
@@ -65,6 +64,14 @@ namespace SushiAI::Language::Generation
              */
             [[nodiscard]] static Result<std::unique_ptr<WindowGenerator>> make(
                 SushiBLAS::Engine& engine, Train::EvaluationStep& step, std::string_view output) noexcept;
+
+            /**
+             * @brief Binds a source of window logits, which this object owns.
+             * @param source Scores a window of T ids; not null.
+             * @return The generator, or the failure of the allocation.
+             */
+            [[nodiscard]] static Result<std::unique_ptr<WindowGenerator>> make(
+                std::unique_ptr<WindowLogits> source) noexcept;
 
             WindowGenerator(const WindowGenerator&) = delete;
             WindowGenerator& operator=(const WindowGenerator&) = delete;
@@ -91,18 +98,11 @@ namespace SushiAI::Language::Generation
                                           std::vector<Text::TokenID>& generated) override;
 
         private:
-            /** @brief Takes the parts make() built. */
-            WindowGenerator(Train::EvaluationStep& step, const SushiBLAS::Tensor& logits,
-                            Data::Batch feed) noexcept;
+            /** @brief Takes the source make() checked. */
+            explicit WindowGenerator(std::unique_ptr<WindowLogits> source) noexcept;
 
-            /// @brief Runs the forward pass; not owned.
-            Train::EvaluationStep* step_;
-
-            /// @brief Views the [1, T, V] logits the step's pool owns.
-            const SushiBLAS::Tensor* logits_;
-
-            /// @brief Holds the [1, T] int32 window each run feeds.
-            Data::Batch feed_;
+            /// @brief Scores a window of T ids.
+            std::unique_ptr<WindowLogits> source_;
     };
 
 } // namespace SushiAI::Language::Generation

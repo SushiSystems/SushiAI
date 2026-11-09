@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* generation_test_support.hpp                                            */
+/* generation_test_support.hpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -43,8 +43,12 @@ namespace SushiAI::Language::Generation::Support
     inline constexpr int K_DRAWS = 20000;
 
     /**
-     * @brief Bounds how far a counted share may lie from its probability, absolutely: statistical,
-     *        above five standard errors of 0.0035 over 20000 draws.
+     * @brief Bounds how far a counted share may lie from its probability, absolutely: statistical.
+     *
+     * A share over n = 20000 draws has a standard error of at most sqrt(0.25 / n) = 0.0035, at
+     * p = 1/2. The bound is 0.02, above five standard errors (0.0177), so a run under a correct
+     * sampler fails with a probability of about 6e-7 under a random seed. Every test fixes the
+     * seed, so the draws repeat and the bound is checked once.
      */
     inline constexpr double K_SHARE_TOLERANCE = 0.02;
 
@@ -83,6 +87,26 @@ namespace SushiAI::Language::Generation::Support
     inline void expect_share(int count, double wanted)
     {
         EXPECT_NEAR(static_cast<double>(count) / K_DRAWS, wanted, K_SHARE_TOLERANCE);
+    }
+
+    /**
+     * @brief Expects every token to be drawn with the share stated for it.
+     *
+     * A token stated as 0 is never drawn and a token stated as 1 is drawn every time, exactly;
+     * any other share lies within K_SHARE_TOLERANCE.
+     */
+    inline void expect_shares(const std::vector<int>& counts, const std::vector<double>& wanted)
+    {
+        ASSERT_EQ(counts.size(), wanted.size());
+        for (std::size_t token = 0; token < counts.size(); ++token)
+        {
+            if (wanted[token] == 0.0)
+                EXPECT_EQ(counts[token], 0) << "token " << token;
+            else if (wanted[token] == 1.0)
+                EXPECT_EQ(counts[token], K_DRAWS) << "token " << token;
+            else
+                expect_share(counts[token], wanted[token]);
+        }
     }
 
 } // namespace SushiAI::Language::Generation::Support

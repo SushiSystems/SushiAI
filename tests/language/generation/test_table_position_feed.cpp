@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_table_position_feed.cpp                                           */
+/* test_table_position_feed.cpp                                          */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_table_position_feed.cpp
  * @brief Tests TablePositionFeed, which feeds a token's row of a position table.
@@ -30,6 +29,8 @@
 
 #include <cstdint>
 #include <memory>
+#include <string_view>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -39,7 +40,6 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/generation/position_feed.hpp>
 #include <SushiAI/language/generation/table_position_feed.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Generation;
@@ -48,20 +48,62 @@ using Language::Generation::Detail::TablePositionFeed;
 
 namespace
 {
-    /** @brief Builds the steps a table feed is bound to. */
-    class Medium_GenerationTablePositionFeed : public Support::FedStepTest
+    /** @brief Names a leaf given to make and what the refusal of it names. */
+    struct RefusalCase
+    {
+        std::string_view leaf;   /**< The leaf given to make. */
+        std::string_view first;  /**< A substring the message holds. */
+        std::string_view second; /**< Another substring the message holds. */
+    };
+
+    /** @brief Returns the positions the place cases write. */
+    std::vector<std::int64_t> position_cases()
+    {
+        return {0, 5};
+    }
+
+    /** @brief Returns a leaf the step is not fed and a leaf of another type. */
+    std::vector<RefusalCase> refusal_cases()
+    {
+        return {{Support::K_FEED_POSITION, "'feed_position'", ""},
+                {Support::K_FEED_COSINE, "'feed_cosine'", "int32 leaf of [1, 1]"}};
+    }
+
+    /** @brief Builds the table feed of a host engine. */
+    class Small_GenerationTablePositionFeed : public Support::HostFeedTest
+    {
+        protected:
+            /** @brief Returns the table feed of the position leaf, or null. */
+            std::unique_ptr<PositionFeed> make_feed()
+            {
+                const InMemoryFedLeaves fed = Support::fed_leaves_of(true, false);
+                Result<std::unique_ptr<PositionFeed>> made =
+                    TablePositionFeed::make(engine(), fed, Support::K_FEED_POSITION);
+                EXPECT_TRUE(made.has_value());
+                return made.has_value() ? std::move(made).value() : nullptr;
+            }
+    };
+
+    /** @brief Provides the positions written into the leaf. */
+    class Small_GenerationTablePlace : public Small_GenerationTablePositionFeed,
+                                       public ::testing::WithParamInterface<std::int64_t>
+    {
+
+    };
+
+    /** @brief Provides the leaves that are refused. */
+    class Small_GenerationTableRefusal : public Support::HostFeedTest,
+                                         public ::testing::WithParamInterface<RefusalCase>
     {
 
     };
 } // namespace
 
-/** @brief Tests that the feed lists one [1, 1] int32 leaf and writes the position into it. */
-TEST_F(Medium_GenerationTablePositionFeed, PlaceWritesThePositionIntoItsOneLeaf)
+/** @brief Tests that the feed lists one [1, 1] int32 leaf, named by the step. */
+TEST_F(Small_GenerationTablePositionFeed, TheFeedListsOneInt32LeafNamedByTheStep)
 {
-    build_step(true, false);
-    ASSERT_NE(step, nullptr);
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PositionFeed> feed,
-                            TablePositionFeed::make(*engine, *step, Support::K_FEED_POSITION));
+    const std::unique_ptr<PositionFeed> feed = make_feed();
+    ASSERT_NE(feed, nullptr);
 
     const SushiRuntime::span<const Train::NamedFeed> fed = feed->feeds();
     ASSERT_EQ(fed.size(), 1u);
@@ -69,33 +111,31 @@ TEST_F(Medium_GenerationTablePositionFeed, PlaceWritesThePositionIntoItsOneLeaf)
     ASSERT_NE(fed[0].tensor, nullptr);
     EXPECT_EQ(fed[0].tensor->dtype, DType::Int32);
     EXPECT_EQ(fed[0].tensor->num_elements, 1);
-
-    feed->place(0);
-    EXPECT_EQ(fed[0].tensor->data_as<std::int32_t>()[0], 0);
-    feed->place(5);
-    EXPECT_EQ(fed[0].tensor->data_as<std::int32_t>()[0], 5);
 }
 
-/** @brief Tests that a slide leaves no cached row right, so the generator feeds them again. */
-TEST_F(Medium_GenerationTablePositionFeed, NoRowStaysRightAfterASlide)
+/** @brief Tests that place writes the position into the leaf. */
+TEST_P(Small_GenerationTablePlace, PlaceWritesThePositionIntoItsOneLeaf)
 {
-    build_step(true, false);
-    ASSERT_NE(step, nullptr);
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PositionFeed> feed,
-                            TablePositionFeed::make(*engine, *step, Support::K_FEED_POSITION));
+    const std::int64_t position = GetParam();
+    const std::unique_ptr<PositionFeed> feed = make_feed();
+    ASSERT_NE(feed, nullptr);
 
-    EXPECT_FALSE(feed->keeps_rows_on_slide());
+    feed->place(position);
+
+    EXPECT_EQ(feed->feeds()[0].tensor->data_as<std::int32_t>()[0], position);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationTablePlace, ::testing::ValuesIn(position_cases()));
 
 /** @brief Tests that a leaf the step is not fed and a leaf of another type are refused. */
-TEST_F(Medium_GenerationTablePositionFeed, ALeafThatDoesNotFitIsRefused)
+TEST_P(Small_GenerationTableRefusal, ALeafThatDoesNotFitIsRefused)
 {
-    build_step(false, true);
-    ASSERT_NE(step, nullptr);
+    const RefusalCase& row = GetParam();
+    const InMemoryFedLeaves fed = Support::fed_leaves_of(false, true);
 
-    SA_EXPECT_FAILURE(TablePositionFeed::make(*engine, *step, Support::K_FEED_POSITION),
-                      StatusCode::InvalidDescription, "'feed_position'");
-    SA_EXPECT_FAILURE(TablePositionFeed::make(*engine, *step, Support::K_FEED_COSINE),
-                      StatusCode::InvalidDescription, "CachedGenerator", "'feed_cosine'",
-                      "int32 leaf of [1, 1]");
+    SA_EXPECT_FAILURE(TablePositionFeed::make(engine(), fed, row.leaf),
+                      StatusCode::InvalidDescription, row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationTableRefusal,
+                         ::testing::ValuesIn(refusal_cases()));

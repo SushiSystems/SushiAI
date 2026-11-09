@@ -37,12 +37,12 @@
 #include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/language/generation/generator.hpp>
+#include <SushiAI/language/generation/one_position_step.hpp>
 #include <SushiAI/language/generation/sampler.hpp>
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
@@ -115,6 +115,17 @@ namespace SushiAI::Language::Generation
                 SushiBLAS::Engine& engine, Train::EvaluationStep& step, std::string_view output,
                 const CachedStepLeaves& leaves) noexcept;
 
+            /**
+             * @brief Binds a one-position step, which this object owns.
+             * @param engine Allocates the feeds; it outlives this object.
+             * @param step Fed as the step of the first overload is; not null.
+             * @param output The name @p step publishes the logits under.
+             * @return The generator, or InvalidDescription as the first overload returns it.
+             */
+            [[nodiscard]] static Result<std::unique_ptr<CachedGenerator>> make(
+                SushiBLAS::Engine& engine, std::unique_ptr<OnePositionStep> step,
+                std::string_view output, const CachedStepLeaves& leaves) noexcept;
+
             CachedGenerator(const CachedGenerator&) = delete;
             CachedGenerator& operator=(const CachedGenerator&) = delete;
             CachedGenerator(CachedGenerator&&) = delete;
@@ -150,8 +161,9 @@ namespace SushiAI::Language::Generation
             };
 
             /** @brief Takes the parts make() built. */
-            CachedGenerator(Train::EvaluationStep& step, const SushiBLAS::Tensor& logits,
-                            Feeds feeds, std::unique_ptr<Detail::PositionFeed> positions,
+            CachedGenerator(std::unique_ptr<OnePositionStep> step, std::string_view output,
+                            std::int64_t vocabulary, Feeds feeds,
+                            std::unique_ptr<Detail::PositionFeed> positions,
                             const CachedStepLeaves& leaves);
 
             /**
@@ -163,11 +175,14 @@ namespace SushiAI::Language::Generation
             /** @brief Runs the step for @p id at the position after the last one it ran. */
             [[nodiscard]] Status advance(Text::TokenID id);
 
-            /// @brief Runs one position; not owned.
-            Train::EvaluationStep* step_;
+            /// @brief Runs one position.
+            std::unique_ptr<OnePositionStep> step_;
 
-            /// @brief Views the [1, 1, V] logits the step's pool owns.
-            const SushiBLAS::Tensor* logits_;
+            /// @brief Names the output the step publishes the logits under.
+            std::string output_;
+
+            /// @brief Holds V, the scores of a position.
+            std::int64_t vocabulary_;
 
             /// @brief Holds the id and the mask each run feeds.
             Feeds feeds_;

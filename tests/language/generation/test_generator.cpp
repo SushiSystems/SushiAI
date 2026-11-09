@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_generator.cpp                                                     */
+/* test_generator.cpp                                                    */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,158 +23,186 @@
 
 /**
  * @file test_generator.cpp
- * @brief Tests that a prompt is continued through the Generator interface alone.
+ * @brief Tests that a prompt is continued through the Generator interface alone, and that every
+ *        generator of the module refuses a request that does not fit.
  * @author Mustafa Garip
  */
 
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include "position_feed_test_support.hpp"
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/language/generation/cached_generator.hpp>
 #include <SushiAI/language/generation/generator.hpp>
+#include <SushiAI/language/generation/greedy_sampler.hpp>
+#include <SushiAI/language/generation/in_memory_generator.hpp>
+#include <SushiAI/language/generation/in_memory_window_logits.hpp>
 #include <SushiAI/language/generation/sampler.hpp>
+#include <SushiAI/language/generation/window_generator.hpp>
 #include <SushiAI/language/text/token.hpp>
 
 using namespace SushiAI;
+using Language::Generation::CachedGenerator;
 using Language::Generation::Generator;
-using Language::Generation::LogitSpan;
+using Language::Generation::GreedySampler;
+using Language::Generation::InMemoryGenerator;
+using Language::Generation::InMemoryWindowLogits;
 using Language::Generation::RandomGenerator;
-using Language::Generation::Sampler;
+using Language::Generation::WindowGenerator;
 using Language::Text::TokenID;
+namespace Support = Language::Generation::Support;
 
 namespace
 {
-    /** @brief Holds T, the window of the fake generator. */
+    /** @brief Holds the seed of every generator of these tests; a greedy sampler draws nothing. */
+    constexpr std::uint64_t K_SEED = 20261011u;
+
+    /** @brief Holds T, the window of the in-memory generator of the interface cases. */
     constexpr std::int64_t K_WINDOW = 4;
 
-    /** @brief Holds V, the vocabulary of the fake generator. */
+    /** @brief Holds V, the vocabulary of the in-memory generator of the interface cases. */
     constexpr std::int64_t K_VOCABULARY = 5;
 
-    /** @brief Picks the token whose logit is largest and draws nothing. */
-    class LargestSampler final : public Sampler
+    /** @brief Views ids as the span a generator reads. */
+    SushiRuntime::span<const TokenID> span_of(const std::vector<TokenID>& ids)
     {
-        public:
-            [[nodiscard]] std::string_view name() const noexcept override
-            {
-                return "largest";
-            }
+        return SushiRuntime::span<const TokenID>(ids.data(), ids.size());
+    }
 
-            [[nodiscard]] TokenID sample(LogitSpan logits, RandomGenerator&) const override
-            {
-                std::size_t best = 0;
-                for (std::size_t i = 1; i < logits.size(); ++i)
-                {
-                    if (logits[i] > logits[best])
-                        best = i;
-                }
-                return static_cast<TokenID>(best);
-            }
+    /** @brief Builds a generator of the module on a host engine. */
+    using GeneratorMaker = std::unique_ptr<Generator> (*)(SushiBLAS::Engine&);
+
+    /** @brief Names a way to build a generator over a window and a vocabulary of the support. */
+    struct GeneratorCase
+    {
+        GeneratorMaker make; /**< Builds the generator. */
     };
 
-    /** @brief Scores the token after the last one of the context highest, modulo V. */
-    class SuccessorGenerator final : public Generator
+    /** @brief Names a request that does not fit and what the refusal names. */
+    struct RefusalCase
     {
-        public:
-            /** @brief Builds the generator; @p destroyed is set when it is destroyed. */
-            explicit SuccessorGenerator(bool& destroyed) : destroyed_(destroyed)
-            {
+        std::vector<TokenID> prompt; /**< The prompt given to generate. */
+        std::int64_t count;          /**< The count given to generate. */
+        std::string_view first;      /**< A substring the message holds. */
+        std::string_view second;     /**< Another substring the message holds. */
+    };
 
-            }
+    /** @brief Builds the generator that runs no model. */
+    std::unique_ptr<Generator> in_memory_generator(SushiBLAS::Engine&)
+    {
+        return std::make_unique<InMemoryGenerator>(Support::K_STEP_WINDOW,
+                                                   Support::K_STEP_VOCABULARY);
+    }
 
-            /** @brief Marks the generator as destroyed. */
-            ~SuccessorGenerator() override
-            {
-                destroyed_ = true;
-            }
+    /** @brief Builds the window generator over the in-memory window logits. */
+    std::unique_ptr<Generator> window_generator(SushiBLAS::Engine&)
+    {
+        return WindowGenerator::make(std::make_unique<InMemoryWindowLogits>(
+                                         Support::K_STEP_WINDOW, Support::K_STEP_VOCABULARY))
+            .value();
+    }
 
-            SuccessorGenerator(const SuccessorGenerator&) = delete;
-            SuccessorGenerator& operator=(const SuccessorGenerator&) = delete;
-            SuccessorGenerator(SuccessorGenerator&&) = delete;
-            SuccessorGenerator& operator=(SuccessorGenerator&&) = delete;
+    /** @brief Builds the cached generator over the in-memory table step. */
+    std::unique_ptr<Generator> cached_generator(SushiBLAS::Engine& engine)
+    {
+        return CachedGenerator::make(engine,
+                                     Support::table_step(Support::K_STEP_WINDOW,
+                                                         Support::K_STEP_VOCABULARY),
+                                     Support::K_STEP_OUTPUT, Support::table_step_leaves())
+            .value();
+    }
 
-            [[nodiscard]] std::int64_t window() const noexcept override
-            {
-                return K_WINDOW;
-            }
+    /** @brief Returns the three generators of the module, each over an in-memory model. */
+    std::vector<GeneratorCase> generator_cases()
+    {
+        return {{&in_memory_generator}, {&window_generator}, {&cached_generator}};
+    }
 
-            [[nodiscard]] std::int64_t vocabulary() const noexcept override
-            {
-                return K_VOCABULARY;
-            }
+    /** @brief Returns an empty prompt, an id outside the vocabulary and a count of zero. */
+    std::vector<RefusalCase> refusal_cases()
+    {
+        return {{{}, 1, "no id", ""}, {{1, 32}, 1, "id 1", "0 to 31"}, {{1}, 0, "0 tokens", ""}};
+    }
 
-            /** @brief Appends @p count successors; refuses an empty prompt. */
-            [[nodiscard]] Status generate(SushiRuntime::span<const TokenID> prompt,
-                                          std::int64_t count, const Sampler& sampler,
-                                          RandomGenerator& random,
-                                          std::vector<TokenID>& generated) override
-            {
-                SA_FAIL_IF(prompt.empty(), StatusCode::InvalidDescription,
-                           "a prompt needs at least one id");
-                TokenID last = prompt[prompt.size() - 1];
-                for (std::int64_t step = 0; step < count; ++step)
-                {
-                    std::vector<float> logits(static_cast<std::size_t>(K_VOCABULARY), 0.0f);
-                    logits[static_cast<std::size_t>((last + 1) % K_VOCABULARY)] = 1.0f;
-                    last = sampler.sample(LogitSpan(logits.data(), logits.size()), random);
-                    generated.push_back(last);
-                }
-                return Status();
-            }
+    /** @brief Provides a host engine for the generators that allocate feeds. */
+    class Small_LanguageGenerationGenerator : public Support::HostFeedTest
+    {
 
-        private:
-            /** @brief Holds the flag the destructor sets. */
-            bool& destroyed_;
+    };
+
+    /** @brief Provides every generator of the module against every request that does not fit. */
+    class Small_GeneratorContract
+        : public Support::HostFeedTest,
+          public ::testing::WithParamInterface<std::tuple<GeneratorCase, RefusalCase>>
+    {
+
     };
 } // namespace
 
-/** @brief Tests that a caller continues a prompt and reads the extents through the base. */
-TEST(Small_LanguageGenerationGenerator, ACallerContinuesAPromptThroughTheInterface)
+/** @brief Tests that a caller continues a prompt through the base: 1, 3 gives 4, 0, 1 after the 9. */
+TEST_F(Small_LanguageGenerationGenerator, ACallerContinuesAPromptThroughTheInterface)
 {
-    bool destroyed = false;
-    SuccessorGenerator successor(destroyed);
+    InMemoryGenerator successor(K_WINDOW, K_VOCABULARY);
     Generator& generator = successor;
-    const LargestSampler sampler;
-    RandomGenerator random(7);
+    const GreedySampler sampler;
+    RandomGenerator random(K_SEED);
     const std::vector<TokenID> prompt{1, 3};
     std::vector<TokenID> generated{9};
 
-    SA_EXPECT_OK(generator.generate(SushiRuntime::span<const TokenID>(prompt.data(),
-                                                                      prompt.size()),
-                                    3, sampler, random, generated));
+    SA_EXPECT_OK(generator.generate(span_of(prompt), 3, sampler, random, generated));
 
     EXPECT_EQ(generated, (std::vector<TokenID>{9, 4, 0, 1}));
-    EXPECT_EQ(generator.window(), K_WINDOW);
-    EXPECT_EQ(generator.vocabulary(), K_VOCABULARY);
 }
 
 /** @brief Tests that a refusal reaches the caller and leaves the tokens as they were. */
-TEST(Small_LanguageGenerationGenerator, ARefusalLeavesTheGeneratedTokens)
+TEST_F(Small_LanguageGenerationGenerator, ARefusalLeavesTheGeneratedTokens)
 {
-    bool destroyed = false;
-    SuccessorGenerator successor(destroyed);
+    InMemoryGenerator successor(K_WINDOW, K_VOCABULARY);
     Generator& generator = successor;
-    const LargestSampler sampler;
-    RandomGenerator random(7);
+    const GreedySampler sampler;
+    RandomGenerator random(K_SEED);
     std::vector<TokenID> generated{9};
 
-    SA_EXPECT_FAILURE(generator.generate(SushiRuntime::span<const TokenID>(), 2, sampler, random,
-                                         generated),
-                      StatusCode::InvalidDescription, "at least one id");
+    SA_EXPECT_FAILURE(generator.generate(span_of({}), 2, sampler, random, generated),
+                      StatusCode::InvalidDescription, "no id");
     EXPECT_EQ(generated, (std::vector<TokenID>{9}));
 }
 
 /** @brief Tests that a generator owned through the base runs its own destructor. */
-TEST(Small_LanguageGenerationGenerator, DestroyingThroughTheBaseRunsTheDerivedDestructor)
+TEST_F(Small_LanguageGenerationGenerator, DestroyingThroughTheBaseRunsTheDerivedDestructor)
 {
-    bool destroyed = false;
-    std::unique_ptr<Generator> owned = std::make_unique<SuccessorGenerator>(destroyed);
+    auto made = std::make_unique<InMemoryGenerator>(K_WINDOW, K_VOCABULARY);
+    const std::shared_ptr<const bool> destroyed = made->destruction_witness();
+    std::unique_ptr<Generator> owned = std::move(made);
 
     owned.reset();
 
-    EXPECT_TRUE(destroyed);
+    EXPECT_TRUE(*destroyed);
 }
+
+/** @brief Tests that a prompt or a count that does not fit is refused and the tokens stay. */
+TEST_P(Small_GeneratorContract, APromptOrACountThatDoesNotFitIsRefused)
+{
+    const GeneratorCase& generators = std::get<0>(GetParam());
+    const RefusalCase& refusal = std::get<1>(GetParam());
+    const std::unique_ptr<Generator> generator = generators.make(engine());
+    const GreedySampler sampler;
+    RandomGenerator random(K_SEED);
+    std::vector<TokenID> generated;
+
+    SA_EXPECT_FAILURE(generator->generate(span_of(refusal.prompt), refusal.count, sampler,
+                                          random, generated),
+                      StatusCode::InvalidDescription, refusal.first, refusal.second);
+    EXPECT_TRUE(generated.empty());
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GeneratorContract,
+                         ::testing::Combine(::testing::ValuesIn(generator_cases()),
+                                            ::testing::ValuesIn(refusal_cases())));

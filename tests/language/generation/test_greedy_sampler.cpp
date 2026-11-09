@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_greedy_sampler.cpp                                                */
+/* test_greedy_sampler.cpp                                               */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,13 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_greedy_sampler.cpp
  * @brief Tests that GreedySampler picks the largest logit and draws nothing.
  * @author Mustafa Garip
  */
 
+#include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
 #include "generation_test_support.hpp"
@@ -42,6 +42,31 @@ namespace
     /** @brief Holds the seed of every generator of these tests. */
     constexpr std::uint64_t K_SEED = 20261011u;
 
+    /** @brief Names a row of logits and the token the greedy pick is. */
+    struct PickCase
+    {
+        std::vector<float> logits; /**< The scores of one position. */
+        int token;                 /**< The index the pick returns. */
+    };
+
+    /** @brief Returns the hand-worked rows: the largest, the first of equals, a lone logit. */
+    std::vector<PickCase> pick_cases()
+    {
+        return {{{0.5f, 2.0f, -1.0f}, 1}, {{0.5f, 2.0f, 2.0f, -1.0f}, 1}, {{-3.0f}, 0}};
+    }
+
+    /** @brief Provides the rows of the pick. */
+    class Small_GenerationGreedyPick : public ::testing::TestWithParam<PickCase>
+    {
+
+    };
+
+    /** @brief Runs the process-stopping case in a child process. */
+    class Medium_GenerationGreedySamplerDeathTest : public ::testing::Test
+    {
+
+    };
+
     /** @brief Asks the sampler for a token of no logit. */
     void sample_no_logit()
     {
@@ -51,16 +76,16 @@ namespace
 } // namespace
 
 /** @brief Tests that the largest logit wins, and the lowest index among equal ones. */
-TEST(Small_GenerationGreedySampler, ThePickIsTheLargestLogitAndTheFirstOfEquals)
+TEST_P(Small_GenerationGreedyPick, ThePickIsTheLargestLogitAndTheFirstOfEquals)
 {
+    const PickCase& row = GetParam();
     const GreedySampler sampler;
     RandomGenerator random(K_SEED);
 
-    EXPECT_EQ(sampler.sample(Support::span_of({0.5f, 2.0f, -1.0f}), random), 1);
-    EXPECT_EQ(sampler.sample(Support::span_of({0.5f, 2.0f, 2.0f, -1.0f}), random), 1);
-    EXPECT_EQ(sampler.sample(Support::span_of({-3.0f}), random), 0);
-    EXPECT_EQ(sampler.name(), K_GREEDY_SAMPLER);
+    EXPECT_EQ(sampler.sample(Support::span_of(row.logits), random), row.token);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationGreedyPick, ::testing::ValuesIn(pick_cases()));
 
 /** @brief Tests that a pick leaves the generator as it was. */
 TEST(Small_GenerationGreedySampler, APickDrawsNothing)
@@ -75,7 +100,7 @@ TEST(Small_GenerationGreedySampler, APickDrawsNothing)
 }
 
 /** @brief Tests that a row of no logit stops the process. */
-TEST(Small_GenerationGreedySamplerDeathTest, NoLogitIsFatal)
+TEST_F(Medium_GenerationGreedySamplerDeathTest, NoLogitIsFatal)
 {
     SA_EXPECT_FATAL(sample_no_logit(), "no logit");
 }

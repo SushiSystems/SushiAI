@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_nucleus_sampler.cpp                                               */
+/* test_nucleus_sampler.cpp                                              */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_nucleus_sampler.cpp
  * @brief Tests NucleusSampler against hand-worked distributions and under a seed.
@@ -29,8 +28,10 @@
  */
 
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <memory>
+#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
 #include "generation_test_support.hpp"
@@ -54,48 +55,68 @@ namespace
     {
         return {K_LN_2, 0.0f, 0.0f};
     }
+
+    /** @brief Names a mass and the share each token of half_quarter_quarter() is drawn with. */
+    struct MassCase
+    {
+        double mass;                /**< The mass the kept tokens must reach. */
+        std::vector<double> shares; /**< The share of each token. */
+    };
+
+    /**
+     * @brief Returns the hand-worked masses: 0.6 keeps tokens 0 and 1 (1/2 and 1/4, so 2/3 and
+     *        1/3), 0.4 keeps token 0 alone, and 1 keeps all three.
+     */
+    std::vector<MassCase> mass_cases()
+    {
+        return {{0.6, {2.0 / 3.0, 1.0 / 3.0, 0.0}}, {0.4, {1.0, 0.0, 0.0}}, {1.0, {0.5, 0.25, 0.25}}};
+    }
+
+    /** @brief Names the arguments of a make call and what its refusal names. */
+    struct RefusalCase
+    {
+        double mass;             /**< The mass given to make. */
+        double temperature;      /**< The temperature given to make. */
+        std::string_view first;  /**< A substring the message holds. */
+        std::string_view second; /**< Another substring the message holds. */
+    };
+
+    /** @brief Returns the refusals: a mass outside (0, 1], a mass that is no number, a bad temperature. */
+    std::vector<RefusalCase> refusal_cases()
+    {
+        return {{0.0, 1.0, "'nucleus'", "above 0"},
+                {1.5, 1.0, "at most 1", ""},
+                {std::numeric_limits<double>::quiet_NaN(), 1.0, "'nucleus'", ""},
+                {0.9, -2.0, "temperature", ""}};
+    }
+
+    /** @brief Provides the rows of the masses. */
+    class Small_GenerationNucleusMass : public ::testing::TestWithParam<MassCase>
+    {
+
+    };
+
+    /** @brief Provides the rows of the refusals. */
+    class Small_GenerationNucleusRefusal : public ::testing::TestWithParam<RefusalCase>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests a mass of 0.6 over 1/2, 1/4, 1/4: tokens 0 and 1 share 2/3 and 1/3. */
-TEST(Small_GenerationNucleusSampler, TheFewestTokensThatReachTheMassAreDrawn)
+/** @brief Tests that the fewest tokens that reach the mass are drawn, in their shares. */
+TEST_P(Small_GenerationNucleusMass, TheFewestTokensThatReachTheMassAreDrawn)
 {
+    const MassCase& row = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NucleusSampler> sampler,
-                            NucleusSampler::make(0.6, 1.0));
+                            NucleusSampler::make(row.mass, 1.0));
 
     const std::vector<int> counts =
         Support::count_draws(*sampler, half_quarter_quarter(), K_SEED);
 
-    Support::expect_share(counts[0], 2.0 / 3.0);
-    Support::expect_share(counts[1], 1.0 / 3.0);
-    EXPECT_EQ(counts[2], 0);
-    EXPECT_EQ(sampler->name(), K_NUCLEUS_SAMPLER);
+    Support::expect_shares(counts, row.shares);
 }
 
-/** @brief Tests a mass of 0.4, which the first token reaches alone. */
-TEST(Small_GenerationNucleusSampler, AMassTheFirstTokenReachesKeepsItAlone)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NucleusSampler> sampler,
-                            NucleusSampler::make(0.4, 1.0));
-
-    const std::vector<int> counts =
-        Support::count_draws(*sampler, half_quarter_quarter(), K_SEED);
-
-    EXPECT_EQ(counts[0], Support::K_DRAWS);
-}
-
-/** @brief Tests a mass of 1, which keeps every token: the shares are 1/2, 1/4 and 1/4. */
-TEST(Small_GenerationNucleusSampler, AMassOfOneKeepsEveryToken)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NucleusSampler> sampler,
-                            NucleusSampler::make(1.0, 1.0));
-
-    const std::vector<int> counts =
-        Support::count_draws(*sampler, half_quarter_quarter(), K_SEED);
-
-    Support::expect_share(counts[0], 0.5);
-    Support::expect_share(counts[1], 0.25);
-    Support::expect_share(counts[2], 0.25);
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationNucleusMass, ::testing::ValuesIn(mass_cases()));
 
 /** @brief Tests that one seed gives one sequence. */
 TEST(Small_GenerationNucleusSampler, ASeedFixesTheSequence)
@@ -109,14 +130,13 @@ TEST(Small_GenerationNucleusSampler, ASeedFixesTheSequence)
 }
 
 /** @brief Tests that a mass outside (0, 1] and a bad temperature are refused. */
-TEST(Small_GenerationNucleusSampler, MakeRefusesAMassOutsideItsRangeAndABadTemperature)
+TEST_P(Small_GenerationNucleusRefusal, MakeRefusesAMassOutsideItsRangeAndABadTemperature)
 {
-    SA_EXPECT_FAILURE(NucleusSampler::make(0.0, 1.0), StatusCode::InvalidDescription,
-                      "'nucleus'", "above 0");
-    SA_EXPECT_FAILURE(NucleusSampler::make(1.5, 1.0), StatusCode::InvalidDescription,
-                      "at most 1");
-    SA_EXPECT_FAILURE(NucleusSampler::make(std::numeric_limits<double>::quiet_NaN(), 1.0),
-                      StatusCode::InvalidDescription, "'nucleus'");
-    SA_EXPECT_FAILURE(NucleusSampler::make(0.9, -2.0), StatusCode::InvalidDescription,
-                      "temperature");
+    const RefusalCase& row = GetParam();
+
+    SA_EXPECT_FAILURE(NucleusSampler::make(row.mass, row.temperature),
+                      StatusCode::InvalidDescription, row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationNucleusRefusal,
+                         ::testing::ValuesIn(refusal_cases()));

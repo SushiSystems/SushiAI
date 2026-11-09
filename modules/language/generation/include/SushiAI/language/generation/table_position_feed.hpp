@@ -37,6 +37,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/language/generation/fed_leaves.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/language/generation/position_feed.hpp>
 
@@ -51,12 +52,11 @@ namespace SushiAI::Language::Generation::Detail
     {
         public:
             /**
-             * @brief Allocates the feed of the leaf @p name of @p step.
+             * @brief Allocates the feed of the leaf @p name of the step @p fed lists.
              * @return The feed, or InvalidDescription for a leaf that is not [1, 1] int32.
              */
             [[nodiscard]] static Result<std::unique_ptr<PositionFeed>> make(
-                SushiBLAS::Engine& engine, const Train::EvaluationStep& step,
-                std::string_view name);
+                SushiBLAS::Engine& engine, const FedLeaves& fed, std::string_view name);
 
             TablePositionFeed(const TablePositionFeed&) = delete;
             TablePositionFeed& operator=(const TablePositionFeed&) = delete;

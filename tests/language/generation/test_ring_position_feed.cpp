@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_ring_position_feed.cpp                                            */
+/* test_ring_position_feed.cpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_ring_position_feed.cpp
  * @brief Tests RingPositionFeed, which feeds a token's cache slot and the angles of its position.
@@ -31,7 +30,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string_view>
 #include <utility>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -43,7 +44,6 @@
 #include <SushiAI/language/generation/cached_generator.hpp>
 #include <SushiAI/language/generation/position_feed.hpp>
 #include <SushiAI/language/generation/ring_position_feed.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Generation;
@@ -61,26 +61,99 @@ namespace
     /** @brief Holds the index of the sines among the leaves a ring feed lists. */
     constexpr std::size_t K_SINE = 2;
 
-    /** @brief Builds the steps a ring feed is bound to. */
-    class Medium_GenerationRingPositionFeed : public Support::FedStepTest
+    /** @brief Holds the position the angle rows are worked at: 11 over 4 rows is row 3. */
+    constexpr std::int64_t K_POSITION = 11;
+
+    /** @brief Names a position and the cache row it is written to. */
+    struct SlotCase
+    {
+        std::int64_t position; /**< The position given to place. */
+        std::int32_t slot;     /**< The position modulo T. */
+    };
+
+    /** @brief Names a ring that does not fit and what the refusal names. */
+    struct RefusalCase
+    {
+        RingStepLeaves ring;     /**< The ring given to make. */
+        std::string_view first;  /**< A substring the message holds. */
+        std::string_view second; /**< Another substring the message holds. */
+    };
+
+    /** @brief Returns the slot rows: position 11 over 4 rows is row 3, position 2 is row 2. */
+    std::vector<SlotCase> slot_cases()
+    {
+        return {{K_POSITION, 3}, {2, 2}};
+    }
+
+    /** @brief Returns the pairs of a row, which write_counted_row fills with position + pair. */
+    std::vector<std::size_t> pair_cases()
+    {
+        return {0u, 1u, 2u};
+    }
+
+    /** @brief Returns the ring with the member @p change gave another value. */
+    template <typename Change>
+    RingStepLeaves ring_with(Change change)
+    {
+        RingStepLeaves ring = Support::feed_leaves().ring;
+        change(ring);
+        return ring;
+    }
+
+    /** @brief Returns a ring without an angle function, an unnamed sine, a slot of the wrong type and a narrow leaf. */
+    std::vector<RefusalCase> refusal_cases()
+    {
+        return {
+            {ring_with([](RingStepLeaves& ring) { ring.angles = nullptr; }), "no function",
+             "'feed_cosine'"},
+            {ring_with([](RingStepLeaves& ring) { ring.sine = "feed_tangent"; }),
+             "'feed_tangent'", ""},
+            {ring_with([](RingStepLeaves& ring) { ring.slot = Support::K_FEED_COSINE; }),
+             "'feed_cosine'", "int32 leaf of [1, 1]"},
+            {ring_with([](RingStepLeaves& ring) { ring.sine = Support::K_FEED_POSITION; }),
+             "'feed_position'", "float32 leaf of [1, 3]"}};
+    }
+
+    /** @brief Builds the ring feed of a host engine and places positions into it. */
+    class Small_GenerationRingPositionFeed : public Support::HostFeedTest
     {
         protected:
-            /** @brief Returns the ring feed of the step over K_FEED_WINDOW rows, or null. */
+            /** @brief Returns the ring feed over K_FEED_WINDOW rows, or null. */
             std::unique_ptr<PositionFeed> make_feed()
             {
+                const InMemoryFedLeaves fed = Support::fed_leaves_of(false, true);
                 Result<std::unique_ptr<PositionFeed>> made = RingPositionFeed::make(
-                    *engine, *step, Support::feed_leaves().ring, Support::K_FEED_WINDOW);
+                    engine(), fed, Support::feed_leaves().ring, Support::K_FEED_WINDOW);
                 EXPECT_TRUE(made.has_value());
                 return made.has_value() ? std::move(made).value() : nullptr;
             }
     };
+
+    /** @brief Provides the positions and the rows they wrap to. */
+    class Small_GenerationRingSlot : public Small_GenerationRingPositionFeed,
+                                     public ::testing::WithParamInterface<SlotCase>
+    {
+
+    };
+
+    /** @brief Provides the pairs of the angle row. */
+    class Small_GenerationRingAngles : public Small_GenerationRingPositionFeed,
+                                       public ::testing::WithParamInterface<std::size_t>
+    {
+
+    };
+
+    /** @brief Provides the rings that are refused. */
+    class Small_GenerationRingRefusal : public Support::HostFeedTest,
+                                        public ::testing::WithParamInterface<RefusalCase>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that the feed lists the slot, the cosines and the sines, in that order. */
-TEST_F(Medium_GenerationRingPositionFeed, TheFeedListsTheSlotThenTheAngles)
+TEST_F(Small_GenerationRingPositionFeed, TheFeedListsTheSlotThenTheAngles)
 {
-    build_step(false, true);
-    ASSERT_NE(step, nullptr);
     const std::unique_ptr<PositionFeed> feed = make_feed();
     ASSERT_NE(feed, nullptr);
 
@@ -96,71 +169,58 @@ TEST_F(Medium_GenerationRingPositionFeed, TheFeedListsTheSlotThenTheAngles)
     EXPECT_EQ(fed[K_SINE].tensor->num_elements, Support::K_FEED_PAIRS);
 }
 
-/** @brief Tests that the slot is the position modulo T and the angles those of the position. */
-TEST_F(Medium_GenerationRingPositionFeed, PlaceWrapsTheSlotAndKeepsThePositionOfTheAngles)
+/** @brief Tests that the slot is the position modulo T. */
+TEST_P(Small_GenerationRingSlot, TheSlotIsThePositionModuloT)
 {
-    build_step(false, true);
-    ASSERT_NE(step, nullptr);
+    const SlotCase& row = GetParam();
     const std::unique_ptr<PositionFeed> feed = make_feed();
     ASSERT_NE(feed, nullptr);
-    const SushiRuntime::span<const Train::NamedFeed> fed = feed->feeds();
-    ASSERT_EQ(fed.size(), 3u);
 
-    // Position 11 over 4 rows is row 3, and write_counted_row writes 11 + pair.
-    feed->place(11);
-    EXPECT_EQ(fed[K_SLOT].tensor->data_as<std::int32_t>()[0], 3);
-    for (std::size_t pair = 0; pair < static_cast<std::size_t>(Support::K_FEED_PAIRS); ++pair)
-    {
-        const float counted = 11.0f + static_cast<float>(pair);
-        EXPECT_EQ(fed[K_COSINE].tensor->data_as<float>()[pair], counted) << "pair " << pair;
-        EXPECT_EQ(fed[K_SINE].tensor->data_as<float>()[pair], -counted) << "pair " << pair;
-    }
+    feed->place(row.position);
 
-    // Position T is the first to wrap: it writes over the row of position 0.
-    feed->place(Support::K_FEED_WINDOW);
-    EXPECT_EQ(fed[K_SLOT].tensor->data_as<std::int32_t>()[0], 0);
-    EXPECT_EQ(fed[K_COSINE].tensor->data_as<float>()[0],
-              static_cast<float>(Support::K_FEED_WINDOW));
-    feed->place(2);
-    EXPECT_EQ(fed[K_SLOT].tensor->data_as<std::int32_t>()[0], 2);
+    EXPECT_EQ(feed->feeds()[K_SLOT].tensor->data_as<std::int32_t>()[0], row.slot);
 }
 
-/** @brief Tests that every cached row stays right after a slide. */
-TEST_F(Medium_GenerationRingPositionFeed, EveryRowStaysRightAfterASlide)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationRingSlot, ::testing::ValuesIn(slot_cases()));
+
+/** @brief Tests that pair i of the angles is those of the position: 11 + i and its negation. */
+TEST_P(Small_GenerationRingAngles, TheAnglesAreThoseOfThePosition)
 {
-    build_step(false, true);
-    ASSERT_NE(step, nullptr);
+    const std::size_t pair = GetParam();
     const std::unique_ptr<PositionFeed> feed = make_feed();
     ASSERT_NE(feed, nullptr);
 
-    EXPECT_TRUE(feed->keeps_rows_on_slide());
+    feed->place(K_POSITION);
+
+    const float counted = static_cast<float>(K_POSITION) + static_cast<float>(pair);
+    EXPECT_EQ(feed->feeds()[K_COSINE].tensor->data_as<float>()[pair], counted);
+    EXPECT_EQ(feed->feeds()[K_SINE].tensor->data_as<float>()[pair], -counted);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationRingAngles, ::testing::ValuesIn(pair_cases()));
+
+/** @brief Tests that position T is the first to wrap: it writes over the row of position 0. */
+TEST_F(Small_GenerationRingPositionFeed, TheFirstWrapWritesOverTheRowOfPositionZero)
+{
+    const std::unique_ptr<PositionFeed> feed = make_feed();
+    ASSERT_NE(feed, nullptr);
+
+    feed->place(Support::K_FEED_WINDOW);
+
+    EXPECT_EQ(feed->feeds()[K_SLOT].tensor->data_as<std::int32_t>()[0], 0);
+    EXPECT_EQ(feed->feeds()[K_COSINE].tensor->data_as<float>()[0],
+              static_cast<float>(Support::K_FEED_WINDOW));
 }
 
 /** @brief Tests that a ring without its angle function and a leaf that misfits are refused. */
-TEST_F(Medium_GenerationRingPositionFeed, ARingThatDoesNotFitIsRefused)
+TEST_P(Small_GenerationRingRefusal, ARingThatDoesNotFitIsRefused)
 {
-    build_step(true, true);
-    ASSERT_NE(step, nullptr);
+    const RefusalCase& row = GetParam();
+    const InMemoryFedLeaves fed = Support::fed_leaves_of(true, true);
 
-    RingStepLeaves silent = Support::feed_leaves().ring;
-    silent.angles = nullptr;
-    SA_EXPECT_FAILURE(RingPositionFeed::make(*engine, *step, silent, Support::K_FEED_WINDOW),
-                      StatusCode::InvalidDescription, "no function", "'feed_cosine'",
-                      "'feed_sine'");
-
-    RingStepLeaves unnamed = Support::feed_leaves().ring;
-    unnamed.sine = "feed_tangent";
-    SA_EXPECT_FAILURE(RingPositionFeed::make(*engine, *step, unnamed, Support::K_FEED_WINDOW),
-                      StatusCode::InvalidDescription, "'feed_tangent'");
-
-    RingStepLeaves crossed = Support::feed_leaves().ring;
-    crossed.slot = Support::K_FEED_COSINE;
-    SA_EXPECT_FAILURE(RingPositionFeed::make(*engine, *step, crossed, Support::K_FEED_WINDOW),
-                      StatusCode::InvalidDescription, "'feed_cosine'", "int32 leaf of [1, 1]");
-
-    RingStepLeaves narrow = Support::feed_leaves().ring;
-    narrow.sine = Support::K_FEED_POSITION;
-    SA_EXPECT_FAILURE(RingPositionFeed::make(*engine, *step, narrow, Support::K_FEED_WINDOW),
-                      StatusCode::InvalidDescription, "'feed_position'",
-                      "float32 leaf of [1, 3]");
+    SA_EXPECT_FAILURE(RingPositionFeed::make(engine(), fed, row.ring, Support::K_FEED_WINDOW),
+                      StatusCode::InvalidDescription, row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationRingRefusal,
+                         ::testing::ValuesIn(refusal_cases()));

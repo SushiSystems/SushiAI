@@ -1,31 +1,20 @@
 # tests/language/generation/test_sampler.cpp
 
 
-Suites: `Small_LanguageGenerationSampler`.
+Suites: `Small_LanguageGenerationSampler`, `Small_LanguageGenerationSamplerContract`.
 
-Tests `modules/language/generation/include/SushiAI/language/generation/sampler.hpp`: the
-generator `RandomGenerator` a sampler draws from and the interface `Sampler`. The cases use two
-fakes and need no device. The four samplers of the module have their own test files.
-
-## LargestSampler
-
-Picks the token of the largest logit and draws nothing.
-
-## DrawingSampler
-
-Picks the token at one draw of the generator modulo the vocabulary.
+Tests `modules/language/generation/include/SushiAI/language/generation/sampler.hpp`: the generator `RandomGenerator` a sampler draws from, and the
+`Sampler` contract over the four samplers of the module, each held behind its interface. The
+test-local `LargestSampler` and `DrawingSampler` are gone: the real samplers are the adapters.
 
 ## TheGeneratorYieldsTheValueTheStandardFixes
 
-The 10000th draw of a default-seeded `RandomGenerator` is 9981545732273789042, the value the C++
-standard states for `std::mt19937_64`. A run therefore repeats on every platform.
+The 10000th draw of a default-seeded `RandomGenerator` is 9981545732273789042, the value the C++ standard states for `std::mt19937_64`.
 
-## ASamplerThatDrawsNothingLeavesTheGenerator
+## APickTakesAtMostOneDrawFromTheGenerator
 
-Through a `const Sampler&`, the fake picks token 1 of the logits 0.5, 2.0, -1.0, its name reads
-"largest", and the generator seeded 42 equals its copy taken before the call.
+Rows over greedy, temperature, top-k and nucleus: after one pick through a `const Sampler&` the generator equals a copy advanced by the draws the row states (0 for greedy, 1 for the others). It replaces ASamplerThatDrawsNothingLeavesTheGenerator.
 
-## OneSeedRepeatsTheTokensOfADrawingSampler
+## OneSeedGivesOneTokenAndOneGeneratorState
 
-Two generators seeded 1234 lead the drawing fake to the same token on each of eight draws over
-seven logits, and they are equal afterwards.
+Rows over the same four samplers: two generators seeded 1234 lead the sampler to the same token over seven logits and are equal afterwards. It replaces OneSeedRepeatsTheTokensOfADrawingSampler.

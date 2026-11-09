@@ -38,6 +38,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/language/generation/cached_generator.hpp>
+#include <SushiAI/language/generation/fed_leaves.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/language/generation/position_feed.hpp>
 
@@ -54,13 +55,14 @@ namespace SushiAI::Language::Generation::Detail
         public:
             /**
              * @brief Allocates the feeds of the three leaves of @p leaves.
+             * @param fed The leaves the step is fed.
              * @param window T, the rows of a cache; at least 1.
              * @return The feed, or InvalidDescription for a ring that names no function for
              *         its angles, or a leaf that is absent or does not fit.
              */
             [[nodiscard]] static Result<std::unique_ptr<PositionFeed>> make(
-                SushiBLAS::Engine& engine, const Train::EvaluationStep& step,
-                const RingStepLeaves& leaves, std::int64_t window);
+                SushiBLAS::Engine& engine, const FedLeaves& fed, const RingStepLeaves& leaves,
+                std::int64_t window);
 
             RingPositionFeed(const RingPositionFeed&) = delete;
             RingPositionFeed& operator=(const RingPositionFeed&) = delete;

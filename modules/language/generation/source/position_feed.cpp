@@ -38,11 +38,11 @@
 namespace SushiAI::Language::Generation::Detail
 {
     Result<std::unique_ptr<PositionFeed>> make_position_feed(
-        SushiBLAS::Engine& engine, const Train::EvaluationStep& step,
-        const CachedStepLeaves& leaves, std::int64_t window)
+        SushiBLAS::Engine& engine, const FedLeaves& fed, const CachedStepLeaves& leaves,
+        std::int64_t window)
     {
-        const bool has_table_row = is_fed(step, leaves.position);
-        const bool has_ring_slot = is_fed(step, leaves.ring.slot);
+        const bool has_table_row = is_fed(fed, leaves.position);
+        const bool has_ring_slot = is_fed(fed, leaves.ring.slot);
         SA_FAIL_IF(has_table_row == has_ring_slot, StatusCode::InvalidDescription,
                    "{}: the step is fed {} of the position leaf '{}' and the cache slot '{}'; "
                    "it reads a step that is fed exactly one of them",
@@ -50,9 +50,9 @@ namespace SushiAI::Language::Generation::Detail
                    leaves.ring.slot);
 
         if (has_ring_slot)
-            return RingPositionFeed::make(engine, step, leaves.ring, window);
+            return RingPositionFeed::make(engine, fed, leaves.ring, window);
 
-        return TablePositionFeed::make(engine, step, leaves.position);
+        return TablePositionFeed::make(engine, fed, leaves.position);
     }
 
 } // namespace SushiAI::Language::Generation::Detail

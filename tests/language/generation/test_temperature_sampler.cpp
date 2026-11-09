@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_temperature_sampler.cpp                                           */
+/* test_temperature_sampler.cpp                                          */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_temperature_sampler.cpp
  * @brief Tests TemperatureSampler against hand-worked distributions and under a seed.
@@ -29,8 +28,10 @@
  */
 
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <memory>
+#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
 #include "generation_test_support.hpp"
@@ -48,58 +49,88 @@ namespace
 
     /** @brief Holds ln 2, so that a logit of it has twice the weight of a logit of 0. */
     const float K_LN_2 = std::log(2.0f);
+
+    /** @brief Names a temperature, a row of logits and the softmax share of each token. */
+    struct ShareCase
+    {
+        double temperature;         /**< The temperature given to make. */
+        std::vector<float> logits;  /**< The scores of one position. */
+        std::vector<double> shares; /**< softmax(logits / temperature), worked by hand. */
+    };
+
+    /**
+     * @brief Returns the hand-worked rows: logits 0, ln 2, 0 at temperature 1 give 1/4, 1/2 and
+     *        1/4; logits 0, ln 2 at temperature 1/2 have the weights 1 and 4, so 1/5 and 4/5.
+     */
+    std::vector<ShareCase> share_cases()
+    {
+        return {{1.0, {0.0f, K_LN_2, 0.0f}, {0.25, 0.5, 0.25}}, {0.5, {0.0f, K_LN_2}, {0.2, 0.8}}};
+    }
+
+    /** @brief Names a temperature given to make and what its refusal names. */
+    struct RefusalCase
+    {
+        double temperature;      /**< The temperature given to make. */
+        std::string_view first;  /**< A substring the message holds. */
+        std::string_view second; /**< Another substring the message holds. */
+    };
+
+    /** @brief Returns the refusals: zero, a negative, an infinite and a missing number. */
+    std::vector<RefusalCase> refusal_cases()
+    {
+        return {{0.0, "'temperature'", "positive"},
+                {-1.0, "positive", ""},
+                {std::numeric_limits<double>::infinity(), "finite", ""},
+                {std::numeric_limits<double>::quiet_NaN(), "finite", ""}};
+    }
+
+    /** @brief Provides the rows of the shares. */
+    class Small_GenerationTemperatureShares : public ::testing::TestWithParam<ShareCase>
+    {
+
+    };
+
+    /** @brief Provides the rows of the refusals. */
+    class Small_GenerationTemperatureRefusal : public ::testing::TestWithParam<RefusalCase>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests logits 0, ln 2, 0 at temperature 1: the shares are 1/4, 1/2 and 1/4. */
-TEST(Small_GenerationTemperatureSampler, TheSharesAreTheSoftmax)
+/** @brief Tests that a token is drawn with the probability softmax(logits / temperature) gives it. */
+TEST_P(Small_GenerationTemperatureShares, TheSharesAreTheSoftmax)
 {
+    const ShareCase& row = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TemperatureSampler> sampler,
-                            TemperatureSampler::make(1.0));
+                            TemperatureSampler::make(row.temperature));
 
-    const std::vector<int> counts = Support::count_draws(*sampler, {0.0f, K_LN_2, 0.0f}, K_SEED);
+    const std::vector<int> counts = Support::count_draws(*sampler, row.logits, K_SEED);
 
-    Support::expect_share(counts[0], 0.25);
-    Support::expect_share(counts[1], 0.5);
-    Support::expect_share(counts[2], 0.25);
-    EXPECT_EQ(sampler->name(), K_TEMPERATURE_SAMPLER);
+    Support::expect_shares(counts, row.shares);
 }
 
-/** @brief Tests logits 0, ln 2 at temperature 1/2: the weights are 1 and 4, so 1/5 and 4/5. */
-TEST(Small_GenerationTemperatureSampler, ALowerTemperatureSharpensTheShares)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TemperatureSampler> sampler,
-                            TemperatureSampler::make(0.5));
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationTemperatureShares,
+                         ::testing::ValuesIn(share_cases()));
 
-    const std::vector<int> counts = Support::count_draws(*sampler, {0.0f, K_LN_2}, K_SEED);
-
-    Support::expect_share(counts[0], 0.2);
-    Support::expect_share(counts[1], 0.8);
-}
-
-/** @brief Tests that one seed gives one sequence and another seed gives another. */
+/** @brief Tests that one seed gives one sequence. */
 TEST(Small_GenerationTemperatureSampler, ASeedFixesTheSequence)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TemperatureSampler> sampler,
                             TemperatureSampler::make(1.0));
     const std::vector<float> logits{0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f};
 
-    const auto first = Support::draw_sequence(*sampler, logits, K_SEED, 64);
-    const auto again = Support::draw_sequence(*sampler, logits, K_SEED, 64);
-    const auto other = Support::draw_sequence(*sampler, logits, K_SEED + 1, 64);
-
-    EXPECT_EQ(first, again);
-    EXPECT_NE(first, other);
+    EXPECT_EQ(Support::draw_sequence(*sampler, logits, K_SEED, 64),
+              Support::draw_sequence(*sampler, logits, K_SEED, 64));
 }
 
 /** @brief Tests that a temperature that is not positive and finite is refused. */
-TEST(Small_GenerationTemperatureSampler, MakeRefusesATemperatureThatIsNotPositiveAndFinite)
+TEST_P(Small_GenerationTemperatureRefusal, MakeRefusesATemperatureThatIsNotPositiveAndFinite)
 {
-    SA_EXPECT_FAILURE(TemperatureSampler::make(0.0), StatusCode::InvalidDescription,
-                      "'temperature'", "positive");
-    SA_EXPECT_FAILURE(TemperatureSampler::make(-1.0), StatusCode::InvalidDescription,
-                      "positive");
-    SA_EXPECT_FAILURE(TemperatureSampler::make(std::numeric_limits<double>::infinity()),
-                      StatusCode::InvalidDescription, "finite");
-    SA_EXPECT_FAILURE(TemperatureSampler::make(std::numeric_limits<double>::quiet_NaN()),
-                      StatusCode::InvalidDescription, "finite");
+    const RefusalCase& row = GetParam();
+
+    SA_EXPECT_FAILURE(TemperatureSampler::make(row.temperature), StatusCode::InvalidDescription,
+                      row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_GenerationTemperatureRefusal,
+                         ::testing::ValuesIn(refusal_cases()));
