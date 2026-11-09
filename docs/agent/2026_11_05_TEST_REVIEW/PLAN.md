@@ -53,7 +53,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M32 | the tests of `layers/io` (8 files): 15 rewrite, 19 resize, 4 split, 10 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M33 | the tests of `layers/layer_rows` (2 files): 2 rewrite, 1 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M34 | the tests of `layers/layer_traces` (1 file): 2 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
-| M35 | the tests of `layers/nn` (39 files): 89 rewrite, 42 resize, 36 split, 138 merge, 30 delete | T1, T2, T3, T4, T5, T6, T7, T8 | in progress (2026-11-09): 24 of 39 files applied (test_loss has no record); left: test_layer_norm, test_layer_registry, test_layer_stack, test_layers, test_max_pool2d, test_model_graph, test_model_outputs, test_model_state, test_module, test_module_list, test_module_node, test_node, test_node_attributes, test_node_registry, test_trace; not yet built or run |
+| M35 | the tests of `layers/nn` (39 files): 89 rewrite, 42 resize, 36 split, 138 merge, 30 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M36 | the tests of `layers/reference_files` (1 file): 1 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M37 | the tests of `layers/train` (39 files): 107 rewrite, 28 resize, 36 split, 20 merge, 20 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M38 | the tests of `layers/umbrella` (2 files): 2 rewrite, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |

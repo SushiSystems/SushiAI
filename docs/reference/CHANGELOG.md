@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-09 — test_tree: Apply the layers/nn records (M35).
+- 2026-11-09 — nn: Added check_depthwise_channels, the refusal `DepthwiseConv2d::same_padded` stops on as a value function (`depthwise_conv2d.hpp`).
 - 2026-11-09 — test_tree: Apply the vision/umbrella records (M52).
 - 2026-11-09 — test_tree: Apply the vision/segment records (M50).
 - 2026-11-09 — test_tree: Apply the vision/registration records (M49).
