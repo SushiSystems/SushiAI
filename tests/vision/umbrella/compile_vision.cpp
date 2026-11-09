@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_umbrella_reach.cpp                                                */
+/* compile_vision.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,32 +22,21 @@
 /**************************************************************************/
 
 /**
- * @file test_umbrella_reach.cpp
- * @brief Tests that the vision umbrella header alone reaches the units of several modules.
+ * @file compile_vision.cpp
+ * @brief Checks at compile time that the vision umbrella header alone names the detect, segment
+ *        and imaging units.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
+#include <type_traits>
 #include <SushiAI/vision.hpp>
-#include <support/tolerance.hpp>
 
 namespace
 {
-    /**
-     * @brief Holds the absolute tolerance of an IoU whose terms float32 rounds once each: 32 times
-     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
-     */
-    constexpr float K_IOU_TOLERANCE =
-        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
+    static_assert(std::is_class_v<SushiAI::Vision::Detect::Anchor::AnchorSize>,
+                  "the umbrella names the anchor size of detect");
+    static_assert(std::is_class_v<SushiAI::Vision::Segment::ConfusionMatrix>,
+                  "the umbrella names the confusion matrix of segment");
+    static_assert(std::is_class_v<SushiAI::Vision::Imaging::Image>,
+                  "the umbrella names the image of imaging");
 } // namespace
-
-/** @brief Tests that detect, segment and imaging names resolve through the umbrella alone. */
-TEST(Small_VisionUmbrella, OneIncludeReachesDetectSegmentAndImaging)
-{
-    const SushiAI::Vision::Detect::Anchor::AnchorSize size{0.25f, 0.5f};
-
-    EXPECT_NEAR(SushiAI::Vision::Detect::Anchor::shape_iou(size, size), 1.0f, K_IOU_TOLERANCE);
-    EXPECT_EQ(SushiAI::Vision::Detect::K_DETECTION_VALUES, 6u);
-    EXPECT_EQ(SushiAI::Vision::Segment::K_DEFAULT_IGNORE_INDEX, 255);
-    EXPECT_EQ(SushiAI::Vision::Imaging::K_MOSAIC_PARTNERS, 3u);
-}

@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M37, M40, M41, M46 to M48, M51 and M52 are left
+**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M37, M40, M41, M46 to M48 and M51 are left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -70,7 +70,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M49 | the tests of `vision/registration` (3 files): 20 rewrite, 9 resize, 7 split, 4 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M50 | the tests of `vision/segment` (7 files): 8 rewrite, 4 split, 3 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M51 | the tests of `vision/training` (37 files): 88 rewrite, 19 resize, 25 split, 8 merge, 9 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M52 | the tests of `vision/umbrella` (2 files): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M52 | the tests of `vision/umbrella` (2 files): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 
 ## Acceptance
 

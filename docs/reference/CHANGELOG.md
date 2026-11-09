@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-09 — test_tree: Apply the vision/umbrella records (M52).
 - 2026-11-09 — test_tree: Apply the vision/segment records (M50).
 - 2026-11-09 — test_tree: Apply the vision/registration records (M49).
 - 2026-11-09 — test_tree: Apply the vision/darknet_training_cases records (M45).
