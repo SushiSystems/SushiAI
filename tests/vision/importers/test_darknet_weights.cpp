@@ -33,7 +33,6 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <ios>
 #include <sstream>
 #include <string>
@@ -92,57 +91,38 @@ namespace
         return ::testing::AssertionSuccess();
     }
 
+    /** @brief Returns a header of @p major, @p minor and revision 0 with a 64-bit seen count of 0. */
+    std::string header_bytes(std::uint32_t major, std::uint32_t minor)
+    {
+        std::string bytes;
+        put(bytes, major, 4);
+        put(bytes, minor, 4);
+        put(bytes, 0, 4);
+        put(bytes, 0, 8);
+        return bytes;
+    }
+
     /**
      * @brief Returns a version 0.2.0 file: a 64-bit seen count of zero, then the floats 0 to
      *        @p float_count - 1, each equal to its own index.
      */
     std::string sample_bytes(std::size_t float_count)
     {
-        std::string bytes;
-        put(bytes, 0, 4);
-        put(bytes, 2, 4);
-        put(bytes, 0, 4);
-        put(bytes, 0, 8);
+        std::string bytes = header_bytes(0, 2);
         for (std::size_t i = 0; i < float_count; ++i)
             put_float(bytes, static_cast<float>(i));
         return bytes;
     }
 
-    /**
-     * @brief Owns a .weights file the test writes under the temporary directory, and removes
-     *        it on destruction.
-     */
-    class TemporaryWeightsFile
+    /** @brief Reads @p bytes as a weights file in memory with the origin "memory.weights". */
+    SushiAI::Result<DarknetWeights> read_bytes(
+        const std::string& bytes, const std::vector<DarknetConvolutionShape>& shapes)
     {
-        public:
-            /** @brief Writes @p bytes to the file named @p name, replacing any earlier one. */
-            TemporaryWeightsFile(const char* name, const std::string& bytes)
-                : path_(std::filesystem::temp_directory_path() / name)
-            {
-                std::ofstream out(path_, std::ios::binary);
-                out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-            }
-
-            /** @brief Removes the file. */
-            ~TemporaryWeightsFile()
-            {
-                std::error_code ignored;
-                std::filesystem::remove(path_, ignored);
-            }
-
-            TemporaryWeightsFile(const TemporaryWeightsFile&) = delete;
-            TemporaryWeightsFile& operator=(const TemporaryWeightsFile&) = delete;
-
-            /** @brief Returns the path of the file. */
-            const std::filesystem::path& path() const noexcept
-            {
-                return path_;
-            }
-
-        private:
-            /** @brief Holds the path the file was written to. */
-            std::filesystem::path path_;
-    };
+        return read_darknet_weights(
+            SushiRuntime::span<const std::uint8_t>(
+                reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()),
+            "memory.weights", shapes);
+    }
 
     /** @brief Returns the two layers of the sample: a plain one, then a normalised one. */
     std::vector<DarknetConvolutionShape> sample_shapes()
@@ -156,7 +136,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a version 0.2 header carries a 64-bit seen count. */
-TEST(Medium_DarknetWeights, ReadsAVersionZeroTwoHeaderWithA64BitSeen)
+TEST(Small_DarknetWeights, ReadsAVersionZeroTwoHeaderWithA64BitSeen)
 {
     std::string bytes;
     put(bytes, 0, 4);
@@ -175,7 +155,7 @@ TEST(Medium_DarknetWeights, ReadsAVersionZeroTwoHeaderWithA64BitSeen)
 }
 
 /** @brief Tests that a version 0.1 header carries a 32-bit seen count. */
-TEST(Medium_DarknetWeights, ReadsAVersionZeroOneHeaderWithA32BitSeen)
+TEST(Small_DarknetWeights, ReadsAVersionZeroOneHeaderWithA32BitSeen)
 {
     std::string bytes;
     put(bytes, 0, 4);
@@ -192,7 +172,7 @@ TEST(Medium_DarknetWeights, ReadsAVersionZeroOneHeaderWithA32BitSeen)
 }
 
 /** @brief Tests that a major of 1 gives a 64-bit seen count whatever the minor. */
-TEST(Medium_DarknetWeights, ReadsAMajorOneHeaderWithA64BitSeen)
+TEST(Small_DarknetWeights, ReadsAMajorOneHeaderWithA64BitSeen)
 {
     std::string bytes;
     put(bytes, 1, 4);
@@ -208,47 +188,35 @@ TEST(Medium_DarknetWeights, ReadsAMajorOneHeaderWithA64BitSeen)
     EXPECT_EQ(static_cast<std::streamoff>(stream.tellg()), 20);
 }
 
-/** @brief Tests that a major of exactly 1000 is read. */
-TEST(Medium_DarknetWeights, AcceptsAMajorAtTheLimitOfOneThousand)
+/** @brief Holds one header version and the status code reading it gives. */
+struct VersionLimit
 {
-    std::string bytes;
-    put(bytes, 1000, 4);
-    put(bytes, 0, 4);
-    put(bytes, 0, 4);
-    put(bytes, 0, 8);
-    std::istringstream stream(bytes);
+    std::uint32_t major;
+    std::uint32_t minor;
+    StatusCode expected;
+};
 
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetWeightsHeader header, read_darknet_header(stream));
+/** @brief Runs the header reader over each version around the limit of one thousand. */
+class Small_DarknetWeightsVersionLimit : public ::testing::TestWithParam<VersionLimit>
+{
+};
 
-    EXPECT_EQ(header.major, 1000);
+/** @brief Tests that a major or a minor above 1000 is Unsupported and 1000 is read. */
+TEST_P(Small_DarknetWeightsVersionLimit, GivesTheExpectedStatusCode)
+{
+    std::istringstream stream(header_bytes(GetParam().major, GetParam().minor));
+
+    EXPECT_EQ(read_darknet_header(stream).status().code(), GetParam().expected);
 }
 
-/** @brief Tests that a major of 1001 is Unsupported. */
-TEST(Medium_DarknetWeights, RefusesAMajorAboveOneThousandAsUnsupported)
-{
-    std::string bytes;
-    put(bytes, 1001, 4);
-    put(bytes, 0, 4);
-    put(bytes, 0, 4);
-    std::istringstream stream(bytes);
-
-    SA_EXPECT_FAILURE(read_darknet_header(stream), StatusCode::Unsupported, "1001");
-}
-
-/** @brief Tests that a minor of 1001 is Unsupported. */
-TEST(Medium_DarknetWeights, RefusesAMinorAboveOneThousandAsUnsupported)
-{
-    std::string bytes;
-    put(bytes, 0, 4);
-    put(bytes, 1001, 4);
-    put(bytes, 0, 4);
-    std::istringstream stream(bytes);
-
-    SA_EXPECT_FAILURE(read_darknet_header(stream), StatusCode::Unsupported, "1001");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Versions, Small_DarknetWeightsVersionLimit,
+    ::testing::Values(VersionLimit{1000, 0, StatusCode::Ok},
+                      VersionLimit{1001, 0, StatusCode::Unsupported},
+                      VersionLimit{0, 1001, StatusCode::Unsupported}));
 
 /** @brief Tests that a stream that ends inside the header is InvalidFile. */
-TEST(Medium_DarknetWeights, RefusesAHeaderThatEndsEarly)
+TEST(Small_DarknetWeights, RefusesAHeaderThatEndsEarly)
 {
     std::string bytes;
     put(bytes, 0, 4);
@@ -260,14 +228,13 @@ TEST(Medium_DarknetWeights, RefusesAHeaderThatEndsEarly)
 }
 
 /** @brief Tests that index-valued floats land in each vector at their own indices. */
-TEST(Medium_DarknetWeights, ReadsEveryVectorInFileOrder)
+TEST(Small_DarknetWeights, ReadsEveryVectorInFileOrder)
 {
     // The floats are 0 to 21 in file order, so each vector starts at its own index.
-    TemporaryWeightsFile file("sushiai_weights_order.weights", sample_bytes(22));
+    const std::string bytes = sample_bytes(22);
     const std::vector<DarknetConvolutionShape> shapes = sample_shapes();
 
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetWeights weights,
-                            read_darknet_weights(file.path(), shapes));
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetWeights weights, read_bytes(bytes, shapes));
 
     ASSERT_EQ(weights.convolutions.size(), 2u);
     const DarknetConvolution& plain = weights.convolutions[0];
@@ -284,13 +251,12 @@ TEST(Medium_DarknetWeights, ReadsEveryVectorInFileOrder)
 }
 
 /** @brief Tests that only a normalised layer fills scales, means and variances. */
-TEST(Medium_DarknetWeights, KeepsTheBatchNormVectorsOnlyForNormalisedLayers)
+TEST(Small_DarknetWeights, KeepsTheBatchNormVectorsOnlyForNormalisedLayers)
 {
-    TemporaryWeightsFile file("sushiai_weights_vectors.weights", sample_bytes(22));
+    const std::string bytes = sample_bytes(22);
     const std::vector<DarknetConvolutionShape> shapes = sample_shapes();
 
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetWeights weights,
-                            read_darknet_weights(file.path(), shapes));
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetWeights weights, read_bytes(bytes, shapes));
 
     const DarknetConvolution& plain = weights.convolutions[0];
     const DarknetConvolution& normalised = weights.convolutions[1];
@@ -305,23 +271,17 @@ TEST(Medium_DarknetWeights, KeepsTheBatchNormVectorsOnlyForNormalisedLayers)
 }
 
 /** @brief Tests that negative zero, a denormal and a NaN payload keep their bits. */
-TEST(Medium_DarknetWeights, DecodesEveryBitPatternAsItIs)
+TEST(Small_DarknetWeights, DecodesEveryBitPatternAsItIs)
 {
     // Biases are -0.0 and the smallest subnormal; weights are a NaN with payload 1 and 1.0.
-    std::string bytes;
-    put(bytes, 0, 4);
-    put(bytes, 2, 4);
-    put(bytes, 0, 4);
-    put(bytes, 0, 8);
+    std::string bytes = header_bytes(0, 2);
     put(bytes, 0x80000000u, 4);
     put(bytes, 0x00000001u, 4);
     put(bytes, 0x7FC00001u, 4);
     put(bytes, 0x3F800000u, 4);
-    TemporaryWeightsFile file("sushiai_weights_bits.weights", bytes);
     const std::vector<DarknetConvolutionShape> shapes{DarknetConvolutionShape{0, 2, 1, 1, false}};
 
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetWeights weights,
-                            read_darknet_weights(file.path(), shapes));
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetWeights weights, read_bytes(bytes, shapes));
 
     const DarknetConvolution& layer = weights.convolutions[0];
     ASSERT_EQ(layer.biases.size(), 2u);
@@ -332,59 +292,77 @@ TEST(Medium_DarknetWeights, DecodesEveryBitPatternAsItIs)
     EXPECT_EQ(bits_of(layer.weights[1]), 0x3F800000u);
 }
 
-/** @brief Tests that a file one float short is InvalidFile with the layer and both counts. */
-TEST(Medium_DarknetWeights, RefusesOneFloatShortWithTheLayerAndBothByteCounts)
+/** @brief Holds a float count that disagrees with the sample shapes and what the refusal names. */
+struct ByteCountRefusal
+{
+    std::size_t floats;
+    const char* found;
+    const char* expected;
+    const char* detail;
+};
+
+/** @brief Runs the reader over a sample file that is one float short or one float over. */
+class Small_DarknetWeightsByteCount : public ::testing::TestWithParam<ByteCountRefusal>
+{
+};
+
+/** @brief Tests that a file of the wrong size is InvalidFile with the layer and both counts. */
+TEST_P(Small_DarknetWeightsByteCount, IsRefusedWithTheLayerAndBothByteCounts)
 {
     // The header is 20 bytes. Layer 0 needs 16 bytes, so layer 2 ends at 20 + 16 + 72 = 108.
-    TemporaryWeightsFile file("sushiai_weights_short.weights", sample_bytes(21));
+    const std::string bytes = sample_bytes(GetParam().floats);
     const std::vector<DarknetConvolutionShape> shapes = sample_shapes();
 
-    SA_EXPECT_FAILURE(read_darknet_weights(file.path(), shapes), StatusCode::InvalidFile,
-                      "104 bytes", "convolution layer 2 needs bytes up to 108");
+    SA_EXPECT_FAILURE(read_bytes(bytes, shapes), StatusCode::InvalidFile, GetParam().found,
+                      GetParam().expected, GetParam().detail);
 }
 
-/** @brief Tests that a file one float over is InvalidFile with the layer and both counts. */
-TEST(Medium_DarknetWeights, RefusesOneFloatOverWithTheLayerAndBothByteCounts)
-{
-    TemporaryWeightsFile file("sushiai_weights_over.weights", sample_bytes(23));
-    const std::vector<DarknetConvolutionShape> shapes = sample_shapes();
-
-    SA_EXPECT_FAILURE(read_darknet_weights(file.path(), shapes), StatusCode::InvalidFile,
-                      "112 bytes", "108 bytes", "4 bytes are left over after convolution layer 2");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Floats, Small_DarknetWeightsByteCount,
+    ::testing::Values(ByteCountRefusal{21, "104 bytes", "up to 108",
+                                       "convolution layer 2 needs bytes up to 108"},
+                      ByteCountRefusal{23, "112 bytes", "108 bytes",
+                                       "4 bytes are left over after convolution layer 2"}));
 
 /** @brief Tests that bytes after the header with no layer listed are InvalidFile. */
-TEST(Medium_DarknetWeights, RefusesBytesAfterAHeaderWithNoConvolution)
+TEST(Small_DarknetWeights, RefusesBytesAfterAHeaderWithNoConvolution)
 {
-    TemporaryWeightsFile file("sushiai_weights_no_layer.weights", sample_bytes(1));
+    const std::string bytes = sample_bytes(1);
     const std::vector<DarknetConvolutionShape> shapes;
 
-    SA_EXPECT_FAILURE(read_darknet_weights(file.path(), shapes), StatusCode::InvalidFile,
+    SA_EXPECT_FAILURE(read_bytes(bytes, shapes), StatusCode::InvalidFile,
                       "no convolution is listed", "4 bytes are left over");
 }
 
-/** @brief Tests that a shape with zero filters is InvalidDescription naming the layer. */
-TEST(Medium_DarknetWeights, RefusesAShapeThatIsNotPositive)
+/** @brief Holds a shape the reader cannot size and what its refusal names. */
+struct ShapeRefusal
 {
-    TemporaryWeightsFile file("sushiai_weights_zero.weights", sample_bytes(0));
-    const std::vector<DarknetConvolutionShape> shapes{DarknetConvolutionShape{0, 0, 1, 1, false}};
+    DarknetConvolutionShape shape;
+    const char* detail;
+};
 
-    SA_EXPECT_FAILURE(read_darknet_weights(file.path(), shapes), StatusCode::InvalidDescription,
-                      "convolution layer 0", "filters 0");
+/** @brief Runs the reader over a header-only file and one shape it cannot size. */
+class Small_DarknetWeightsShape : public ::testing::TestWithParam<ShapeRefusal>
+{
+};
+
+/** @brief Tests that a shape with no positive size or too large to count is InvalidDescription. */
+TEST_P(Small_DarknetWeightsShape, IsRefusedNamingTheLayer)
+{
+    const std::string bytes = sample_bytes(0);
+    const std::vector<DarknetConvolutionShape> shapes{GetParam().shape};
+
+    SA_EXPECT_FAILURE(read_bytes(bytes, shapes), StatusCode::InvalidDescription,
+                      "convolution layer 0", GetParam().detail);
 }
 
-/** @brief Tests that a shape too large to count is InvalidDescription. */
-TEST(Medium_DarknetWeights, RefusesAShapeWhoseCountOverflows)
-{
-    TemporaryWeightsFile file("sushiai_weights_huge.weights", sample_bytes(0));
-    const std::int64_t big = std::int64_t{1} << 40;
-    const std::vector<DarknetConvolutionShape> shapes{
-        DarknetConvolutionShape{0, big, big, 1, false},
-    };
-
-    SA_EXPECT_FAILURE(read_darknet_weights(file.path(), shapes), StatusCode::InvalidDescription,
-                      "convolution layer 0", "too large to read");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Shapes, Small_DarknetWeightsShape,
+    ::testing::Values(
+        ShapeRefusal{DarknetConvolutionShape{0, 0, 1, 1, false}, "filters 0"},
+        ShapeRefusal{DarknetConvolutionShape{0, std::int64_t{1} << 40, std::int64_t{1} << 40, 1,
+                                             false},
+                     "too large to read"}));
 
 /** @brief Tests that a path that cannot be opened gives FileNotFound. */
 TEST(Medium_DarknetWeights, ReportsAMissingFileAsFileNotFound)
@@ -397,23 +375,4 @@ TEST(Medium_DarknetWeights, ReportsAMissingFileAsFileNotFound)
 
     SA_EXPECT_FAILURE(read_darknet_weights(missing, shapes), StatusCode::FileNotFound,
                       "could not open");
-}
-
-/** @brief Tests that the bytes of a weights file in memory give each vector its own floats. */
-TEST(Small_DarknetWeights, ReadsEveryVectorFromBytesInMemory)
-{
-    const std::string bytes = sample_bytes(22);
-    const std::vector<DarknetConvolutionShape> shapes = sample_shapes();
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        const DarknetWeights weights,
-        read_darknet_weights(
-            SushiRuntime::span<const std::uint8_t>(
-                reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()),
-            "memory.weights", shapes));
-
-    ASSERT_EQ(weights.convolutions.size(), 2u);
-    EXPECT_TRUE(holds_indices(weights.convolutions[0].biases, 0));
-    EXPECT_TRUE(holds_indices(weights.convolutions[1].rolling_mean, 10));
-    EXPECT_TRUE(holds_indices(weights.convolutions[1].weights, 16));
 }
