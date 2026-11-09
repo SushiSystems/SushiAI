@@ -219,6 +219,16 @@ namespace SushiAI
         void check_training_plan(const DarknetTrainingCase& stated) noexcept;
 
         /**
+         * @brief Checks that the memory plan of the training graph of a cfg text overlaps live
+         *        ranges, and prints the graph's nodes and the bytes its plan asks for.
+         * @param name Names the graph in the printed lines.
+         * @param cfg_text A whole .cfg text, its first section [net]; no file is read.
+         * @param batch Images of the step; positive.
+         */
+        void check_training_plan(std::string_view name, std::string_view cfg_text,
+                                 std::int64_t batch) noexcept;
+
+        /**
          * @brief Checks that one step writes the same heads, deltas and gradients, bit for
          *        bit, with its pools planned as with every value in a Storage of its own.
          *

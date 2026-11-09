@@ -743,6 +743,33 @@ namespace SushiAI
                 bool is_ready = false;                     /**< Whether prepare_step() ended. */
             };
 
+            /** @brief Builds the model graph of @p run.imported into `run.graph`. */
+            void build_model_graph(StepRun& run)
+            {
+                NN::NodeRegistry registry;
+                const Status registered = NN::register_layers(registry);
+                ASSERT_TRUE(registered.is_ok()) << registered.message();
+                SA_ASSERT_OK_AND_ASSIGN(run.graph,
+                                        NN::build_model(registry, run.imported.model.spec));
+            }
+
+            /**
+             * @brief Builds the objective over @p heads and the training graph of the model
+             *        graph of @p run for @p batch_shape; sets `is_traced` when nothing failed.
+             * @pre build_model_graph() ended on @p run.
+             */
+            void trace_graphs(StepRun& run, std::vector<AnchorHead> heads, const Shape& batch_shape)
+            {
+                const DarknetModel& model = run.imported.model;
+                SA_ASSERT_OK_AND_ASSIGN(
+                    run.objective,
+                    AnchorObjective::make(model.network, model.layout, std::move(heads)));
+                SA_ASSERT_OK_AND_ASSIGN(
+                    run.built,
+                    Train::build_training_graph(*run.graph, *run.objective, batch_shape));
+                run.is_traced = true;
+            }
+
             /**
              * @brief Imports the model of @p stated and traces its two graphs for the batch of
              *        its step run, on the host alone; sets `is_traced` when nothing failed.
@@ -778,17 +805,9 @@ namespace SushiAI
                 SA_ASSERT_OK_AND_ASSIGN(run.truth,
                                         load_darknet_truth(folder, run.batch, model.network));
 
-                NN::NodeRegistry registry;
-                const Status registered = NN::register_layers(registry);
-                ASSERT_TRUE(registered.is_ok()) << registered.message();
-                SA_ASSERT_OK_AND_ASSIGN(run.graph, NN::build_model(registry, model.spec));
-                SA_ASSERT_OK_AND_ASSIGN(
-                    run.objective,
-                    AnchorObjective::make(model.network, model.layout, std::move(heads)));
-                SA_ASSERT_OK_AND_ASSIGN(
-                    run.built,
-                    Train::build_training_graph(*run.graph, *run.objective, batch_shape));
-                run.is_traced = true;
+                build_model_graph(run);
+                ASSERT_TRUE(run.graph.has_value());
+                trace_graphs(run, std::move(heads), batch_shape);
             }
 
             /**
@@ -1320,6 +1339,74 @@ namespace SushiAI
             ASSERT_TRUE(run.is_traced);
             check_plan(std::string(stated.step_run) + " training graph", run.built.graph,
                        run.built.pinned);
+        }
+
+        namespace
+        {
+            /** @brief Holds the axes of a head's per-sample shape: rows, columns, channels. */
+            constexpr std::int32_t K_HEAD_AXES = 3;
+
+            /** @brief Holds the origin a parsed cfg text names in its messages. */
+            constexpr std::string_view K_CFG_TEXT_ORIGIN = "cfg text";
+
+            /**
+             * @brief Translates @p cfg_text into the Separate model and the training options of
+             *        its heads; sets `imported` and ends the test when a step fails.
+             */
+            void import_cfg_text(std::string_view cfg_text, StepRun& run)
+            {
+                SA_ASSERT_OK_AND_ASSIGN(
+                    const DarknetConfig config,
+                    Vision::Importers::parse_darknet_config(cfg_text, K_CFG_TEXT_ORIGIN));
+                SA_ASSERT_OK_AND_ASSIGN(run.imported.model,
+                                        Vision::Importers::translate_darknet_model(config, {}));
+                SA_ASSERT_OK_AND_ASSIGN(run.imported.training,
+                                        Vision::Importers::read_darknet_training(config));
+                ASSERT_EQ(run.imported.training.heads.size(), run.imported.model.heads.size());
+            }
+
+            /**
+             * @brief Reads the grid of each head from the per-sample shape of the row it publishes.
+             * @return One entry per head, in file order, over @p batch images.
+             */
+            std::vector<AnchorHead> heads_of_text(const StepRun& run, std::int64_t batch)
+            {
+                const DarknetModel& model = run.imported.model;
+                std::vector<AnchorHead> heads(model.heads.size());
+                for (std::size_t k = 0; k < heads.size(); ++k)
+                {
+                    const auto row = static_cast<std::size_t>(model.spec.outputs[k].node);
+                    const SushiRuntime::span<const NN::Port> ports = run.graph->node(row).ports();
+                    EXPECT_FALSE(ports.empty());
+                    const Shape& grid = ports[0].shape;
+                    EXPECT_EQ(grid.rank(), K_HEAD_AXES);
+                    heads[k].output = model.heads[k].output;
+                    heads[k].shape = Vision::Detect::Anchor::HeadShape{batch, grid[0], grid[1]};
+                    heads[k].options = model.heads[k].options;
+                    heads[k].training = run.imported.training.heads[k];
+                }
+                return heads;
+            }
+        } // namespace
+
+        void check_training_plan(std::string_view name, std::string_view cfg_text,
+                                 std::int64_t batch) noexcept
+        {
+            StepRun run;
+            import_cfg_text(cfg_text, run);
+            ASSERT_FALSE(::testing::Test::HasFatalFailure());
+
+            const Config::ModelSpec& spec = run.imported.model.spec;
+            ASSERT_EQ(spec.input_shape.rank(), K_HEAD_AXES);
+            const Shape batch_shape{batch, spec.input_shape[0], spec.input_shape[1],
+                                    spec.input_shape[2]};
+
+            // The grid of a head comes from the model graph, so that graph is built first.
+            build_model_graph(run);
+            ASSERT_TRUE(run.graph.has_value());
+            trace_graphs(run, heads_of_text(run, batch), batch_shape);
+            ASSERT_TRUE(run.is_traced);
+            check_plan(std::string(name) + " training graph", run.built.graph, run.built.pinned);
         }
 
         void check_plan_changes_no_value(ExecutionBackend& backend,

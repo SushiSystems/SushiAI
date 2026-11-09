@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_training/test_yolov7.cpp
 
 
-Suites: `Large_DarknetYolov7Training`, in `sushiai_vision_tests`.
+Suites: `Large_DarknetYolov7Training` and `Small_DarknetYolov7TrainingPlan`, in `sushiai_vision_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov7.cfg`, `yolov7.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov7_plain_pool_thresh_0p01`, one
@@ -68,3 +68,13 @@ The check is the one [`test_yolov3.md`](test_yolov3.md) describes, run on this m
 
 200 steps on the batch and the truth of `yolov7_train_step` bring the stored cost of the Separate
 model below 0.1 of the first step's.
+
+## ThePlansOfTheStepOverlapLiveRanges
+
+A compact YOLOv7 cfg is held in the test as text: swish convolutions, a four-way concatenation, a
+stride-2 pool, an upsample and two heads, on a 64 by 64 input with one class. `check_training_plan`
+translates it in the Separate form, reads the grid of each head from the model graph, traces the
+training graph of a step of two images and builds its memory plan, all on the host. The test prints
+the graph's nodes and the bytes the plan asks for, and expects that the plan overlaps live ranges.
+It reads no file, so it is the only case of this file that runs without the Darknet reference data;
+the cfg is not `yolov7.cfg`.

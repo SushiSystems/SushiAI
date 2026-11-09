@@ -29,6 +29,8 @@
  * @author Mustafa Garip
  */
 
+#include <cstdint>
+#include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/darknet_training_cases/darknet_training.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
@@ -80,6 +82,69 @@ namespace
         training.overfit_cost_share = K_OVERFIT_COST_SHARE;
         return training;
     }
+
+    /** @brief Holds the images of the step whose training graph is planned. */
+    constexpr std::int64_t K_PLAN_BATCH = 2;
+
+    /**
+     * @brief Holds a compact cfg with the layer kinds and the head keys of YOLOv7.
+     *
+     * The input is 64 by 64 with one class, so the training graph is planned on the
+     * host from this text alone; it is not the yolov7.cfg of Darknet.
+     */
+    constexpr std::string_view K_PLAN_CFG =
+        "[net]\n"
+        "batch=2\nsubdivisions=1\nwidth=64\nheight=64\nchannels=3\nmomentum=0.949\n"
+        "decay=0.0005\nlearning_rate=0.001\nburn_in=1000\nmax_batches=500500\n"
+        "policy=steps\nsteps=400000,450000\nscales=.1,.1\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=8\n"
+        "size=3\nstride=2\npad=1\nactivation=swish\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=16\n"
+        "size=3\nstride=2\npad=1\nactivation=swish\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=8\n"
+        "size=1\nstride=1\npad=1\nactivation=swish\n"
+        "[route]\nlayers=-2\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=8\n"
+        "size=1\nstride=1\npad=1\nactivation=swish\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=8\n"
+        "size=3\nstride=1\npad=1\nactivation=swish\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=8\n"
+        "size=3\nstride=1\npad=1\nactivation=swish\n"
+        "[route]\nlayers=-1,-3,-5,-6\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=16\n"
+        "size=1\nstride=1\npad=1\nactivation=swish\n"
+        "[maxpool]\nsize=2\nstride=2\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=16\n"
+        "size=1\nstride=1\npad=1\nactivation=swish\n"
+        "[route]\nlayers=-2\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=16\n"
+        "size=1\nstride=1\npad=1\nactivation=swish\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=16\n"
+        "size=3\nstride=1\npad=1\nactivation=swish\n"
+        "[route]\nlayers=-1,-2,-4\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=32\n"
+        "size=1\nstride=1\npad=1\nactivation=swish\n"
+        "[convolutional]\nfilters=18\n"
+        "size=1\nstride=1\npad=1\nactivation=linear\n"
+        "[yolo]\nmask=3,4,5\nanchors=4,5, 8,10, 12,16, 20,24, 28,36, 44,52\nclasses=1\nnum=6\n"
+        "scale_x_y=2.0\nobjectness_smooth=1\nignore_thresh=0.7\ntruth_thresh=1\n"
+        "iou_thresh=0.2\niou_normalizer=0.05\ncls_normalizer=0.5\nobj_normalizer=1.0\n"
+        "iou_loss=ciou\nnms_kind=diounms\nbeta_nms=0.6\nnew_coords=1\n"
+        "max_delta=2\n"
+        "[route]\nlayers=-3\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=8\n"
+        "size=1\nstride=1\npad=1\nactivation=swish\n"
+        "[upsample]\nstride=2\n"
+        "[route]\nlayers=-1,8\n"
+        "[convolutional]\nbatch_normalize=1\nfilters=16\n"
+        "size=3\nstride=1\npad=1\nactivation=swish\n"
+        "[convolutional]\nfilters=18\n"
+        "size=1\nstride=1\npad=1\nactivation=linear\n"
+        "[yolo]\nmask=0,1,2\nanchors=4,5, 8,10, 12,16, 20,24, 28,36, 44,52\nclasses=1\nnum=6\n"
+        "scale_x_y=2.0\nobjectness_smooth=1\nignore_thresh=0.7\ntruth_thresh=1\n"
+        "iou_thresh=0.2\niou_normalizer=0.05\ncls_normalizer=0.5\nobj_normalizer=1.0\n"
+        "iou_loss=ciou\nnms_kind=diounms\nbeta_nms=0.6\nnew_coords=1\n"
+        "max_delta=2\n";
 
     /** @brief Runs the training suite of YOLOv7 on an engine; skipped without its files. */
     class Large_DarknetYolov7Training : public SaTest::DarknetTrainingTest
@@ -181,10 +246,10 @@ TEST_F(Large_DarknetYolov7Training, TheCostOfOneBatchFallsUnderATenth)
 }
 
 /**
- * @brief Tests that the memory plans of the probe graph and the training graph overlap live
- *        ranges; prints each graph's nodes and the bytes its plan asks for.
+ * @brief Tests that the memory plan of the training graph of a compact YOLOv7 cfg
+ *        overlaps live ranges; prints the graph's nodes and the bytes its plan asks for.
  */
-TEST_F(Large_DarknetYolov7Training, ThePlansOfTheStepOverlapLiveRanges)
+TEST(Small_DarknetYolov7TrainingPlan, ThePlansOfTheStepOverlapLiveRanges)
 {
-    SaTest::check_training_plan(training);
+    SaTest::check_training_plan("yolov7", K_PLAN_CFG, K_PLAN_BATCH);
 }
