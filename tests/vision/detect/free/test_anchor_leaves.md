@@ -11,10 +11,10 @@ This file needs no device. The cases of `Small_DetectAnchorLeaves` in
 level, and the refused batch and level list. This file adds the smallest batch and the reuse of
 one `AnchorLeaves` across batches.
 
-## K_EXACT and expect_values
+## expect_values
 
-`K_EXACT` is the tolerance 0: every point is a cell centre ending in .5 and every stride a
-whole number, which float32 holds exactly. `expect_values` compares two arrays value for value.
+`expect_values` compares two arrays value for value with equality. Every point is a cell centre
+ending in .5 and every stride a whole number, which float32 holds exactly, so no tolerance applies.
 
 ## OneImageHoldsTheCellCentresAndTheirStride
 

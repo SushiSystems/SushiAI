@@ -1,22 +1,18 @@
 # tests/vision/detect/free/test_anchors.cpp
 
 
-Suites: `Medium_DetectAnchors`, `Small_DetectAnchorLeaves`, `Small_DetectLevelRows`.
+Suites: `Small_DetectAnchors`, `Medium_DetectAnchors`, `Small_DetectAnchorLeaves`,
+`Small_DetectLevelRows`.
 
 Tests the anchor grid, the per-image anchor leaves and the copies between a level and the joined
 anchor axis.
 
-This file needs no device. Its three suites, `Medium_DetectAnchors`, `Small_DetectAnchorLeaves` and
-`Small_DetectLevelRows`, cover `modules/vision/detect/include/SushiAI/vision/detect/free/anchors.hpp`,
+This file needs no device. Its four suites, `Small_DetectAnchors`, `Medium_DetectAnchors`,
+`Small_DetectAnchorLeaves` and `Small_DetectLevelRows`, cover `modules/vision/detect/include/SushiAI/vision/detect/free/anchors.hpp`,
 `modules/vision/detect/include/SushiAI/vision/detect/free/anchor_leaves.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/free/level_rows.hpp`.
 `modules/vision/detect/README.md` quotes the reference lines each unit ports. One case reads
 `loss.sacp` through `modules/layers/reference_files/include/SushiAI/reference_files/reference_file.hpp` and reports itself skipped when the
 file is absent.
-
-## K_EXACT
-
-`K_EXACT` is the tolerance 0. Every expected value in the file is a multiple of 0.5, which
-float32 holds exactly.
 
 ## K_REFERENCE_LEVELS
 
@@ -30,6 +26,10 @@ stride 8, 40 by 40 at stride 16 and 20 by 20 at stride 32.
 eight anchors in all, so a case can write every expected value out.
 
 ## CountsOneAnchorPerCell
+
+In `Small_DetectAnchors`; so are the five cases after it down to `RejectsOutputsOfTheWrongSize`.
+Every expected value in the file is a multiple of 0.5, which float32 holds exactly, so the
+comparisons are equality.
 
 `count_anchors` returns 8 for `K_SMALL_LEVELS` and 8400 for `K_REFERENCE_LEVELS`.
 
@@ -61,8 +61,8 @@ values" and "got 15".
 
 ## MatchesTheReferenceAnchorPoints
 
-The points of `K_REFERENCE_LEVELS`, scaled to pixels, equal the tensor `anchors.points` of
-`loss.sacp` at tolerance 0, and that tensor has shape [8400, 2]. The case is skipped when
+In `Medium_DetectAnchors`, since it reads a file. The points of `K_REFERENCE_LEVELS`, scaled to pixels, equal the tensor `anchors.points` of
+`loss.sacp` exactly, and that tensor has shape [8400, 2]. The case is skipped when
 `loss.sacp` is absent.
 
 ## GivesEachLevelItsStrideOverItsAnchorRange
@@ -80,11 +80,15 @@ writes the strides with four values per anchor: 24 values of 8 and 8 values of 1
 `split_level` cuts the second level, anchors 6 and 7, out of both leaves. The points come out as
 [2, 1, 2, 2] and the strides as sixteen values of 16.
 
-## RejectsABatchWithoutImagesAndAModelWithoutLevels
+## RejectsABatchWithoutImages
 
-A batch of 0 returns `InvalidDescription` with a message containing "positive batch" and "batch 0 and 2 levels". An
-empty level list returns `InvalidDescription` with a message containing "at least one level" and "batch 1 and 0
-levels".
+A batch of 0 returns `InvalidDescription` with a message containing "positive batch" and "batch 0
+and 2 levels".
+
+## RejectsAModelWithoutLevels
+
+An empty level list returns `InvalidDescription` with a message containing "at least one level" and
+"batch 1 and 0 levels".
 
 ## JoinPlacesALevelAtItsAnchorOffset
 
