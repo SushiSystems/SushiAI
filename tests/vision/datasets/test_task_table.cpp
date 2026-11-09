@@ -90,3 +90,15 @@ TEST(Small_DatasetsTaskTableLookup, ALookupMatchesTheWholeNameAndItsCase)
     EXPECT_EQ(find_task("detection "), nullptr);
     EXPECT_EQ(find_task(""), nullptr);
 }
+
+/** @brief Tests that the table lists the six tasks of the module, by name and in order. */
+TEST(Small_DatasetsTaskTableLookup, TheTableListsTheSixTasksInOrder)
+{
+    std::vector<std::string_view> names;
+    for (const TaskEntry& row : task_table())
+        names.push_back(row.name);
+
+    EXPECT_EQ(names, (std::vector<std::string_view>{"detection", "classification", "binary",
+                                                    "multi_label", "regression",
+                                                    "segmentation"}));
+}

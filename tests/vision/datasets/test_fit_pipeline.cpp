@@ -238,3 +238,27 @@ TEST(Small_DatasetsFitPipeline, ProduceRefusesCountsThatDiffer)
                                         0, SushiRuntime::span<FittedSample>(&fitted, 1)),
                       StatusCode::InvalidDescription, "2 samples", "1 fitted");
 }
+
+/** @brief Tests that a mask of another size than its image is refused with the mask file. */
+TEST(Medium_DatasetsFitPipeline, AMaskOfAnotherSizeThanItsImageNamesItsFile)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_fit_mask_size");
+    SampleList list;
+    list.files.push_back(Support::write_raw_image(
+        scratch, "images/train/a.saim", Support::uniform_image(ImageSize{2, 4}, 3, 255)));
+    list.files.push_back(Support::write_raw_image(
+        scratch, "masks/train/a.png", Support::uniform_image(ImageSize{2, 2}, 1, 0)));
+    Sample sample;
+    sample.file = 0;
+    sample.mask = 1u;
+    list.samples.push_back(sample);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<FitPipeline> pipeline,
+                            FitPipeline::make(letterbox_of_eight(), 3));
+    const std::size_t samples[] = {0};
+    FittedSample fitted;
+
+    SA_EXPECT_FAILURE(pipeline->produce(list, SushiRuntime::span<const std::size_t>(samples, 1),
+                                        0, SushiRuntime::span<FittedSample>(&fitted, 1)),
+                      StatusCode::Incompatible, "masks/train/a.png", "fit_mask");
+}

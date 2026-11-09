@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M37, M46 to M48 and M51 are left
+**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M37, M47, M48 and M51 are left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -64,7 +64,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M43 | the tests of `vision/darknet_forward_cases` (1 file): 4 rewrite, 3 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M44 | the tests of `vision/darknet_import_cases` (1 file): 3 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M45 | the tests of `vision/darknet_training_cases` (1 file): 1 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
-| M46 | the tests of `vision/datasets` (39 files): 96 rewrite, 63 resize, 38 split, 3 merge, 13 delete | T1, T2, T3, T4, T5, T6, T7, T8 | in progress (2026-11-10, decisions 47 to 49): 38 of 39 files applied, `test_sample.cpp` is `compile_sample.cpp`; left: `test_reader_section.cpp` (the Small_ and Medium_ records of REPORT.md, then the table-driven rows); the adds of REPORT.md are done except the Collator refusal through a stand-in, which `test_collator.cpp` covers through a real `BinaryCollator`; not yet built or run |
+| M46 | the tests of `vision/datasets` (39 files): 96 rewrite, 63 resize, 38 split, 3 merge, 13 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-10, decisions 47 to 49): the 39 files are applied, `test_sample.cpp` is `compile_sample.cpp`, and `test_reader_section.cpp` runs on a `HostExecutionBackend`, with the refusals decided before a read as `Small_` rows and the cases that list files as `Medium_`; the Collator refusal through a stand-in is covered by `test_collator.cpp` through a real `BinaryCollator`; not yet built or run |
 | M47 | the tests of `vision/detect` (47 files): 226 rewrite, 19 resize, 32 split, 14 merge, 18 delete, 1 characterize | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M48 | the tests of `vision/importers` (23 files): 92 rewrite, 23 resize, 14 split, 10 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M49 | the tests of `vision/registration` (3 files): 20 rewrite, 9 resize, 7 split, 4 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
