@@ -1,28 +1,25 @@
 # tests/vision/detect/anchor/test_head_assignment.cpp
 
 
-Suites: `Small_DetectAnchorHeadAssignment`.
+Suites: `Small_DetectAnchorHeadAssignment`, `Small_DetectAnchorHeadAssignmentCfg` and
+`Characterization_Small_DetectAnchorHeadAssignment`.
 
 Tests `assign_anchors_to_heads`, which gives each head, in the order of its stride, a run of
 anchor indices in ascending area and returns an `AnchorLayout`.
 
-## NineAnchorsOverThreeHeadsGiveThreeRunsOfThree
+## ReproducesTheMasksOfACfg
 
-Nine anchors over the strides 32, 16 and 8 give the masks {6, 7, 8}, {3, 4, 5} and {0, 1, 2}.
-
-## SixAnchorsOverTwoHeadsGiveTwoRunsOfThree
-
-Six anchors of rising area over the strides 32 and 16 give {3, 4, 5} and {0, 1, 2}.
-
-## ReproducesTheMasksOfFiveCfgs
-
-For five named cases the file holds, each an anchor list in pixels, an input side, the strides
-and the expected masks, the computed masks equal the expected ones.
+Suite `Small_DetectAnchorHeadAssignmentCfg`, one row per cfg: `Yolov3Tiny`, `Yolov3`, `Yolov4`,
+`Yolov7Tiny` and `Yolov7`. Each row holds an anchor list in pixels, an input side, the strides
+and the expected masks, and the computed masks equal the expected ones. The `Yolov3` row is nine
+anchors over the strides 32, 16 and 8 giving {6, 7, 8}, {3, 4, 5} and {0, 1, 2}; the
+`Yolov3Tiny` row is six anchors over the strides 32 and 16 giving {3, 4, 5} and {0, 1, 2}.
 
 ## DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor
 
-For six rising anchors over the strides 32 and 16, the first computed mask is {3, 4, 5}. The
-second is {0, 1, 2}, which is not {1, 2, 3}.
+Suite `Characterization_Small_DetectAnchorHeadAssignment`. For six rising anchors over the
+strides 32 and 16, the first computed mask is {3, 4, 5}. The second is {0, 1, 2}, which is not
+the cfg's {1, 2, 3}. The second mask is the unit's own output and is pinned, not derived.
 
 ## TheRemainderGoesToTheHeadOfSmallestStride
 
@@ -33,10 +30,15 @@ and 32 they give {0, 1, 2, 3} and {4, 5, 6}.
 
 Eleven anchors over the strides 16, 32 and 8 give {4, 5, 6, 7}, {8, 9, 10} and {0, 1, 2, 3}.
 
-## UnsortedAnchorsKeepTheirOrderAndAreNamedByArea
+## UnsortedAnchorsAreNamedByAscendingArea
 
 Four anchors whose ascending area is 3, 1, 2, 0 give the masks {2, 0} and {3, 1} over the
-strides 32 and 16. The layout's anchors are the inputs in their given order, compared exactly.
+strides 32 and 16.
+
+## TheLayoutKeepsTheAnchorsInInputOrder
+
+For the same four anchors, the layout's anchors are the inputs in their given order, compared
+exactly.
 
 ## AnchorsOfEqualAreaGoInIndexOrder
 
@@ -67,9 +69,13 @@ For two strides, `per_head` {6} and {2, 2, 2} each fail with `Incompatible`.
 
 Two anchors over three strides fail with `Incompatible`.
 
-## RefusesMissingAnchorsAndBadStrides
+## RefusesMissingAnchors
 
-No anchor, no stride, a stride of 0 and a stride of -8 each fail with `InvalidDescription`.
+An empty anchor list fails with `InvalidDescription`.
+
+## RefusesMissingStridesAndStridesAtOrBelowZero
+
+No stride, a stride of 0 and a stride of -8 each fail with `InvalidDescription`.
 
 ## RefusesAnAnchorWithoutAFinitePositiveSide
 

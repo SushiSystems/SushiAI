@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -62,7 +63,7 @@ namespace
     /** @brief Holds the anchors, input side, head strides and masks one cfg states. */
     struct CfgCase
     {
-        const char* name = "";             /**< The cfg, for the failure message. */
+        const char* name = "";             /**< The row's name. */
         std::vector<PixelAnchor> anchors;  /**< The `anchors` key, in file order. */
         float input_side = 0.0f;           /**< `width` and `height` of `[net]`, equal. */
         std::vector<std::int64_t> strides; /**< The stride of each `[yolo]`, in file order. */
@@ -121,50 +122,73 @@ namespace
     {
         return to_fractions(make_tiny_anchors(), 416.0f);
     }
-} // namespace
 
-/** @brief Tests that nine anchors over strides 32, 16, 8 give 6,7,8 then 3,4,5 then 0,1,2. */
-TEST(Small_DetectAnchorHeadAssignment, NineAnchorsOverThreeHeadsGiveThreeRunsOfThree)
-{
-    const Result<AnchorLayout> result = assign(to_fractions(make_v3_anchors(), 416.0f),
-                                               {32, 16, 8});
+    /** @brief Returns @p count anchors of height 0.05 whose width rises by 0.05 from 0.05. */
+    std::vector<AnchorSize> make_widening_anchors(int count)
+    {
+        std::vector<AnchorSize> anchors;
+        for (int index = 0; index < count; ++index)
+            anchors.push_back({0.05f * static_cast<float>(index + 1), 0.05f});
+        return anchors;
+    }
 
-    ASSERT_TRUE(result.has_value()) << result.status().message();
-    EXPECT_EQ(result.value().head_anchors, (Masks{{6, 7, 8}, {3, 4, 5}, {0, 1, 2}}));
-}
+    /** @brief Expects the sizes of @p actual to equal @p expected, in order and exactly. */
+    void expect_same_sizes(const std::vector<AnchorSize>& actual,
+                           const std::vector<AnchorSize>& expected)
+    {
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t index = 0; index < expected.size(); ++index)
+        {
+            EXPECT_EQ(actual[index].width, expected[index].width) << index;
+            EXPECT_EQ(actual[index].height, expected[index].height) << index;
+        }
+    }
 
-/** @brief Tests that six anchors over strides 32, 16 give 3,4,5 then 0,1,2. */
-TEST(Small_DetectAnchorHeadAssignment, SixAnchorsOverTwoHeadsGiveTwoRunsOfThree)
-{
-    const Result<AnchorLayout> result = assign(make_rising_anchors(), {32, 16});
+    /** @brief Runs one cfg's anchors and strides. */
+    class Small_DetectAnchorHeadAssignmentCfg : public ::testing::TestWithParam<CfgCase>
+    {
 
-    ASSERT_TRUE(result.has_value()) << result.status().message();
-    EXPECT_EQ(result.value().head_anchors, (Masks{{3, 4, 5}, {0, 1, 2}}));
-}
-
-/** @brief Tests that the masks of the five cfgs follow from their anchors and strides. */
-TEST(Small_DetectAnchorHeadAssignment, ReproducesTheMasksOfFiveCfgs)
-{
-    const std::vector<CfgCase> cases = {
-        {"yolov3-tiny", make_tiny_anchors(), 416.0f, {32, 16}, {{3, 4, 5}, {0, 1, 2}}},
-        {"yolov3", make_v3_anchors(), 416.0f, {32, 16, 8}, {{6, 7, 8}, {3, 4, 5}, {0, 1, 2}}},
-        {"yolov4", make_v4_anchors(), 608.0f, {8, 16, 32}, {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}},
-        {"yolov7-tiny", make_v3_anchors(), 416.0f, {8, 16, 32}, {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}},
-        {"yolov7", make_v4_anchors(), 640.0f, {8, 16, 32}, {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}},
     };
 
-    for (const CfgCase& cfg : cases)
+    /** @brief Names a row by its name field. */
+    std::string cfg_name(const ::testing::TestParamInfo<CfgCase>& info)
     {
-        const Result<AnchorLayout> result = assign(to_fractions(cfg.anchors, cfg.input_side),
-                                                   cfg.strides);
-
-        ASSERT_TRUE(result.has_value()) << cfg.name << ": " << result.status().message();
-        EXPECT_EQ(result.value().head_anchors, cfg.masks) << cfg.name;
+        return info.param.name;
     }
+} // namespace
+
+/** @brief Tests that the masks of a cfg follow from its anchors and strides. */
+TEST_P(Small_DetectAnchorHeadAssignmentCfg, ReproducesTheMasksOfACfg)
+{
+    const CfgCase& cfg = GetParam();
+
+    const Result<AnchorLayout> result = assign(to_fractions(cfg.anchors, cfg.input_side),
+                                               cfg.strides);
+
+    ASSERT_TRUE(result.has_value()) << result.status().message();
+    EXPECT_EQ(result.value().head_anchors, cfg.masks);
 }
 
-/** @brief Tests that `yolov4-tiny` gets 0,1,2 where its cfg has 1,2,3, one anchor apart. */
-TEST(Small_DetectAnchorHeadAssignment, DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorHeadAssignmentCfg,
+    ::testing::Values(
+        CfgCase{"Yolov3Tiny", make_tiny_anchors(), 416.0f, {32, 16}, {{3, 4, 5}, {0, 1, 2}}},
+        CfgCase{"Yolov3", make_v3_anchors(), 416.0f, {32, 16, 8}, {{6, 7, 8}, {3, 4, 5}, {0, 1, 2}}},
+        CfgCase{"Yolov4", make_v4_anchors(), 608.0f, {8, 16, 32}, {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}},
+        CfgCase{"Yolov7Tiny", make_v3_anchors(), 416.0f, {8, 16, 32},
+                {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}},
+        CfgCase{"Yolov7", make_v4_anchors(), 640.0f, {8, 16, 32},
+                {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}}),
+    cfg_name);
+
+/**
+ * @brief Pins that `yolov4-tiny` gets 0,1,2 where its cfg has 1,2,3, one anchor apart.
+ *
+ * The computed second mask is the unit's own output, not a derived value; the test pins it until
+ * the difference from the cfg is resolved.
+ */
+TEST(Characterization_Small_DetectAnchorHeadAssignment,
+     DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor)
 {
     const Masks cfg_masks = {{3, 4, 5}, {1, 2, 3}};
 
@@ -196,18 +220,14 @@ TEST(Small_DetectAnchorHeadAssignment, TheRemainderGoesToTheHeadOfSmallestStride
 /** @brief Tests that eleven anchors over three heads split 4, 4, 3 from the smallest stride. */
 TEST(Small_DetectAnchorHeadAssignment, ARemainderOfTwoGoesToTheTwoSmallestStrides)
 {
-    std::vector<AnchorSize> anchors;
-    for (int index = 0; index < 11; ++index)
-        anchors.push_back({0.05f * static_cast<float>(index + 1), 0.05f});
-
-    const Result<AnchorLayout> result = assign(anchors, {16, 32, 8});
+    const Result<AnchorLayout> result = assign(make_widening_anchors(11), {16, 32, 8});
 
     ASSERT_TRUE(result.has_value()) << result.status().message();
     EXPECT_EQ(result.value().head_anchors, (Masks{{4, 5, 6, 7}, {8, 9, 10}, {0, 1, 2, 3}}));
 }
 
-/** @brief Tests that unsorted anchors keep their order and are named in ascending area. */
-TEST(Small_DetectAnchorHeadAssignment, UnsortedAnchorsKeepTheirOrderAndAreNamedByArea)
+/** @brief Tests that heads name unsorted anchors in ascending area. */
+TEST(Small_DetectAnchorHeadAssignment, UnsortedAnchorsAreNamedByAscendingArea)
 {
     // The areas are 0.20, 0.01, 0.06 and 0.0004, so ascending area is 3, 1, 2, 0.
     const std::vector<AnchorSize> anchors = {{0.5f, 0.4f}, {0.1f, 0.1f}, {0.2f, 0.3f},
@@ -216,15 +236,19 @@ TEST(Small_DetectAnchorHeadAssignment, UnsortedAnchorsKeepTheirOrderAndAreNamedB
     const Result<AnchorLayout> result = assign(anchors, {32, 16});
 
     ASSERT_TRUE(result.has_value()) << result.status().message();
-    const AnchorLayout& layout = result.value();
-    EXPECT_EQ(layout.head_anchors, (Masks{{2, 0}, {3, 1}}));
-    ASSERT_EQ(layout.anchors.size(), anchors.size());
-    for (std::size_t index = 0; index < anchors.size(); ++index)
-    {
-        // The layout holds copies of the inputs, so the comparison is exact.
-        EXPECT_EQ(layout.anchors[index].width, anchors[index].width) << index;
-        EXPECT_EQ(layout.anchors[index].height, anchors[index].height) << index;
-    }
+    EXPECT_EQ(result.value().head_anchors, (Masks{{2, 0}, {3, 1}}));
+}
+
+/** @brief Tests that the layout holds the anchors in the order given, as exact copies. */
+TEST(Small_DetectAnchorHeadAssignment, TheLayoutKeepsTheAnchorsInInputOrder)
+{
+    const std::vector<AnchorSize> anchors = {{0.5f, 0.4f}, {0.1f, 0.1f}, {0.2f, 0.3f},
+                                             {0.02f, 0.02f}};
+
+    const Result<AnchorLayout> result = assign(anchors, {32, 16});
+
+    ASSERT_TRUE(result.has_value()) << result.status().message();
+    expect_same_sizes(result.value().anchors, anchors);
 }
 
 /** @brief Tests that two anchors of one area go in the order of their indices. */
@@ -293,10 +317,15 @@ TEST(Small_DetectAnchorHeadAssignment, RefusesFewerAnchorsThanHeads)
     EXPECT_EQ(code_of(assign(anchors, {8, 16, 32})), StatusCode::Incompatible);
 }
 
-/** @brief Tests that no anchor, no stride and a stride at or below zero are refused. */
-TEST(Small_DetectAnchorHeadAssignment, RefusesMissingAnchorsAndBadStrides)
+/** @brief Tests that an empty anchor list is refused. */
+TEST(Small_DetectAnchorHeadAssignment, RefusesMissingAnchors)
 {
     EXPECT_EQ(code_of(assign({}, {32, 16})), StatusCode::InvalidDescription);
+}
+
+/** @brief Tests that no stride and a stride at or below zero are refused. */
+TEST(Small_DetectAnchorHeadAssignment, RefusesMissingStridesAndStridesAtOrBelowZero)
+{
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {})), StatusCode::InvalidDescription);
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {32, 0})), StatusCode::InvalidDescription);
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {-8, 16})), StatusCode::InvalidDescription);
