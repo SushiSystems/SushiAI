@@ -28,67 +28,28 @@
  * @author Mustafa Garip
  */
 
-#include <cstddef>
 #include <cstdint>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/in_memory_dataset.hpp>
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/train/role_match.hpp>
 
 using namespace SushiAI;
+using Data::InMemoryDataset;
 using Data::TargetDescription;
 
 namespace
 {
-    /** @brief Publishes the roles it is built with and holds no batch. */
-    class Published final : public Data::Dataset
-    {
-        public:
-            /** @brief Holds @p targets as the roles the dataset publishes. */
-            explicit Published(std::vector<TargetDescription> targets)
-                : targets_(std::move(targets))
-            {
-
-            }
-
-            int64_t batch_size() const noexcept override { return 4; }
-            Shape sample_shape() const override { return Shape{6}; }
-            const std::vector<TargetDescription>& targets() const noexcept override
-            {
-                return targets_;
-            }
-            std::size_t batch_count() const noexcept override { return 0; }
-            std::string_view name() const noexcept override { return "published"; }
-
-            [[nodiscard]] Status read(std::size_t index, Data::Batch&) const override
-            {
-                SA_FATAL_IF(true, "Batch {} is out of range; the dataset has 0", index);
-                return Status();
-            }
-
-            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange,
-                                           Data::Batch&) const override
-            {
-                SA_FATAL_IF(true, "Batch {} is out of range; the dataset has 0", index);
-                return Status();
-            }
-
-        private:
-            /** @brief Holds the roles the dataset publishes. */
-            std::vector<TargetDescription> targets_;
-    };
-
     /** @brief Returns the labels role as one int32 per sample over @p classes classes. */
     TargetDescription labels_over(int64_t classes)
     {
@@ -101,84 +62,103 @@ namespace
     {
         return TargetDescription{"boxes", Shape{boxes, 4}, DType::Float32, 0};
     }
+
+    /** @brief Returns the labels role as one float32 per sample over 4 classes. */
+    TargetDescription real_labels()
+    {
+        TargetDescription as_real = labels_over(4);
+        as_real.dtype = DType::Float32;
+        return as_real;
+    }
+
+    /** @brief Returns an in-memory dataset that publishes @p targets, with no batch. */
+    InMemoryDataset publishing(std::vector<TargetDescription> targets)
+    {
+        return InMemoryDataset(0, 4, Data::InputDescription{Shape{6}, DType::Float32},
+                               std::move(targets));
+    }
+
+    /** @brief Holds the roles a step requires and the roles a dataset publishes. */
+    struct AcceptRow
+    {
+        std::string name;                           /**< The row's name. */
+        std::vector<TargetDescription> required;    /**< The roles the step reads. */
+        std::vector<TargetDescription> published;   /**< The roles the dataset publishes. */
+    };
+
+    /** @brief Matches the dataset of each accepting row. */
+    class Small_RoleMatchAccepted : public ::testing::TestWithParam<AcceptRow>
+    {
+
+    };
+
+    /** @brief Holds the roles of a refused match, its code and the texts its message holds. */
+    struct RefuseRow
+    {
+        std::string name;                           /**< The row's name. */
+        std::vector<TargetDescription> required;    /**< The roles the step reads. */
+        std::vector<TargetDescription> published;   /**< The roles the dataset publishes. */
+        StatusCode code;                            /**< The code of the refusal. */
+        std::string first;                          /**< A text the message holds. */
+        std::string second;                         /**< Another text the message holds. */
+        std::string third;                          /**< A third text the message holds. */
+    };
+
+    /** @brief Matches the dataset of each refused row. */
+    class Small_RoleMatchRefused : public ::testing::TestWithParam<RefuseRow>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests that a dataset publishing every role as required is accepted. */
-TEST(Small_RoleMatch, ADatasetThatPublishesEveryRoleIsAccepted)
+/** @brief Tests that a dataset publishing the required roles, or none are required, is accepted. */
+TEST_P(Small_RoleMatchAccepted, ADatasetThatPublishesTheRequiredRolesIsAccepted)
 {
-    const Published dataset({labels_over(4), boxes_of(8)});
+    const AcceptRow& row = GetParam();
+    const InMemoryDataset dataset = publishing(row.published);
 
-    SA_EXPECT_OK(Train::match_roles({boxes_of(8), labels_over(4)}, dataset));
+    SA_EXPECT_OK(Train::match_roles(row.required, dataset));
 }
 
-/** @brief Tests that a step that reads no role accepts a dataset that publishes none. */
-TEST(Small_RoleMatch, AStepThatReadsNoRoleAcceptsAnyDataset)
-{
-    const Published empty(std::vector<TargetDescription>{});
-    const Published labelled({labels_over(4)});
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_RoleMatchAccepted,
+    ::testing::Values(
+        AcceptRow{"EveryRolePublished", {boxes_of(8), labels_over(4)},
+                  {labels_over(4), boxes_of(8)}},
+        AcceptRow{"NoRoleReadAndNonePublished", {}, {}},
+        AcceptRow{"NoRoleReadAndLabelsPublished", {}, {labels_over(4)}},
+        AcceptRow{"ARequiredClassCountOfZero", {labels_over(0)}, {labels_over(5)}}),
+    [](const ::testing::TestParamInfo<AcceptRow>& info) { return info.param.name; });
 
-    SA_EXPECT_OK(Train::match_roles({}, empty));
-    SA_EXPECT_OK(Train::match_roles({}, labelled));
+/** @brief Tests that a role the dataset lacks or publishes differently is refused by name. */
+TEST_P(Small_RoleMatchRefused, ARoleThatDoesNotMatchIsRefusedWithBothDescriptions)
+{
+    const RefuseRow& row = GetParam();
+    const InMemoryDataset dataset = publishing(row.published);
+
+    SA_EXPECT_FAILURE(Train::match_roles(row.required, dataset), row.code, "'in-memory'",
+                      row.first, row.second, row.third);
 }
 
-/** @brief Tests that a missing role is named with the dataset and the roles it publishes. */
-TEST(Small_RoleMatch, AMissingRoleIsNamedWithTheDatasetAndWhatItPublishes)
-{
-    const Published dataset({labels_over(4)});
-    const Published empty(std::vector<TargetDescription>{});
-
-    SA_EXPECT_FAILURE(Train::match_roles({labels_over(4), boxes_of(8)}, dataset),
-                      StatusCode::InvalidDescription, "'published'", "'boxes'",
-                      "float32 [8, 4] per sample", "publishes 'labels'");
-    SA_EXPECT_FAILURE(Train::match_roles({labels_over(4)}, empty),
-                      StatusCode::InvalidDescription, "'published'", "'labels'", "(none)");
-}
-
-/** @brief Tests that a role of another per-sample shape is refused with both shapes. */
-TEST(Small_RoleMatch, AnotherShapeIsRefusedWithBothShapes)
-{
-    const Published dataset({boxes_of(16)});
-
-    SA_EXPECT_FAILURE(Train::match_roles({boxes_of(8)}, dataset), StatusCode::Incompatible,
-                      "'published'", "'boxes'", "as float32 [16, 4] per sample",
-                      "compiled for float32 [8, 4] per sample");
-}
-
-/** @brief Tests that a role of another element type is refused with both type names. */
-TEST(Small_RoleMatch, AnotherElementTypeIsRefusedWithBothTypes)
-{
-    TargetDescription as_real = labels_over(4);
-    as_real.dtype = DType::Float32;
-    const Published dataset({as_real});
-
-    SA_EXPECT_FAILURE(Train::match_roles({labels_over(4)}, dataset), StatusCode::Incompatible,
-                      "'published'", "'labels'", "as 4 classes of float32 [] per sample",
-                      "compiled for 4 classes of int32 [] per sample");
-}
-
-/** @brief Tests that a role over another class count is refused with both counts. */
-TEST(Small_RoleMatch, AnotherClassCountIsRefusedWithBothCounts)
-{
-    const Published dataset({labels_over(5)});
-
-    SA_EXPECT_FAILURE(Train::match_roles({labels_over(4)}, dataset), StatusCode::Incompatible,
-                      "'published'", "'labels'", "as 5 classes of int32 [] per sample",
-                      "compiled for 4 classes of int32 [] per sample");
-}
-
-/** @brief Tests that a required class count of 0 accepts whatever count is published. */
-TEST(Small_RoleMatch, ARequiredClassCountOfZeroAcceptsAnyCount)
-{
-    const Published dataset({labels_over(5)});
-
-    SA_EXPECT_OK(Train::match_roles({labels_over(0)}, dataset));
-}
-
-/** @brief Tests that the first role that does not match is the one reported. */
-TEST(Small_RoleMatch, TheFirstRoleThatDoesNotMatchIsReported)
-{
-    const Published dataset({labels_over(5)});
-
-    SA_EXPECT_FAILURE(Train::match_roles({boxes_of(8), labels_over(4)}, dataset),
-                      StatusCode::InvalidDescription, "'boxes'");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_RoleMatchRefused,
+    ::testing::Values(
+        RefuseRow{"AMissingRoleNamesWhatIsPublished", {labels_over(4), boxes_of(8)},
+                  {labels_over(4)}, StatusCode::InvalidDescription, "'boxes'",
+                  "float32 [8, 4] per sample", "publishes 'labels'"},
+        RefuseRow{"AMissingRoleOfADatasetThatPublishesNothing", {labels_over(4)}, {},
+                  StatusCode::InvalidDescription, "'labels'", "(none)", "(none)"},
+        RefuseRow{"AnotherShape", {boxes_of(8)}, {boxes_of(16)}, StatusCode::Incompatible,
+                  "'boxes'", "as float32 [16, 4] per sample",
+                  "compiled for float32 [8, 4] per sample"},
+        RefuseRow{"AnotherElementType", {labels_over(4)}, {real_labels()},
+                  StatusCode::Incompatible, "'labels'",
+                  "as 4 classes of float32 [] per sample",
+                  "compiled for 4 classes of int32 [] per sample"},
+        RefuseRow{"AnotherClassCount", {labels_over(4)}, {labels_over(5)},
+                  StatusCode::Incompatible, "'labels'", "as 5 classes of int32 [] per sample",
+                  "compiled for 4 classes of int32 [] per sample"},
+        RefuseRow{"TheFirstRoleThatDoesNotMatch", {boxes_of(8), labels_over(4)},
+                  {labels_over(5)}, StatusCode::InvalidDescription, "'boxes'", "'boxes'",
+                  "'boxes'"}),
+    [](const ::testing::TestParamInfo<RefuseRow>& info) { return info.param.name; });

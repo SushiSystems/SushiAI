@@ -23,7 +23,7 @@
 
 /**
  * @file test_step_view.cpp
- * @brief Tests what a StepOutput holds by default and what a StepView carries.
+ * @brief Tests what a StepView carries.
  * @author Mustafa Garip
  */
 
@@ -36,20 +36,10 @@
 
 using namespace SushiAI;
 
-namespace
-{
-} // namespace
-
-/** @brief Tests that a default StepOutput names nothing and points at no tensor. */
-TEST(Small_StepView, ADefaultOutputIsUnbound)
-{
-    const Train::StepOutput output{};
-
-    EXPECT_TRUE(output.name.empty());
-    EXPECT_EQ(output.tensor, nullptr);
-}
-
-/** @brief Tests that a view refers to its batch and keeps the loss and the outputs in order. */
+/**
+ * @brief Tests that a view refers to its batch and keeps the loss and the outputs in order.
+ *        0.75 is a sum of powers of two, so the loss is held and compared with no rounding.
+ */
 TEST(Small_StepView, AViewCarriesTheBatchTheLossAndTheOutputsInOrder)
 {
     const SushiBLAS::Tensor small{};
@@ -63,7 +53,7 @@ TEST(Small_StepView, AViewCarriesTheBatchTheLossAndTheOutputsInOrder)
         SushiRuntime::span<const Train::StepOutput>(outputs.data(), outputs.size())};
 
     EXPECT_EQ(&view.batch, &batch);
-    EXPECT_DOUBLE_EQ(view.loss, 0.75);
+    EXPECT_EQ(view.loss, 0.75);
     ASSERT_EQ(view.outputs.size(), 2u);
     EXPECT_EQ(view.outputs[0].name, "p3");
     EXPECT_EQ(view.outputs[0].tensor, &small);

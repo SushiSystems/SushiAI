@@ -1,19 +1,25 @@
 # tests/layers/train/test_one_hot.cpp
 
 
-Suites: `Medium_OneHot`.
+Suites: `Small_OneHot`, `Small_OneHotDType`, `Small_OneHotOutOfRange`.
 
-Tests `Train::fill_one_hot`. The fixture needs an engine. The labels are an int32 tensor of one
-extent, and the rows hold 7 in every element before a fill.
+Tests `Train::fill_one_hot`. The tensors are allocated from the engine of a
+`HostExecutionBackend`. The labels are an int32 tensor of one extent, and the rows hold 7 in every
+element before a fill.
+
+## DTypeRow
+
+`DTypeRow` holds the element type of the leaf a fill writes.
+
+## OutOfRangeRow
+
+`OutOfRangeRow` holds labels with one out of range and the two texts of the refusal.
 
 ## EveryRowHoldsOneInItsLabelsColumn
 
-The labels 2, 0, 1, 2 fill a [4, 3] float32 tensor with 1 in each row's label column and 0
-elsewhere.
-
-## AFloat64LeafReceivesTheSameRows
-
-The same labels fill a [4, 3] float64 tensor with the same rows.
+The labels 2, 0, 1, 2 fill a [4, 3] tensor with 1 in each row's label column and 0 elsewhere.
+The rows are a float32 leaf and a float64 leaf. 0 and 1 are exact in both types, so the
+comparison is equality.
 
 ## ASecondFillReplacesTheFirst
 
@@ -21,8 +27,8 @@ After a fill with the labels 0, 0 and a second with 1, 0, a [2, 2] tensor holds 
 
 ## ALabelOutsideTheClassesIsRefusedAndNothingIsWritten
 
-Over three classes the labels 0, 3 fail with `Incompatible`, "row 1", "is 3" and "3 classes",
-and the labels -1, 0 fail with "row 0", "is -1" and "3 classes". The rows still hold six 7s.
+Over three classes the fill fails with `Incompatible` and "3 classes", and the rows still hold
+six 7s. The rows are the labels 0, 3 ("row 1", "is 3") and -1, 0 ("row 0", "is -1").
 
 ## AnotherLabelCountIsRefusedWithBothShapes
 

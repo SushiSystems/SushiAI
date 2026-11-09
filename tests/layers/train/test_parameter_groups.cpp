@@ -27,7 +27,7 @@
  * @author Mustafa Garip
  */
 
-#include <cstddef>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/train/parameter_groups.hpp>
@@ -35,29 +35,36 @@
 using namespace SushiAI;
 using NN::ParameterRole;
 
+static_assert(Train::takes_weight_decay(ParameterRole::Weight),
+              "the decision is a constant expression an optimizer may rely on");
+
 namespace
 {
-    /** @brief Lists every parameter role, the weight first. */
-    constexpr ParameterRole K_ROLES[] = {ParameterRole::Weight, ParameterRole::Bias,
-                                         ParameterRole::Scale, ParameterRole::Embedding};
-
-    /** @brief Counts the roles of K_ROLES that take weight decay, in a constant expression. */
-    constexpr std::size_t decaying_role_count()
+    /** @brief Holds a parameter role and whether it takes weight decay. */
+    struct RoleRow
     {
-        std::size_t count = 0;
-        for (const ParameterRole role : K_ROLES)
-            count += Train::takes_weight_decay(role) ? 1u : 0u;
-        return count;
-    }
+        std::string name;       /**< The row's name. */
+        ParameterRole role;     /**< The role asked. */
+        bool decays;            /**< Whether it takes decay. */
+    };
+
+    /** @brief Asks the decision for the role of each row. */
+    class Small_ParameterGroups : public ::testing::TestWithParam<RoleRow>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests that the weight is the one role of four that takes decay, known at compile time. */
-TEST(Small_ParameterGroups, TheWeightIsTheOnlyRoleThatDecays)
+/** @brief Tests that the weight is the one role of four that takes decay. */
+TEST_P(Small_ParameterGroups, TheWeightIsTheOnlyRoleThatDecays)
 {
-    static_assert(decaying_role_count() == 1u, "exactly one role takes weight decay");
-    static_assert(Train::takes_weight_decay(ParameterRole::Weight), "a weight takes decay");
-    static_assert(!Train::takes_weight_decay(ParameterRole::Embedding),
-                  "an embedding table takes no decay");
-
-    EXPECT_EQ(decaying_role_count(), 1u);
+    EXPECT_EQ(Train::takes_weight_decay(GetParam().role), GetParam().decays);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ParameterGroups,
+    ::testing::Values(RoleRow{"Weight", ParameterRole::Weight, true},
+                      RoleRow{"Bias", ParameterRole::Bias, false},
+                      RoleRow{"Scale", ParameterRole::Scale, false},
+                      RoleRow{"Embedding", ParameterRole::Embedding, false}),
+    [](const ::testing::TestParamInfo<RoleRow>& info) { return info.param.name; });
