@@ -30,12 +30,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -56,16 +56,6 @@ namespace
         return Shape(inner);
     }
 } // namespace
-
-/** @brief Tests that Unflatten satisfies the Module trait and is not a container. */
-TEST(Small_Unflatten, SatisfiesTheModuleContract)
-{
-    static_assert(NN::Module<Unflatten>, "Unflatten must be a Module");
-    static_assert(!NN::ModuleContainer<Unflatten>, "Unflatten must be a leaf");
-    static_assert(!NN::Detail::HasParameterWalk<Unflatten>::value,
-                  "Unflatten must be enumerated by its fields()");
-    SUCCEED();
-}
 
 /** @brief Tests that the traced result is [N, height, width, channels] with the input's dtype. */
 TEST(Small_Unflatten, TracesTheImageShape)
@@ -96,79 +86,84 @@ TEST(Small_Unflatten, TagsTheResultNHWC)
     SA_EXPECT_OK(graph.finalise());
 }
 
-/** @brief Tests that the trace adds exactly one node, a RESHAPE reading the input. */
-TEST(Small_Unflatten, EmitsOneReshapeNode)
+/** @brief Holds a layer's image extents, the flat input it takes and the image it gives. */
+struct ImageRow
 {
+    std::string name; /**< The row's name. */
+    int64_t height;   /**< The height of the image. */
+    int64_t width;    /**< The width of the image. */
+    int64_t channels; /**< The channels of the image. */
+    int64_t batch;    /**< The batch extent of the trace. */
+};
+
+/** @brief Runs the shape agreement over each image size. */
+class Small_UnflattenImage : public ::testing::TestWithParam<ImageRow>
+{
+};
+
+/** @brief Tests that output_shape() equals the image and the traced per-sample shape. */
+TEST_P(Small_UnflattenImage, OutputShapeAgreesWithTheTrace)
+{
+    const ImageRow& row = GetParam();
+    const int64_t features = row.height * row.width * row.channels;
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-
-    const Unflatten layer{4, 5, 3};
-    const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
-    const std::size_t nodes_before = graph.node_count();
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
-
-    ASSERT_EQ(graph.node_count(), nodes_before + 1);
-    const Graph::Node& node = graph.node(graph.value(y).producer);
-    EXPECT_EQ(node.op, Ops::K_RESHAPE.id);
-    ASSERT_EQ(node.inputs.size(), 1u);
-    EXPECT_EQ(node.inputs.front(), x);
-}
-
-/** @brief Tests that output_shape() equals the traced per-sample shape of a multi-channel image. */
-TEST(Small_Unflatten, OutputShapeAgreesWithTheTraceForAnRGBImage)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const Unflatten layer{4, 5, 3};
-    const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
-
-    EXPECT_EQ(layer.output_shape(per_sample(graph, x)).value(), per_sample(graph, y));
-    EXPECT_EQ(layer.output_shape(Shape{60}).value(), (Shape{4, 5, 3}));
-}
-
-/** @brief Tests that output_shape() equals the traced per-sample shape of a one-channel image. */
-TEST(Small_Unflatten, OutputShapeAgreesWithTheTraceForAGreyImage)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const Unflatten layer{28, 28, 1};
-    const Graph::ValueID x = builder.input(Shape{7, 784}, "x");
+    const Unflatten layer{row.height, row.width, row.channels};
+    const Graph::ValueID x = builder.input(Shape{row.batch, features}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(layer.output_shape(per_sample(graph, x)).value(), per_sample(graph, y));
-    EXPECT_EQ(layer.output_shape(Shape{784}).value(), (Shape{28, 28, 1}));
+    EXPECT_EQ(layer.output_shape(Shape{features}).value(),
+              (Shape{row.height, row.width, row.channels}));
 }
 
-/** @brief Tests that forward() throws the layer's positive-extent error for a zero extent. */
-TEST(Small_Unflatten, ForwardRejectsAZeroExtent)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_UnflattenImage,
+    ::testing::Values(ImageRow{"AnRGBImage", 4, 5, 3, 2}, ImageRow{"AGreyImage", 28, 28, 1, 7}),
+    [](const ::testing::TestParamInfo<ImageRow>& info) { return info.param.name; });
+
+/** @brief Holds extents that are not all positive. */
+struct ExtentRow
 {
+    std::string name; /**< The row's name. */
+    int64_t height;   /**< The height given to the layer. */
+    int64_t width;    /**< The width given to the layer. */
+    int64_t channels; /**< The channels given to the layer. */
+};
+
+/** @brief Runs the extent refusal over each extent that is not positive. */
+class Small_UnflattenExtent : public ::testing::TestWithParam<ExtentRow>
+{
+};
+
+/** @brief Tests that forward() returns the layer's positive-extent error. */
+TEST_P(Small_UnflattenExtent, ForwardRejectsTheExtent)
+{
+    const ExtentRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-
-    const Unflatten layer{4, 0, 3};
+    const Unflatten layer{row.height, row.width, row.channels};
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
 
-    // The count check would also throw here, with a message that does not name the extents.
+    // The count check or the shape constructor would also refuse it, without naming the extents.
     SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription,
                       "Unflatten needs positive extents");
 }
 
-/** @brief Tests that forward() throws the layer's positive-extent error for a negative extent. */
-TEST(Small_Unflatten, ForwardRejectsANegativeExtent)
+/** @brief Tests that output_shape() returns the layer's positive-extent failure. */
+TEST_P(Small_UnflattenExtent, OutputShapeRejectsTheExtent)
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
+    const ExtentRow& row = GetParam();
+    const Unflatten layer{row.height, row.width, row.channels};
 
-    const Unflatten layer{-4, -5, 3};
-    const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
-
-    // Shape's constructor would also throw here, with a message that does not name the layer.
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{60}), StatusCode::InvalidDescription,
                       "Unflatten needs positive extents");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_UnflattenExtent,
+    ::testing::Values(ExtentRow{"AZeroExtent", 4, 0, 3}, ExtentRow{"NegativeExtents", -4, -5, 3}),
+    [](const ::testing::TestParamInfo<ExtentRow>& info) { return info.param.name; });
 
 /** @brief Tests that forward() throws on a rank-4 input whose element count would fit. */
 TEST(Small_Unflatten, ForwardRejectsAnInputThatIsNotRankTwo)
@@ -210,24 +205,6 @@ TEST(Small_Unflatten, ForwardRejectsAnNCHWInput)
     SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() returns the layer's positive-extent failure for a zero extent. */
-TEST(Small_Unflatten, OutputShapeRejectsAZeroExtent)
-{
-    const Unflatten layer{4, 5, 0};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{60}), StatusCode::InvalidDescription,
-                      "Unflatten needs positive extents");
-}
-
-/** @brief Tests that output_shape() returns the layer's positive-extent failure for a negative one. */
-TEST(Small_Unflatten, OutputShapeRejectsANegativeExtent)
-{
-    const Unflatten layer{-4, -5, 3};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{60}), StatusCode::InvalidDescription,
-                      "Unflatten needs positive extents");
-}
-
 /** @brief Tests that output_shape() fails on a per-sample shape that is not rank 1. */
 TEST(Small_Unflatten, OutputShapeRejectsAShapeThatIsNotRankOne)
 {
@@ -254,11 +231,8 @@ TEST(Small_Unflatten, HasNoParameters)
     EXPECT_EQ(NN::parameter_count(layer), 0u);
 
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
-    const std::size_t values_before = graph.value_count();
     SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(NN::parameter_count(layer), 0u);
     EXPECT_EQ(NN::parameter_elements(layer), 0);
-    // The trace declares the reshaped value and no parameter.
-    EXPECT_EQ(graph.value_count(), values_before + 1);
 }

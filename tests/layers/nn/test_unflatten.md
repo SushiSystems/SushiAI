@@ -1,7 +1,7 @@
 # tests/layers/nn/test_unflatten.cpp
 
 
-Suites: `Small_Unflatten`.
+Suites: `Small_Unflatten`, `Small_UnflattenImage`, `Small_UnflattenExtent`.
 
 Tests the trace, the shape rule and the rejected inputs of the Unflatten layer.
 
@@ -14,12 +14,6 @@ flat, as [N, features], so this layer is what gives a convolution its rank-4 inp
 
 `per_sample` returns the shape of a graph value with the batch axis removed.
 
-## SatisfiesTheModuleContract
-
-Three `static_assert` lines require `Unflatten` to be a `Module`, not to be a
-`ModuleContainer`, and to have no parameter walk of its own, so the walk reaches it through
-`fields()`.
-
 ## TracesTheImageShape
 
 `Unflatten{4, 5, 3}` traces a FLOAT64 [2, 60] input to a FLOAT64 [2, 4, 5, 3] value.
@@ -28,32 +22,22 @@ Three `static_assert` lines require `Unflatten` to be a `Module`, not to be a
 
 The result is rank 4 and tagged NHWC, and `finalise()` accepts the graph.
 
-## EmitsOneReshapeNode
+## Small_UnflattenImage.OutputShapeAgreesWithTheTrace
 
-The trace adds exactly one node. The producer of the result is a K_RESHAPE whose one operand is
-the input.
+`output_shape` of the traced per-sample input equals the traced per-sample result, and
+`output_shape` of the flat feature count is the image. The rows are AnRGBImage (4 by 5 by 3, a
+batch of 2) and AGreyImage (28 by 28 by 1, a batch of 7).
 
-## OutputShapeAgreesWithTheTraceForAnRGBImage
+## Small_UnflattenExtent.ForwardRejectsTheExtent
 
-`output_shape()` of the input's per-sample shape equals the per-sample shape of the traced
-result, and `output_shape([60])` is [4, 5, 3].
+`forward()` over a [2, 60] input returns InvalidDescription with "Unflatten needs positive
+extents". The comment of the case notes that the count check or the shape constructor would also
+refuse the input, without naming the extents. The rows are AZeroExtent (4, 0, 3) and
+NegativeExtents (-4, -5, 3).
 
-## OutputShapeAgreesWithTheTraceForAGreyImage
+## Small_UnflattenExtent.OutputShapeRejectsTheExtent
 
-The same two assertions hold for `Unflatten{28, 28, 1}` over a [7, 784] input, the MNIST
-geometry: `output_shape([784])` is [28, 28, 1].
-
-## ForwardRejectsAZeroExtent
-
-`Unflatten{4, 0, 3}` returns `InvalidDescription` with a message containing "Unflatten needs positive extents". The
-element-count check would also throw for this layer, in a message that does not name the
-extents, so the case requires the layer's own message.
-
-## ForwardRejectsANegativeExtent
-
-`Unflatten{-4, -5, 3}` returns `InvalidDescription` the same message. The two negative extents multiply to a
-positive count of 60, which matches the input, so no later check refuses the layer by count;
-`Shape`'s constructor would throw, in a message that does not name the layer.
+`output_shape([60])` of the same layers returns InvalidDescription with the same message.
 
 ## ForwardRejectsAnInputThatIsNotRankTwo
 
@@ -70,15 +54,6 @@ name the layer, so the case requires the layer's own.
 
 The layout tag of a [2, 60] input is set to NCHW by hand, and `forward()` returns `InvalidDescription`.
 
-## OutputShapeRejectsAZeroExtent
-
-`Unflatten{4, 5, 0}.output_shape([60])` returns InvalidDescription with a message containing
-"Unflatten needs positive extents".
-
-## OutputShapeRejectsANegativeExtent
-
-`Unflatten{-4, -5, 3}.output_shape([60])` returns the same failure.
-
 ## OutputShapeRejectsAShapeThatIsNotRankOne
 
 `output_shape([60, 1])` returns InvalidDescription.
@@ -89,5 +64,4 @@ The layout tag of a [2, 60] input is set to NCHW by hand, and `forward()` return
 
 ## HasNoParameters
 
-`parameter_count` is 0 before and after a trace and `parameter_elements` is 0. The trace
-raises the value count by one, the reshaped value, so it declares no parameter.
+`parameter_count` is 0 before and after a trace and `parameter_elements` is 0.

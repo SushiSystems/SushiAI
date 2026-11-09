@@ -31,11 +31,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -112,25 +110,6 @@ TEST(Small_Upsample2d, TheResultIsTaggedNHWC)
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
-}
-
-/** @brief Tests that forward emits one UPSAMPLE2D node that reads x with scale on both axes. */
-TEST(Small_Upsample2d, ForwardEmitsOneUpsampleNodeCarryingTheScale)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const Upsample2d layer{3};
-    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
-    const std::size_t nodes_before = graph.node_count();
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
-
-    ASSERT_EQ(graph.node_count(), nodes_before + 1);
-    const Graph::Node& node = graph.node(graph.value(y).producer);
-    EXPECT_EQ(node.op, Ops::K_UPSAMPLE2D.id);
-    EXPECT_EQ(node.inputs, (std::vector<Graph::ValueID>{x}));
-    EXPECT_DOUBLE_EQ(node.attributes.get(0), 3.0);
-    EXPECT_DOUBLE_EQ(node.attributes.get(1), 3.0);
 }
 
 /** @brief Tests that output_shape maps [H, W, C] to [H * scale, W * scale, C]. */

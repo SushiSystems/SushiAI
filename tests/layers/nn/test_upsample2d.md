@@ -34,11 +34,6 @@ A default layer traces a [2, 3, 5, 7] input to [2, 6, 10, 7].
 
 The traced result is rank 4 and tagged NHWC.
 
-## ForwardEmitsOneUpsampleNodeCarryingTheScale
-
-The trace of `Upsample2d{3}` adds exactly one node. The producer of the result is an
-K_UPSAMPLE2D whose one operand is the input, and attribute slots 0 and 1 both hold 3.
-
 ## OutputShapeScalesHeightAndWidthOnly
 
 A default layer maps [3, 5, 7] to [6, 10, 7], and `Upsample2d{4}` maps [2, 1, 9] to [8, 4, 9].
