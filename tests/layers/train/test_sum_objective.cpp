@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -37,18 +38,24 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/roles.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
+#include <SushiAI/train/in_memory_objective.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
@@ -57,12 +64,14 @@
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/sum_objective.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Train::CrossEntropyObjective;
 using Train::ObjectiveLeaves;
 using Train::SumObjective;
 using Train::SumTerm;
+namespace SaTest = SushiAI::Test;
 
 namespace
 {
@@ -79,75 +88,16 @@ namespace
     /** @brief Names the objective block in a diagnostic. */
     constexpr std::string_view K_CONTEXT = "the objective block";
 
-    /** @brief An objective that keeps the feed of the base, as one fed by its own step does. */
-    class StepFedObjective final : public Train::Objective
-    {
-        public:
-            /** @brief Declares no leaf. */
-            void declare(const Graph::GraphBuilder&, ObjectiveLeaves&) const override
-            {
+    /** @brief The rounded operations from the counts to the accuracy: the one quotient rounds. */
+    constexpr std::size_t K_RATIO_OPERATIONS = 1;
 
-            }
-
-            /** @brief Returns the absent value; the tests never build a graph with it. */
-            [[nodiscard]] Result<Graph::ValueID> loss(
-                const Graph::GraphBuilder&, const Graph::Graph&, const NN::ModelOutputs&,
-                const ObjectiveLeaves&) const override
-            {
-                return Graph::K_NO_VALUE;
-            }
-
-            /** @brief Returns "step_fed". */
-            std::string_view name() const noexcept override { return "step_fed"; }
-    };
-
-    /** @brief An objective that reports the two metrics it was made with and nothing else. */
-    class ReportingObjective final : public Train::Objective
-    {
-        public:
-            /** @brief Stores the metrics measure() appends, in order. */
-            ReportingObjective(Train::Metric first, Train::Metric second) noexcept
-                : first_(first), second_(second)
-            {
-
-            }
-
-            /** @brief Declares no leaf. */
-            void declare(const Graph::GraphBuilder&, ObjectiveLeaves&) const override
-            {
-
-            }
-
-            /** @brief Returns the absent value; the tests never build a graph with it. */
-            [[nodiscard]] Result<Graph::ValueID> loss(
-                const Graph::GraphBuilder&, const Graph::Graph&, const NN::ModelOutputs&,
-                const ObjectiveLeaves&) const override
-            {
-                return Graph::K_NO_VALUE;
-            }
-
-            /** @brief Returns true, so a sum takes the objective. */
-            [[nodiscard]] bool is_fed_by_batch() const noexcept override { return true; }
-
-            /** @brief Appends the two metrics. */
-            [[nodiscard]] Status measure(const Train::StepView&,
-                                         Train::Metrics& metrics) const override
-            {
-                SA_TRY(metrics.add(first_));
-
-                return metrics.add(second_);
-            }
-
-            /** @brief Returns "reporting". */
-            std::string_view name() const noexcept override { return "reporting"; }
-
-        private:
-            /// @brief The first metric measure() appends.
-            Train::Metric first_;
-
-            /// @brief The second metric measure() appends.
-            Train::Metric second_;
-    };
+    /**
+     * @brief Counts the roundings on the longest path to the weighted loss in double: 20 in a
+     *        term (7 in the log-softmax, 1 in the product, 11 in the sum of 12, 1 in the mean),
+     *        1 in the sum of the terms and 1 in the literal of the expected value; the scale
+     *        by 0.5 is exact.
+     */
+    constexpr std::size_t K_WEIGHTED_LOSS_OPERATIONS = 22;
 
     /** @brief Returns a cross-entropy term of @p weight over K_BATCH rows of K_CLASSES. */
     SumTerm cross_entropy_term(double weight)
@@ -163,19 +113,6 @@ namespace
         terms.push_back(cross_entropy_term(second));
 
         return SumObjective::make(std::move(terms));
-    }
-
-    /** @brief Counts the nodes of @p graph whose operation is @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
-    {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
-
-        return count;
     }
 
     /** @brief Returns what a factory is given for a [K_BATCH, K_CLASSES] classifier. */
@@ -206,9 +143,109 @@ namespace
         return Train::make_objective(registry, "sum", make_context(),
                                      require_value(Config::parse_json(text, "<test>")), K_CONTEXT);
     }
+
+    /** @brief Traces a sum of the weights 2 and 0.5 over one Linear layer into a training graph. */
+    Result<Train::TrainingGraph> build_sum_training_graph()
+    {
+        NN::Sequential<NN::Linear> model(NN::Linear{K_FEATURES, K_CLASSES});
+        SA_TRY_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(2.0, 0.5));
+
+        return Train::build_training_graph(model, *objective, Shape{K_BATCH, K_FEATURES});
+    }
+
+    /** @brief Holds a weight pair a sum refuses and the words of the refusal. */
+    struct WeightRow
+    {
+        std::string name;    /**< The row's name. */
+        double first;        /**< The weight of term 0. */
+        double second;       /**< The weight of term 1. */
+        std::string where;   /**< The term the message names. */
+        std::string reason;  /**< Another text the message holds. */
+    };
+
+    /** @brief Runs one refused weight pair. */
+    class Small_SumObjectiveWeight : public ::testing::TestWithParam<WeightRow>
+    {
+
+    };
+
+    /** @brief Holds a section the factory refuses and the words of the refusal. */
+    struct SectionRow
+    {
+        std::string name;    /**< The row's name. */
+        std::string text;    /**< The JSON of the section. */
+        std::string first;   /**< A text the message holds. */
+        std::string second;  /**< Another text the message holds; empty when one is enough. */
+        std::string third;   /**< A third text the message holds; empty when two are enough. */
+    };
+
+    /** @brief Runs one refused section. */
+    class Small_SumObjectiveSection : public ::testing::TestWithParam<SectionRow>
+    {
+
+    };
+
+    /** @brief Runs one parameter index of the gradient cases. */
+    class Small_SumObjectiveGradient : public ::testing::TestWithParam<std::size_t>
+    {
+
+    };
+
+    /** @brief Provides the host engine the scored tensors and the labels live on. */
+    class Small_SumObjectiveScore : public ::testing::Test
+    {
+        protected:
+            /** @brief Returns [3, 2] logits whose rows have their largest value at 1, 0, 1. */
+            [[nodiscard]] Result<SushiBLAS::Tensor> logits()
+            {
+                SA_TRY_ASSIGN(SushiBLAS::Tensor output,
+                              allocate_tensor(backend.engine(), Shape{3, 2}));
+                SaTest::write_tensor(output,
+                                     std::vector<double>{0.1, 0.9, 0.8, 0.2, -1.0, 0.5});
+                return output;
+            }
+
+            /** @brief Returns a batch whose labels role holds @p values as int32. */
+            [[nodiscard]] Result<Data::Batch> batch_of(const std::vector<int32_t>& values)
+            {
+                Data::BatchTarget labels;
+                labels.role = std::string(Data::K_ROLE_LABELS);
+                SA_TRY_ASSIGN(labels.values,
+                              allocate_tensor(backend.engine(),
+                                              Shape{static_cast<int64_t>(values.size())},
+                                              DType::Int32));
+                for (std::size_t i = 0; i < values.size(); ++i)
+                    labels.values.data_as<int32_t>()[i] = values[i];
+
+                Data::Batch batch;
+                batch.targets.push_back(std::move(labels));
+                return batch;
+            }
+
+            /** @brief The host backend the tensors are allocated from. */
+            HostExecutionBackend backend;
+    };
+
+    /** @brief Names a weight row by its name field. */
+    std::string weight_row_name(const ::testing::TestParamInfo<WeightRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a section row by its name field. */
+    std::string section_row_name(const ::testing::TestParamInfo<SectionRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a parameter row by its index. */
+    std::string index_row_name(const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return "Index" + std::to_string(info.param);
+    }
 } // namespace
 
-/** @brief Tests that make() keeps its terms in order and names itself "sum". */
+/** @brief Tests that make() keeps its terms in order, each with its weight. */
 TEST(Small_SumObjective, MakeKeepsItsTermsInOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
@@ -217,37 +254,66 @@ TEST(Small_SumObjective, MakeKeepsItsTermsInOrder)
     EXPECT_EQ(objective->terms()[0].weight, 1.0);
     EXPECT_EQ(objective->terms()[1].weight, 0.5);
     EXPECT_EQ(objective->terms()[1].objective->name(), "cross_entropy");
+}
+
+/** @brief Tests that a sum names itself "sum". */
+TEST(Small_SumObjective, ASumIsNamedSum)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
+
     EXPECT_EQ(objective->name(), "sum");
+}
+
+/** @brief Tests that a sum is fed from a batch. */
+TEST(Small_SumObjective, ASumIsFedByABatch)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
+
     EXPECT_TRUE(objective->is_fed_by_batch());
+}
+
+/** @brief Tests that the leaves of term 1 hang under the prefix "term1.". */
+TEST(Small_SumObjective, TheLeafPrefixOfATermIsItsIndex)
+{
     EXPECT_EQ(SumObjective::leaf_prefix(1), "term1.");
 }
 
-/** @brief Tests that no term and a weight that is not finite and above zero are refused. */
-TEST(Small_SumObjective, MakeRefusesNoTermAndAWeightItCannotUse)
+/** @brief Tests that a sum of no term is refused. */
+TEST(Small_SumObjective, MakeRefusesNoTerm)
 {
     SA_EXPECT_FAILURE(SumObjective::make({}), StatusCode::InvalidDescription,
                       "at least one term");
-    SA_EXPECT_FAILURE(make_pair(1.0, 0.0), StatusCode::InvalidDescription, "Term 1",
-                      "'cross_entropy'", "above zero");
-    SA_EXPECT_FAILURE(make_pair(-0.5, 1.0), StatusCode::InvalidDescription, "Term 0");
-    SA_EXPECT_FAILURE(make_pair(1.0, std::numeric_limits<double>::infinity()),
-                      StatusCode::InvalidDescription, "Term 1", "finite");
-    SA_EXPECT_FAILURE(make_pair(std::numeric_limits<double>::quiet_NaN(), 1.0),
-                      StatusCode::InvalidDescription, "Term 0");
 }
+
+/** @brief Tests that a weight that is not finite and above zero is refused, naming its term. */
+TEST_P(Small_SumObjectiveWeight, MakeRefusesAWeightItCannotUse)
+{
+    const WeightRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(make_pair(row.first, row.second), StatusCode::InvalidDescription,
+                      row.where, row.reason);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_SumObjectiveWeight,
+    ::testing::Values(
+        WeightRow{"ZeroWeight", 1.0, 0.0, "Term 1", "above zero"},
+        WeightRow{"NegativeWeight", -0.5, 1.0, "Term 0", "above zero"},
+        WeightRow{"InfiniteWeight", 1.0, std::numeric_limits<double>::infinity(), "Term 1",
+                  "finite"},
+        WeightRow{"NaNWeight", std::numeric_limits<double>::quiet_NaN(), 1.0, "Term 0",
+                  "finite"}),
+    weight_row_name);
 
 /** @brief Tests that a term its own step feeds is refused when the sum is made, by name. */
 TEST(Small_SumObjective, MakeRefusesATermItsOwnStepFeeds)
 {
-    EXPECT_FALSE(StepFedObjective().is_fed_by_batch());
-    EXPECT_TRUE(CrossEntropyObjective(K_BATCH, K_CLASSES).is_fed_by_batch());
-
     std::vector<SumTerm> terms;
     terms.push_back(cross_entropy_term(1.0));
-    terms.push_back(SumTerm{std::make_unique<StepFedObjective>(), 1.0});
+    terms.push_back(SumTerm{std::make_unique<Train::InMemoryObjective>(), 1.0});
 
     SA_EXPECT_FAILURE(SumObjective::make(std::move(terms)), StatusCode::InvalidDescription,
-                      "Term 1", "'step_fed'", "fed by its own step");
+                      "Term 1", "'in-memory'", "fed by its own step");
 }
 
 /** @brief Tests that two terms of one role name declare two leaves, each under its prefix. */
@@ -261,97 +327,139 @@ TEST(Small_SumObjective, EachTermDeclaresItsLeavesUnderItsOwnPrefix)
     objective->declare(builder, leaves);
 
     ASSERT_EQ(leaves.all().size(), 2u);
-    EXPECT_FALSE(leaves.has("targets"));
     ASSERT_TRUE(leaves.has("term0.targets"));
     ASSERT_TRUE(leaves.has("term1.targets"));
     EXPECT_NE(leaves.at("term0.targets"), leaves.at("term1.targets"));
     EXPECT_EQ(graph.value(leaves.at("term1.targets")).shape, (Shape{K_BATCH, K_CLASSES}));
+}
 
-    // Each term requires its own role, and a role required twice is matched twice.
+/** @brief Tests that no leaf is declared under the bare name a term would give it. */
+TEST(Small_SumObjective, NoLeafIsDeclaredWithoutAPrefix)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    ObjectiveLeaves leaves;
+
+    objective->declare(builder, leaves);
+
+    EXPECT_FALSE(leaves.has("targets"));
+}
+
+/** @brief Tests that each term requires its own role, and a role required twice is matched twice. */
+TEST(Small_SumObjective, EachTermRequiresItsRole)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    ObjectiveLeaves leaves;
+
+    objective->declare(builder, leaves);
+
     ASSERT_EQ(leaves.required().size(), 2u);
     EXPECT_EQ(leaves.required()[0].role, Data::K_ROLE_LABELS);
     EXPECT_EQ(leaves.required()[1].role, Data::K_ROLE_LABELS);
 }
 
-/** @brief Tests that the loss is one element: a SCALE per weight that is not 1 and one ADD. */
-TEST(Small_SumObjective, TheLossAddsTheWeightedLossesInTheGraph)
+/**
+ * @brief Tests the value of the weighted loss on the host.
+ *
+ * Every row has the logits {0, ln 3, 0}, so a row's log-probabilities are -ln 5, ln 3 - ln 5 and
+ * -ln 5. Term 0 targets class 1 in every row and has the loss ln 5 - ln 3; term 1 targets class 0
+ * and has the loss ln 5. With the weights 1 and 0.5 the sum is ln 5 - ln 3 + 0.5 ln 5 =
+ * 1.5 ln 5 - ln 3 = 1.3155445799830407.
+ */
+TEST(Small_SumObjective, TheLossAddsTheWeightedLossesOfItsTerms)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     ObjectiveLeaves leaves;
     objective->declare(builder, leaves);
-
     const Graph::ValueID logits = builder.input(Shape{K_BATCH, K_CLASSES}, "logits");
     NN::ModelOutputs outputs;
     SA_EXPECT_OK(outputs.add("output", logits));
-
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
                             objective->loss(builder, graph, outputs, leaves));
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(logits, {0, 1.0986122886681098, 0, 0, 1.0986122886681098, 0,
+                                          0, 1.0986122886681098, 0, 0, 1.0986122886681098, 0}));
+    SA_EXPECT_OK(evaluator.write(leaves.at("term0.targets"),
+                                 {0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0}));
+    SA_EXPECT_OK(evaluator.write(leaves.at("term1.targets"),
+                                 {1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0}));
 
-    EXPECT_EQ(graph.value(loss).shape, (Shape{1}));
-    EXPECT_EQ(count_nodes(graph, Ops::K_NLL_LOSS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::K_SCALE.id), 1u);
+    SA_EXPECT_OK(evaluator.run());
 
-    const Graph::Node& sum = graph.nodes().back();
-    ASSERT_EQ(sum.op, Ops::K_ADD.id);
-    ASSERT_EQ(sum.outputs.size(), 1u);
-    EXPECT_EQ(sum.outputs[0], loss);
-
-    for (const Graph::Node& node : graph.nodes())
-    {
-        if (node.op == Ops::K_SCALE.id)
-            EXPECT_EQ(node.attributes.values[0], 0.5);
-    }
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(loss));
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        result.front(), 1.3155445799830407, K_WEIGHTED_LOSS_OPERATIONS)));
 }
 
-/** @brief Tests that a gradient reaches the model through both terms of a training graph. */
-TEST(Small_SumObjective, ATrainingGraphDifferentiatesTheSum)
+/** @brief Tests that the loss of a sum is one element. */
+TEST(Small_SumObjective, ATrainingGraphOfTheSumHasAScalarLoss)
 {
-    NN::Sequential<NN::Linear> model(NN::Linear{K_FEATURES, K_CLASSES});
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(2.0, 0.5));
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        const Train::TrainingGraph built,
-        Train::build_training_graph(model, *objective, Shape{K_BATCH, K_FEATURES}));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built, build_sum_training_graph());
 
     EXPECT_EQ(built.graph.value(built.spec.loss).shape.num_elements(), 1);
-    EXPECT_EQ(built.spec.targets, Graph::K_NO_VALUE);
-    EXPECT_TRUE(built.leaves.has("term0.targets"));
-    EXPECT_TRUE(built.leaves.has("term1.targets"));
-    ASSERT_EQ(built.parameters.size(), 2u);
-    EXPECT_NE(built.parameters[0].gradient, Graph::K_NO_VALUE);
-    EXPECT_NE(built.parameters[1].gradient, Graph::K_NO_VALUE);
 }
 
-/** @brief Tests that of two metrics of one name the first term's is the one reported. */
-TEST(Small_SumObjective, MeasureKeepsTheFirstOfTwoMetricsOfOneName)
+/** @brief Tests that a sum has no targets value of its own. */
+TEST(Small_SumObjective, ATrainingGraphOfTheSumHasNoTargetsValue)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built, build_sum_training_graph());
+
+    EXPECT_EQ(built.spec.targets, Graph::K_NO_VALUE);
+}
+
+/** @brief Tests that the training graph holds the prefixed leaf of each term. */
+TEST(Small_SumObjective, ATrainingGraphOfTheSumHoldsTheLeavesOfEachTerm)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built, build_sum_training_graph());
+
+    EXPECT_TRUE(built.leaves.has("term0.targets"));
+    EXPECT_TRUE(built.leaves.has("term1.targets"));
+}
+
+/** @brief Tests that a gradient reaches each parameter through both terms. */
+TEST_P(Small_SumObjectiveGradient, ATrainingGraphDifferentiatesTheSum)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built, build_sum_training_graph());
+
+    ASSERT_EQ(built.parameters.size(), 2u);
+    EXPECT_NE(built.parameters[GetParam()].gradient, Graph::K_NO_VALUE);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_SumObjectiveGradient, ::testing::Values(0u, 1u),
+                         index_row_name);
+
+/**
+ * @brief Tests that two cross-entropy terms, which both measure accuracy, report it once.
+ *
+ * The logits of the fixture put the largest value at 1, 0, 1 and the labels are 1, 0, 0, so the
+ * accuracy is 2/3.
+ */
+TEST_F(Small_SumObjectiveScore, MeasureReportsTheAccuracyOfTwoTermsOnce)
 {
     std::vector<SumTerm> terms;
-    terms.push_back(SumTerm{std::make_unique<ReportingObjective>(
-                                Train::Metric{"accuracy", 0.25, true},
-                                Train::Metric{"precision", 0.5, true}),
-                            1.0});
-    terms.push_back(SumTerm{std::make_unique<ReportingObjective>(
-                                Train::Metric{"recall", 0.75, true},
-                                Train::Metric{"accuracy", 1.0, true}),
-                            1.0});
+    terms.push_back(SumTerm{std::make_unique<CrossEntropyObjective>(3, 2), 1.0});
+    terms.push_back(SumTerm{std::make_unique<CrossEntropyObjective>(3, 2), 0.5});
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective,
                             SumObjective::make(std::move(terms)));
-    const Data::Batch batch{};
-    const Train::StepView step{batch, 0.0, {}};
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor output, logits());
+    SA_ASSERT_OK_AND_ASSIGN(const Data::Batch batch, batch_of({1, 0, 0}));
+    const std::vector<Train::StepOutput> outputs{Train::StepOutput{"output", &output}};
+    const Train::StepView step{
+        batch, 0.0, SushiRuntime::span<const Train::StepOutput>(outputs.data(), outputs.size())};
 
     Train::Metrics metrics;
     SA_EXPECT_OK(objective->measure(step, metrics));
 
-    // The values are the literals above, so they are compared exactly.
-    ASSERT_EQ(metrics.all().size(), 3u);
-    EXPECT_EQ(metrics.all()[0].name, "accuracy");
-    EXPECT_EQ(metrics.all()[0].value, 0.25);
-    EXPECT_EQ(metrics.all()[1].name, "precision");
-    EXPECT_EQ(metrics.all()[2].name, "recall");
-    EXPECT_EQ(metrics.all()[2].value, 0.75);
+    ASSERT_EQ(metrics.all().size(), 1u);
+    ASSERT_EQ(metrics.all()[0].name, "accuracy");
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        metrics.all()[0].value, 2.0 / 3.0, K_RATIO_OPERATIONS)));
 }
 
 /** @brief Tests that the "sum" row builds each term through the registry it was found in. */
@@ -395,38 +503,43 @@ TEST(Small_SumObjective, ATermMayBeASum)
 }
 
 /** @brief Tests each section the factory refuses, and that a refusal names the entry. */
-TEST(Small_SumObjective, TheFactoryRefusesASectionItCannotRead)
+TEST_P(Small_SumObjectiveSection, TheFactoryRefusesASectionItCannotRead)
 {
+    const SectionRow& row = GetParam();
     const Train::ObjectiveRegistry registry = make_registry();
 
-    SA_EXPECT_FAILURE(make_from(registry, "{}"), StatusCode::InvalidDescription,
-                      "the objective block", "'terms'");
-    SA_EXPECT_FAILURE(make_from(registry, R"({"terms": [], "gamma": 2})"),
-                      StatusCode::InvalidDescription, "'gamma'", "'terms'");
-    SA_EXPECT_FAILURE(make_from(registry, R"({"terms": {}})"), StatusCode::InvalidDescription,
-                      "'terms'", "an array");
-    SA_EXPECT_FAILURE(make_from(registry, R"({"terms": []})"), StatusCode::InvalidDescription,
-                      "at least one term");
-    SA_EXPECT_FAILURE(make_from(registry, R"({"terms": [3]})"), StatusCode::InvalidDescription,
-                      "'terms' entry 0", "an object");
-    SA_EXPECT_FAILURE(make_from(registry, R"({"terms": [{"weight": 1}]})"),
-                      StatusCode::InvalidDescription, "'terms' entry 0", "'type'");
-    SA_EXPECT_FAILURE(
-        make_from(registry, R"({"terms": [{"type": "cross_entropy", "weight": "half"}]})"),
-        StatusCode::InvalidDescription, "entry 0 'weight'", "a number");
-    SA_EXPECT_FAILURE(make_from(registry, R"({"terms": [{"type": "cross_entropy"},
-                                                        {"type": "yolo"}]})"),
-                      StatusCode::InvalidDescription, "'yolo'", "'cross_entropy'", "'sum'");
-    SA_EXPECT_FAILURE(
-        make_from(registry, R"({"terms": [{"type": "cross_entropy", "smoothing": 0.1}]})"),
-        StatusCode::InvalidDescription, "'terms' entry 0", "'smoothing'");
+    SA_EXPECT_FAILURE(make_from(registry, row.text), StatusCode::InvalidDescription, row.first,
+                      row.second, row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_SumObjectiveSection,
+    ::testing::Values(
+        SectionRow{"NoTerms", "{}", "the objective block", "'terms'", ""},
+        SectionRow{"AnUnknownKey", R"({"terms": [], "gamma": 2})", "'gamma'", "'terms'", ""},
+        SectionRow{"TermsThatAreAnObject", R"({"terms": {}})", "'terms'", "an array", ""},
+        SectionRow{"AnEmptyList", R"({"terms": []})", "at least one term", "", ""},
+        SectionRow{"AnEntryThatIsANumber", R"({"terms": [3]})", "'terms' entry 0", "an object",
+                   ""},
+        SectionRow{"AnEntryWithoutAType", R"({"terms": [{"weight": 1}]})", "'terms' entry 0",
+                   "'type'", ""},
+        SectionRow{"AWeightThatIsNoNumber",
+                   R"({"terms": [{"type": "cross_entropy", "weight": "half"}]})",
+                   "entry 0 'weight'", "a number", ""},
+        SectionRow{"AnUnknownTermType",
+                   R"({"terms": [{"type": "cross_entropy"}, {"type": "yolo"}]})", "'yolo'",
+                   "'cross_entropy'", "'sum'"},
+        SectionRow{"AnUnknownTermKey",
+                   R"({"terms": [{"type": "cross_entropy", "smoothing": 0.1}]})",
+                   "'terms' entry 0", "'smoothing'", ""}),
+    section_row_name);
 
 /** @brief Tests that the factory, called with a context that names no registry, refuses. */
 TEST(Small_SumObjective, TheFactoryNeedsTheRegistryOfItsContext)
 {
     SA_EXPECT_FAILURE(
         Train::make_sum_objective(make_context(),
-                                  require_value(Config::parse_json(R"({"terms": []})", "<test>")), K_CONTEXT),
+                                  require_value(Config::parse_json(R"({"terms": []})", "<test>")),
+                                  K_CONTEXT),
         StatusCode::InvalidDescription, "the objective block", "registry");
 }
