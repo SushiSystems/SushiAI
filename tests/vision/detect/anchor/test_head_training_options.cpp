@@ -28,12 +28,9 @@
  * @author Mustafa Garip
  */
 
-#include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <random>
-#include <vector>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -56,6 +53,33 @@ namespace
     /** @brief Holds a value no enumeration of the training options names. */
     constexpr std::uint8_t K_UNKNOWN_ENUMERATOR = 200;
 
+    /** @brief Holds training options outside their range and the name of their row. */
+    struct RefusedTraining
+    {
+        std::string name;              /**< The row's name. */
+        HeadTrainingOptions options;   /**< The options outside their range. */
+    };
+
+    /** @brief Runs one set of training options the check refuses. */
+    class Small_DetectAnchorDeltaTraining : public ::testing::TestWithParam<RefusedTraining>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string training_name(const ::testing::TestParamInfo<RefusedTraining>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Returns the default training options after @p edit has changed them. */
+    HeadTrainingOptions make_edited(void (*edit)(HeadTrainingOptions&))
+    {
+        HeadTrainingOptions options;
+        edit(options);
+        return options;
+    }
+
 } // namespace
 
 /** @brief Tests that the default training options pass their check. */
@@ -64,32 +88,48 @@ TEST(Small_DetectAnchorDelta, DefaultTrainingOptionsValidate)
     EXPECT_TRUE(validate_head_training(HeadTrainingOptions{}).is_ok());
 }
 
-/** @brief Tests that each option outside its range is an invalid description. */
-TEST(Small_DetectAnchorDelta, TrainingOptionsOutsideTheirRangeAreRefused)
+/** @brief Tests that an option outside its range is an invalid description. */
+TEST_P(Small_DetectAnchorDeltaTraining, AnOptionOutsideItsRangeIsRefused)
 {
-    const float not_a_number = std::numeric_limits<float>::quiet_NaN();
-    std::vector<HeadTrainingOptions> refused(8);
-    refused[0].thresholds.match_threshold = 0.0f;
-    refused[1].thresholds.match_threshold = 1.5f;
-    refused[2].thresholds.ignore_threshold = -0.1f;
-    refused[3].class_gate = 1.5f;
-    refused[4].box_weight = -1.0f;
-    refused[5].object_weight = not_a_number;
-    refused[6].box_weight = std::numeric_limits<float>::infinity();
-    refused[7].max_delta = -2.0f;
-    refused.emplace_back();
-    refused.back().box_gradient = static_cast<BoxGradient>(K_UNKNOWN_ENUMERATOR);
-    refused.emplace_back();
-    refused.back().box_gain = -0.5f;
-    refused.emplace_back();
-    refused.back().class_gain = not_a_number;
-    refused.emplace_back();
-    refused.back().objectness_gain = std::numeric_limits<float>::infinity();
-
-    for (std::size_t index = 0; index < refused.size(); ++index)
-    {
-        EXPECT_EQ(validate_head_training(refused[index]).code(),
-                  StatusCode::InvalidDescription)
-            << "options " << index;
-    }
+    EXPECT_EQ(validate_head_training(GetParam().options).code(), StatusCode::InvalidDescription);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorDeltaTraining,
+    ::testing::Values(
+        RefusedTraining{"AMatchThresholdOfZero", make_edited([](HeadTrainingOptions& o)
+                                                  { o.thresholds.match_threshold = 0.0f; })},
+        RefusedTraining{"AMatchThresholdAboveOne", make_edited([](HeadTrainingOptions& o)
+                                                     { o.thresholds.match_threshold = 1.5f; })},
+        RefusedTraining{"ANegativeIgnoreThreshold", make_edited([](HeadTrainingOptions& o)
+                                                      { o.thresholds.ignore_threshold = -0.1f; })},
+        RefusedTraining{"AClassGateAboveOne",
+                        make_edited([](HeadTrainingOptions& o) { o.class_gate = 1.5f; })},
+        RefusedTraining{"ANegativeBoxWeight",
+                        make_edited([](HeadTrainingOptions& o) { o.box_weight = -1.0f; })},
+        RefusedTraining{"AnObjectWeightThatIsNotANumber",
+                        make_edited([](HeadTrainingOptions& o)
+                                    { o.object_weight = std::numeric_limits<float>::quiet_NaN(); })},
+        RefusedTraining{"AnInfiniteBoxWeight",
+                        make_edited([](HeadTrainingOptions& o)
+                                    { o.box_weight = std::numeric_limits<float>::infinity(); })},
+        RefusedTraining{"ANegativeMaxDelta",
+                        make_edited([](HeadTrainingOptions& o) { o.max_delta = -2.0f; })},
+        RefusedTraining{"AnUnknownBoxGradient",
+                        make_edited([](HeadTrainingOptions& o)
+                                    {
+                                        o.box_gradient =
+                                            static_cast<BoxGradient>(K_UNKNOWN_ENUMERATOR);
+                                    })},
+        RefusedTraining{"ANegativeBoxGain",
+                        make_edited([](HeadTrainingOptions& o) { o.box_gain = -0.5f; })},
+        RefusedTraining{"AClassGainThatIsNotANumber",
+                        make_edited([](HeadTrainingOptions& o)
+                                    { o.class_gain = std::numeric_limits<float>::quiet_NaN(); })},
+        RefusedTraining{"AnInfiniteObjectnessGain",
+                        make_edited([](HeadTrainingOptions& o)
+                                    {
+                                        o.objectness_gain =
+                                            std::numeric_limits<float>::infinity();
+                                    })}),
+    training_name);
