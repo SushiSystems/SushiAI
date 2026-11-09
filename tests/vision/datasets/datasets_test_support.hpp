@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -53,6 +54,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
 
@@ -197,6 +199,25 @@ namespace SushiAI::Vision::Datasets::Support
         SA_EXPECT_OK(Imaging::write_raw_image_file(
             file, image.view(),
             image.channels() == 1 ? Imaging::ChannelOrder::Gray : Imaging::ChannelOrder::RGB));
+        return file;
+    }
+
+    /** @brief Returns the bytes of a raw image file that holds an image, as the text of a file. */
+    inline std::string raw_image_text(const Imaging::Image& image)
+    {
+        std::ostringstream out(std::ios::binary);
+        SA_EXPECT_OK(Imaging::write_raw_image(
+            out, image.view(),
+            image.channels() == 1 ? Imaging::ChannelOrder::Gray : Imaging::ChannelOrder::RGB));
+        return out.str();
+    }
+
+    /** @brief Adds an image to a memory source as a raw image file, and returns its path. */
+    inline std::filesystem::path add_raw_image(MemorySource& source, const char* relative,
+                                               const Imaging::Image& image)
+    {
+        const std::filesystem::path file = relative;
+        source.add_file(file, raw_image_text(image));
         return file;
     }
 

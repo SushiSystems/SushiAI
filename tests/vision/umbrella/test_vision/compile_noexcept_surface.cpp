@@ -540,6 +540,11 @@ namespace SushiAI::Vision::Datasets
         noexcept(load_sample_image(std::declval<const SampleList&>(), std::declval<std::size_t>(),
                 std::declval<const Codecs::DecodeOptions&>(), std::declval<Imaging::Image&>())),
         "load_sample_image is noexcept");
+    static_assert(
+        noexcept(load_sample_image(std::declval<const SampleList&>(), std::declval<std::size_t>(),
+                std::declval<const Codecs::DecodeOptions&>(), std::declval<Imaging::Image&>(),
+                std::declval<const ByteSource&>())),
+        "load_sample_image from a source is noexcept");
 } // namespace SushiAI::Vision::Datasets
 
 namespace SushiAI::Vision::Datasets
@@ -548,6 +553,10 @@ namespace SushiAI::Vision::Datasets
         noexcept(load_sample_mask(std::declval<const SampleList&>(), std::declval<std::size_t>(),
                 std::declval<Imaging::Image&>())),
         "load_sample_mask is noexcept");
+    static_assert(
+        noexcept(load_sample_mask(std::declval<const SampleList&>(), std::declval<std::size_t>(),
+                std::declval<Imaging::Image&>(), std::declval<const ByteSource&>())),
+        "load_sample_mask from a source is noexcept");
 } // namespace SushiAI::Vision::Datasets
 
 namespace SushiAI::Vision::Datasets
@@ -671,6 +680,11 @@ namespace SushiAI::Vision::Datasets
         noexcept(read_stored_pixels(std::declval<const std::filesystem::path&>(),
                 std::declval<const StoredPixels&>(), std::declval<Imaging::Image&>())),
         "read_stored_pixels is noexcept");
+    static_assert(
+        noexcept(read_stored_pixels(std::declval<const ByteSource&>(),
+                std::declval<const std::filesystem::path&>(),
+                std::declval<const StoredPixels&>(), std::declval<Imaging::Image&>())),
+        "read_stored_pixels from a source is noexcept");
 } // namespace SushiAI::Vision::Datasets
 
 namespace SushiAI::Vision::Datasets

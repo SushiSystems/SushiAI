@@ -64,20 +64,22 @@ namespace SushiAI::Vision::Datasets
          */
         [[nodiscard]] Status fit_mask_of(const SampleList& list, std::size_t sample,
                                          Imaging::ImageSize image, const SampleFitOptions& fit,
-                                         Imaging::Image& loaded, FittedSample& fitted)
+                                         Imaging::Image& loaded, FittedSample& fitted,
+                                         const ByteSource& source)
         {
             const Sample& record = list.samples[sample];
             if (!record.mask.has_value())
                 return Status();
 
-            SA_TRY(load_sample_mask(list, sample, loaded));
+            SA_TRY(load_sample_mask(list, sample, loaded, source));
             return SA_ANNOTATE(fit_mask(loaded.view(), image, fit, fitted.mask), "'{}'",
                                Detail::display_of(list.files[*record.mask]));
         }
     } // namespace
 
     Result<std::unique_ptr<FitPipeline>> FitPipeline::make(const SampleFitOptions& fit,
-                                                           std::int32_t channels) noexcept
+                                                           std::int32_t channels,
+                                                           const ByteSource* source) noexcept
     {
         SA_FAIL_IF(!Imaging::is_valid_size(fit.size), StatusCode::InvalidDescription,
                    "{}: an input of {} by {} pixels is outside the bounds of an image",
@@ -85,12 +87,15 @@ namespace SushiAI::Vision::Datasets
 
         return Detail::at_boundary(K_PIPELINE, [&]() -> Result<std::unique_ptr<FitPipeline>>
         {
-            return std::unique_ptr<FitPipeline>(new FitPipeline(fit, channels));
+            return std::unique_ptr<FitPipeline>(new FitPipeline(fit, channels,
+                                                  source != nullptr ? *source
+                                                                    : Detail::file_system()));
         });
     }
 
-    FitPipeline::FitPipeline(const SampleFitOptions& fit, std::int32_t channels) noexcept
-        : fit_(fit), decoding_(decoding_of(channels))
+    FitPipeline::FitPipeline(const SampleFitOptions& fit, std::int32_t channels,
+                             const ByteSource& source) noexcept
+        : fit_(fit), decoding_(decoding_of(channels)), source_(&source)
     {
 
     }
@@ -121,7 +126,7 @@ namespace SushiAI::Vision::Datasets
 
             for (std::size_t row = 0; row < samples.size(); ++row)
             {
-                SA_TRY(load_sample_image(list, samples[row], decoding_, loaded));
+                SA_TRY(load_sample_image(list, samples[row], decoding_, loaded, *source_));
 
                 // load_sample_image checked that the sample and its file are in the list.
                 const Sample& record = list.samples[samples[row]];
@@ -129,7 +134,8 @@ namespace SushiAI::Vision::Datasets
 
                 SA_TRY(SA_ANNOTATE(fit_sample(record, loaded.view(), fit_, fitted[row]), "'{}'",
                                    Detail::display_of(file)));
-                SA_TRY(fit_mask_of(list, samples[row], loaded.size(), fit_, mask, fitted[row]));
+                SA_TRY(fit_mask_of(list, samples[row], loaded.size(), fit_, mask, fitted[row],
+                                   *source_));
             }
 
             return Status();

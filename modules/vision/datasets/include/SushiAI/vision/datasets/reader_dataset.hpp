@@ -73,6 +73,13 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Holds the seed of the order of every epoch; read when shuffle is set. */
         std::uint64_t seed = 0;
+
+        /**
+         * @brief Serves the files of the samples through the FitPipeline the first make builds;
+         *        null reads the file system. The form that takes a pipeline does not read it.
+         * @pre The source, when given, outlives the dataset.
+         */
+        const ByteSource* source = nullptr;
     };
 
     /**

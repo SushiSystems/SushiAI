@@ -234,6 +234,11 @@ A new pipeline is a class that implements `SamplePipeline` and one row of `K_PIP
 `FitPipeline` decodes a mask whatever the task, so a list of `read_mask_png` under another task
 than segmentation decodes masks it does not use.
 
+`FitPipeline::make` and `AugmentOptions::source` take a `ByteSource` that serves the files of the
+samples, and `ReaderDatasetOptions::source` passes one to the `FitPipeline` the first
+`ReaderDataset::make` builds. A null source reads the file system. A test serves its samples
+from a `MemorySource`, so a read of a dataset touches no file.
+
 `AugmentPipeline` builds one `Imaging::TrainingPipeline` and one `Imaging::TrainingMaskPipeline`
 per call of `produce`, over the list, with `Imaging::DatasetPartners`. A sample's draws come
 from `Imaging::make_sample_random(seed, epoch, sample index)` and its partners from the same

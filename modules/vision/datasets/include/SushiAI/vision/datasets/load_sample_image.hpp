@@ -33,6 +33,7 @@
 
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
@@ -49,4 +50,16 @@ namespace SushiAI::Vision::Datasets
     [[nodiscard]] Status load_sample_image(const SampleList& list, std::size_t sample,
                                            const Codecs::DecodeOptions& options,
                                            Imaging::Image& destination) noexcept;
+
+    /**
+     * @brief Loads one sample's pixels from a ByteSource.
+     * @param source Serves the file; the file system for the overload above, which this one
+     *        backs.
+     * @return What the overload above returns, with the failure of ByteSource::read for a file
+     *         the source lacks or cannot read.
+     */
+    [[nodiscard]] Status load_sample_image(const SampleList& list, std::size_t sample,
+                                           const Codecs::DecodeOptions& options,
+                                           Imaging::Image& destination,
+                                           const ByteSource& source) noexcept;
 } // namespace SushiAI::Vision::Datasets

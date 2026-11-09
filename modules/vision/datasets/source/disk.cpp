@@ -239,6 +239,12 @@ namespace SushiAI::Vision::Datasets::Detail
     {
         return list_entries(directory, kind, depth, reader);
     }
+
+    const ByteSource& file_system() noexcept
+    {
+        static const FileSystemSource K_FILE_SYSTEM;
+        return K_FILE_SYSTEM;
+    }
 } // namespace SushiAI::Vision::Datasets::Detail
 
 namespace SushiAI::Vision::Datasets

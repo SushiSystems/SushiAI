@@ -35,6 +35,7 @@
 
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/fit_sample.hpp>
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
 
@@ -55,11 +56,14 @@ namespace SushiAI::Vision::Datasets
             /**
              * @brief Builds the pipeline of one fit and one channel count.
              * @param channels 1 decodes to gray, any other count to colour.
+             * @param source Serves the files of the samples; null for the file system.
+             * @pre @p source, when given, outlives the pipeline.
              * @return The pipeline, never null; InvalidDescription for an input size outside
              *         the bounds of an image.
              */
             [[nodiscard]] static Result<std::unique_ptr<FitPipeline>> make(
-                const SampleFitOptions& fit, std::int32_t channels) noexcept;
+                const SampleFitOptions& fit, std::int32_t channels,
+                const ByteSource* source = nullptr) noexcept;
 
             /** @brief Returns the layout an image of a channel count is decoded to. */
             [[nodiscard]] static Codecs::ChannelLayout layout_of(std::int32_t channels) noexcept;
@@ -78,12 +82,16 @@ namespace SushiAI::Vision::Datasets
 
         private:
             /** @brief Holds the fit and the decoding of the channel count. */
-            FitPipeline(const SampleFitOptions& fit, std::int32_t channels) noexcept;
+            FitPipeline(const SampleFitOptions& fit, std::int32_t channels,
+                        const ByteSource& source) noexcept;
 
             /// @brief Holds the input size and how an image is fitted to it.
             SampleFitOptions fit_;
 
             /// @brief Holds the decoding that yields the channel count.
             Codecs::DecodeOptions decoding_;
+
+            /// @brief Points at the source the files are read through, never null.
+            const ByteSource* source_;
     };
 } // namespace SushiAI::Vision::Datasets

@@ -48,6 +48,9 @@ namespace SushiAI::Vision::Datasets::Detail
     using Datasets::EntryKind;
     using Datasets::ListDepth;
 
+    /** @brief Returns the source that reads the file system, the default of every reader. */
+    [[nodiscard]] const ByteSource& file_system() noexcept;
+
     /** @brief Returns the text of a path with forward slashes, for a message. */
     [[nodiscard]] std::string display_of(const std::filesystem::path& path);
 

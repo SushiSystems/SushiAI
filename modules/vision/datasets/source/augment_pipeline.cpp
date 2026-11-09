@@ -71,7 +71,8 @@ namespace SushiAI::Vision::Datasets
         {
             public:
                 /** @brief Views a list, which outlives the source. */
-                explicit ListImages(const SampleList& list) noexcept : list_(&list)
+                ListImages(const SampleList& list, const ByteSource& source) noexcept
+                    : list_(&list), source_(&source)
                 {
 
                 }
@@ -88,7 +89,7 @@ namespace SushiAI::Vision::Datasets
                     Codecs::DecodeOptions decoding;
                     decoding.layout = Codecs::ChannelLayout::Color;
 
-                    SA_TRY(load_sample_image(*list_, index, decoding, image));
+                    SA_TRY(load_sample_image(*list_, index, decoding, image, *source_));
                     labels = list_->samples[index].objects;
                     return Status();
                 }
@@ -96,6 +97,9 @@ namespace SushiAI::Vision::Datasets
             private:
                 /// @brief Points at the list, which the caller keeps alive.
                 const SampleList* list_;
+
+                /// @brief Points at the source the images are read through.
+                const ByteSource* source_;
         };
 
         /** @brief Supplies the masks of a sample list to imaging. */
@@ -103,19 +107,23 @@ namespace SushiAI::Vision::Datasets
         {
             public:
                 /** @brief Views a list, which outlives the source. */
-                explicit ListMasks(const SampleList& list) noexcept : list_(&list)
+                ListMasks(const SampleList& list, const ByteSource& source) noexcept
+                    : list_(&list), source_(&source)
                 {
 
                 }
 
                 [[nodiscard]] Status load(std::size_t index, Imaging::Image& mask) const override
                 {
-                    return load_sample_mask(*list_, index, mask);
+                    return load_sample_mask(*list_, index, mask, *source_);
                 }
 
             private:
                 /// @brief Points at the list, which the caller keeps alive.
                 const SampleList* list_;
+
+                /// @brief Points at the source the masks are read through.
+                const ByteSource* source_;
         };
 
         /** @brief Returns what a message calls the mask file of a sample that has a mask. */
@@ -184,11 +192,14 @@ namespace SushiAI::Vision::Datasets
 
         SA_TRY(Imaging::validate_training(settings));
         return Result<std::unique_ptr<AugmentPipeline>>(
-            std::unique_ptr<AugmentPipeline>(new AugmentPipeline(settings)));
+            std::unique_ptr<AugmentPipeline>(new AugmentPipeline(settings, options.source != nullptr
+                                                               ? *options.source
+                                                               : Detail::file_system())));
     }
 
-    AugmentPipeline::AugmentPipeline(const Imaging::TrainingSettings& settings) noexcept
-        : settings_(settings)
+    AugmentPipeline::AugmentPipeline(const Imaging::TrainingSettings& settings,
+                                     const ByteSource& source) noexcept
+        : settings_(settings), source_(&source)
     {
 
     }
@@ -213,8 +224,8 @@ namespace SushiAI::Vision::Datasets
                    "{}: a list of {} samples; mosaic partners are drawn from 1 to {}",
                    K_PIPELINE, list.samples.size(), K_SAMPLE_LIMIT);
 
-        const ListImages images(list);
-        const ListMasks masks(list);
+        const ListImages images(list, *source_);
+        const ListMasks masks(list, *source_);
 
         return Detail::at_boundary(K_PIPELINE, [&]() -> Status
         {

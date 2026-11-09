@@ -34,6 +34,7 @@
 #include <fstream>
 #include <istream>
 #include <limits>
+#include <sstream>
 #include <string_view>
 
 
@@ -132,6 +133,31 @@ namespace SushiAI::Vision::Datasets
                        Detail::display_of(file), K_READER);
 
             return SA_ANNOTATE(read_checked(in, pixels, destination), "'{}'",
+                               Detail::display_of(file));
+        }, file);
+    }
+
+    Status read_stored_pixels(const ByteSource& source, const std::filesystem::path& file,
+                              const StoredPixels& pixels, Imaging::Image& destination) noexcept
+    {
+        return Detail::at_boundary(K_READER, [&]() -> Status
+        {
+            SA_FAIL_IF(!Imaging::is_valid_size(pixels.size) ||
+                           !Imaging::is_valid_channel_count(pixels.channels),
+                       StatusCode::InvalidDescription,
+                       "'{}': {}: {} by {} pixels of {} channels are outside the bounds of an "
+                       "image",
+                       Detail::display_of(file), K_READER, pixels.size.height, pixels.size.width,
+                       pixels.channels);
+
+            SA_TRY_ASSIGN(const std::string bytes,
+                          source.read_range(file, pixels.offset, pixels.byte_count(), K_READER));
+
+            // The range starts at the first pixel, so the stream read starts at its beginning.
+            StoredPixels from_start = pixels;
+            from_start.offset = 0;
+            std::istringstream in(bytes, std::ios::binary);
+            return SA_ANNOTATE(read_checked(in, from_start, destination), "'{}'",
                                Detail::display_of(file));
         }, file);
     }

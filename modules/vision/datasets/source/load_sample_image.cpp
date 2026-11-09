@@ -34,8 +34,10 @@
 
 
 #include <SushiAI/failure/result.hpp>
-#include <SushiAI/vision/codecs/decode_image.hpp>
 #include <SushiAI/vision/datasets/stored_pixels.hpp>
+
+#include "decode_file.hpp"
+#include "disk.hpp"
 
 namespace SushiAI::Vision::Datasets
 {
@@ -46,7 +48,15 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Status load_sample_image(const SampleList& list, std::size_t sample,
-                             const Codecs::DecodeOptions& options, Imaging::Image& destination) noexcept
+                             const Codecs::DecodeOptions& options,
+                             Imaging::Image& destination) noexcept
+    {
+        return load_sample_image(list, sample, options, destination, Detail::file_system());
+    }
+
+    Status load_sample_image(const SampleList& list, std::size_t sample,
+                             const Codecs::DecodeOptions& options, Imaging::Image& destination,
+                             const ByteSource& source) noexcept
     {
         SA_FAIL_IF(sample >= list.samples.size(), StatusCode::InvalidDescription,
                    "{}: sample {} is outside a list of {} samples", K_LOADER, sample,
@@ -59,9 +69,9 @@ namespace SushiAI::Vision::Datasets
 
         const std::filesystem::path& file = list.files[record.file];
         if (record.stored.has_value())
-            return read_stored_pixels(file, *record.stored, destination);
+            return read_stored_pixels(source, file, *record.stored, destination);
 
-        SA_TRY_ASSIGN(destination, Codecs::load_image(file, options));
+        SA_TRY_ASSIGN(destination, Detail::decode_file(source, file, options, K_LOADER));
         return Status();
     }
 } // namespace SushiAI::Vision::Datasets

@@ -5,8 +5,10 @@ IDX and CIFAR keep the pixels inside the annotation file. Their samples carry a 
 the byte offset, the size, the channel count and the `PlaneLayout`. `read_stored_pixels` seeks to
 the offset and copies the bytes into an `Imaging::Image`. `Interleaved` bytes are copied as they
 are. `Planar` bytes are read plane by plane, 4096 bytes at a time into a buffer on the stack, and
-plane `c` becomes channel `c` of every pixel. One form takes a stream the caller keeps open and
-the other takes a path; the second opens the file on every call.
+plane `c` becomes channel `c` of every pixel. One form takes a stream the caller keeps open, one takes a
+path and opens the file on every call, and one takes a `ByteSource` and a path: it reads the
+range of the pixels through the source, so a `MemorySource` serves a file that was never
+written. Its `InvalidFile` is the source's: a file the source lacks is `FileNotFound`.
 
 | Code | When |
 | --- | --- |

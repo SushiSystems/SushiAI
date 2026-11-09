@@ -77,7 +77,7 @@ namespace
     }
 
     /** @brief Returns four images of four sizes, sample i holding one object of class i. */
-    SampleList four_images(const Support::ScratchDirectory& scratch)
+    SampleList four_images(MemorySource& source)
     {
         const ImageSize sizes[] = {{20, 16}, {16, 20}, {16, 16}, {10, 20}};
         const char* const names[] = {"a.saim", "b.saim", "c.saim", "d.saim"};
@@ -90,8 +90,8 @@ namespace
             sample.file = static_cast<std::uint32_t>(list.files.size());
             sample.objects.add(static_cast<std::int32_t>(i),
                                NormalizedBox{0.5f, 0.5f, 0.8f, 0.8f});
-            list.files.push_back(Support::write_raw_image(
-                scratch, names[i], rising_image(sizes[i], static_cast<std::uint8_t>(40 * i))));
+            list.files.push_back(Support::add_raw_image(
+                source, names[i], rising_image(sizes[i], static_cast<std::uint8_t>(40 * i))));
             list.samples.push_back(sample);
         }
 
@@ -99,7 +99,7 @@ namespace
     }
 
     /** @brief Gives each sample of four_images a mask of its size that holds its index. */
-    void add_masks(const Support::ScratchDirectory& scratch, SampleList& list)
+    void add_masks(MemorySource& source, SampleList& list)
     {
         const ImageSize sizes[] = {{20, 16}, {16, 20}, {16, 16}, {10, 20}};
         const char* const names[] = {"a.png", "b.png", "c.png", "d.png"};
@@ -107,19 +107,21 @@ namespace
         for (std::size_t i = 0; i < 4; ++i)
         {
             list.samples[i].mask = static_cast<std::uint32_t>(list.files.size());
-            list.files.push_back(Support::write_raw_image(
-                scratch, names[i],
+            list.files.push_back(Support::add_raw_image(
+                source, names[i],
                 Support::uniform_image(sizes[i], 1, static_cast<std::uint8_t>(i))));
         }
     }
 
     /** @brief Returns the training pipeline of K_SIDE and K_SEED. */
-    std::unique_ptr<AugmentPipeline> augment(std::int32_t mosaic_epochs)
+    std::unique_ptr<AugmentPipeline> augment(std::int32_t mosaic_epochs,
+                                              const ByteSource* source = nullptr)
     {
         AugmentOptions options;
         options.image_size = K_SIDE;
         options.seed = K_SEED;
         options.mosaic_epochs = mosaic_epochs;
+        options.source = source;
 
         auto made = AugmentPipeline::make(options);
         EXPECT_TRUE(made.has_value()) << made.status().message();
@@ -170,12 +172,6 @@ namespace
     }
 
 
-    /** @brief Names the scratch directory of one row of a test, so rows never share one. */
-    std::string row_directory(const char* test, std::size_t row)
-    {
-        return std::string("sushiai_test_datasets_pipeline_") + test + "_" + std::to_string(row);
-    }
-
     /** @brief Names a test after the sample index of its row. */
     std::string sample_row_name(const ::testing::TestParamInfo<std::size_t>& info)
     {
@@ -213,12 +209,12 @@ namespace
     }
 
     /** @brief Holds the sample index of each row of a test over the four images. */
-    class Medium_DatasetsAugmentPipelineSample : public ::testing::TestWithParam<std::size_t>
+    class Small_DatasetsAugmentPipelineSample : public ::testing::TestWithParam<std::size_t>
     {
     };
 
     /** @brief Holds the epoch and the sample index of each row of a test over the four images. */
-    class Medium_DatasetsAugmentPipelineEpochSample
+    class Small_DatasetsAugmentPipelineEpochSample
         : public ::testing::TestWithParam<std::tuple<std::int64_t, std::size_t>>
     {
     };
@@ -255,12 +251,12 @@ namespace
 } // namespace
 
 /** @brief Tests that a training sample has the training size and three channels. */
-TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleHasTheTrainingSizeAndThreeChannels)
+TEST_P(Small_DatasetsAugmentPipelineSample, ASampleHasTheTrainingSizeAndThreeChannels)
 {
     const std::size_t row = GetParam();
-    const Support::ScratchDirectory scratch(row_directory("shape", row).c_str());
-    const SampleList list = four_images(scratch);
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    MemorySource source;
+    const SampleList list = four_images(source);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000, &source);
     ASSERT_NE(pipeline, nullptr);
     EXPECT_EQ(pipeline->name(), "default");
 
@@ -272,12 +268,12 @@ TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleHasTheTrainingSizeAndThreeCh
 }
 
 /** @brief Tests that the boxes of a training sample lie inside the training square. */
-TEST_P(Medium_DatasetsAugmentPipelineSample, TheBoxesOfASampleLieInsideTheImage)
+TEST_P(Small_DatasetsAugmentPipelineSample, TheBoxesOfASampleLieInsideTheImage)
 {
     const std::size_t row = GetParam();
-    const Support::ScratchDirectory scratch(row_directory("boxes", row).c_str());
-    const SampleList list = four_images(scratch);
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    MemorySource source;
+    const SampleList list = four_images(source);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000, &source);
     ASSERT_NE(pipeline, nullptr);
 
     const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 0);
@@ -287,12 +283,12 @@ TEST_P(Medium_DatasetsAugmentPipelineSample, TheBoxesOfASampleLieInsideTheImage)
 }
 
 /** @brief Tests that a sample of a list without masks comes out with an empty mask. */
-TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleWithoutAMaskHasAnEmptyMask)
+TEST_P(Small_DatasetsAugmentPipelineSample, ASampleWithoutAMaskHasAnEmptyMask)
 {
     const std::size_t row = GetParam();
-    const Support::ScratchDirectory scratch(row_directory("nomask", row).c_str());
-    const SampleList list = four_images(scratch);
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    MemorySource source;
+    const SampleList list = four_images(source);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000, &source);
     ASSERT_NE(pipeline, nullptr);
 
     const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 0);
@@ -302,12 +298,12 @@ TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleWithoutAMaskHasAnEmptyMask)
 }
 
 /** @brief Tests that a sample is the same whether it is made again, alone or in a reversed batch. */
-TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleDependsOnItsIndexAndItsEpochAlone)
+TEST_P(Small_DatasetsAugmentPipelineSample, ASampleDependsOnItsIndexAndItsEpochAlone)
 {
     const std::size_t row = GetParam();
-    const Support::ScratchDirectory scratch(row_directory("replay", row).c_str());
-    const SampleList list = four_images(scratch);
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    MemorySource source;
+    const SampleList list = four_images(source);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000, &source);
     ASSERT_NE(pipeline, nullptr);
 
     const std::vector<FittedSample> whole = produce(*pipeline, list, {0, 1, 2, 3}, 2);
@@ -321,13 +317,13 @@ TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleDependsOnItsIndexAndItsEpoch
 }
 
 /** @brief Tests that a mask comes out at the training size holding classes or the void byte. */
-TEST_P(Medium_DatasetsAugmentPipelineSample, AMaskTakesTheSizeOfItsSample)
+TEST_P(Small_DatasetsAugmentPipelineSample, AMaskTakesTheSizeOfItsSample)
 {
     const std::size_t row = GetParam();
-    const Support::ScratchDirectory scratch(row_directory("masks", row).c_str());
-    SampleList list = four_images(scratch);
-    add_masks(scratch, list);
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    MemorySource source;
+    SampleList list = four_images(source);
+    add_masks(source, list);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000, &source);
     ASSERT_NE(pipeline, nullptr);
 
     const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 1);
@@ -338,15 +334,15 @@ TEST_P(Medium_DatasetsAugmentPipelineSample, AMaskTakesTheSizeOfItsSample)
     EXPECT_TRUE(holds_classes_or_void(made[0].mask));
 }
 
-INSTANTIATE_TEST_SUITE_P(Rows, Medium_DatasetsAugmentPipelineSample,
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsAugmentPipelineSample,
                          ::testing::Range<std::size_t>(0, 4), sample_row_name);
 
 /** @brief Tests that the next epoch changes at least one image of the four. */
-TEST(Medium_DatasetsAugmentPipeline, ANewEpochChangesTheImages)
+TEST(Small_DatasetsAugmentPipeline, ANewEpochChangesTheImages)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_epochs");
-    const SampleList list = four_images(scratch);
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    MemorySource source;
+    const SampleList list = four_images(source);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000, &source);
     ASSERT_NE(pipeline, nullptr);
 
     const std::vector<FittedSample> second = produce(*pipeline, list, {0, 1, 2, 3}, 2);
@@ -356,13 +352,12 @@ TEST(Medium_DatasetsAugmentPipeline, ANewEpochChangesTheImages)
 }
 
 /** @brief Tests that past the mosaic epochs a sample holds the objects of its own image. */
-TEST_P(Medium_DatasetsAugmentPipelineEpochSample, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
+TEST_P(Small_DatasetsAugmentPipelineEpochSample, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
 {
     const auto [epoch, row] = GetParam();
-    const Support::ScratchDirectory scratch(
-        row_directory("closed", static_cast<std::size_t>(epoch) * 4 + row).c_str());
-    const SampleList list = four_images(scratch);
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(0);
+    MemorySource source;
+    const SampleList list = four_images(source);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(0, &source);
     ASSERT_NE(pipeline, nullptr);
 
     const std::vector<FittedSample> made = produce(*pipeline, list, {row}, epoch);
@@ -373,7 +368,7 @@ TEST_P(Medium_DatasetsAugmentPipelineEpochSample, PastTheMosaicEpochsASampleHold
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    Rows, Medium_DatasetsAugmentPipelineEpochSample,
+    Rows, Small_DatasetsAugmentPipelineEpochSample,
     ::testing::Combine(::testing::Range<std::int64_t>(0, 3), ::testing::Range<std::size_t>(0, 4)),
     [](const ::testing::TestParamInfo<std::tuple<std::int64_t, std::size_t>>& info)
     {
@@ -382,12 +377,12 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 /** @brief Tests that an image that cannot be read is the failure, with its file. */
-TEST(Medium_DatasetsAugmentPipeline, AnImageThatCannotBeReadIsTheFailure)
+TEST(Small_DatasetsAugmentPipeline, AnImageThatCannotBeReadIsTheFailure)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_missing");
-    SampleList list = four_images(scratch);
-    list.files[1] = scratch.path() / "gone.saim";
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(0);
+    MemorySource source;
+    SampleList list = four_images(source);
+    list.files[1] = "gone.saim";
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(0, &source);
     ASSERT_NE(pipeline, nullptr);
 
     const std::size_t samples[] = {1};

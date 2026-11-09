@@ -33,8 +33,10 @@
 
 
 #include <SushiAI/failure/result.hpp>
-#include <SushiAI/vision/codecs/decode_image.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
+
+#include "decode_file.hpp"
+#include "disk.hpp"
 
 namespace SushiAI::Vision::Datasets
 {
@@ -46,6 +48,12 @@ namespace SushiAI::Vision::Datasets
 
     Status load_sample_mask(const SampleList& list, std::size_t sample,
                             Imaging::Image& destination) noexcept
+    {
+        return load_sample_mask(list, sample, destination, Detail::file_system());
+    }
+
+    Status load_sample_mask(const SampleList& list, std::size_t sample,
+                            Imaging::Image& destination, const ByteSource& source) noexcept
     {
         SA_FAIL_IF(sample >= list.samples.size(), StatusCode::InvalidDescription,
                    "{}: sample {} is outside a list of {} samples", K_LOADER, sample,
@@ -62,7 +70,8 @@ namespace SushiAI::Vision::Datasets
         options.layout = Codecs::ChannelLayout::Stored;
         options.palette = Codecs::PaletteRead::Indices;
 
-        SA_TRY_ASSIGN(destination, Codecs::load_image(list.files[*record.mask], options));
+        SA_TRY_ASSIGN(destination,
+                      Detail::decode_file(source, list.files[*record.mask], options, K_LOADER));
         return Status();
     }
 } // namespace SushiAI::Vision::Datasets

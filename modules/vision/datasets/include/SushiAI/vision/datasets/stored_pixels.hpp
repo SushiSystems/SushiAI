@@ -35,6 +35,7 @@
 #include <iosfwd>
 
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
@@ -86,6 +87,17 @@ namespace SushiAI::Vision::Datasets
      *         Every message opens with the path.
      */
     [[nodiscard]] Status read_stored_pixels(const std::filesystem::path& file,
+                                            const StoredPixels& pixels,
+                                            Imaging::Image& destination) noexcept;
+
+    /**
+     * @brief Reads one stored image out of a file a ByteSource serves.
+     * @param source Serves the bytes; the file system for the overload above.
+     * @return What the stream form returns, and what ByteSource::read_range returns for a file
+     *         that is absent or cannot be read. Every message opens with the path.
+     */
+    [[nodiscard]] Status read_stored_pixels(const ByteSource& source,
+                                            const std::filesystem::path& file,
                                             const StoredPixels& pixels,
                                             Imaging::Image& destination) noexcept;
 } // namespace SushiAI::Vision::Datasets

@@ -15,6 +15,7 @@ sushiai_add_module(NAME datasets TIER vision
         source/coco_json.cpp
         source/collate_support.cpp
         source/csv.cpp
+        source/decode_file.cpp
         source/detection_collator.cpp
         source/disk.cpp
         source/fit_mask.cpp

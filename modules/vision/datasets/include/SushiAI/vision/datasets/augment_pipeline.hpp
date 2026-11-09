@@ -35,6 +35,7 @@
 #include <string_view>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>
 
@@ -55,6 +56,13 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Counts the first epochs that compose mosaics; later ones do not. */
         std::int32_t mosaic_epochs = std::numeric_limits<std::int32_t>::max();
+
+        /**
+         * @brief Serves the files of the samples and of their mosaic partners; null reads the
+         *        file system.
+         * @pre The source, when given, outlives the pipeline.
+         */
+        const ByteSource* source = nullptr;
     };
 
     /**
@@ -89,9 +97,13 @@ namespace SushiAI::Vision::Datasets
 
         private:
             /** @brief Holds the settings make() derived. */
-            explicit AugmentPipeline(const Imaging::TrainingSettings& settings) noexcept;
+            AugmentPipeline(const Imaging::TrainingSettings& settings,
+                            const ByteSource& source) noexcept;
 
             /// @brief Holds the settings of every Imaging::TrainingPipeline produce() builds.
             Imaging::TrainingSettings settings_;
+
+            /// @brief Points at the source the files are read through, never null.
+            const ByteSource* source_;
     };
 } // namespace SushiAI::Vision::Datasets

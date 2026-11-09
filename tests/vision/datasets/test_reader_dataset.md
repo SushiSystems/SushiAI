@@ -2,16 +2,16 @@
 
 
 Suites: `Small_DatasetsReaderDataset`, `Small_DatasetsReaderDatasetOptions`,
-`Small_DatasetsReaderDatasetRange`, `Medium_DatasetsReaderDataset` and
-`Medium_DatasetsReaderDatasetEpoch`.
+`Small_DatasetsReaderDatasetRange`, `Small_DatasetsReaderDatasetEpoch` and
+`Medium_DatasetsReaderDataset`.
 
 Tests `ReaderDataset` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/reader_dataset.hpp`. Every suite derives
 from `ReaderBench`, which holds a `HostExecutionBackend`, so batches are host tensors and no
-device or process-wide engine is reached. The `Small_` cases name a list that is never read. The
-`Medium_` cases read it: the list stores gray samples of 2 by 2 pixels in one file `pixels.bin` of
-rising bytes, written under the system's temporary directory, so sample i opens with the byte 4i
-and has the class i modulo 2. The default options are batches of two such inputs under the name
+device or process-wide engine is reached. The datasets read their files through a `MemorySource`
+(`ReaderDatasetOptions::source`), so no file is written. The list stores gray samples of 2 by 2
+pixels in one file `pixels.bin` of rising bytes, so sample i opens with the byte 4i and has the
+class i modulo 2. `Medium_DatasetsReaderDataset` holds the one case that stops the process. The default options are batches of two such inputs under the name
 "tiny", with a classification collator over two classes.
 
 ## ItDescribesItsBatches

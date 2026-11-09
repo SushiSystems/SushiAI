@@ -117,12 +117,12 @@ namespace
                 return list;
             }
 
-            /** @brief Returns stored_samples whose file is written, with rising bytes. */
-            static SampleList stored_list(const Support::ScratchDirectory& scratch,
-                                          std::size_t count)
+            /** @brief Returns stored_samples whose file is in memory, with rising bytes. */
+            SampleList stored_list(std::size_t count)
             {
                 SampleList list = stored_samples(count);
-                list.files[0] = scratch.write("pixels.bin", Support::rising_bytes(count * 4, 0));
+                files.add_file(list.files[0],
+                               Support::text_of(Support::rising_bytes(count * 4, 0)));
                 return list;
             }
 
@@ -150,20 +150,25 @@ namespace
             Result<std::unique_ptr<ReaderDataset>> make(SampleList list,
                                                         const ReaderDatasetOptions& options)
             {
+                ReaderDatasetOptions served = options;
+                served.source = &files;
                 return ReaderDataset::make(backend.engine(), std::move(list), classification(),
-                                           options);
+                                           served);
             }
 
             /** @brief Holds the host engine the batches are allocated from. */
             HostExecutionBackend backend;
+
+            /** @brief Serves the files of the lists, which no file system holds. */
+            MemorySource files;
     };
 
-    /** @brief Holds the tests that reach no file. */
+    /** @brief Holds the tests that reach no file, device or thread. */
     class Small_DatasetsReaderDataset : public ReaderBench
     {
     };
 
-    /** @brief Holds the tests that read or write a file. */
+    /** @brief Holds the test that stops the process. */
     class Medium_DatasetsReaderDataset : public ReaderBench
     {
     };
@@ -224,7 +229,7 @@ namespace
     };
 
     /** @brief Holds the epoch of an unshuffled read, one epoch per row. */
-    class Medium_DatasetsReaderDatasetEpoch
+    class Small_DatasetsReaderDatasetEpoch
         : public ReaderBench,
           public ::testing::WithParamInterface<std::int64_t>
     {
@@ -288,7 +293,7 @@ namespace
     }
 
     /** @brief Returns a list of two RGB files of 2 by 4, the second holding an object of class 2. */
-    SampleList two_detection_files(const Support::ScratchDirectory& scratch)
+    SampleList two_detection_files(MemorySource& source)
     {
         SampleList list;
         list.class_count = 3;
@@ -296,8 +301,8 @@ namespace
         {
             Sample sample;
             sample.file = static_cast<std::uint32_t>(list.files.size());
-            list.files.push_back(Support::write_raw_image(
-                scratch, name, Support::uniform_image(ImageSize{2, 4}, 3, 255)));
+            list.files.push_back(Support::add_raw_image(
+                source, name, Support::uniform_image(ImageSize{2, 4}, 3, 255)));
             list.samples.push_back(sample);
         }
         list.samples[1].objects.add(2, NormalizedBox{0.5f, 0.5f, 0.5f, 1.0f});
@@ -315,14 +320,15 @@ namespace
     }
 
     /** @brief Reads the first batch of the detection dataset the tests below share. */
-    Data::Batch read_detection_batch(HostExecutionBackend& backend,
-                                     const Support::ScratchDirectory& scratch)
+    Data::Batch read_detection_batch(HostExecutionBackend& backend, MemorySource& source)
     {
         auto collator = DetectionCollator::make(3, 2);
         EXPECT_TRUE(collator.status().is_ok());
         std::unique_ptr<const Collator> owned = std::move(collator).value();
-        auto dataset = ReaderDataset::make(backend.engine(), two_detection_files(scratch),
-                                           std::move(owned), letterbox_options());
+        ReaderDatasetOptions options = letterbox_options();
+        options.source = &source;
+        auto dataset = ReaderDataset::make(backend.engine(), two_detection_files(source),
+                                           std::move(owned), options);
         EXPECT_TRUE(dataset.status().is_ok());
 
         Data::Batch batch;
@@ -346,21 +352,19 @@ TEST_F(Small_DatasetsReaderDataset, ItDescribesItsBatches)
 }
 
 /** @brief Tests that batch i holds samples 2i and 2i + 1, in the order of the list. */
-TEST_F(Medium_DatasetsReaderDataset, ABatchHoldsItsSamplesInListOrder)
+TEST_F(Small_DatasetsReaderDataset, ABatchHoldsItsSamplesInListOrder)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_order");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 4), gray_options()));
+                            make(stored_list(4), gray_options()));
 
     EXPECT_EQ(samples_in_batch(*dataset, 1), (std::vector<std::uint64_t>{2, 3}));
 }
 
 /** @brief Tests that the inputs of a batch are the bytes of its samples divided by 255. */
-TEST_F(Medium_DatasetsReaderDataset, TheInputsOfABatchAreScaledBy255)
+TEST_F(Small_DatasetsReaderDataset, TheInputsOfABatchAreScaledBy255)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_scaled");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 4), gray_options()));
+                            make(stored_list(4), gray_options()));
     Data::Batch batch;
 
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, batch)));
@@ -369,11 +373,10 @@ TEST_F(Medium_DatasetsReaderDataset, TheInputsOfABatchAreScaledBy255)
 }
 
 /** @brief Tests that the labels of a batch follow the classes of the list. */
-TEST_F(Medium_DatasetsReaderDataset, TheLabelsOfABatchFollowTheList)
+TEST_F(Small_DatasetsReaderDataset, TheLabelsOfABatchFollowTheList)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_labels");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 4), gray_options()));
+                            make(stored_list(4), gray_options()));
     Data::Batch batch;
 
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, batch)));
@@ -383,11 +386,9 @@ TEST_F(Medium_DatasetsReaderDataset, TheLabelsOfABatchFollowTheList)
 }
 
 /** @brief Tests that a detection batch letterboxes each file and pads the rows above it. */
-TEST_F(Medium_DatasetsReaderDataset, ADetectionBatchLetterboxesTheImages)
+TEST_F(Small_DatasetsReaderDataset, ADetectionBatchLetterboxesTheImages)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_detection_image");
-
-    const Data::Batch batch = read_detection_batch(backend, scratch);
+    const Data::Batch batch = read_detection_batch(backend, files);
 
     // Row 0 of each 4 by 4 by 3 input is padding of 114; row 1 is the image.
     const std::vector<double> inputs = SaTest::read_tensor(batch.inputs);
@@ -396,11 +397,9 @@ TEST_F(Medium_DatasetsReaderDataset, ADetectionBatchLetterboxesTheImages)
 }
 
 /** @brief Tests that the boxes of a detection batch move with the letterboxed image. */
-TEST_F(Medium_DatasetsReaderDataset, ADetectionBatchMovesTheBoxesWithTheImage)
+TEST_F(Small_DatasetsReaderDataset, ADetectionBatchMovesTheBoxesWithTheImage)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_detection_boxes");
-
-    const Data::Batch batch = read_detection_batch(backend, scratch);
+    const Data::Batch batch = read_detection_batch(backend, files);
 
     ASSERT_EQ(batch.targets.size(), 3u);
     const std::vector<double> boxes = SaTest::read_tensor(batch.targets[0].values);
@@ -411,11 +410,9 @@ TEST_F(Medium_DatasetsReaderDataset, ADetectionBatchMovesTheBoxesWithTheImage)
 }
 
 /** @brief Tests that a detection batch flags the one object row and names its class. */
-TEST_F(Medium_DatasetsReaderDataset, ADetectionBatchFlagsTheObjectRowAndItsClass)
+TEST_F(Small_DatasetsReaderDataset, ADetectionBatchFlagsTheObjectRowAndItsClass)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_detection_valid");
-
-    const Data::Batch batch = read_detection_batch(backend, scratch);
+    const Data::Batch batch = read_detection_batch(backend, files);
 
     ASSERT_EQ(batch.targets.size(), 3u);
     EXPECT_EQ(SaTest::read_tensor(batch.targets[2].values),
@@ -465,11 +462,10 @@ TEST_F(Medium_DatasetsReaderDataset, ABatchOutsideTheEpochStopsTheProcess)
 }
 
 /** @brief Tests that a second read into the same batch holds the values of the second batch. */
-TEST_F(Medium_DatasetsReaderDataset, AReadIntoAFilledBatchHoldsTheValuesOfTheSecondRead)
+TEST_F(Small_DatasetsReaderDataset, AReadIntoAFilledBatchHoldsTheValuesOfTheSecondRead)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_reuse");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 4), gray_options()));
+                            make(stored_list(4), gray_options()));
     Data::Batch batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
 
@@ -480,11 +476,10 @@ TEST_F(Medium_DatasetsReaderDataset, AReadIntoAFilledBatchHoldsTheValuesOfTheSec
 }
 
 /** @brief Tests that a read leaves alone a tensor something else still references. */
-TEST_F(Medium_DatasetsReaderDataset, AReadDoesNotWriteATensorSomethingElseHolds)
+TEST_F(Small_DatasetsReaderDataset, AReadDoesNotWriteATensorSomethingElseHolds)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_shared");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 4), gray_options()));
+                            make(stored_list(4), gray_options()));
     Data::Batch batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
     const SushiBLAS::Tensor kept = batch.inputs;
@@ -497,11 +492,10 @@ TEST_F(Medium_DatasetsReaderDataset, AReadDoesNotWriteATensorSomethingElseHolds)
 }
 
 /** @brief Tests that a reader dataset is read through the Data::Dataset interface. */
-TEST_F(Medium_DatasetsReaderDataset, ItIsADatasetATrainerCanRead)
+TEST_F(Small_DatasetsReaderDataset, ItIsADatasetATrainerCanRead)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_seam");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> made,
-                            make(stored_list(scratch, 4), gray_options()));
+                            make(stored_list(4), gray_options()));
     const Data::Dataset& dataset = *made;
 
     Data::Batch batch;
@@ -512,13 +506,12 @@ TEST_F(Medium_DatasetsReaderDataset, ItIsADatasetATrainerCanRead)
 }
 
 /** @brief Tests that an image of another channel count is a failure naming its file. */
-TEST_F(Medium_DatasetsReaderDataset, AnImageOfAnotherChannelCountNamesItsFile)
+TEST_F(Small_DatasetsReaderDataset, AnImageOfAnotherChannelCountNamesItsFile)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_channels");
     ReaderDatasetOptions options = gray_options();
     options.channels = 3;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 2), options));
+                            make(stored_list(2), options));
 
     Data::Batch batch;
     SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::Incompatible, "pixels.bin",
@@ -526,27 +519,25 @@ TEST_F(Medium_DatasetsReaderDataset, AnImageOfAnotherChannelCountNamesItsFile)
 }
 
 /** @brief Tests that a file that is absent when its batch is read is a failure naming it. */
-TEST_F(Medium_DatasetsReaderDataset, AFileAbsentAtReadTimeIsNamed)
+TEST_F(Small_DatasetsReaderDataset, AFileAbsentAtReadTimeIsNamed)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_absent");
-    SampleList list = stored_list(scratch, 2);
-    list.files[0] = scratch.path() / "gone.bin";
+    SampleList list = stored_list(2);
+    list.files[0] = "gone.bin";
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
                             make(std::move(list), gray_options()));
 
     Data::Batch batch;
-    SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::InvalidFile, "gone.bin");
+    SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::FileNotFound, "gone.bin");
 }
 
 /** @brief Tests that a shuffled epoch reads every sample once. */
-TEST_F(Medium_DatasetsReaderDataset, AShuffledEpochReadsEverySampleOnce)
+TEST_F(Small_DatasetsReaderDataset, AShuffledEpochReadsEverySampleOnce)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_shuffle_once");
     ReaderDatasetOptions options = gray_options();
     options.shuffle = true;
     options.seed = K_ORDER_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 8), options));
+                            make(stored_list(8), options));
 
     const std::vector<std::uint64_t> read = samples_read(*dataset);
 
@@ -557,27 +548,25 @@ TEST_F(Medium_DatasetsReaderDataset, AShuffledEpochReadsEverySampleOnce)
 }
 
 /** @brief Tests that a shuffled epoch reads the samples in the order of its seed. */
-TEST_F(Medium_DatasetsReaderDataset, AShuffledEpochFollowsTheOrderOfTheSeed)
+TEST_F(Small_DatasetsReaderDataset, AShuffledEpochFollowsTheOrderOfTheSeed)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_shuffle_order");
     ReaderDatasetOptions options = gray_options();
     options.shuffle = true;
     options.seed = K_ORDER_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 8), options));
+                            make(stored_list(8), options));
 
     EXPECT_EQ(samples_read(*dataset), order_of(K_ORDER_SEED, 0, 8));
 }
 
 /** @brief Tests that begin_epoch gives the order of that epoch. */
-TEST_F(Medium_DatasetsReaderDataset, BeginEpochSelectsTheOrderOfTheEpoch)
+TEST_F(Small_DatasetsReaderDataset, BeginEpochSelectsTheOrderOfTheEpoch)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_epochs");
     ReaderDatasetOptions options = gray_options();
     options.shuffle = true;
     options.seed = K_ORDER_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 8), options));
+                            make(stored_list(8), options));
 
     Data::begin_epoch(*dataset, 3);
 
@@ -587,14 +576,13 @@ TEST_F(Medium_DatasetsReaderDataset, BeginEpochSelectsTheOrderOfTheEpoch)
 }
 
 /** @brief Tests that beginning the first epoch again gives the first order again. */
-TEST_F(Medium_DatasetsReaderDataset, BeginningTheFirstEpochAgainRestoresItsOrder)
+TEST_F(Small_DatasetsReaderDataset, BeginningTheFirstEpochAgainRestoresItsOrder)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_epochs_again");
     ReaderDatasetOptions options = gray_options();
     options.shuffle = true;
     options.seed = K_ORDER_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 8), options));
+                            make(stored_list(8), options));
     Data::begin_epoch(*dataset, 3);
 
     Data::begin_epoch(*dataset, 0);
@@ -603,19 +591,17 @@ TEST_F(Medium_DatasetsReaderDataset, BeginningTheFirstEpochAgainRestoresItsOrder
 }
 
 /** @brief Tests that without shuffle every epoch reads the samples in the list's order. */
-TEST_P(Medium_DatasetsReaderDatasetEpoch, WithoutShuffleEveryEpochKeepsTheOrderOfTheList)
+TEST_P(Small_DatasetsReaderDatasetEpoch, WithoutShuffleEveryEpochKeepsTheOrderOfTheList)
 {
-    const Support::ScratchDirectory scratch(
-        ("sushiai_test_datasets_reader_unshuffled_" + std::to_string(GetParam())).c_str());
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 6), gray_options()));
+                            make(stored_list(6), gray_options()));
 
     Data::begin_epoch(*dataset, GetParam());
 
     EXPECT_EQ(samples_read(*dataset), (std::vector<std::uint64_t>{0, 1, 2, 3, 4, 5}));
 }
 
-INSTANTIATE_TEST_SUITE_P(Rows, Medium_DatasetsReaderDatasetEpoch,
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsReaderDatasetEpoch,
                          ::testing::Values<std::int64_t>(0, 5),
                          [](const ::testing::TestParamInfo<std::int64_t>& info)
                          {
@@ -631,15 +617,14 @@ TEST_F(Small_DatasetsReaderDataset, MakeRefusesANullPipeline)
 }
 
 /** @brief Tests that a range read of a shuffled epoch holds the rows the seed order names. */
-TEST_F(Medium_DatasetsReaderDataset, ARangeReadHoldsTheRowsTheSeedOrderNames)
+TEST_F(Small_DatasetsReaderDataset, ARangeReadHoldsTheRowsTheSeedOrderNames)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_rows");
     ReaderDatasetOptions options = gray_options();
     options.batch_size = 4;
     options.shuffle = true;
     options.seed = K_ORDER_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
-                            make(stored_list(scratch, 8), options));
+                            make(stored_list(8), options));
     dataset->begin_epoch(1);
 
     Data::Batch part;
@@ -660,11 +645,10 @@ TEST_F(Medium_DatasetsReaderDataset, ARangeReadHoldsTheRowsTheSeedOrderNames)
 }
 
 /** @brief Tests that a range read opens no file of a sample outside the range. */
-TEST_F(Medium_DatasetsReaderDataset, ARangeReadOpensNoSampleOutsideIt)
+TEST_F(Small_DatasetsReaderDataset, ARangeReadOpensNoSampleOutsideIt)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_rows_absent");
-    SampleList list = stored_list(scratch, 2);
-    list.files.push_back(scratch.path() / "gone.bin");
+    SampleList list = stored_list(2);
+    list.files.push_back("gone.bin");
     list.samples[0].file = 1;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReaderDataset> dataset,
                             make(std::move(list), gray_options()));
@@ -672,7 +656,7 @@ TEST_F(Medium_DatasetsReaderDataset, ARangeReadOpensNoSampleOutsideIt)
     Data::Batch batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read_rows(0, Data::RowRange{1, 1}, batch)));
     EXPECT_EQ(batch.inputs.shape[0], 1);
-    SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::InvalidFile, "gone.bin");
+    SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::FileNotFound, "gone.bin");
 }
 
 /** @brief Tests that a range outside the reader dataset is refused with a Status, not a stop. */
