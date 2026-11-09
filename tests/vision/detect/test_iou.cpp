@@ -28,17 +28,10 @@
  */
 
 #include <cmath>
-#include <cstddef>
-#include <cstdint>
-#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
-#include <SushiAI/vision/detect/box_format.hpp>
-#include <SushiAI/vision/detect/free/anchors.hpp>
-#include <SushiAI/vision/detect/free/box_coding.hpp>
-#include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
 #include <support/tolerance.hpp>
 
@@ -79,6 +72,15 @@ TEST(Medium_DetectBoxes, DisjointBoxesScoreZeroAndPayForDistance)
                 K_IOU_TOLERANCE);
     EXPECT_NEAR(SushiAI::Vision::Detect::complete_iou(left, right),
                 0.0f - centre_distance / hull_diagonal, K_IOU_TOLERANCE);
+}
+
+/** @brief Tests that boxes touching along an edge have an IoU of 0, the area of the overlap. */
+TEST(Small_DetectBoxes, BoxesTouchingAtAnEdgeScoreZero)
+{
+    const std::vector<float> left{0.0f, 0.0f, 1.0f, 1.0f};
+    const std::vector<float> right{1.0f, 0.0f, 2.0f, 1.0f};
+
+    EXPECT_EQ(SushiAI::Vision::Detect::intersection_over_union(left, right), 0.0f);
 }
 
 /** @brief Tests that partly overlapping squares give 1/7 and lose the centre term only. */
