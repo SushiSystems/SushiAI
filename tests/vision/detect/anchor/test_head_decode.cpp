@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
@@ -174,10 +175,56 @@ namespace
         return options;
     }
 
+    /** @brief Holds an Activated size input and the width and height it decodes to. */
+    struct ActivatedSizeRow
+    {
+        std::string name;  /**< The row's name. */
+        float input;       /**< The width and height entry of the slot. */
+        float width;       /**< The decoded width. */
+        float height;      /**< The decoded height. */
+    };
+
+    /** @brief Runs one Activated size input. */
+    class Small_DetectAnchorDecodeActivatedSize : public ::testing::TestWithParam<ActivatedSizeRow>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string activated_size_name(const ::testing::TestParamInfo<ActivatedSizeRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Holds a decoded row of a two image, 2 by 3 head and the values it must hold. */
+    struct DecodedRow
+    {
+        std::string name;    /**< The row's name. */
+        std::size_t image;   /**< The image of the row. */
+        std::size_t index;   /**< The decoded row index within the image. */
+        float x;             /**< The decoded centre along the columns. */
+        float y;             /**< The decoded centre along the rows. */
+        float width;         /**< The decoded width. */
+        float height;        /**< The decoded height. */
+        float score;         /**< The decoded class score. */
+    };
+
+    /** @brief Runs one decoded row. */
+    class Small_DetectAnchorDecodeRow : public ::testing::TestWithParam<DecodedRow>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string decoded_row_name(const ::testing::TestParamInfo<DecodedRow>& info)
+    {
+        return info.param.name;
+    }
+
 } // namespace
 
-/** @brief Tests that zero logits decode to the cell centre, the anchor size and scores of 0.25. */
-TEST(Small_DetectAnchorDecode, ZeroLogitsGiveTheCellCentreTheAnchorAndQuarterScores)
+/** @brief Tests that zero logits decode to the cell centre and the anchor size. */
+TEST(Small_DetectAnchorDecode, ZeroLogitsGiveTheCellCentreAndTheAnchor)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(2, HeadCoding::Logit, 1.0f),
                               make_single_anchor_layout(0.25f, 0.5f));
@@ -189,6 +236,16 @@ TEST(Small_DetectAnchorDecode, ZeroLogitsGiveTheCellCentreTheAnchorAndQuarterSco
     EXPECT_NEAR(head.box(0, 0)[1], 0.5f, K_TOLERANCE);
     EXPECT_NEAR(head.box(0, 0)[2], 0.25f, K_TOLERANCE);
     EXPECT_NEAR(head.box(0, 0)[3], 0.5f, K_TOLERANCE);
+}
+
+/** @brief Tests that zero logits score every class at 0.25, the product of two halves. */
+TEST(Small_DetectAnchorDecode, ZeroLogitsGiveQuarterScores)
+{
+    HeadCase head = make_case({1, 1, 1}, make_options(2, HeadCoding::Logit, 1.0f),
+                              make_single_anchor_layout(0.25f, 0.5f));
+
+    head.decode();
+
     EXPECT_NEAR(head.score(0, 0)[0], 0.25f, K_TOLERANCE);
     EXPECT_NEAR(head.score(0, 0)[1], 0.25f, K_TOLERANCE);
 }
@@ -234,7 +291,7 @@ TEST(Small_DetectAnchorDecode, SaturatedLogitsReachTheCellEdgesAndTheScoreBounds
     EXPECT_NEAR(head.score(0, 0)[1], 0.0f, K_TOLERANCE);
 }
 
-/** @brief Tests that a score is objectness times class: a saturated objectness times a zero class logit is 1 times 0.5. */
+/** @brief Tests that a saturated objectness times a zero class logit scores 1 times 0.5. */
 TEST(Small_DetectAnchorDecode, SaturatedObjectnessScoresAZeroClassLogitAtHalf)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(1, HeadCoding::Logit, 1.0f),
@@ -274,28 +331,26 @@ TEST(Small_DetectAnchorDecode, ScaleTwoKeepsAZeroLogitAtTheCellCentre)
     EXPECT_NEAR(head.box(0, 0)[1], 0.5f, K_TOLERANCE);
 }
 
-/** @brief Tests that the Activated size at 0, 0.5 and 1 is 0, the anchor and four anchors. */
-TEST(Small_DetectAnchorDecode, ActivatedSizeAtZeroHalfAndOneIsZeroTheAnchorAndFourAnchors)
+/** @brief Tests that an Activated size input decodes to its row's width and height. */
+TEST_P(Small_DetectAnchorDecodeActivatedSize, ASizeInputDecodesToItsFractionOfTheAnchors)
 {
-    HeadCase head = make_case({1, 1, 3}, make_options(1, HeadCoding::Activated, 1.0f),
+    HeadCase head = make_case({1, 1, 1}, make_options(1, HeadCoding::Activated, 1.0f),
                               make_single_anchor_layout(0.125f, 0.25f));
-    const float inputs[3] = {0.0f, 0.5f, 1.0f};
-    const float widths[3] = {0.0f, 0.125f, 0.5f};
-    const float heights[3] = {0.0f, 0.25f, 1.0f};
-    for (std::size_t col = 0; col < 3; ++col)
-    {
-        head.at(0, 0, col, 0, K_WIDTH) = inputs[col];
-        head.at(0, 0, col, 0, K_HEIGHT) = inputs[col];
-    }
+    head.at(0, 0, 0, 0, K_WIDTH) = GetParam().input;
+    head.at(0, 0, 0, 0, K_HEIGHT) = GetParam().input;
 
     head.decode();
 
-    for (std::size_t col = 0; col < 3; ++col)
-    {
-        EXPECT_NEAR(head.box(0, col)[2], widths[col], K_TOLERANCE) << "column " << col;
-        EXPECT_NEAR(head.box(0, col)[3], heights[col], K_TOLERANCE) << "column " << col;
-    }
+    EXPECT_NEAR(head.box(0, 0)[2], GetParam().width, K_TOLERANCE);
+    EXPECT_NEAR(head.box(0, 0)[3], GetParam().height, K_TOLERANCE);
 }
+
+// An input of 0 gives no size, 0.5 the anchor itself and 1 four anchors.
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorDecodeActivatedSize,
+                         ::testing::Values(ActivatedSizeRow{"Zero", 0.0f, 0.0f, 0.0f},
+                                           ActivatedSizeRow{"Half", 0.5f, 0.125f, 0.25f},
+                                           ActivatedSizeRow{"One", 1.0f, 0.5f, 1.0f}),
+                         activated_size_name);
 
 /** @brief Tests that the Activated coding reads offsets, objectness and classes as they arrive. */
 TEST(Small_DetectAnchorDecode, ActivatedOffsetsAndScoresTakeNoLogistic)
@@ -331,8 +386,8 @@ TEST(Small_DetectAnchorDecode, ActivatedScaleTwoMapsZeroAndOnePastTheCellEdges)
     EXPECT_NEAR(head.box(0, 0)[1], 1.5f, K_TOLERANCE);
 }
 
-/** @brief Tests that decoded row (row * W + col) * A + a holds that cell and slot, per image. */
-TEST(Small_DetectAnchorDecode, RowsRunCellByCellThenByAnchorSlotInEveryImage)
+/** @brief Tests that a decoded row holds the cell and the slot its index names, in its image. */
+TEST_P(Small_DetectAnchorDecodeRow, ARowHoldsTheCellAndSlotItsIndexNames)
 {
     AnchorLayout layout;
     layout.anchors = {{0.1f, 0.2f}, {0.3f, 0.3f}, {0.5f, 0.6f}};
@@ -340,35 +395,31 @@ TEST(Small_DetectAnchorDecode, RowsRunCellByCellThenByAnchorSlotInEveryImage)
     HeadCase head = make_case({2, 2, 3}, make_options(1, HeadCoding::Logit, 1.0f), layout);
     head.at(1, 1, 2, 1, K_OBJECTNESS) = K_SATURATED;
     head.at(1, 1, 2, 1, K_FIRST_CLASS) = K_SATURATED;
+    const DecodedRow& row = GetParam();
 
     head.decode();
 
-    const float slot_widths[2] = {0.5f, 0.1f};
-    const float slot_heights[2] = {0.6f, 0.2f};
-    for (std::size_t image = 0; image < 2; ++image)
-    {
-        for (std::size_t row = 0; row < 2; ++row)
-        {
-            for (std::size_t col = 0; col < 3; ++col)
-            {
-                for (std::size_t slot = 0; slot < 2; ++slot)
-                {
-                    const std::size_t decoded = (row * 3 + col) * 2 + slot;
-                    const float* box = head.box(image, decoded);
-                    const bool marked = image == 1 && decoded == 11;
-                    SCOPED_TRACE(testing::Message() << "image " << image << " row " << decoded);
-
-                    EXPECT_NEAR(box[0], (static_cast<float>(col) + 0.5f) / 3.0f, K_TOLERANCE);
-                    EXPECT_NEAR(box[1], (static_cast<float>(row) + 0.5f) / 2.0f, K_TOLERANCE);
-                    EXPECT_NEAR(box[2], slot_widths[slot], K_TOLERANCE);
-                    EXPECT_NEAR(box[3], slot_heights[slot], K_TOLERANCE);
-                    EXPECT_NEAR(head.score(image, decoded)[0], marked ? 1.0f : 0.25f,
-                                K_TOLERANCE);
-                }
-            }
-        }
-    }
+    const float* box = head.box(row.image, row.index);
+    EXPECT_NEAR(box[0], row.x, K_TOLERANCE);
+    EXPECT_NEAR(box[1], row.y, K_TOLERANCE);
+    EXPECT_NEAR(box[2], row.width, K_TOLERANCE);
+    EXPECT_NEAR(box[3], row.height, K_TOLERANCE);
+    EXPECT_NEAR(head.score(row.image, row.index)[0], row.score, K_TOLERANCE);
 }
+
+// Index (row * 3 + col) * 2 + slot on a 2 by 3 grid; slot 0 is anchor 2 and slot 1 anchor 0.
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorDecodeRow,
+    ::testing::Values(
+        DecodedRow{"FirstCellFirstSlot", 0, 0, 0.5f / 3.0f, 0.5f / 2.0f, 0.5f, 0.6f, 0.25f},
+        DecodedRow{"FirstCellSecondSlot", 0, 1, 0.5f / 3.0f, 0.5f / 2.0f, 0.1f, 0.2f, 0.25f},
+        DecodedRow{"LastColumnOfTheFirstRow", 0, 4, 2.5f / 3.0f, 0.5f / 2.0f, 0.5f, 0.6f, 0.25f},
+        DecodedRow{"SecondRowSecondSlot", 0, 7, 0.5f / 3.0f, 1.5f / 2.0f, 0.1f, 0.2f, 0.25f},
+        DecodedRow{"FirstCellOfTheSecondImage", 1, 0, 0.5f / 3.0f, 0.5f / 2.0f, 0.5f, 0.6f,
+                   0.25f},
+        DecodedRow{"TheMarkedRowOfTheSecondImage", 1, 11, 2.5f / 3.0f, 1.5f / 2.0f, 0.1f, 0.2f,
+                   1.0f}),
+    decoded_row_name);
 
 /** @brief Tests that one layout decodes the same fractional size on a 13 and a 19 grid. */
 TEST(Small_DetectAnchorDecode, OneLayoutGivesTheSameFractionalSizeOnTwoGrids)
