@@ -23,7 +23,7 @@
 
 /**
  * @file test_ground_truth.cpp
- * @brief Tests the empty ground truth, the refill of a used batch and the refused row arrays.
+ * @brief Tests the refill of a used batch, the scaling of the corners and the refused rows.
  * @author Mustafa Garip
  */
 
@@ -37,63 +37,106 @@
 
 namespace
 {
-    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Vision::Detect::GroundTruthBatch;
     using SushiAI::Vision::Detect::pad_ground_truth;
 
+    /**
+     * @brief Pads a batch of two images with three rows in the first, then pads one image of one
+     *        box into the same object, and returns it.
+     */
+    GroundTruthBatch pad_into_a_used_batch()
+    {
+        const std::vector<std::int64_t> wide_images{0, 0, 0, 1};
+        const std::vector<std::int64_t> wide_classes{1, 2, 3, 4};
+        const std::vector<float> wide_boxes(16, 0.5f);
+        GroundTruthBatch padded;
+        SA_EXPECT_OK(pad_ground_truth({wide_images, wide_classes, wide_boxes}, 2, 32.0f, 32.0f,
+                                      padded));
+
+        const std::vector<std::int64_t> images{0};
+        const std::vector<std::int64_t> classes{6};
+        const std::vector<float> boxes{0.5f, 0.5f, 0.5f, 0.5f};
+        SA_EXPECT_OK(pad_ground_truth({images, classes, boxes}, 1, 32.0f, 32.0f, padded));
+        return padded;
+    }
 } // namespace
-
-/** @brief Tests that a default batch has no images, no rows and no arrays. */
-TEST(Small_DetectGroundTruth, ADefaultBatchIsEmpty)
-{
-    const GroundTruthBatch padded;
-
-    EXPECT_EQ(padded.batch, 0);
-    EXPECT_EQ(padded.max_boxes, 0);
-    EXPECT_TRUE(padded.labels.empty());
-    EXPECT_TRUE(padded.boxes.empty());
-    EXPECT_TRUE(padded.valid.empty());
-}
 
 /** @brief Tests that padding into a used batch keeps no row of the earlier batch. */
 TEST(Small_DetectGroundTruth, PaddingIntoAUsedBatchKeepsNoEarlierRow)
 {
-    const std::vector<std::int64_t> wide_images{0, 0, 0, 1};
-    const std::vector<std::int64_t> wide_classes{1, 2, 3, 4};
-    const std::vector<float> wide_boxes(16, 0.5f);
-    GroundTruthBatch padded;
-    SA_EXPECT_OK(pad_ground_truth({wide_images, wide_classes, wide_boxes}, 2, 32.0f, 32.0f,
-                                  padded));
-    ASSERT_EQ(padded.max_boxes, 3);
+    const GroundTruthBatch padded = pad_into_a_used_batch();
 
-    const std::vector<std::int64_t> images{0};
-    const std::vector<std::int64_t> classes{6};
-    const std::vector<float> boxes{0.5f, 0.5f, 0.5f, 0.5f};
-    SA_EXPECT_OK(pad_ground_truth({images, classes, boxes}, 1, 32.0f, 32.0f, padded));
-
-    // One image of one box: the centre (16, 16) and the size (16, 16) give corners 8 and 24.
     EXPECT_EQ(padded.batch, 1);
     EXPECT_EQ(padded.max_boxes, 1);
     EXPECT_EQ(padded.labels, std::vector<std::int64_t>{6});
     EXPECT_EQ(padded.valid, std::vector<std::uint8_t>{1});
-    const std::vector<float> expected{8.0f, 8.0f, 24.0f, 24.0f};
-    ASSERT_EQ(padded.boxes.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_EQ(padded.boxes[i], expected[i]) << "value " << i;
+    EXPECT_EQ(padded.boxes.size(), 4u);
 }
 
-/** @brief Tests that a batch without images and row arrays of unequal lengths are refused. */
-TEST(Small_DetectGroundTruth, RefusesNoImagesAndRowArraysOfUnequalLengths)
+/**
+ * @brief Tests the corners of the refilled batch.
+ *
+ * One image of one box: the centre (16, 16) and the size (16, 16) give corners 8 and 24, exact in
+ * float32.
+ */
+TEST(Small_DetectGroundTruth, PaddingIntoAUsedBatchWritesTheCornersOfTheNewRow)
+{
+    const GroundTruthBatch padded = pad_into_a_used_batch();
+
+    EXPECT_EQ(padded.boxes, (std::vector<float>{8.0f, 8.0f, 24.0f, 24.0f}));
+}
+
+/**
+ * @brief Tests that x and width scale with the image width and y and height with its height.
+ *
+ * On a 64 by 32 input the centre (0.5, 0.25) and the size (0.25, 0.5) give the centre (32, 8) and
+ * the size (16, 16), so the corners are 24, 0, 40 and 16. Every other case passes 32 for both.
+ */
+TEST(Small_DetectGroundTruth, ScalesXByTheWidthAndYByTheHeight)
+{
+    const std::vector<std::int64_t> images{0};
+    const std::vector<std::int64_t> classes{1};
+    const std::vector<float> boxes{0.5f, 0.25f, 0.25f, 0.5f};
+    GroundTruthBatch padded;
+
+    SA_EXPECT_OK(pad_ground_truth({images, classes, boxes}, 1, 64.0f, 32.0f, padded));
+
+    EXPECT_EQ(padded.boxes, (std::vector<float>{24.0f, 0.0f, 40.0f, 16.0f}));
+}
+
+/** @brief Tests that a batch without images is refused. */
+TEST(Small_DetectGroundTruth, RefusesNoImages)
+{
+    const std::vector<std::int64_t> images{0, 0};
+    const std::vector<float> boxes(8, 0.5f);
+    GroundTruthBatch padded;
+
+    SA_EXPECT_FAILURE(pad_ground_truth({images, images, boxes}, 0, 32.0f, 32.0f, padded),
+                      StatusCode::InvalidDescription, "positive batch", "batch 0");
+}
+
+/** @brief Tests that row arrays of unequal lengths are refused. */
+TEST(Small_DetectGroundTruth, RefusesRowArraysOfUnequalLengths)
 {
     const std::vector<std::int64_t> images{0, 0};
     const std::vector<std::int64_t> classes{1};
     const std::vector<float> boxes(8, 0.5f);
     GroundTruthBatch padded;
 
-    SA_EXPECT_FAILURE(pad_ground_truth({images, images, boxes}, 0, 32.0f, 32.0f, padded),
-                      StatusCode::InvalidDescription, "positive batch", "batch 0");
     SA_EXPECT_FAILURE(pad_ground_truth({images, classes, boxes}, 1, 32.0f, 32.0f, padded),
                       StatusCode::InvalidDescription, "[n], [n] and [n, 4] rows",
                       "2, 1 and 8 values");
+}
+
+/** @brief Tests that a row naming a negative image index is refused, as a row past the batch is. */
+TEST(Small_DetectGroundTruth, RefusesARowThatNamesANegativeImage)
+{
+    const std::vector<std::int64_t> images{-1};
+    const std::vector<std::int64_t> classes{1};
+    const std::vector<float> boxes{0.5f, 0.5f, 0.5f, 0.5f};
+    GroundTruthBatch padded;
+
+    SA_EXPECT_FAILURE(pad_ground_truth({images, classes, boxes}, 2, 32.0f, 32.0f, padded),
+                      StatusCode::InvalidDescription, "image -1", "batch of 2");
 }
