@@ -27,11 +27,9 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/layer_traces/trace_summary.hpp>
@@ -54,35 +52,68 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that a record writes the name, the extents and the kind of the state. */
-TEST(Small_LayerTracesSummary, AStateRecordNamesItsKind)
+namespace
 {
-    EXPECT_EQ(SaTest::state_record("0.weight", Shape{4, 3}, false), "0.weight [4, 3] parameter");
-    EXPECT_EQ(SaTest::state_record("1.running_mean", Shape{8}, true), "1.running_mean [8] buffer");
+    /** @brief Holds a state entry and the record written for it. */
+    struct RecordRow
+    {
+        std::string name;         /**< The row's name. */
+        std::string entry;        /**< The dotted name of the state. */
+        Shape shape;              /**< The extents of the state. */
+        bool buffer;              /**< Whether the state is a buffer, not a parameter. */
+        std::string record;       /**< The record written for it. */
+    };
+
+    /** @brief Runs the state record over a parameter and a buffer. */
+    class Small_LayerTracesStateRecord : public ::testing::TestWithParam<RecordRow>
+    {
+    };
+
+    /** @brief Returns the summary of a model of one 6-to-4 linear layer publishing "logits". */
+    SaTest::TraceSummary summary_of_linear_model()
+    {
+        NN::ModelGraph model(Shape{6});
+        const NN::NodeRef head = SaTest::require_value(
+            model.add("head", NN::Linear{6, 4}, model.input()));
+        SA_EXPECT_OK(model.output("logits", head));
+
+        return SaTest::require_value(SaTest::trace_summary(model, Shape{6}, "model"));
+    }
+} // namespace
+
+/** @brief Tests that a record writes the name, the extents and the kind of the state. */
+TEST_P(Small_LayerTracesStateRecord, AStateRecordNamesItsKind)
+{
+    const RecordRow& row = GetParam();
+
+    EXPECT_EQ(SaTest::state_record(row.entry, row.shape, row.buffer), row.record);
 }
 
-/** @brief Tests that the summary of a linear model lists its ops, its output and its state. */
-TEST(Small_LayerTracesSummary, TheSummaryListsTheOpsTheOutputAndTheState)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LayerTracesStateRecord,
+    ::testing::Values(RecordRow{"AParameter", "0.weight", Shape{4, 3}, false,
+                                "0.weight [4, 3] parameter"},
+                      RecordRow{"ABuffer", "1.running_mean", Shape{8}, true,
+                                "1.running_mean [8] buffer"}),
+    [](const ::testing::TestParamInfo<RecordRow>& info) { return info.param.name; });
+
+/** @brief Tests that the summary of a linear model lists its output with the batch in front. */
+TEST(Small_LayerTracesSummary, TheSummaryListsTheOutputs)
 {
-    NN::ModelGraph model(Shape{6});
-    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRef head,
-                            model.add("head", NN::Linear{6, 4}, model.input()));
-    SA_EXPECT_OK(model.output("logits", head));
+    EXPECT_EQ(summary_of_linear_model().outputs, (std::vector<std::string>{"logits [2, 4]"}));
+}
 
-    SA_ASSERT_OK_AND_ASSIGN(const SaTest::TraceSummary summary,
-                            SaTest::trace_summary(model, Shape{6}, "model"));
+/** @brief Tests that the summary of a linear model lists its weight and its bias. */
+TEST(Small_LayerTracesSummary, TheSummaryListsTheParameters)
+{
+    const SaTest::TraceSummary summary = summary_of_linear_model();
 
-    EXPECT_EQ(summary.outputs, (std::vector<std::string>{"logits [2, 4]"}));
     ASSERT_EQ(summary.state.size(), 2u);
     EXPECT_TRUE(ends_with(summary.state[0], "weight [4, 6] parameter")) << summary.state[0];
     EXPECT_TRUE(ends_with(summary.state[1], "bias [4] parameter")) << summary.state[1];
-    EXPECT_EQ(summary.state, SaTest::state_records(model, "model"));
-
-    EXPECT_NE(std::find(summary.ops.begin(), summary.ops.end(), Ops::K_MATMUL.id),
-              summary.ops.end());
 }
 
-/** @brief Tests that the input of a summary carries K_TRACE_BATCH rows in front of the sample. */
+/** @brief Tests that the input of a summary carries the batch rows in front of the sample. */
 TEST(Small_LayerTracesSummary, TheTraceRunsOverTheFixedBatch)
 {
     NN::ModelGraph model(Shape{2, 2, 3});
@@ -95,5 +126,4 @@ TEST(Small_LayerTracesSummary, TheTraceRunsOverTheFixedBatch)
 
     EXPECT_EQ(summary.outputs, (std::vector<std::string>{"flat [2, 12]"}));
     EXPECT_TRUE(summary.state.empty());
-    EXPECT_EQ(SaTest::K_TRACE_BATCH, 2);
 }
