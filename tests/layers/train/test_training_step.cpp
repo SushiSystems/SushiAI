@@ -219,8 +219,8 @@ TEST_F(Medium_TrainingStep, PerStepKeepsTheOptimizerOutOfThePlan)
     EXPECT_EQ(step->step().run_count(), 2u);
 }
 
-/** @brief Tests that the default step records the optimizer and compiles one part. */
-TEST_F(Medium_TrainingStep, TheDefaultStepHoldsTheOptimizerInOnePart)
+/** @brief Tests that the default step records the optimizer into its plan. */
+TEST_F(Medium_TrainingStep, TheDefaultStepHoldsTheOptimizerInThePlan)
 {
     ClassifierParts parts;
     parts.prepare(backend());
@@ -233,8 +233,38 @@ TEST_F(Medium_TrainingStep, TheDefaultStepHoldsTheOptimizerInOnePart)
         TrainingStep::make(backend(), parts.built.graph, *parts.pool, *optimizer, {}));
 
     EXPECT_TRUE(step->optimizer_is_in_plan());
+}
+
+/** @brief Tests that the default step has no host stage and so no lead part. */
+TEST_F(Medium_TrainingStep, TheDefaultStepHasNoHostStageAndNoLeadPart)
+{
+    ClassifierParts parts;
+    parts.prepare(backend());
+    ASSERT_TRUE(parts.ready);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(backend(), parts.slots, Optim::SGDOptions{}));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TrainingStep> step,
+        TrainingStep::make(backend(), parts.built.graph, *parts.pool, *optimizer, {}));
+
     EXPECT_FALSE(step->has_host_stage());
     EXPECT_EQ(step->lead(), nullptr);
+}
+
+/** @brief Tests that one run of the default step counts once. */
+TEST_F(Medium_TrainingStep, OneRunOfTheDefaultStepCountsOnce)
+{
+    ClassifierParts parts;
+    parts.prepare(backend());
+    ASSERT_TRUE(parts.ready);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(backend(), parts.slots, Optim::SGDOptions{}));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TrainingStep> step,
+        TrainingStep::make(backend(), parts.built.graph, *parts.pool, *optimizer, {}));
+
     SA_EXPECT_OK(step->run());
     EXPECT_EQ(step->step().run_count(), 1u);
 }
@@ -291,11 +321,8 @@ TEST_F(Medium_TrainingStep, RestoringTheRunCountSetsEveryPart)
     EXPECT_EQ(step->step().run_count(), 5u);
 }
 
-/**
- * @brief Tests that before_update records ahead of the optimizer and after_update behind it,
- *        and that both follow every replay.
- */
-TEST_F(Medium_TrainingStep, BeforeAndAfterUpdateRecordAroundTheOptimizer)
+/** @brief Tests that before_update records ahead of the optimizer and after_update behind it. */
+TEST_F(Medium_TrainingStep, BeforeUpdateRecordsAheadOfTheOptimizerAndAfterUpdateBehindIt)
 {
     ClassifierParts parts;
     parts.prepare(backend());
@@ -316,9 +343,29 @@ TEST_F(Medium_TrainingStep, BeforeAndAfterUpdateRecordAroundTheOptimizer)
     EXPECT_EQ(after.records, 1);
     EXPECT_FALSE(before.after_optimizer);
     EXPECT_TRUE(after.after_optimizer);
+}
+
+/** @brief Tests that both recorders follow every replay of the step. */
+TEST_F(Medium_TrainingStep, BothRecordersFollowEveryReplay)
+{
+    ClassifierParts parts;
+    parts.prepare(backend());
+    ASSERT_TRUE(parts.ready);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(backend(), parts.slots, Optim::SGDOptions{}));
+    OrderProbe before(*optimizer);
+    OrderProbe after(*optimizer);
+    TrainingStepOptions options;
+    options.before_update = &before;
+    options.after_update = &after;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TrainingStep> step,
+                            TrainingStep::make(backend(), parts.built.graph, *parts.pool,
+                                               *optimizer, {}, options));
 
     SA_EXPECT_OK(step->run());
     SA_EXPECT_OK(step->run());
+
     EXPECT_EQ(before.replays_begun, 2);
     EXPECT_EQ(before.replays_ended, 2);
     EXPECT_EQ(after.replays_begun, 2);

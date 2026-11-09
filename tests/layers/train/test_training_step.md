@@ -38,10 +38,17 @@ An AdamW with separate update kernels is not replay invariant. Under the default
 The same optimizer under `PerStep` is accepted. `optimizer_is_in_plan()` is false, `optimizer()`
 is the optimizer passed, and two runs leave a run count of 2.
 
-## TheDefaultStepHoldsTheOptimizerInOnePart
+## TheDefaultStepHoldsTheOptimizerInThePlan
 
-A fused SGD under the default options is recorded into the plan, the step has no host stage and
-no lead part, and one run leaves a run count of 1.
+A fused SGD under the default options is recorded into the plan.
+
+## TheDefaultStepHasNoHostStageAndNoLeadPart
+
+The same step has no host stage and no lead part.
+
+## OneRunOfTheDefaultStepCountsOnce
+
+One run of the same step leaves a run count of 1.
 
 ## AHostStageRunsTheHostWorkBetweenTheTwoParts
 
@@ -54,11 +61,14 @@ the rest has run once.
 On a fresh step with a host stage, `restore_run_count(5)` sets the run count of the lead part
 and of the rest to 5.
 
-## BeforeAndAfterUpdateRecordAroundTheOptimizer
+## BeforeUpdateRecordsAheadOfTheOptimizerAndAfterUpdateBehindIt
 
 With a probe as `before_update` and another as `after_update`, each records once. The first sees
-the optimizer not yet recorded and the second sees it recorded. Two runs call each probe's two
-replay hooks twice.
+the optimizer not yet recorded and the second sees it recorded.
+
+## BothRecordersFollowEveryReplay
+
+Two runs call each probe's two replay hooks twice.
 
 ## AfterUpdateIsRefusedBesideAPerStepOptimizer
 
