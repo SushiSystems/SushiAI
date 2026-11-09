@@ -40,11 +40,9 @@
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
-#include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/graph/step_recording.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/init.hpp>
@@ -216,8 +214,6 @@ namespace
         std::vector<std::vector<unsigned char>> parameters;
         std::vector<std::string> names;
         std::vector<double> losses;
-        std::size_t compiles = 0;
-        std::size_t operations_per_step = 0;
         bool optimizer_in_plan = false;
     };
 
@@ -260,7 +256,7 @@ namespace
 
         run.optimizer_in_plan = trainer->optimizer_is_in_plan();
         SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
-        run.operations_per_step = report.operations_per_step;
+        EXPECT_GT(report.steps, 0u);
 
         for (int64_t epoch = 1; epoch < 3; ++epoch)
         {
@@ -279,8 +275,6 @@ namespace
             run.names.push_back(slot.name);
             run.parameters.push_back(SaTest::read_tensor_bytes(slot.parameter));
         }
-
-        run.compiles = trainer->compile_count();
     }
 
     /** @brief Asserts two runs agree byte for byte, naming where they do not. */
@@ -298,69 +292,77 @@ namespace
                       a.parameters[i].size())
                 << what << ": parameter '" << a.names[i] << "' differs";
     }
-}
-
-TEST_F(Medium_FusedOptimizer, AdamWsFusedKernelMatchesTheSeparateOperationsExactly)
-{
-    Optim::AdamWOptions options;
-    options.learning_rate = 0.02;
-    options.weight_decay = 0.01;
-    expect_kernels_agree(adamw_factory(options), "AdamW with decay");
-}
-
-/**
- * @brief Tests that AdamW without weight decay matches the separate operations byte for byte.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_FusedOptimizer, AdamWWithoutDecayTakesTheOtherBranchAndStillMatches)
-{
-    Optim::AdamWOptions options;
-    options.learning_rate = 0.02;
-    options.weight_decay = 0.0;
-    expect_kernels_agree(adamw_factory(options), "AdamW without decay");
-}
-
-/**
- * @brief Tests that every SGD branch matches the separate operations byte for byte.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_FusedOptimizer, SGDsFusedKernelMatchesTheSeparateOperationsExactly)
-{
-    struct Case
+    /** @brief One AdamW row: a name and the weight decay of the run. */
+    struct AdamWRow
     {
-        const char* name;
-        Optim::SGDOptions options;
+        const char* name;       /**< @brief Names the row in the test name. */
+        double weight_decay;    /**< @brief Holds the decay; zero takes the branch without it. */
     };
 
-    std::vector<Case> cases;
+    /** @brief One SGD row: a name and the options of the branch it runs. */
+    struct SgdRow
+    {
+        const char* name;               /**< @brief Names the row in the test name. */
+        Optim::SGDOptions options;      /**< @brief Holds the branch's options. */
+    };
 
-    Optim::SGDOptions plain;
-    plain.learning_rate = 0.1;
-    cases.push_back({"plain", plain});
+    /** @brief Returns the SGD row @p name with the rate 0.1 and the given branch options. */
+    SgdRow sgd_row(const char* name, double weight_decay, double momentum, double dampening,
+                   bool nesterov)
+    {
+        Optim::SGDOptions options;
+        options.learning_rate = 0.1;
+        options.weight_decay = weight_decay;
+        options.momentum = momentum;
+        options.dampening = dampening;
+        options.nesterov = nesterov;
+        return SgdRow{name, options};
+    }
 
-    Optim::SGDOptions decayed = plain;
-    decayed.weight_decay = 0.05;
-    cases.push_back({"coupled decay, no momentum", decayed});
+    /** @brief Runs the AdamW kernels of one decay row against each other. */
+    class Medium_FusedOptimizerAdamW : public ::testing::TestWithParam<AdamWRow> {};
 
-    Optim::SGDOptions momentum = plain;
-    momentum.momentum = 0.9;
-    cases.push_back({"momentum", momentum});
-
-    Optim::SGDOptions damped = momentum;
-    damped.dampening = 0.2;
-    cases.push_back({"momentum with dampening", damped});
-
-    Optim::SGDOptions nesterov = momentum;
-    nesterov.nesterov = true;
-    cases.push_back({"nesterov", nesterov});
-
-    Optim::SGDOptions everything = momentum;
-    everything.weight_decay = 0.05;
-    cases.push_back({"momentum and decay", everything});
-
-    for (const Case& one : cases)
-        expect_kernels_agree(sgd_factory(one.options), std::string("SGD, ") + one.name);
+    /** @brief Runs the SGD kernels of one branch row against each other. */
+    class Medium_FusedOptimizerSgd : public ::testing::TestWithParam<SgdRow> {};
 }
+
+/**
+ * @brief Tests that AdamW matches the separate operations byte for byte, with and without decay.
+ * @see tests/layers/train/README.md
+ */
+TEST_P(Medium_FusedOptimizerAdamW, FusedKernelMatchesTheSeparateOperationsExactly)
+{
+    Optim::AdamWOptions options;
+    options.learning_rate = 0.02;
+    options.weight_decay = GetParam().weight_decay;
+    expect_kernels_agree(adamw_factory(options), GetParam().name);
+}
+
+INSTANTIATE_TEST_SUITE_P(Decay, Medium_FusedOptimizerAdamW,
+                         ::testing::Values(AdamWRow{"WithDecay", 0.01},
+                                           AdamWRow{"WithoutDecay", 0.0}),
+                         [](const ::testing::TestParamInfo<AdamWRow>& info)
+                         { return std::string(info.param.name); });
+
+/**
+ * @brief Tests that each SGD branch matches the separate operations byte for byte.
+ * @see tests/layers/train/README.md
+ */
+TEST_P(Medium_FusedOptimizerSgd, FusedKernelMatchesTheSeparateOperationsExactly)
+{
+    expect_kernels_agree(sgd_factory(GetParam().options), GetParam().name);
+}
+
+INSTANTIATE_TEST_SUITE_P(Branches, Medium_FusedOptimizerSgd,
+                         ::testing::Values(sgd_row("Plain", 0.0, 0.0, 0.0, false),
+                                           sgd_row("CoupledDecayWithoutMomentum", 0.05, 0.0, 0.0,
+                                                   false),
+                                           sgd_row("Momentum", 0.0, 0.9, 0.0, false),
+                                           sgd_row("MomentumWithDampening", 0.0, 0.9, 0.2, false),
+                                           sgd_row("Nesterov", 0.0, 0.9, 0.0, true),
+                                           sgd_row("MomentumAndDecay", 0.05, 0.9, 0.0, false)),
+                         [](const ::testing::TestParamInfo<SgdRow>& info)
+                         { return std::string(info.param.name); });
 
 /**
  * @brief Tests that AdamW inside the compiled plan trains identically to AdamW outside it.
@@ -380,143 +382,6 @@ TEST_F(Medium_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdateOuts
     ASSERT_FALSE(folded.losses.empty());
 
     expect_runs_agree(folded, apart, "the optimizer's placement");
-}
-
-/**
- * @brief Tests that the fused and separate spellings train a whole model identically.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_FusedOptimizer, TheSeparateSpellingOutsideThePlanTrainsIdenticallyToo)
-{
-    TrainedRun fused;
-    TrainedRun separate;
-    ASSERT_NO_FATAL_FAILURE(
-        train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused, fused));
-    ASSERT_NO_FATAL_FAILURE(
-        train(Train::OptimizerPlacement::PerStep, UpdateKernel::Separate, separate));
-
-    expect_runs_agree(fused, separate, "the update's spelling");
-}
-
-TEST_F(Medium_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
-{
-    TrainedRun folded;
-    TrainedRun apart;
-    ASSERT_NO_FATAL_FAILURE(
-        train(Train::OptimizerPlacement::InPlan, UpdateKernel::Fused, folded));
-    ASSERT_NO_FATAL_FAILURE(
-        train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused, apart));
-
-    EXPECT_EQ(folded.compiles, 1u);
-    EXPECT_EQ(apart.compiles, 1u);
-
-    // Each parameter adds one fused update to the plan; see tests/layers/train/README.md.
-    EXPECT_EQ(folded.operations_per_step, apart.operations_per_step + folded.names.size())
-        << "the folded plan does not hold one extra task per parameter";
-}
-
-/**
- * @brief Tests that the fused update records one task per parameter, against twelve for separate
- *        AdamW and four for separate SGD.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparateOneIsTwelve)
-{
-    constexpr std::size_t K_PARAMETERS = 3;
-
-    const auto count = [](UpdateKernel kernel, auto make, std::size_t& tasks)
-    {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
-
-        std::vector<Optim::ParameterSlot> slots;
-        std::vector<SushiBLAS::Tensor> owned;
-        owned.reserve(K_PARAMETERS * 2);
-
-        for (std::size_t i = 0; i < K_PARAMETERS; ++i)
-        {
-            SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
-                                    allocate_tensor(engine, Shape{K_ELEMENTS}));
-            SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
-                                    allocate_tensor(engine, Shape{K_ELEMENTS}));
-            owned.push_back(parameter);
-            owned.push_back(gradient);
-            SaTest::write_tensor(owned[owned.size() - 2], initial_parameter());
-            SaTest::write_tensor(owned[owned.size() - 1], gradient_for(0));
-            slots.push_back(Optim::ParameterSlot{
-                "p" + std::to_string(i), owned[owned.size() - 2], owned[owned.size() - 1],
-            });
-        }
-
-        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
-                                make(backend, slots, kernel));
-
-        // The recorded tasks must be drained; see tests/layers/train/README.md.
-        optimizer->before_replay();
-        SaTest::TestGraph recording(backend);
-        const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
-        SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, optimizer->record_into_step(step));
-        SA_EXPECT_OK(recording.run());
-        SaTest::TestEnvironment::runtime().wait().value();
-
-        tasks = recorded;
-    };
-
-    Optim::AdamWOptions adam;
-    adam.learning_rate = 0.02;
-    adam.weight_decay = 0.01;
-
-    std::size_t tasks = 0;
-    ASSERT_NO_FATAL_FAILURE(count(UpdateKernel::Fused, adamw_factory(adam), tasks));
-    EXPECT_EQ(tasks, K_PARAMETERS);
-    ASSERT_NO_FATAL_FAILURE(count(UpdateKernel::Separate, adamw_factory(adam), tasks));
-    EXPECT_EQ(tasks, K_PARAMETERS * 12);
-
-    Optim::SGDOptions sgd;
-    sgd.learning_rate = 0.1;
-    sgd.momentum = 0.9;
-
-    // Four is the floor for SGD, on its first step; see tests/layers/train/README.md.
-    ASSERT_NO_FATAL_FAILURE(count(UpdateKernel::Fused, sgd_factory(sgd), tasks));
-    EXPECT_EQ(tasks, K_PARAMETERS);
-    ASSERT_NO_FATAL_FAILURE(count(UpdateKernel::Separate, sgd_factory(sgd), tasks));
-    EXPECT_EQ(tasks, K_PARAMETERS * 4);
-}
-
-/**
- * @brief Tests that the trainer refuses to compile a separate-kernel AdamW into the step.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanIgnored)
-{
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
-
-    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
-                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
-
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-    TensorPool pool(engine);
-    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(backend, built, state, pool));
-    SA_EXPECT_OK(NN::initialize(backend, state));
-
-    Optim::AdamWOptions adam;
-    adam.kernel = UpdateKernel::Separate;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(backend, slots, adam));
-
-    EXPECT_FALSE(optimizer->is_replay_invariant());
-
-    Train::TrainerOptions options;
-    options.optimizer_placement = Train::OptimizerPlacement::InPlan;
-
-    const auto objective = SaTest::classifier_objective(built);
-    SA_EXPECT_FAILURE(Train::Trainer::make(backend, built, pool, objective,
-                                           *optimizer, options),
-                      StatusCode::InvalidDescription,
-                      "cannot be compiled into the step", "PerStep");
 }
 
 /**

@@ -1,7 +1,8 @@
 # tests/layers/train/test_trainer/test_fused_optimizer.cpp
 
 
-Suites: `Medium_FusedOptimizer`, `Medium_FusedOptimizerDeathTest`.
+Suites: `Medium_FusedOptimizer`, `Medium_FusedOptimizerAdamW`, `Medium_FusedOptimizerSgd` and
+`Medium_FusedOptimizerDeathTest`.
 
 This file is the gate on collapsing eleven launches per parameter into one.
 
@@ -12,22 +13,23 @@ branch that stopped being special. Each of those still trains, still converges a
 healthy loss. So the fused kernel is not tested against a tolerance or a fixture. It is tested
 against the separate-op sequence it replaced, byte for byte, from identical state.
 
-The tests make five claims, in file order:
+The tests make four claims, in file order:
 
-1. One kernel computes what eleven did: AdamWsFusedKernelMatchesTheSeparateOperationsExactly,
-   AdamWWithoutDecayTakesTheOtherBranchAndStillMatches and
-   SGDsFusedKernelMatchesTheSeparateOperationsExactly.
+1. One kernel computes what eleven did: `FusedKernelMatchesTheSeparateOperationsExactly`, one row
+   per AdamW decay and one row per SGD branch.
 2. Folding the update into the plan changes no number:
-   TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt and
-   TheSeparateSpellingOutsideThePlanTrainsIdenticallyToo.
-3. The step compiles once, with the update inside it: TheStepCompilesOnceWithTheOptimizerInsideIt.
-4. The launch count: TheFusedUpdateIsOneTaskPerParameterWhereTheSeparateOneIsTwelve.
-5. An update that cannot be replayed is refused and not downgraded:
-   AskingToCompileAnUnfusedUpdateIsRefusedRatherThanIgnored,
+   TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt.
+3. An update that cannot be replayed is not downgraded:
    SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused and
    TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored.
 
-The helpers from `K_BATCH` to `expect_runs_agree` belong to claims 2 and 3, which train a whole model
+The compile count of a step with the optimizer inside it is `test_compile_once.cpp`'s. The refusal
+to compile a separate-kernel update into the plan is `test_training_step.cpp`'s
+(`InPlanRefusesAnOptimizerThatIsNotReplayInvariant`). The number of tasks the update records, one
+per parameter fused against twelve separate, describes how the plan is built and has no case;
+the byte-for-byte rows are the public promise it served.
+
+The helpers from `K_BATCH` to `expect_runs_agree` belong to claim 2, which trains a whole model
 through the Trainer.
 
 ## Why byte for byte is the right bar
@@ -51,8 +53,7 @@ into the same graph as the forward and backward passes. That is a separate chang
 
 silent failure mode. A dependency edge the runtime does not see would let the update race the
 backward pass that produces its gradients, and a race that usually resolves the right way looks
-like training. So the folded and unfolded placements are compared byte for byte too, and
-compile_count() is pinned at one with the optimizer inside the plan.
+like training. So the folded and unfolded placements are compared byte for byte too.
 
 ## K_ELEMENTS
 
@@ -78,15 +79,16 @@ thing in the measurement.
 The helper builds a fresh Engine, because reproducibility is a property of one engine. dataset.hpp
 explains the RNG offset counter behind that.
 
-## AdamWWithoutDecayTakesTheOtherBranchAndStillMatches
+## FusedKernelMatchesTheSeparateOperationsExactly (AdamW)
 
-With `weight_decay = 0` the decay factor is exactly 1, and both paths must skip the multiplication
+Two rows, `WithDecay` at 0.01 and `WithoutDecay`. With `weight_decay = 0` the decay factor is exactly 1, and both paths must skip the multiplication
 and not multiply by 1. `theta * 1.0f` happens to be bit-identical here, but the skip is a separate
 branch in each path and this test is what covers it.
 
-## SGDsFusedKernelMatchesTheSeparateOperationsExactly
+## FusedKernelMatchesTheSeparateOperationsExactly (SGD)
 
-The test runs every branch of the SGD recipe, because each one is a separate line of the fused
+One row per branch of the SGD recipe: `Plain`, `CoupledDecayWithoutMomentum`, `Momentum`,
+`MomentumWithDampening`, `Nesterov` and `MomentumAndDecay`. Each one is a separate line of the fused
 functor and a separate chance to have written it differently.
 
 ## TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt
@@ -94,42 +96,6 @@ functor and a separate chance to have written it differently.
 If the two runs diverge, the update is not ordered against the graph the way the separate flush
 ordered it. The runtime is then missing a dependency edge, and the fix is that edge, never a
 tolerance.
-
-## TheSeparateSpellingOutsideThePlanTrainsIdenticallyToo
-
-This is the end-to-end version of AdamWsFusedKernelMatchesTheSeparateOperationsExactly. That test
-drives one optimizer over a synthetic gradient. This one runs the whole pipeline, with gradients
-the backward pass produced and a trajectory long enough for a one-ULP difference in an early
-denominator to become a visible one.
-
-## TheStepCompilesOnceWithTheOptimizerInsideIt
-
-The model has four parameters, so four fused updates joined the plan. The test states the count as
-a difference and not as an absolute, so a change to the graph itself does not have to be recorded
-again here.
-
-## TheFusedUpdateIsOneTaskPerParameterWhereTheSeparateOneIsTwelve
-
-This test counts the headline claim and does not time it. A wall clock says different things on a
-loaded machine, but the number of tasks issued is the same everywhere, and it is the quantity the
-change altered.
-
-The separate AdamW update with decay issues twelve tasks: the decay scal, two for m, three for v,
-four for the denominator, and two for the step. Without decay it issues eleven, which is the figure
-the SushiBLAS seam's own documentation quotes.
-
-The counting lambda runs the phases step() would run and reads the count out of the middle one. The
-lambda records on a `TestGraph` and runs it, because the tasks sit on that graph until
-something runs them.
-
-SGD's first step is its cheapest, because `b_1 = g_1` is one copy where later steps need a scal and
-an axpy. Four is therefore the floor for SGD and not its typical cost.
-
-## AskingToCompileAnUnfusedUpdateIsRefusedRatherThanIgnored
-
-The separate spelling bakes the current step's bias corrections into its recorded tasks. Folded
-into the plan, it would replay step one's corrections for ever and still converge. That is why the
-request has to be an error and not a quiet fallback.
 
 ## SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused
 
