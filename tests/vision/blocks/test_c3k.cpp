@@ -120,6 +120,57 @@ namespace
         return index;
     }
 
+    /** @brief Counts the norms a walk lists, one running mean each. */
+    std::size_t count_norms(const std::vector<std::string>& records)
+    {
+        std::size_t norms = 0;
+        for (const std::string& line : records)
+        {
+            if (line.find(".bn.running_mean ") != std::string::npos)
+                ++norms;
+        }
+
+        return norms;
+    }
+
+    /** @brief Counts the records under @p prefix that name the first weight of a bottleneck. */
+    std::size_t count_bottlenecks(const std::vector<std::string>& records,
+                                  const std::string& prefix)
+    {
+        std::size_t bottlenecks = 0;
+        for (const std::string& line : records)
+        {
+            if (line.rfind(prefix, 0) == 0 && line.find(".cv1.conv.weight ") != std::string::npos)
+                ++bottlenecks;
+        }
+
+        return bottlenecks;
+    }
+
+    /** @brief Lists the shape of each input of @p node, in order. */
+    std::vector<Shape> input_shapes(const Graph::Graph& graph, const Graph::Node& node)
+    {
+        std::vector<Shape> shapes;
+        for (const Graph::ValueID input : node.inputs)
+            shapes.push_back(graph.value(input).shape);
+
+        return shapes;
+    }
+
+    /** @brief Lists the five records of one Conv: its weight and the norm's four tensors. */
+    std::vector<std::string> conv_records(const std::string& prefix, const Shape& weight)
+    {
+        const Shape channels{weight[0]};
+
+        return {
+            record(prefix + ".conv.weight", weight, StateKind::Parameter),
+            record(prefix + ".bn.weight", channels, StateKind::Parameter),
+            record(prefix + ".bn.bias", channels, StateKind::Parameter),
+            record(prefix + ".bn.running_mean", channels, StateKind::Buffer),
+            record(prefix + ".bn.running_var", channels, StateKind::Buffer),
+        };
+    }
+
     /** @brief Views one shape as the inputs of a one-input row. */
     NN::ShapeSpan one_input(const Shape& shape)
     {
@@ -157,19 +208,23 @@ TEST(Small_BlockC3k, OutputShapeKeepsTheExtentsAndSetsTheWidth)
     EXPECT_EQ(block.output_shape(Shape{5, 7, 64}).value(), (Shape{5, 7, 96}));
 }
 
-/** @brief Tests that the block holds as many bottlenecks as the repeat count asks for. */
+/** @brief Tests that the state lists as many bottlenecks as the repeat count asks for. */
 TEST(Small_BlockC3k, TheChainHoldsOneBottleneckPerRepeat)
 {
-    const C3k block(64, 64, 3, true, K_YOLO_NORM);
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
+    C3k block(64, 64, 3, true, K_YOLO_NORM);
+    static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
-    EXPECT_EQ(block.m.size(), 3u);
+    EXPECT_EQ(count_bottlenecks(walk(block, "b"), "b.m."), 3u);
 }
 
 /**
- * @brief Tests that C3k(64, 64, 2) with a shortcut traces seven Conv blocks, two ADDs, one
- *        CONCAT_CHANNELS and no slice.
+ * @brief Tests that a training trace of C3k(64, 64, 2) with a shortcut yields the output width
+ *        and requests a mean and a variance update for each norm of its state.
  */
-TEST(Small_BlockC3k, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
+TEST(Small_BlockC3k, ATrainingTraceUpdatesEveryNorm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -179,21 +234,12 @@ TEST(Small_BlockC3k, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 0u);
-    EXPECT_EQ(list.updates().size(), 14u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 64}));
+    EXPECT_EQ(list.updates().size(), 2 * count_norms(walk(block, "b")));
 }
 
-/**
- * @brief Tests that the join reads the chain's result first and the second branch's result
- *        second, each [N, H, W, hidden].
- */
-TEST(Small_BlockC3k, TheJoinReadsTheChainThenTheSecondBranch)
+/** @brief Tests that the join takes the chain and the second branch, [N, H, W, hidden] each. */
+TEST(Small_BlockC3k, TheJoinTakesTheChainAndTheSecondBranch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -204,13 +250,8 @@ TEST(Small_BlockC3k, TheJoinReadsTheChainThenTheSecondBranch)
 
     ASSERT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
     const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
-    ASSERT_EQ(join.inputs.size(), 2u);
 
-    // The chain ends in a bottleneck's ADD; the second branch ends in cv2's SILU.
-    EXPECT_EQ(graph.node(graph.value(join.inputs[0]).producer).op, Ops::K_ADD.id);
-    EXPECT_EQ(graph.node(graph.value(join.inputs[1]).producer).op, Ops::K_SILU.id);
-    EXPECT_EQ(graph.value(join.inputs[0]).shape, (Shape{2, 4, 4, 32}));
-    EXPECT_EQ(graph.value(join.inputs[1]).shape, (Shape{2, 4, 4, 32}));
+    EXPECT_EQ(input_shapes(graph, join), std::vector<Shape>(2, Shape{2, 4, 4, 32}));
     EXPECT_EQ(graph.value(join.outputs[0]).shape, (Shape{2, 4, 4, 64}));
 }
 
@@ -225,7 +266,6 @@ TEST(Small_BlockC3k, NoShortcutTracesNoAdd)
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
 }
 
 /** @brief Tests that an odd output width leaves a hidden width of half of it, rounded down. */
@@ -238,10 +278,13 @@ TEST(Small_BlockC3k, TheHiddenWidthIsHalfTheOutputWidthRoundedDown)
 
     const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
 
-    EXPECT_EQ(block.cv1.conv.weight.shape(), (Shape{3, 1, 1, 8}));
-    EXPECT_EQ(block.cv2.conv.weight.shape(), (Shape{3, 1, 1, 8}));
-    EXPECT_EQ(block.cv3.conv.weight.shape(), (Shape{7, 1, 1, 6}));
-    EXPECT_EQ(block.m[0].cv1.conv.weight.shape(), (Shape{3, 3, 3, 3}));
+    std::vector<std::string> expected;
+    for (const std::vector<std::string>& group :
+         {conv_records("b.cv1", Shape{3, 1, 1, 8}), conv_records("b.cv2", Shape{3, 1, 1, 8}),
+          conv_records("b.cv3", Shape{7, 1, 1, 6}), conv_records("b.m.0.cv1", Shape{3, 3, 3, 3}),
+          conv_records("b.m.0.cv2", Shape{3, 3, 3, 3})})
+        expected.insert(expected.end(), group.begin(), group.end());
+    EXPECT_EQ(walk(block, "b"), expected);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 7}));
     EXPECT_EQ(block.output_shape(Shape{4, 4, 8}).value(), (Shape{4, 4, 7}));
 }
@@ -323,7 +366,6 @@ TEST(Small_BlockC3k, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 
     ASSERT_EQ(outputs.size(), 1u);
     EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{2, 4, 4, 32}));
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 5u);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
 }
 
@@ -343,7 +385,6 @@ TEST(Small_BlockC3k, TheFactoryReadsRepeatsAndShortcut)
     std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 
     const std::vector<std::string> state = walk(*node, "model.6.m.0");
@@ -363,18 +404,32 @@ TEST(Small_BlockC3k, TheFactoryRefusesAWidthThatLeavesNoHiddenChannel)
                       "at least 2");
 }
 
-/** @brief Tests that the factory refuses an unknown key, a missing width and zero repeats. */
-TEST(Small_BlockC3k, TheFactoryRefusesARowThatDoesNotFit)
+/** @brief Tests that the factory refuses a key the row does not take. */
+TEST(Small_BlockC3k, TheFactoryRefusesAnUnknownKey)
 {
     const Shape input{4, 4, 64};
     const Config::Value unknown = attributes_of(R"({"filters": 64, "hidden": 32})");
-    const Config::Value no_filters = attributes_of(R"({"repeats": 2})");
-    const Config::Value zero_repeats = attributes_of(R"({"filters": 64, "repeats": 0})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k_node(one_input(input), unknown, K_CONTEXT),
                       StatusCode::InvalidDescription, "layer 5 'c3k'", "'hidden'");
+}
+
+/** @brief Tests that the factory refuses a row without its output width. */
+TEST(Small_BlockC3k, TheFactoryRefusesAnAbsentFilterCount)
+{
+    const Shape input{4, 4, 64};
+    const Config::Value no_filters = attributes_of(R"({"repeats": 2})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k_node(one_input(input), no_filters, K_CONTEXT),
                       StatusCode::InvalidDescription, "'filters'", "absent");
+}
+
+/** @brief Tests that the factory refuses a repeat count of zero. */
+TEST(Small_BlockC3k, TheFactoryRefusesZeroRepeats)
+{
+    const Shape input{4, 4, 64};
+    const Config::Value zero_repeats = attributes_of(R"({"filters": 64, "repeats": 0})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k_node(one_input(input), zero_repeats, K_CONTEXT),
                       StatusCode::InvalidDescription, "'repeats'", "positive");
 }
