@@ -28,6 +28,7 @@
  */
 
 #include <string>
+#include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
@@ -61,13 +62,37 @@ TEST(Small_BatchRole, AHeldRoleIsReturnedAsAPointerIntoTheBatch)
     EXPECT_EQ(boxes->role, Data::K_ROLE_BOXES);
 }
 
-/** @brief Tests that a role the batch lacks is refused with the role's name. */
-TEST(Small_BatchRole, AMissingRoleIsRefusedByName)
+namespace
 {
-    const Data::Batch batch = labelled_batch();
+    /** @brief Holds a batch, the role asked for and the words of the refusal. */
+    struct RefusalRow
+    {
+        std::string name;       /**< The row's name. */
+        Data::Batch batch;      /**< The batch asked. */
+        std::string_view role;  /**< The role asked for. */
+        std::string first;      /**< A text the message holds. */
+        std::string second;     /**< Another text the message holds. */
+    };
 
-    SA_EXPECT_FAILURE(Train::require_batch_role(batch, Data::K_ROLE_MASK),
-                      StatusCode::InvalidDescription, "'mask'", "objective");
-    SA_EXPECT_FAILURE(Train::require_batch_role(Data::Batch{}, Data::K_ROLE_LABELS),
-                      StatusCode::InvalidDescription, "'labels'");
+    /** @brief Runs the refusal of a missing role over each batch. */
+    class Small_BatchRoleRefusal : public ::testing::TestWithParam<RefusalRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests that a role the batch lacks is refused with the role's name. */
+TEST_P(Small_BatchRoleRefusal, AMissingRoleIsRefusedByName)
+{
+    const RefusalRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(Train::require_batch_role(row.batch, row.role),
+                      StatusCode::InvalidDescription, row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BatchRoleRefusal,
+    ::testing::Values(RefusalRow{"MaskOfALabelledBatch", labelled_batch(), Data::K_ROLE_MASK,
+                                 "'mask'", "objective"},
+                      RefusalRow{"LabelsOfAnEmptyBatch", Data::Batch{}, Data::K_ROLE_LABELS,
+                                 "'labels'", "objective"}),
+    [](const ::testing::TestParamInfo<RefusalRow>& info) { return info.param.name; });
