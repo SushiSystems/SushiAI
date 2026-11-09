@@ -28,10 +28,9 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <string>
-#include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -51,10 +50,11 @@ using Train::ObjectiveRegistry;
 namespace
 {
     using SushiAI::Test::require_value;
-    /** @brief Holds the batch the stand-in factory expects of its context. */
+
+    /** @brief Holds the batch the context gives its factory. */
     constexpr std::int64_t K_BATCH = 4;
 
-    /** @brief Holds the classes the stand-in factory expects of its context. */
+    /** @brief Holds the classes the context gives its factory. */
     constexpr std::int64_t K_CLASSES = 3;
 
     /** @brief Returns a context of K_BATCH samples over K_CLASSES with one published output. */
@@ -64,44 +64,37 @@ namespace
         given.batch = K_BATCH;
         given.classes = K_CLASSES;
         given.input_sample = Shape{6};
-        given.task = require_value(Config::parse_json(R"({"type": "stand_in"})", "<test>"));
-        given.outputs.push_back(Train::OutputShape{"logits", Shape{K_BATCH, K_CLASSES}});
+        given.outputs.push_back(Train::OutputShape{"output", Shape{K_BATCH, K_CLASSES}});
         return given;
     }
 
-    /**
-     * @brief Builds cross-entropy when the context arrives as make_context() made it.
-     * @return The objective, or Unsupported naming the first field that arrived changed.
-     */
-    Result<std::unique_ptr<Train::Objective>> make_stand_in(const ObjectiveContext& given,
-                                                            const Config::Value& attributes,
-                                                            std::string_view context)
+    /** @brief Returns the registry of the layers tier. */
+    ObjectiveRegistry layers_registry()
     {
-        SA_FAIL_IF(given.task.is_null() || !given.task.has("type"), StatusCode::Unsupported,
-                   "{} received no task", context);
-        SA_FAIL_IF(given.outputs.size() != 1 || given.outputs.front().name != "logits",
-                   StatusCode::Unsupported, "{} received other outputs", context);
-        SA_FAIL_IF(given.input_sample != Shape{6}, StatusCode::Unsupported,
-                   "{} received another input sample", context);
-        SA_FAIL_IF(!attributes.has("weight"), StatusCode::Unsupported,
-                   "{} received other attributes", context);
-        SA_FAIL_IF(given.registry == nullptr || given.registry->find("stand_in") == nullptr,
-                   StatusCode::Unsupported, "{} received no registry that holds its row",
-                   context);
-
-        return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
-        {
-            return std::unique_ptr<Train::Objective>(
-                std::make_unique<Train::CrossEntropyObjective>(given.batch, given.classes));
-        });
+        ObjectiveRegistry registry;
+        EXPECT_TRUE(Train::register_objectives(registry).is_ok());
+        return registry;
     }
+
+    /** @brief Holds a type asked of the registry and whether it holds a row for it. */
+    struct FindRow
+    {
+        std::string name;       /**< The row's name. */
+        std::string type;       /**< The type asked for. */
+        bool held;              /**< Whether the registry holds the row. */
+    };
+
+    /** @brief Searches the registry of the layers tier for the type of each row. */
+    class Small_ObjectiveRegistryFind : public ::testing::TestWithParam<FindRow>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that the layers tier registers its five objectives and no domain's. */
-TEST(Small_ObjectiveRegistry, TheLayersTierAddsItsFiveObjectives)
+TEST(Small_ObjectiveRegistry, TheLayersTierAddsItsFiveObjectivesInOrder)
 {
-    ObjectiveRegistry registry;
-    SA_EXPECT_OK(Train::register_objectives(registry));
+    const ObjectiveRegistry registry = layers_registry();
 
     ASSERT_EQ(registry.rows().size(), 5u);
     EXPECT_EQ(registry.rows()[0].type, "cross_entropy");
@@ -109,59 +102,66 @@ TEST(Small_ObjectiveRegistry, TheLayersTierAddsItsFiveObjectives)
     EXPECT_EQ(registry.rows()[2].type, "multi_label");
     EXPECT_EQ(registry.rows()[3].type, "mean_squared_error");
     EXPECT_EQ(registry.rows()[4].type, "sum");
-    EXPECT_NE(registry.find("cross_entropy"), nullptr);
-    EXPECT_EQ(registry.find("anchor"), nullptr);
 }
+
+/** @brief Tests that find returns the row of a held type and null for another. */
+TEST_P(Small_ObjectiveRegistryFind, FindReturnsAHeldTypeAndNullForAnother)
+{
+    const FindRow& row = GetParam();
+    const ObjectiveRegistry registry = layers_registry();
+
+    EXPECT_EQ(registry.find(row.type) != nullptr, row.held);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ObjectiveRegistryFind,
+    ::testing::Values(FindRow{"AHeldType", "cross_entropy", true},
+                      FindRow{"ADomainType", "anchor", false}),
+    [](const ::testing::TestParamInfo<FindRow>& info) { return info.param.name; });
 
 /** @brief Tests that a type is held once and that the refusal names it. */
 TEST(Small_ObjectiveRegistry, ATypeIsHeldOnce)
 {
-    ObjectiveRegistry registry;
-    SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));
+    ObjectiveRegistry registry = layers_registry();
 
-    SA_EXPECT_FAILURE(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}),
-                      StatusCode::InvalidDescription, "'stand_in'", "already registered");
-    EXPECT_EQ(registry.rows().size(), 1u);
-}
-
-/** @brief Tests that the factory receives the context, the registry, the keys and the label. */
-TEST(Small_ObjectiveRegistry, TheFactoryReceivesTheContextAndItsRegistry)
-{
-    ObjectiveRegistry registry;
-    SA_EXPECT_OK(Train::register_objectives(registry));
-    SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));
-    const Config::Value attributes =
-        require_value(Config::parse_json(R"({"weight": 2.0})", "<test>"));
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Train::Objective> objective,
-        Train::make_objective(registry, "stand_in", make_context(), attributes, "objective"));
-
-    ASSERT_NE(objective, nullptr);
-    EXPECT_EQ(objective->name(), "cross_entropy");
+    SA_EXPECT_FAILURE(registry.add(ObjectiveEntry{"cross_entropy", &Train::make_cross_entropy}),
+                      StatusCode::InvalidDescription, "'cross_entropy'", "already registered");
+    EXPECT_EQ(registry.rows().size(), 5u);
 }
 
 /** @brief Tests that an unknown type is refused with every type the registry holds. */
 TEST(Small_ObjectiveRegistry, AnUnknownTypeListsWhatTheRegistryHolds)
 {
-    ObjectiveRegistry registry;
-    SA_EXPECT_OK(Train::register_objectives(registry));
-    SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));
+    const ObjectiveRegistry registry = layers_registry();
     const Config::Value empty = require_value(Config::parse_json("{}", "<test>"));
 
     SA_EXPECT_FAILURE(
         Train::make_objective(registry, "yolo", make_context(), empty, "objective"),
-        StatusCode::InvalidDescription, "'yolo'", "'cross_entropy'", "'stand_in'");
+        StatusCode::InvalidDescription, "'yolo'", "'cross_entropy'", "'sum'");
 }
 
 /** @brief Tests that the failure of a factory reaches the caller as it was returned. */
 TEST(Small_ObjectiveRegistry, TheFailureOfAFactoryIsReturned)
 {
-    ObjectiveRegistry registry;
-    SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));
-    const Config::Value empty = require_value(Config::parse_json("{}", "<test>"));
+    const ObjectiveRegistry registry = layers_registry();
+    const Config::Value stray =
+        require_value(Config::parse_json(R"({"label_smoothing": 0.1})", "<test>"));
 
     SA_EXPECT_FAILURE(
-        Train::make_objective(registry, "stand_in", make_context(), empty, "the objective"),
-        StatusCode::Unsupported, "the objective", "other attributes");
+        Train::make_objective(registry, "cross_entropy", make_context(), stray, "the objective"),
+        StatusCode::InvalidDescription, "the objective", "'label_smoothing'");
+}
+
+/**
+ * @brief Tests that make_objective gives the factory the registry it was called with: the
+ *        sum row refuses a context with no registry, and here it reaches its own terms rule.
+ */
+TEST(Small_ObjectiveRegistry, TheFactoryReceivesTheRegistryItWasCalledWith)
+{
+    const ObjectiveRegistry registry = layers_registry();
+    const Config::Value no_terms = require_value(Config::parse_json(R"({"terms": []})", "<test>"));
+
+    SA_EXPECT_FAILURE(
+        Train::make_objective(registry, "sum", make_context(), no_terms, "the objective"),
+        StatusCode::InvalidDescription, "at least one term");
 }

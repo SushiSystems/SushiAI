@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/result.hpp>
@@ -46,7 +47,7 @@ using namespace SushiAI;
 using Train::OutputShape;
 
 /** @brief Tests that each output is listed under its name with its extents, in order. */
-TEST(Medium_ObjectiveContext, ListsEveryOutputWithItsExtentsInPublishedOrder)
+TEST(Small_ObjectiveContext, ListsEveryOutputWithItsExtentsInPublishedOrder)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -65,7 +66,7 @@ TEST(Medium_ObjectiveContext, ListsEveryOutputWithItsExtentsInPublishedOrder)
 }
 
 /** @brief Tests that a model with no output lists nothing. */
-TEST(Medium_ObjectiveContext, AnEmptyOutputSetListsNothing)
+TEST(Small_ObjectiveContext, AnEmptyOutputSetListsNothing)
 {
     const Graph::Graph graph;
     const NN::ModelOutputs outputs;
@@ -77,7 +78,7 @@ TEST(Medium_ObjectiveContext, AnEmptyOutputSetListsNothing)
 }
 
 /** @brief Tests that the probe trace of a model gives its head shapes with no engine. */
-TEST(Medium_ObjectiveContext, AProbeTraceGivesTheShapesWithoutAnEngine)
+TEST(Small_ObjectiveContext, AProbeTraceGivesTheShapesWithoutAnEngine)
 {
     NN::ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRef hidden,
@@ -99,14 +100,40 @@ TEST(Medium_ObjectiveContext, AProbeTraceGivesTheShapesWithoutAnEngine)
     EXPECT_EQ(listed[1].shape, (Shape{4, 3}));
 }
 
-/** @brief Tests that an output is found by its name and that an absent name gives null. */
-TEST(Medium_ObjectiveContext, FindsAnOutputByItsName)
+namespace
 {
+    /** @brief Holds a name asked for and the entry the search returns, or none. */
+    struct FindRow
+    {
+        std::string name;                   /**< The row's name. */
+        std::string asked;                  /**< The output name asked for. */
+        bool found;                         /**< Whether an entry is returned. */
+        Shape shape;                        /**< The shape of the entry returned. */
+    };
+
+    /** @brief Searches the two published outputs for the name of each row. */
+    class Small_ObjectiveContextFind : public ::testing::TestWithParam<FindRow>
+    {
+
+    };
+} // namespace
+
+/** @brief Tests that an output is found by its name and that an absent name gives null. */
+TEST_P(Small_ObjectiveContextFind, AnOutputIsFoundByItsName)
+{
+    const FindRow& row = GetParam();
     const std::vector<OutputShape> outputs = {OutputShape{"coarse", Shape{2, 4, 4, 14}},
                                               OutputShape{"fine", Shape{2, 8, 8, 14}}};
 
-    const OutputShape* const fine = Train::find_output_shape(outputs, "fine");
-    ASSERT_NE(fine, nullptr);
-    EXPECT_EQ(fine->shape, (Shape{2, 8, 8, 14}));
-    EXPECT_EQ(Train::find_output_shape(outputs, "medium"), nullptr);
+    const OutputShape* const entry = Train::find_output_shape(outputs, row.asked);
+
+    ASSERT_EQ(entry != nullptr, row.found);
+    if (row.found)
+        EXPECT_EQ(entry->shape, row.shape);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ObjectiveContextFind,
+    ::testing::Values(FindRow{"APublishedName", "fine", true, Shape{2, 8, 8, 14}},
+                      FindRow{"AnAbsentName", "medium", false, Shape{}}),
+    [](const ::testing::TestParamInfo<FindRow>& info) { return info.param.name; });
