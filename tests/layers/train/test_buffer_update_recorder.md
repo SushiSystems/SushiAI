@@ -43,36 +43,3 @@ Binding is refused as `Incompatible`, and the message contains "no entry".
 
 The target entry is float32 and the source tensor is float64. Binding is refused as
 `Incompatible`, and the message names both dtypes by their `dtype_name`.
-
-Suites: `Medium_EvaluationStep`.
-
-The evaluation step replays a forward-only graph over a `NN::ModelState`. The cases check that it
-compiles once, that it reads the weights a training step wrote, that a probe run leaves the
-batch norm buffers alone, and the two refusals it makes.
-
-## TheStepCompilesOnce
-
-The step is made from an MLP's evaluation graph. `compile_count()` is 1 after `make()` and still
-1 after three runs.
-
-
-## AnEvaluationStepSeesAWeightTheTrainingStepJustMoved
-
-A training pool and an evaluation pool attach to one state. The evaluation output for fixed
-inputs is read before and after one training step on the synthetic dataset. The two byte
-sequences differ. The test notes that the default policy starts the classifier at zero.
-
-## AProbeRunLeavesBothRunningVectorsUnchanged
-
-The evaluation graph of a batch norm gives its buffers their leaves, and its probe graph is run
-once. The bytes of the running mean and the running variance are the same before and after.
-
-## AnInputOfAnotherShapeIsRefusedWithBothShapes
-
-A step compiled for a [4, 6] input refuses a [2, 6] input. The refusal is `Incompatible`, and its
-message names "inputs", "[2, 6]" and "[4, 6]".
-
-## AnUnknownOutputNameListsTheNames
-
-`output("boxes")` is refused as `InvalidDescription`. The message names "boxes" and the single
-port name, `NN::K_SINGLE_PORT_NAME`.
