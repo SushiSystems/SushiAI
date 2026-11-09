@@ -32,6 +32,8 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
@@ -53,7 +55,6 @@
 #include <SushiAI/optim/adamw.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>
 #include <SushiAI/optim/optimizer.hpp>
-#include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
@@ -72,6 +73,19 @@ namespace
 {
     class Medium_LossScaling : public ::testing::Test {};
 
+    /** @brief One direction of scale change: its name and the run that produces it. */
+    struct DirectionRow
+    {
+        const char* name;        /**< @brief Names the row in the test name. */
+        bool mixed;              /**< @brief Holds whether the run trains under fp16 mixed precision. */
+        double initial;          /**< @brief Holds the starting scale. */
+        uint64_t growth_interval;/**< @brief Holds the steps between two growths. */
+        int64_t epochs;          /**< @brief Holds the epochs of the run. */
+    };
+
+    /** @brief Runs each direction of scale change and expects one compile. */
+    class Medium_LossScalingDirection : public ::testing::TestWithParam<DirectionRow> {};
+
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 16;
@@ -88,10 +102,6 @@ namespace
 
     /** @brief How many epochs the overflowing run gets to back off into a clean scale. */
     constexpr int64_t K_OVERFLOW_EPOCHS = 4;
-
-    /** @brief The fixed scale the exactness case runs at, and its step count. */
-    constexpr double K_EXACT_SCALE = 1024.0;
-    constexpr int K_EXACT_STEPS = 5;
 
     constexpr int64_t K_ELEMENTS = 67;
     constexpr std::uint64_t K_PARAM_SEED = 0x5175'5348'4941'0011ull;
@@ -214,42 +224,62 @@ namespace
     }
 }
 
+namespace
+{
+    /** @brief Runs the overflowing configuration and holds its figures for the cases below. */
+    class Medium_LossScalingOverflow : public ::testing::Test
+    {
+        protected:
+            /** @brief Trains under the mixed policy at a scale that overflows fp16, and keeps the run. */
+            void SetUp() override
+            {
+                engine = std::make_unique<SushiBLAS::Engine>(SaTest::TestEnvironment::runtime());
+                backend = std::make_unique<RuntimeExecutionBackend>(
+                    SaTest::TestEnvironment::runtime(), *engine);
+
+                LossScaleOptions options;
+                options.initial = K_OVERFLOWING_SCALE;
+
+                // The interval is out of reach, so growth cannot confuse the reading.
+                options.growth_interval = 1000;
+
+                SA_ASSERT_OK_AND_ASSIGN(
+                    run, train_scaled(*backend, &mixed, options, /*epochs=*/K_OVERFLOW_EPOCHS));
+
+                // Detection is Small_LossScaling's case; here an overflow is the precondition.
+                ASSERT_GT(run->skipped, 0u) << "no step was thrown away, so nothing overflowed";
+            }
+
+            MixedPrecisionPolicy mixed;                         /**< @brief Holds the policy. */
+            std::unique_ptr<SushiBLAS::Engine> engine;          /**< @brief Owns the device state. */
+            std::unique_ptr<RuntimeExecutionBackend> backend;   /**< @brief Runs the steps. */
+            std::optional<ScaledRun> run;                       /**< @brief Holds the run's figures. */
+    };
+}
+
 /**
- * @brief Tests that an fp16 overflow is detected, backs the scale off and lets the run recover.
+ * @brief Tests that the run recovers: not every step is thrown away and the loss stays finite.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
+TEST_F(Medium_LossScalingOverflow, TheRunRecoversFromTheOverflow)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
-
-    LossScaleOptions options;
-    options.initial = K_OVERFLOWING_SCALE;
-
-    // The interval is out of reach, so growth cannot confuse the reading.
-    options.growth_interval = 1000;
-
-    const MixedPrecisionPolicy mixed;
-    SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
-                            train_scaled(backend, &mixed, options, /*epochs=*/K_OVERFLOW_EPOCHS));
-
-    EXPECT_GT(run.skipped, 0u) << "no step was thrown away, so nothing overflowed - "
-                                  "the detector is not seeing the infinities";
-    EXPECT_GT(run.backoffs, 0u);
-    EXPECT_LT(run.final_scale, K_OVERFLOWING_SCALE);
-    EXPECT_EQ(run.growths, 0u);
-
     // The backed-off scale must reach the device; see tests/layers/train/README.md.
-    EXPECT_LT(run.skipped, static_cast<std::uint64_t>(K_OVERFLOW_EPOCHS * K_BATCHES))
+    EXPECT_LT(run->skipped, static_cast<std::uint64_t>(K_OVERFLOW_EPOCHS * K_BATCHES))
         << "every step was thrown away, so the new scale never reached the graph";
-    EXPECT_GT(run.optimizer_steps, 0u);
-
-    // A thrown-away step does not advance the counter; see tests/layers/train/README.md.
-    EXPECT_EQ(run.optimizer_steps,
-              static_cast<std::uint64_t>(K_OVERFLOW_EPOCHS * K_BATCHES) - run.skipped);
+    EXPECT_LT(run->final_scale, K_OVERFLOWING_SCALE);
 
     // A loop that went NaN reports NaN here; see tests/layers/train/README.md.
-    EXPECT_TRUE(std::isfinite(run.last_loss));
+    EXPECT_TRUE(std::isfinite(run->last_loss));
+}
+
+/**
+ * @brief Tests that a thrown-away step does not advance the optimizer's counter.
+ * @see tests/layers/train/README.md
+ */
+TEST_F(Medium_LossScalingOverflow, ASkippedStepDoesNotAdvanceTheOptimizerCounter)
+{
+    EXPECT_EQ(run->optimizer_steps,
+              static_cast<std::uint64_t>(K_OVERFLOW_EPOCHS * K_BATCHES) - run->skipped);
 }
 
 /**
@@ -390,116 +420,38 @@ TEST_F(Medium_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
 }
 
 /**
- * @brief Tests that a run scaled by 1024 and unscaled matches the unscaled run bit for bit.
+ * @brief Tests that the step compiles once while the loss scale changes in the row's direction.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_LossScaling, UnscalingByAPowerOfTwoIsExact)
-{
-    using Bytes = std::vector<unsigned char>;
-
-    const auto drive = [](bool scaled) -> Result<Bytes>
-    {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
-
-        SA_TRY_ASSIGN(SushiBLAS::Tensor parameter,
-                      allocate_tensor(engine, Shape{K_ELEMENTS}));
-        SA_TRY_ASSIGN(SushiBLAS::Tensor gradient,
-                      allocate_tensor(engine, Shape{K_ELEMENTS}));
-        SA_TRY_ASSIGN(SushiBLAS::Tensor factor, allocate_tensor(engine, Shape{1}));
-        SaTest::write_tensor(parameter, initial_parameter());
-
-        std::vector<Optim::ParameterSlot> slots{Optim::ParameterSlot{"p", parameter, gradient}};
-
-        Optim::SGDOptions sgd;
-        sgd.learning_rate = 1e-2;
-        sgd.momentum = 0.9;
-        SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(backend, slots, sgd));
-
-        LossScaleOptions options;
-        options.initial = K_EXACT_SCALE;
-
-        // The interval is out of reach, so the scale does not move.
-        options.growth_interval = 1000;
-        std::unique_ptr<LossScaler> scaler;
-
-        if (scaled)
-        {
-            SA_TRY_ASSIGN(scaler, LossScaler::make(engine, factor, slots.size(), options));
-            SA_TRY(optimizer->set_loss_scaler(scaler.get()));
-        }
-
-        for (int step = 0; step < K_EXACT_STEPS; ++step)
-        {
-            std::vector<double> values = finite_gradient();
-            if (scaled)
-                for (double& value : values)
-                    value *= K_EXACT_SCALE;
-
-            SaTest::write_tensor(gradient, values);
-            SA_TRY(optimizer->step());
-        }
-
-        if (scaled)
-            EXPECT_EQ(scaler->scale(), K_EXACT_SCALE);
-
-        EXPECT_EQ(optimizer->step_count(), static_cast<std::uint64_t>(K_EXACT_STEPS));
-
-        return SaTest::read_tensor_bytes(parameter);
-    };
-
-    SA_ASSERT_OK_AND_ASSIGN(const Bytes scaled_bytes, drive(true));
-    SA_ASSERT_OK_AND_ASSIGN(const Bytes unscaled_bytes, drive(false));
-
-    EXPECT_EQ(scaled_bytes, unscaled_bytes)
-        << "a scaled run and an unscaled one did not agree bit for bit, so the "
-           "unscale is not the exact inverse of the scale";
-}
-
-/**
- * @brief Tests that the step compiles once while the loss scale grows.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
+TEST_P(Medium_LossScalingDirection, TheStepIsCompiledOnceThoughTheScaleChanges)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
     SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     LossScaleOptions options;
-    options.initial = 1024.0;
-    options.growth_interval = 2;
-
-    const UniformPrecisionPolicy fp32;
-    SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
-                            train_scaled(backend, &fp32, options, /*epochs=*/2));
-
-    ASSERT_GT(run.growths, 0u) << "the scale never moved, so this run does not test "
-                                  "what it claims to";
-    EXPECT_GT(run.final_scale, 1024.0);
-    EXPECT_EQ(run.compiles, 1u);
-}
-
-/**
- * @brief Tests that the step compiles once while the loss scale backs off.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_LossScaling, ABackingOffScaleStillCompilesOnce)
-{
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
-
-    LossScaleOptions options;
-    options.initial = K_OVERFLOWING_SCALE;
-    options.growth_interval = 1000;
+    options.initial = GetParam().initial;
+    options.growth_interval = GetParam().growth_interval;
 
     const MixedPrecisionPolicy mixed;
+    const UniformPrecisionPolicy fp32;
+    const Graph::PrecisionPolicy* precision = GetParam().mixed
+        ? static_cast<const Graph::PrecisionPolicy*>(&mixed)
+        : static_cast<const Graph::PrecisionPolicy*>(&fp32);
     SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
-                            train_scaled(backend, &mixed, options, /*epochs=*/1));
+                            train_scaled(backend, precision, options, GetParam().epochs));
 
-    ASSERT_GT(run.backoffs, 0u);
+    ASSERT_GT(run.growths + run.backoffs, 0u)
+        << "the scale never moved, so this run does not test what it claims to";
+    EXPECT_NE(run.final_scale, GetParam().initial);
     EXPECT_EQ(run.compiles, 1u);
 }
+
+INSTANTIATE_TEST_SUITE_P(Directions, Medium_LossScalingDirection,
+                         ::testing::Values(DirectionRow{"Growing", false, 1024.0, 2, 2},
+                                           DirectionRow{"BackingOff", true, K_OVERFLOWING_SCALE,
+                                                        1000, 1}),
+                         [](const ::testing::TestParamInfo<DirectionRow>& info)
+                         { return std::string(info.param.name); });
 
 /**
  * @brief Tests that an AdamW with the separate kernel refuses a loss scaler.

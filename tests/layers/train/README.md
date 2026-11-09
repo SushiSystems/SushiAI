@@ -32,6 +32,7 @@ Each test file has a page beside it that says what its cases pin.
 | `test_trainer/test_determinism.cpp` | [`test_trainer/test_determinism.md`](test_trainer/test_determinism.md) |
 | `test_trainer/test_fused_optimizer.cpp` | [`test_trainer/test_fused_optimizer.md`](test_trainer/test_fused_optimizer.md) |
 | `test_trainer/test_fusion_numerics.cpp` | [`test_trainer/test_fusion_numerics.md`](test_trainer/test_fusion_numerics.md) |
+| `test_trainer/test_loss_scaling.cpp` | [`test_trainer/test_loss_scaling.md`](test_trainer/test_loss_scaling.md) |
 | `test_trainer/test_learning_curve.cpp` | [`test_trainer/test_learning_curve.md`](test_trainer/test_learning_curve.md) |
 | `test_trainer/test_static_memory.cpp` | [`test_trainer/test_static_memory.md`](test_trainer/test_static_memory.md) |
 | `test_binary_cross_entropy_objective.cpp, test_multi_label_objective.cpp, test_mean_squared_error_objective.cpp, test_objective.cpp` | [`test_binary_cross_entropy_objective.md`](test_binary_cross_entropy_objective.md) |
