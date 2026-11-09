@@ -31,8 +31,10 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
@@ -53,6 +55,25 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Result<std::vector<Data::TargetDescription>> describe_truth_roles(
         std::int64_t max_objects, std::int64_t classes) noexcept;
+
+    /** @brief Holds one role of a batch as the host reads it: a name, extents, a type and values. */
+    struct HostRole
+    {
+        std::string role;                    /**< Name the batch carries the tensor under. */
+        std::vector<std::int64_t> extents;   /**< Extents of the tensor, the batch axis counted. */
+        DType dtype = DType::Float32;        /**< Element type of the values. */
+        const void* values = nullptr;        /**< First value, or null when the host cannot read
+                                                  them in order. */
+    };
+
+    /**
+     * @brief Copies the boxes, classes and valid roles of @p roles into @p truth.
+     * @param roles Hold at least those three roles, read from host memory; others are ignored.
+     * @param truth Receives [N, M] rows; a failure leaves it untouched.
+     * @return What truth_from_roles() returns for the same roles.
+     */
+    [[nodiscard]] Status truth_from_host_roles(const std::vector<HostRole>& roles,
+                                               Detect::GroundTruthBatch& truth) noexcept;
 
     /**
      * @brief Copies the boxes, classes and valid roles of @p batch into @p truth.

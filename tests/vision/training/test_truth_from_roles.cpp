@@ -53,7 +53,9 @@
 using namespace SushiAI;
 using Vision::Detect::GroundTruthBatch;
 using Vision::Training::describe_truth_roles;
+using Vision::Training::HostRole;
 using Vision::Training::K_TRUTH_BOX_VALUES;
+using Vision::Training::truth_from_host_roles;
 using Vision::Training::truth_from_roles;
 
 namespace
@@ -78,55 +80,59 @@ namespace
     /** @brief Holds 1 for each slot in use and 0 for each padding slot. */
     const std::vector<float> K_FLAGS = {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
 
-    /** @brief Provides an engine and batches whose roles hold the values above. */
-    class Medium_TruthFromRoles : public Test::EngineTest
+    /**
+     * @brief Holds the three roles of the values above as a host reads them, and lets a case
+     *        change one before it takes the views.
+     */
+    class HostRoles
     {
-        protected:
-            /** @brief Returns the three roles of K_SLOTS slots over K_CLASSES classes. */
-            static std::vector<Data::TargetDescription> roles()
+        public:
+            /** @brief Holds the corners the boxes role reads. */
+            std::vector<float> corners = K_CORNERS;
+
+            /** @brief Holds the classes the classes role reads. */
+            std::vector<std::int32_t> indices = K_INDICES;
+
+            /** @brief Holds the flags the valid role reads. */
+            std::vector<float> flags = K_FLAGS;
+
+            /** @brief Holds the extents of the boxes role. */
+            std::vector<std::int64_t> boxes_extents{K_IMAGES, K_SLOTS, K_TRUTH_BOX_VALUES};
+
+            /** @brief Holds the extents of the classes role. */
+            std::vector<std::int64_t> classes_extents{K_IMAGES, K_SLOTS};
+
+            /** @brief Holds the extents of the valid role. */
+            std::vector<std::int64_t> valid_extents{K_IMAGES, K_SLOTS};
+
+            /** @brief Holds the element type of the classes role. */
+            DType classes_dtype = DType::Int32;
+
+            /** @brief Holds the element type of the valid role. */
+            DType valid_dtype = DType::Float32;
+
+            /** @brief Returns the boxes, classes and valid roles over the values held here. */
+            std::vector<HostRole> roles() const
             {
-                Result<std::vector<Data::TargetDescription>> described =
-                    describe_truth_roles(K_SLOTS, K_CLASSES);
-                EXPECT_TRUE(described.status().is_ok());
-                return std::move(described).value();
+                return {{std::string(Data::K_ROLE_BOXES), boxes_extents, DType::Float32,
+                         corners.data()},
+                        {std::string(Data::K_ROLE_CLASSES), classes_extents, classes_dtype,
+                         indices.data()},
+                        {std::string(Data::K_ROLE_VALID), valid_extents, valid_dtype,
+                         flags.data()}};
             }
 
-            /** @brief Allocates a batch of K_IMAGES one-value inputs over @p targets. */
-            Data::Batch allocate(const std::vector<Data::TargetDescription>& targets)
+            /** @brief Returns the truth read from the roles held here. */
+            GroundTruthBatch truth() const
             {
-                Result<Data::Batch> batch =
-                    Data::allocate_batch(
-                        *engine, K_IMAGES, Data::InputDescription{Shape{1}, DType::Float32}, targets);
-                EXPECT_TRUE(batch.status().is_ok());
-                return std::move(batch).value();
-            }
-
-            /** @brief Allocates the three roles and writes the values above into them. */
-            Data::Batch filled_batch()
-            {
-                Data::Batch batch = allocate(roles());
-                std::copy(K_CORNERS.begin(), K_CORNERS.end(),
-                          batch.targets[0].values.data_as<float>());
-                std::copy(K_INDICES.begin(), K_INDICES.end(),
-                          batch.targets[1].values.data_as<std::int32_t>());
-                std::copy(K_FLAGS.begin(), K_FLAGS.end(),
-                          batch.targets[2].values.data_as<float>());
-                return batch;
-            }
-
-            /** @brief Returns the truth read from the filled batch. */
-            GroundTruthBatch truth_of_filled_batch()
-            {
-                const Data::Batch batch = filled_batch();
                 GroundTruthBatch truth;
-                SA_EXPECT_OK(truth_from_roles(batch, truth));
+                SA_EXPECT_OK(truth_from_host_roles(roles(), truth));
                 return truth;
             }
     };
 
-    /** @brief Provides the batch that lacks the role at one index. */
-    class Medium_TruthFromRolesMissing : public Medium_TruthFromRoles,
-                                         public ::testing::WithParamInterface<std::size_t>
+    /** @brief Provides the roles of a batch that lacks the role at one index. */
+    class Small_TruthFromHostRolesMissing : public ::testing::TestWithParam<std::size_t>
     {
 
     };
@@ -134,14 +140,13 @@ namespace
     /** @brief Names a change to the roles of a batch and what the refusal names. */
     struct BadRole
     {
-        const char* name;                                        /**< Names the row. */
-        void (*change)(std::vector<Data::TargetDescription>&);   /**< Breaks one role. */
-        const char* needles[3];                                  /**< What the message names. */
+        const char* name;                  /**< Names the row. */
+        void (*change)(HostRoles&);        /**< Breaks one role. */
+        const char* needles[3];            /**< What the message names. */
     };
 
     /** @brief Provides the roles of another element type, rank, width or slot count. */
-    class Medium_TruthFromRolesBadRole : public Medium_TruthFromRoles,
-                                         public ::testing::WithParamInterface<BadRole>
+    class Small_TruthFromHostRolesBadRole : public ::testing::TestWithParam<BadRole>
     {
 
     };
@@ -154,8 +159,13 @@ namespace
     };
 
     /** @brief Provides the flags that are neither zero nor one. */
-    class Medium_TruthFromRolesFlag : public Medium_TruthFromRoles,
-                                      public ::testing::WithParamInterface<BadFlag>
+    class Small_TruthFromHostRolesFlag : public ::testing::TestWithParam<BadFlag>
+    {
+
+    };
+
+    /** @brief Provides an engine and a batch whose roles hold the values above. */
+    class Medium_TruthFromRoles : public Test::EngineTest
     {
 
     };
@@ -207,9 +217,9 @@ TEST(Small_TruthRoles, RefusesANegativeClassCount)
 }
 
 /** @brief Tests that the corners are copied and the batch states its size. */
-TEST_F(Medium_TruthFromRoles, CopiesTheCorners)
+TEST(Small_TruthFromHostRoles, CopiesTheCorners)
 {
-    const GroundTruthBatch truth = truth_of_filled_batch();
+    const GroundTruthBatch truth = HostRoles().truth();
 
     EXPECT_EQ(truth.batch, K_IMAGES);
     EXPECT_EQ(truth.max_boxes, K_SLOTS);
@@ -217,42 +227,42 @@ TEST_F(Medium_TruthFromRoles, CopiesTheCorners)
 }
 
 /** @brief Tests that the classes are widened to 64 bits. */
-TEST_F(Medium_TruthFromRoles, WidensTheClasses)
+TEST(Small_TruthFromHostRoles, WidensTheClasses)
 {
-    EXPECT_EQ(truth_of_filled_batch().labels, (std::vector<std::int64_t>{4, 0, 2, 0, 0, 1}));
+    EXPECT_EQ(HostRoles().truth().labels, (std::vector<std::int64_t>{4, 0, 2, 0, 0, 1}));
 }
 
 /** @brief Tests that the flags are made bytes. */
-TEST_F(Medium_TruthFromRoles, MakesTheFlagsBytes)
+TEST(Small_TruthFromHostRoles, MakesTheFlagsBytes)
 {
-    EXPECT_EQ(truth_of_filled_batch().valid, (std::vector<std::uint8_t>{1, 0, 1, 0, 0, 1}));
+    EXPECT_EQ(HostRoles().truth().valid, (std::vector<std::uint8_t>{1, 0, 1, 0, 0, 1}));
 }
 
 /** @brief Tests that the roles are found by name, in whatever order the batch holds them. */
-TEST_F(Medium_TruthFromRoles, FindsTheRolesInAnotherOrder)
+TEST(Small_TruthFromHostRoles, FindsTheRolesInAnotherOrder)
 {
-    Data::Batch batch = filled_batch();
-    std::swap(batch.targets[0], batch.targets[2]);
+    std::vector<HostRole> roles = HostRoles().roles();
+    std::swap(roles[0], roles[2]);
 
     GroundTruthBatch truth;
-    SA_EXPECT_OK(truth_from_roles(batch, truth));
+    SA_EXPECT_OK(truth_from_host_roles(roles, truth));
     EXPECT_EQ(truth.boxes, K_CORNERS);
     EXPECT_EQ(truth.valid, (std::vector<std::uint8_t>{1, 0, 1, 0, 0, 1}));
 }
 
 /** @brief Tests that a second batch of the same size is written into the same storage. */
-TEST_F(Medium_TruthFromRoles, KeepsTheStorageOfATruthBetweenBatchesOfOneSize)
+TEST(Small_TruthFromHostRoles, KeepsTheStorageOfATruthBetweenBatchesOfOneSize)
 {
-    Data::Batch batch = filled_batch();
+    HostRoles host;
 
     GroundTruthBatch truth;
-    SA_EXPECT_OK(truth_from_roles(batch, truth));
+    SA_EXPECT_OK(truth_from_host_roles(host.roles(), truth));
     const float* const boxes = truth.boxes.data();
     const std::int64_t* const labels = truth.labels.data();
     const std::uint8_t* const valid = truth.valid.data();
 
-    batch.targets[1].values.data_as<std::int32_t>()[0] = 3;
-    SA_EXPECT_OK(truth_from_roles(batch, truth));
+    host.indices[0] = 3;
+    SA_EXPECT_OK(truth_from_host_roles(host.roles(), truth));
 
     EXPECT_EQ(truth.boxes.data(), boxes);
     EXPECT_EQ(truth.labels.data(), labels);
@@ -261,98 +271,126 @@ TEST_F(Medium_TruthFromRoles, KeepsTheStorageOfATruthBetweenBatchesOfOneSize)
 }
 
 /** @brief Tests that a batch without one of the three roles is refused with the role. */
-TEST_P(Medium_TruthFromRolesMissing, RefusesABatchThatLacksARole)
+TEST_P(Small_TruthFromHostRolesMissing, RefusesABatchThatLacksARole)
 {
-    Data::Batch batch = filled_batch();
+    std::vector<HostRole> roles = HostRoles().roles();
     const std::size_t missing = GetParam();
-    const std::string role = batch.targets[missing].role;
-    batch.targets.erase(batch.targets.begin() + static_cast<std::ptrdiff_t>(missing));
+    const std::string role = roles[missing].role;
+    roles.erase(roles.begin() + static_cast<std::ptrdiff_t>(missing));
 
     GroundTruthBatch truth;
-    SA_EXPECT_FAILURE(truth_from_roles(batch, truth), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(truth_from_host_roles(roles, truth), StatusCode::InvalidDescription,
                       "no role '" + role + "'", "it carries");
 }
 
-INSTANTIATE_TEST_SUITE_P(Roles, Medium_TruthFromRolesMissing, ::testing::Values(0u, 1u, 2u));
+INSTANTIATE_TEST_SUITE_P(Roles, Small_TruthFromHostRolesMissing, ::testing::Values(0u, 1u, 2u));
 
 /** @brief Tests that a batch with no role at all is refused, naming the first role it needs. */
-TEST_F(Medium_TruthFromRoles, RefusesABatchWithNoRole)
+TEST(Small_TruthFromHostRoles, RefusesABatchWithNoRole)
 {
     GroundTruthBatch truth;
 
-    SA_EXPECT_FAILURE(truth_from_roles(allocate({}), truth), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(truth_from_host_roles({}, truth), StatusCode::InvalidDescription,
                       "no role 'boxes'", "(none)");
 }
 
 /** @brief Tests that a role the truth cannot read is refused with what it holds. */
-TEST_P(Medium_TruthFromRolesBadRole, RefusesARoleTheTruthCannotRead)
+TEST_P(Small_TruthFromHostRolesBadRole, RefusesARoleTheTruthCannotRead)
 {
     const BadRole& row = GetParam();
-    std::vector<Data::TargetDescription> described = roles();
-    row.change(described);
+    HostRoles host;
+    row.change(host);
     GroundTruthBatch truth;
 
-    SA_EXPECT_FAILURE(truth_from_roles(allocate(described), truth), StatusCode::Incompatible,
+    SA_EXPECT_FAILURE(truth_from_host_roles(host.roles(), truth), StatusCode::Incompatible,
                       row.needles[0], row.needles[1], row.needles[2]);
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    Rows, Medium_TruthFromRolesBadRole,
+    Rows, Small_TruthFromHostRolesBadRole,
     ::testing::Values(
-        BadRole{"ClassesOfFloat32",
-                [](std::vector<Data::TargetDescription>& roles) { roles[1].dtype = DType::Float32; },
+        BadRole{"ClassesOfFloat32", [](HostRoles& host) { host.classes_dtype = DType::Float32; },
                 {"'classes'", "int32", "float32 [2, 3]"}},
-        BadRole{"ValidOfInt32",
-                [](std::vector<Data::TargetDescription>& roles) { roles[2].dtype = DType::Int32; },
+        BadRole{"ValidOfInt32", [](HostRoles& host) { host.valid_dtype = DType::Int32; },
                 {"'valid'", "float32", "int32 [2, 3]"}},
-        BadRole{"BoxesOfRankThree",
-                [](std::vector<Data::TargetDescription>& roles)
-                { roles[0].sample_shape = Shape{K_SLOTS * K_TRUTH_BOX_VALUES}; },
+        BadRole{"BoxesOfRankTwo",
+                [](HostRoles& host)
+                { host.boxes_extents = {K_IMAGES, K_SLOTS * K_TRUTH_BOX_VALUES}; },
                 {"'boxes'", "rank 3", "[2, 12]"}},
         BadRole{"BoxesOfWidthThree",
-                [](std::vector<Data::TargetDescription>& roles)
-                { roles[0].sample_shape = Shape{K_SLOTS, 3}; },
+                [](HostRoles& host) { host.boxes_extents = {K_IMAGES, K_SLOTS, 3}; },
                 {"'boxes'", "[2, 3, 3]", "4 values"}},
         BadRole{"ClassesOfAnotherSlotCount",
-                [](std::vector<Data::TargetDescription>& roles)
-                { roles[1].sample_shape = Shape{K_SLOTS + 1}; },
+                [](HostRoles& host) { host.classes_extents = {K_IMAGES, K_SLOTS + 1}; },
                 {"'classes'", "[2, 4]", "[2, 3, 4]"}},
         BadRole{"ValidOfAnotherSlotCount",
-                [](std::vector<Data::TargetDescription>& roles)
-                { roles[2].sample_shape = Shape{K_SLOTS - 1}; },
+                [](HostRoles& host) { host.valid_extents = {K_IMAGES, K_SLOTS - 1}; },
                 {"'valid'", "[2, 2]", "[2, 3, 4]"}}),
     [](const ::testing::TestParamInfo<BadRole>& info) { return std::string(info.param.name); });
 
-/** @brief Tests that a flag other than 0 and 1 is refused, naming the flag and its slot. */
-TEST_P(Medium_TruthFromRolesFlag, RefusesAFlagThatIsNeitherZeroNorOne)
+/** @brief Tests that a role whose values the host cannot read in order is refused. */
+TEST(Small_TruthFromHostRoles, RefusesARoleTheHostCannotReadInOrder)
 {
-    Data::Batch batch = filled_batch();
-    batch.targets[2].values.data_as<float>()[4] = GetParam().flag;
+    std::vector<HostRole> roles = HostRoles().roles();
+    roles[1].values = nullptr;
     GroundTruthBatch truth;
 
-    SA_EXPECT_FAILURE(truth_from_roles(batch, truth), StatusCode::InvalidDescription, "'valid'",
-                      "slot 1 of image 1");
+    SA_EXPECT_FAILURE(truth_from_host_roles(roles, truth), StatusCode::Incompatible, "'classes'",
+                      "[2, 3]", "cannot read in order");
+}
+
+/** @brief Tests that a flag other than 0 and 1 is refused, naming the flag and its slot. */
+TEST_P(Small_TruthFromHostRolesFlag, RefusesAFlagThatIsNeitherZeroNorOne)
+{
+    HostRoles host;
+    host.flags[4] = GetParam().flag;
+    GroundTruthBatch truth;
+
+    SA_EXPECT_FAILURE(truth_from_host_roles(host.roles(), truth), StatusCode::InvalidDescription,
+                      "'valid'", "slot 1 of image 1");
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    Rows, Medium_TruthFromRolesFlag,
+    Rows, Small_TruthFromHostRolesFlag,
     ::testing::Values(BadFlag{"Half", 0.5f},
                       BadFlag{"NotANumber", std::numeric_limits<float>::quiet_NaN()}),
     [](const ::testing::TestParamInfo<BadFlag>& info) { return std::string(info.param.name); });
 
 /** @brief Tests that a refused batch leaves the boxes, the labels and the flags as they were. */
-TEST_F(Medium_TruthFromRoles, ARefusedBatchLeavesTheWholeTruthUnchanged)
+TEST(Small_TruthFromHostRoles, ARefusedBatchLeavesTheWholeTruthUnchanged)
 {
-    Data::Batch batch = filled_batch();
+    HostRoles host;
     GroundTruthBatch truth;
-    SA_EXPECT_OK(truth_from_roles(batch, truth));
+    SA_EXPECT_OK(truth_from_host_roles(host.roles(), truth));
     const GroundTruthBatch before = truth;
 
-    batch.targets[1].values.data_as<std::int32_t>()[0] = 1;
-    batch.targets[2].values.data_as<float>()[4] = 0.5f;
-    EXPECT_FALSE(truth_from_roles(batch, truth).is_ok());
+    host.indices[0] = 1;
+    host.flags[4] = 0.5f;
+    EXPECT_FALSE(truth_from_host_roles(host.roles(), truth).is_ok());
 
     EXPECT_EQ(truth.boxes, before.boxes);
     EXPECT_EQ(truth.labels, before.labels);
     EXPECT_EQ(truth.valid, before.valid);
+}
+
+/** @brief Tests that the tensors of a batch reach the truth as the host copy reads them. */
+TEST_F(Medium_TruthFromRoles, TheTensorsOfABatchReachTheTruth)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<Data::TargetDescription> described,
+                            describe_truth_roles(K_SLOTS, K_CLASSES));
+    SA_ASSERT_OK_AND_ASSIGN(
+        Data::Batch batch,
+        Data::allocate_batch(*engine, K_IMAGES, Data::InputDescription{Shape{1}, DType::Float32},
+                             described));
+    std::copy(K_CORNERS.begin(), K_CORNERS.end(), batch.targets[0].values.data_as<float>());
+    std::copy(K_INDICES.begin(), K_INDICES.end(),
+              batch.targets[1].values.data_as<std::int32_t>());
+    std::copy(K_FLAGS.begin(), K_FLAGS.end(), batch.targets[2].values.data_as<float>());
+
+    GroundTruthBatch truth;
+    SA_EXPECT_OK(truth_from_roles(batch, truth));
+
+    EXPECT_EQ(truth.boxes, K_CORNERS);
+    EXPECT_EQ(truth.labels, (std::vector<std::int64_t>{4, 0, 2, 0, 0, 1}));
+    EXPECT_EQ(truth.valid, (std::vector<std::uint8_t>{1, 0, 1, 0, 0, 1}));
 }

@@ -43,7 +43,13 @@ namespace SushiAI::Vision::Training
                    "The batch's mask holds {} pixels but the compiled step expects {}",
                    mask.num_elements, pixels);
 
-        const std::int32_t* const label = mask.data_as<std::int32_t>();
+        return validate_pixel_label_values(mask.data_as<std::int32_t>(), pixels, classes,
+                                           ignore_index);
+    }
+
+    Status validate_pixel_label_values(const std::int32_t* label, std::int64_t pixels,
+                                       std::int64_t classes, std::int32_t ignore_index) noexcept
+    {
         for (std::int64_t pixel = 0; pixel < pixels; ++pixel)
         {
             SA_FAIL_IF(label[pixel] != ignore_index

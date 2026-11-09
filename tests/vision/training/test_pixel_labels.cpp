@@ -43,6 +43,7 @@
 #include <SushiAI/vision/training/pixel_labels.hpp>
 
 using namespace SushiAI;
+using Vision::Training::validate_pixel_label_values;
 using Vision::Training::validate_pixel_labels;
 // SaTest stays reachable inside a TEST_F body; see tests/vision/training/README.md.
 namespace SaTest = SushiAI::Test;
@@ -72,13 +73,13 @@ namespace
 } // namespace
 
 /** @brief Tests that an ignore index of -1 passes and that 255 is then a label out of bounds. */
-TEST_F(Medium_VisionTrainingPixelLabels, TheCallersIgnoreIndexReplacesTheDefault)
+TEST(Small_VisionTrainingPixelLabels, TheCallersIgnoreIndexReplacesTheDefault)
 {
-    const SushiBLAS::Tensor minus_one = make_ids(Shape{4}, {0, -1, 2, 1});
-    const SushiBLAS::Tensor byte_void = make_ids(Shape{4}, {0, 255, 2, 1});
+    const std::vector<std::int32_t> minus_one{0, -1, 2, 1};
+    const std::vector<std::int32_t> byte_void{0, 255, 2, 1};
 
-    SA_EXPECT_OK(validate_pixel_labels(minus_one, 4, K_CLASSES, -1));
-    SA_EXPECT_FAILURE(validate_pixel_labels(byte_void, 4, K_CLASSES, -1),
+    SA_EXPECT_OK(validate_pixel_label_values(minus_one.data(), 4, K_CLASSES, -1));
+    SA_EXPECT_FAILURE(validate_pixel_label_values(byte_void.data(), 4, K_CLASSES, -1),
                       StatusCode::Incompatible, "holds 255 at pixel 1");
 }
 

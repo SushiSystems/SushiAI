@@ -318,11 +318,14 @@ logits of 3 ("the logits"). No metric is reported by the four calls.
 
 ## test_truth_from_roles.cpp
 
-Suites: `Small_TruthRoles`, `Medium_TruthFromRoles`.
+Suites: `Small_TruthRoles`, `Small_TruthFromHostRoles` (with `Missing`, `BadRole` and `Flag`
+rows) and `Medium_TruthFromRoles`.
 
-Tests `describe_truth_roles` and `truth_from_roles` in
-`modules/vision/training/include/SushiAI/vision/training/truth_from_roles.hpp`. The
-`Medium_TruthFromRoles` fixture is an `EngineTest`. Its batch holds two images of three slots
+Tests `describe_truth_roles`, `truth_from_host_roles` and `truth_from_roles` in
+`modules/vision/training/include/SushiAI/vision/training/truth_from_roles.hpp`. The `Small_`
+copy cases read `HostRole` views over vectors, so they need no engine; `Medium_TruthFromRoles`
+is an `EngineTest` that checks only that the tensors of an allocated batch reach the copy. The
+values hold two images of three slots
 over 5 classes: the slots 0, 2 and 5 are in use with the classes 4, 2 and 1, and the padding
 slots hold zeros.
 
@@ -366,7 +369,8 @@ and "it carries". A batch with no target fails with "no role 'boxes'" and "(none
 
 The call fails with `Incompatible` for `Float32` classes ("'classes'", "int32",
 "float32 [2, 3]"), for `Int32` valid flags ("'valid'", "float32", "int32 [2, 3]") and for
-boxes of sample shape [12] ("'boxes'", "rank 3", "[2, 12]").
+boxes of rank 2 and extents [2, 12] ("'boxes'", "rank 3", "[2, 12]"), and for a role whose
+values the host cannot read in order ("cannot read in order").
 
 ### RefusesABoxOfAnotherWidthAndRolesOfOtherSlots
 

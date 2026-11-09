@@ -1,15 +1,16 @@
 # tests/vision/training/test_truth_from_roles.cpp
 
 
-Suites: `Small_TruthRoles`, `Medium_TruthFromRoles`, `Medium_TruthFromRolesMissing`,
-`Medium_TruthFromRolesBadRole` and `Medium_TruthFromRolesFlag`.
+Suites: `Small_TruthRoles`, `Small_TruthFromHostRoles`, `Small_TruthFromHostRolesMissing`,
+`Small_TruthFromHostRolesBadRole`, `Small_TruthFromHostRolesFlag` and `Medium_TruthFromRoles`.
 
-Tests `describe_truth_roles` and `truth_from_roles` of `truth_from_roles.hpp`: the three roles of a
-detection ground truth (`boxes`, `classes`, `valid`) and the conversion of a batch that carries
-them into a `GroundTruthBatch`. The batch is two images of three object slots over five classes.
-The `Small_` cases describe the roles. The `Medium_` cases allocate a batch on the CPU SYCL device
-through `Data::allocate_batch`, so they run on an engine; a host-built batch would make the
-refusals decided on roles and shapes `Small_`, and that seam is on the list of RW-155.
+Tests `describe_truth_roles`, `truth_from_host_roles` and `truth_from_roles` of
+`truth_from_roles.hpp`: the three roles of a detection ground truth (`boxes`, `classes`, `valid`)
+and the conversion of the roles of a batch into a `GroundTruthBatch`. The roles are two images of
+three object slots over five classes. The `Small_` cases describe the roles and run the copy over
+`HostRole` views of vectors the case holds (`HostRoles`), so every value is host-produced and no
+engine runs. The one `Medium_` case allocates a batch on the CPU SYCL device through
+`Data::allocate_batch` and checks that its tensors reach the same copy.
 
 ### DescribesBoxesClassesAndValidOverTheSlots
 
@@ -27,7 +28,7 @@ with `InvalidDescription` naming "classes" and "got -1".
 
 ### CopiesTheCorners, WidensTheClasses and MakesTheFlagsBytes
 
-A batch filled with the corners, the classes 4, 0, 2, 0, 0, 1 and the flags 1, 0, 1, 0, 0, 1 gives
+Host roles filled with the corners, the classes 4, 0, 2, 0, 0, 1 and the flags 1, 0, 1, 0, 0, 1 gives
 a truth of 2 images and 3 slots whose boxes equal the corners, whose labels are the classes as
 64-bit values, and whose valid flags are the bytes 1, 0, 1, 0, 0, 1. Every value is a copy or an
 exact conversion.
@@ -43,7 +44,7 @@ pointers do not change and label 0 reads 3.
 
 ### RefusesABatchThatLacksARole
 
-Rows: the batch without `boxes`, without `classes` and without `valid`. Each fails with
+Rows: the roles without `boxes`, without `classes` and without `valid`. Each fails with
 `InvalidDescription` naming the missing role and "it carries".
 
 ### RefusesABatchWithNoRole
@@ -52,9 +53,14 @@ A batch with no role fails with `InvalidDescription` naming `'boxes'` and "(none
 
 ### RefusesARoleTheTruthCannotRead
 
-Rows, each failing with `Incompatible`: `ClassesOfFloat32`, `ValidOfInt32`, `BoxesOfRankThree`,
+Rows, each failing with `Incompatible`: `ClassesOfFloat32`, `ValidOfInt32`, `BoxesOfRankTwo`,
 `BoxesOfWidthThree`, `ClassesOfAnotherSlotCount` and `ValidOfAnotherSlotCount`. The message names
 the role and what it holds.
+
+### RefusesARoleTheHostCannotReadInOrder
+
+A classes role whose values are null fails with `Incompatible` naming `'classes'`, `[2, 3]` and
+"cannot read in order".
 
 ### RefusesAFlagThatIsNeitherZeroNorOne
 
@@ -65,3 +71,9 @@ Rows: a flag of 0.5 and a flag that is not a number, at slot 1 of image 1. Each 
 
 After a refused call the boxes, the labels and the valid flags of the truth equal what an accepted
 call wrote before. The header promises that a failure leaves the truth untouched.
+
+### TheTensorsOfABatchReachTheTruth
+
+A batch allocated on the engine and filled with the same values gives the same boxes, labels and
+valid bytes. This is the one case that needs a device: it checks `truth_from_roles` reads the
+tensors of a batch into the views.

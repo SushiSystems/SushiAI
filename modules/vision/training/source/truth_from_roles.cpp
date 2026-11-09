@@ -31,8 +31,11 @@
 #include <SushiAI/vision/training/truth_from_roles.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include <SushiBLAS/tensor/tensor.hpp>
 
@@ -61,62 +64,73 @@ namespace SushiAI::Vision::Training
         /** @brief Holds the form of the valid role: [N, M] float32. */
         constexpr RoleForm K_VALID_FORM{Data::K_ROLE_VALID, 2, DType::Float32};
 
-        /** @brief Returns the extents of @p tensor as "[2, 3, 4]". */
-        std::string list_extents(const SushiBLAS::Tensor& tensor)
+        /** @brief Returns the extents of @p role as "[2, 3, 4]". */
+        std::string list_extents(const HostRole& role)
         {
             std::string text = "[";
-            for (int axis = 0; axis < tensor.rank; ++axis)
+            for (std::size_t axis = 0; axis < role.extents.size(); ++axis)
             {
                 text += axis == 0 ? "" : ", ";
-                text += std::to_string(tensor.shape[static_cast<std::size_t>(axis)]);
+                text += std::to_string(role.extents[axis]);
             }
             return text + "]";
         }
 
-        /** @brief Returns the roles of @p batch in quotes, or "(none)". */
-        std::string list_roles(const Data::Batch& batch)
+        /** @brief Returns the names of @p roles in quotes, or "(none)". */
+        std::string list_roles(const std::vector<HostRole>& roles)
         {
             std::string text;
-            for (const Data::BatchTarget& target : batch.targets)
+            for (const HostRole& role : roles)
             {
                 text += text.empty() ? "'" : ", '";
-                text += target.role + "'";
+                text += role.role + "'";
             }
             return text.empty() ? std::string("(none)") : text;
         }
 
-        /**
-         * @brief Finds the tensor @p batch carries under the role of @p form.
-         * @return The tensor; InvalidDescription when the batch lacks the role; Incompatible
-         *         for another rank or element type, or values the host cannot read in order.
-         */
-        Result<const SushiBLAS::Tensor*> find_role(const Data::Batch& batch,
-                                                   const RoleForm& form)
+        /** @brief Returns the role of @p roles named @p name, or null. */
+        const HostRole* find_host_role(const std::vector<HostRole>& roles, std::string_view name)
         {
-            const Data::BatchTarget* const target = Data::find_target(batch.targets, form.role);
-            SA_FAIL_IF(target == nullptr, StatusCode::InvalidDescription,
+            for (const HostRole& role : roles)
+            {
+                if (role.role == name)
+                    return &role;
+            }
+            return nullptr;
+        }
+
+        /**
+         * @brief Finds the role of @p roles named by @p form.
+         * @return The role; InvalidDescription when @p roles lack it; Incompatible for another
+         *         rank or element type, or values the host cannot read in order.
+         */
+        Result<const HostRole*> find_role(const std::vector<HostRole>& roles,
+                                          const RoleForm& form)
+        {
+            const HostRole* const found = find_host_role(roles, form.role);
+            SA_FAIL_IF(found == nullptr, StatusCode::InvalidDescription,
                        "The batch carries no role '{}', which a detection step reads; it "
                        "carries {}",
-                       form.role, list_roles(batch));
+                       form.role, list_roles(roles));
 
-            const SushiBLAS::Tensor& values = target->values;
-            SA_FAIL_IF(values.rank != form.rank || values.dtype != form.dtype,
+            const HostRole& values = *found;
+            SA_FAIL_IF(static_cast<int>(values.extents.size()) != form.rank
+                           || values.dtype != form.dtype,
                        StatusCode::Incompatible,
                        "The role '{}' must hold {} of rank {}, but it holds {} {}", form.role,
                        dtype_name(form.dtype), form.rank, dtype_name(values.dtype),
                        list_extents(values));
-            SA_FAIL_IF(values.data_or_null() == nullptr || !values.is_contiguous(),
-                       StatusCode::Incompatible,
+            SA_FAIL_IF(values.values == nullptr, StatusCode::Incompatible,
                        "The role '{}' holds {} whose values the host cannot read in order",
                        form.role, list_extents(values));
             return &values;
         }
 
         /** @brief Checks that the [N, M] role @p values has the rows of @p boxes. */
-        Status check_rows(const SushiBLAS::Tensor& values, std::string_view role,
-                          const SushiBLAS::Tensor& boxes)
+        Status check_rows(const HostRole& values, std::string_view role, const HostRole& boxes)
         {
-            SA_FAIL_IF(values.shape[0] != boxes.shape[0] || values.shape[1] != boxes.shape[1],
+            SA_FAIL_IF(values.extents[0] != boxes.extents[0]
+                           || values.extents[1] != boxes.extents[1],
                        StatusCode::Incompatible,
                        "The role '{}' holds {}, but the role '{}' holds {}; both must hold the "
                        "same images and object slots",
@@ -155,29 +169,30 @@ namespace SushiAI::Vision::Training
             {std::string(K_VALID_FORM.role), Shape{max_objects}, K_VALID_FORM.dtype, 0}};
     }
 
-    Status truth_from_roles(const Data::Batch& batch, Detect::GroundTruthBatch& truth) noexcept
+    Status truth_from_host_roles(const std::vector<HostRole>& roles,
+                                 Detect::GroundTruthBatch& truth) noexcept
     {
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const boxes, find_role(batch, K_BOXES_FORM));
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const classes, find_role(batch, K_CLASSES_FORM));
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const valid, find_role(batch, K_VALID_FORM));
+        SA_TRY_ASSIGN(const HostRole* const boxes, find_role(roles, K_BOXES_FORM));
+        SA_TRY_ASSIGN(const HostRole* const classes, find_role(roles, K_CLASSES_FORM));
+        SA_TRY_ASSIGN(const HostRole* const valid, find_role(roles, K_VALID_FORM));
 
-        SA_FAIL_IF(boxes->shape[2] != K_TRUTH_BOX_VALUES, StatusCode::Incompatible,
+        SA_FAIL_IF(boxes->extents[2] != K_TRUTH_BOX_VALUES, StatusCode::Incompatible,
                    "The role '{}' holds {}; its last axis must hold the {} values of a box",
                    Data::K_ROLE_BOXES, list_extents(*boxes), K_TRUTH_BOX_VALUES);
         SA_TRY(check_rows(*classes, Data::K_ROLE_CLASSES, *boxes));
         SA_TRY(check_rows(*valid, Data::K_ROLE_VALID, *boxes));
 
-        const std::size_t slots = static_cast<std::size_t>(boxes->shape[1]);
-        const std::size_t rows = static_cast<std::size_t>(boxes->shape[0]) * slots;
-        const float* const flags = valid->data_as<float>();
+        const std::size_t slots = static_cast<std::size_t>(boxes->extents[1]);
+        const std::size_t rows = static_cast<std::size_t>(boxes->extents[0]) * slots;
+        const float* const flags = static_cast<const float*>(valid->values);
         SA_TRY(check_flags(flags, rows, slots));
 
-        const float* const corners = boxes->data_as<float>();
-        const std::int32_t* const indices = classes->data_as<std::int32_t>();
+        const float* const corners = static_cast<const float*>(boxes->values);
+        const std::int32_t* const indices = static_cast<const std::int32_t*>(classes->values);
 
         // assign() keeps the storage of an array that already holds as many values.
-        truth.batch = boxes->shape[0];
-        truth.max_boxes = boxes->shape[1];
+        truth.batch = boxes->extents[0];
+        truth.max_boxes = boxes->extents[1];
         truth.boxes.assign(corners, corners + rows * static_cast<std::size_t>(K_TRUTH_BOX_VALUES));
         truth.labels.assign(indices, indices + rows);
         truth.valid.resize(rows);
@@ -185,6 +200,23 @@ namespace SushiAI::Vision::Training
             truth.valid[row] = static_cast<std::uint8_t>(flags[row] != 0.0f);
 
         return Status();
+    }
+
+    Status truth_from_roles(const Data::Batch& batch, Detect::GroundTruthBatch& truth) noexcept
+    {
+        std::vector<HostRole> roles;
+        roles.reserve(batch.targets.size());
+        for (const Data::BatchTarget& target : batch.targets)
+        {
+            const SushiBLAS::Tensor& tensor = target.values;
+            HostRole role{target.role, {}, tensor.dtype, nullptr};
+            for (int axis = 0; axis < tensor.rank; ++axis)
+                role.extents.push_back(tensor.shape[static_cast<std::size_t>(axis)]);
+            if (tensor.data_or_null() != nullptr && tensor.is_contiguous())
+                role.values = tensor.data_or_null();
+            roles.push_back(std::move(role));
+        }
+        return truth_from_host_roles(roles, truth);
     }
 
 } // namespace SushiAI::Vision::Training

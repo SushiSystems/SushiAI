@@ -55,12 +55,12 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/anchor_objective_factory.hpp>` | `build_anchor_objective`, `make_anchor_objective` |
 | `<SushiAI/vision/training/anchor_training_step.hpp>` | `AnchorTrainingStep` |
 | `<SushiAI/vision/training/anchor_training_loop.hpp>` | `AnchorProgress`, `AnchorProgressCallback`, `AnchorLoopOptions`, `AnchorRunReport`, `run_anchor_training` |
-| `<SushiAI/vision/training/truth_from_roles.hpp>` | `K_TRUTH_BOX_VALUES`, `describe_truth_roles`, `truth_from_roles` |
+| `<SushiAI/vision/training/truth_from_roles.hpp>` | `K_TRUTH_BOX_VALUES`, `describe_truth_roles`, `HostRole`, `truth_from_host_roles`, `truth_from_roles` |
 | `<SushiAI/vision/training/detection_truth_check.hpp>` | `check_truth_layout`, `check_truth_labels` |
 | `<SushiAI/vision/training/detection_run_check.hpp>` | `DetectionRunSubject`, `DetectionRunPlan`, `make_detection_run_plan`, `check_detection_run` |
 | `<SushiAI/vision/training/run_progress.hpp>` | `notify_guarded`, `report_run_progress` |
 | `<SushiAI/vision/training/pixel_extents.hpp>` | `PixelExtents` |
-| `<SushiAI/vision/training/pixel_labels.hpp>` | `validate_pixel_labels` |
+| `<SushiAI/vision/training/pixel_labels.hpp>` | `validate_pixel_label_values`, `validate_pixel_labels` |
 | `<SushiAI/vision/training/pixel_targets.hpp>` | `fill_pixel_targets` |
 | `<SushiAI/vision/training/dice_targets.hpp>` | `DiceLeaves`, `fill_dice_targets` |
 | `<SushiAI/vision/training/pixel_losses.hpp>` | `K_DICE_EPSILON`, `emit_pixel_cross_entropy`, `DiceOperands`, `emit_soft_dice` |
@@ -164,7 +164,10 @@ differs. An `M` below 1 and a negative class count are `InvalidDescription`.
 them, copies the corners, widens each class to int64 and writes each flag as a byte. The
 caller owns `truth` and passes the same object for every batch: its arrays are assigned in
 place, so after the first batch of a size the copy allocates nothing. The box units are left as
-they are, because both sides use pixel corners.
+they are, because both sides use pixel corners. `truth_from_host_roles(roles, truth)` does the
+copy over `HostRole` views (name, extents, element type, first value), which
+`truth_from_roles` builds from the tensors of the batch; a caller that holds the values in
+host memory calls it without a device.
 
 | Refusal | Code |
 | --- | --- |

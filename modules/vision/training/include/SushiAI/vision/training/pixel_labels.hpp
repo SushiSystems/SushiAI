@@ -36,6 +36,18 @@
 namespace SushiAI::Vision::Training
 {
     /**
+     * @brief Checks that each of @p pixels class indices is in [0, C) or equals the ignore index.
+     * @param labels The first of @p pixels INT32 class indices, held in host memory.
+     * @param pixels How many labels to read; not negative.
+     * @param classes C; a label is in [0, C) or equals @p ignore_index.
+     * @param ignore_index The label that names no class.
+     * @return Success, or Incompatible for a label outside those bounds, naming its pixel.
+     */
+    [[nodiscard]] Status validate_pixel_label_values(const std::int32_t* labels,
+                                                     std::int64_t pixels, std::int64_t classes,
+                                                     std::int32_t ignore_index) noexcept;
+
+    /**
      * @brief Checks that @p mask holds one class or the ignore index for each of the pixels.
      * @param mask INT32 class indices of any shape, readable from the host.
      * @param pixels The element count the step was compiled for, N * H * W.

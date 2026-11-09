@@ -2241,6 +2241,11 @@ namespace SushiAI::Vision::Training
                 std::declval<std::int64_t>(), std::declval<std::int64_t>(),
                 std::declval<std::int32_t>())),
         "validate_pixel_labels is noexcept");
+    static_assert(
+        noexcept(validate_pixel_label_values(std::declval<const std::int32_t*>(),
+                std::declval<std::int64_t>(), std::declval<std::int64_t>(),
+                std::declval<std::int32_t>())),
+        "validate_pixel_label_values is noexcept");
 } // namespace SushiAI::Vision::Training
 
 namespace SushiAI::Vision::Training
@@ -2298,4 +2303,8 @@ namespace SushiAI::Vision::Training
         noexcept(truth_from_roles(std::declval<const Data::Batch&>(),
                 std::declval<Detect::GroundTruthBatch&>())),
         "truth_from_roles is noexcept");
+    static_assert(
+        noexcept(truth_from_host_roles(std::declval<const std::vector<HostRole>&>(),
+                std::declval<Detect::GroundTruthBatch&>())),
+        "truth_from_host_roles is noexcept");
 } // namespace SushiAI::Vision::Training
