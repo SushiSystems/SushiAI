@@ -48,7 +48,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M27 | the tests of `core/shape` (2 files): 4 resize, 3 split, 4 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M28 | the tests of `core/tensor_values` (1 file): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M29 | the tests of `core/version` (1 file): 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M30 | the tests of `language` (46 files): 152 rewrite, 27 resize, 33 split, 19 merge, 15 delete | T1, T2, T3, T4, T5, T6, T7, T8 | in progress: `blocks/test_expert_trace.cpp`, `test_expert_projection.cpp`, `test_incremental.cpp` and `test_rotary_positions.cpp` are applied (not yet built or run); the other 42 files are left |
+| M30 | the tests of `language` (46 files): 152 rewrite, 27 resize, 33 split, 19 merge, 15 delete | T1, T2, T3, T4, T5, T6, T7, T8 | in progress (2026-11-09): graph, text, datasets, training, registration, decoder_models, umbrella, generation and nine blocks files are committed and pushed. Left: `blocks/test_causal_self_attention.cpp` (31 records), `test_incremental.cpp` (2) and `test_rotary_positions.cpp` (5) of REPORT.md are not applied; the md pages of the nine blocks files beside `test_expert_projection.md` are not re-checked against their records; then set done |
 | M31 | the tests of `layers/classifier_objective` (1 file): 1 split, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M32 | the tests of `layers/io` (8 files): 15 rewrite, 19 resize, 4 split, 10 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M33 | the tests of `layers/layer_rows` (2 files): 2 rewrite, 1 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
