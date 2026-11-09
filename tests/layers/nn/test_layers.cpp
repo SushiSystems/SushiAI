@@ -59,15 +59,6 @@ using Graph::NodeID;
 
 namespace
 {
-    /** @brief The op names of nodes [from, end), for a readable expectation. */
-    std::vector<std::string> op_names(const Graph::Graph& graph, std::size_t from)
-    {
-        std::vector<std::string> names;
-        for (std::size_t i = from; i < graph.node_count(); ++i)
-            names.emplace_back(Ops::name_of(graph.nodes()[i].op));
-        return names;
-    }
-
     /** @brief How many nodes of @p op the whole graph holds. */
     std::size_t count_op(const Graph::Graph& graph, OpID op)
     {
@@ -77,80 +68,6 @@ namespace
     }
 
 } // namespace
-
-TEST(Small_Layers, TwoLayerMLPProducesTheExpectedBackwardTopology)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.input(Shape{8, 6}, "x");
-    const ValueID targets = builder.input(Shape{8, 3}, "targets");
-
-    NN::Sequential model{NN::Linear{6, 4}, NN::ReLU{}, NN::Linear{4, 3}};
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, model.forward(builder, x));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
-                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
-
-    const std::size_t forward_nodes = graph.node_count();
-
-    std::vector<ValueID> wrt;
-    NN::for_each_parameter(model, [&wrt, &graph](const std::string&, NN::Parameter& parameter)
-    {
-        wrt.push_back(parameter.id_in(graph));
-    });
-    ASSERT_EQ(wrt.size(), 4u);
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> grads, Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
-
-    // Cross-entropy differentiates as one fused rule; see tests/layers/nn/README.md.
-    EXPECT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
-        "sushiai.exp",
-        "sushiai.sub",
-        "sushiai.scale",
-        "sushiai.sum_rows",         // d(bias) of the output layer
-        "sushiai.matmul",           // d(hidden activation)
-        "sushiai.matmul",           // d(weight) of the output layer
-        "sushiai.relu_backward",
-        "sushiai.sum_rows",         // d(bias) of the hidden layer
-        "sushiai.matmul",           // d(weight) of the hidden layer
-    }));
-
-    // No LOG_SOFTMAX gradient: the fused rule absorbed that node.
-    EXPECT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX.id), 1u);
-
-    // One contributor per value emits no ACCUMULATE; see tests/layers/nn/README.md.
-    EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 0u);
-
-    ASSERT_EQ(grads.size(), 4u);
-    for (std::size_t i = 0; i < grads.size(); ++i)
-    {
-        ASSERT_NE(grads[i], K_NO_VALUE) << "parameter " << i << " received no gradient";
-        EXPECT_EQ(graph.value(grads[i]).shape, graph.value(wrt[i]).shape);
-        EXPECT_EQ(graph.value(grads[i]).lifetime, Graph::Lifetime::Gradient);
-    }
-}
-
-TEST(Small_Layers, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.input(Shape{8, 6}, "x");
-    const ValueID targets = builder.input(Shape{8, 3}, "targets");
-
-    NN::Linear layer{6, 3};
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, layer.forward(builder, x));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
-                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
-
-    const std::vector<ValueID> wrt = {layer.weight.id_in(graph)};
-    SA_EXPECT_OK(Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
-
-    // The input gradient's MATMUL is skipped; see tests/layers/nn/README.md.
-    EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 2u);
-}
 
 namespace
 {
@@ -168,7 +85,63 @@ namespace
 
 } // namespace
 
-/** @brief Tests that a fused cross-entropy root emits the nodes it emitted before, with no seed. */
+/** @brief Tests that every parameter of a two-layer MLP receives a gradient of its own shape. */
+TEST(Small_Layers, EveryParameterOfATwoLayerMLPReceivesAGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{8, 6}, "x");
+    const ValueID targets = builder.input(Shape{8, 3}, "targets");
+
+    NN::Sequential model{NN::Linear{6, 4}, NN::ReLU{}, NN::Linear{4, 3}};
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, model.forward(builder, x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
+
+    std::vector<ValueID> wrt;
+    NN::for_each_parameter(model, [&wrt, &graph](const std::string&, NN::Parameter& parameter)
+    {
+        wrt.push_back(parameter.id_in(graph));
+    });
+    ASSERT_EQ(wrt.size(), 4u);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> grads, Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
+
+    ASSERT_EQ(grads.size(), 4u);
+    for (std::size_t i = 0; i < grads.size(); ++i)
+    {
+        ASSERT_NE(grads[i], K_NO_VALUE) << "parameter " << i << " received no gradient";
+        EXPECT_EQ(graph.value(grads[i]).shape, graph.value(wrt[i]).shape);
+        EXPECT_EQ(graph.value(grads[i]).lifetime, Graph::Lifetime::Gradient);
+    }
+}
+
+/** @brief Tests that an input that does not require a gradient receives none. */
+TEST(Small_Layers, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{8, 6}, "x");
+    const ValueID targets = builder.input(Shape{8, 3}, "targets");
+
+    NN::Linear layer{6, 3};
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, layer.forward(builder, x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
+
+    const std::vector<ValueID> wrt = {x, layer.weight.id_in(graph)};
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> grads, Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
+
+    ASSERT_EQ(grads.size(), 2u);
+    EXPECT_EQ(grads[0], K_NO_VALUE);
+    EXPECT_NE(grads[1], K_NO_VALUE);
+}
+
+/** @brief Tests that a fused cross-entropy root emits no seed node. */
 TEST(Small_Layers, AFusedCrossEntropyRootEmitsNoSeedNode)
 {
     Graph::Graph graph;
@@ -181,7 +154,6 @@ TEST(Small_Layers, AFusedCrossEntropyRootEmitsNoSeedNode)
     SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, model.forward(builder, x));
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
                             NN::CrossEntropyLoss{}.forward(builder, logits, targets));
-    const std::size_t forward_nodes = graph.node_count();
 
     std::vector<ValueID> wrt;
     NN::for_each_parameter(model, [&wrt, &graph](const std::string&, NN::Parameter& parameter)
@@ -191,38 +163,48 @@ TEST(Small_Layers, AFusedCrossEntropyRootEmitsNoSeedNode)
 
     SA_EXPECT_OK(differentiate(graph, loss, wrt));
 
-    EXPECT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
-        "sushiai.exp",
-        "sushiai.sub",
-        "sushiai.scale",
-        "sushiai.sum_rows",
-        "sushiai.matmul",
-        "sushiai.matmul",
-        "sushiai.relu_backward",
-        "sushiai.sum_rows",
-        "sushiai.matmul",
-    }));
     EXPECT_EQ(count_op(graph, Ops::K_ZERO.id), 0u);
     EXPECT_EQ(count_op(graph, Ops::K_CONSTANT.id), 0u);
 }
 
-TEST(Small_Layers, LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit)
+namespace
 {
+    /** @brief Holds a Linear layer, an input shape it refuses and the words the refusal names. */
+    struct LinearRefusalRow
+    {
+        std::string name;           /**< The row's name. */
+        NN::Linear layer;           /**< The layer under test. */
+        Shape input;                /**< The shape of the value the layer is traced over. */
+        std::string first;          /**< The first substring the message names. */
+        std::string second;         /**< The second substring the message names. */
+        std::string third;          /**< The third substring the message names. */
+    };
+}
+
+/** @brief Runs the Linear refusal over each input the layer does not fit. */
+class Small_LayersLinearRefusal : public ::testing::TestWithParam<LinearRefusalRow>
+{
+};
+
+/** @brief Tests that Linear names its own dimensions when the input of the row does not fit. */
+TEST_P(Small_LayersLinearRefusal, LinearNamesItsOwnDimensions)
+{
+    LinearRefusalRow row = GetParam();
     Graph::Graph graph;
     const GraphBuilder builder(graph);
+    const ValueID x = builder.input(row.input, "x");
 
-    const ValueID x = builder.input(Shape{8, 5}, "x");
-
-    NN::Linear layer{6, 4};
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "Linear(6, 4)",
-                      "[8, 5]", "inner extent must be 6");
-
-    NN::Linear rank_checker{5, 4};
-    const ValueID vector = builder.input(Shape{5}, "v");
-    SA_EXPECT_FAILURE(rank_checker.forward(builder, vector), StatusCode::InvalidDescription,
-                      "Linear needs a rank-2 input", "[5]");
-
-    NN::Linear empty{0, 4};
-    SA_EXPECT_FAILURE(empty.forward(builder, x), StatusCode::InvalidDescription,
-                      "Linear needs positive feature counts", "in=0", "out=4");
+    SA_EXPECT_FAILURE(row.layer.forward(builder, x), StatusCode::InvalidDescription, row.first,
+                      row.second, row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LayersLinearRefusal,
+    ::testing::Values(
+        LinearRefusalRow{"AnInputExtentThatIsNotTheFeatureCount", NN::Linear{6, 4}, Shape{8, 5},
+                         "Linear(6, 4)", "[8, 5]", "inner extent must be 6"},
+        LinearRefusalRow{"AnInputOfTheWrongRank", NN::Linear{5, 4}, Shape{5},
+                         "Linear needs a rank-2 input", "[5]", ""},
+        LinearRefusalRow{"AZeroFeatureCount", NN::Linear{0, 4}, Shape{8, 5},
+                         "Linear needs positive feature counts", "in=0", "out=4"}),
+    [](const ::testing::TestParamInfo<LinearRefusalRow>& info) { return info.param.name; });

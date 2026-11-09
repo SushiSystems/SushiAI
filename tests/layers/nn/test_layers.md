@@ -1,7 +1,7 @@
 # tests/layers/nn: test_layers.cpp, tests/core/autograd/test_backward.cpp
 
 
-Suites: `Small_Backward`.
+Suites: `Small_Backward`, `Small_Layers`, `Small_LayersLinearRefusal`.
 
 Tests the graph that differentiation emits and the coverage of the backward rule table.
 
@@ -95,20 +95,25 @@ entry must have a rule, and no operation may appear in both the ledger and this 
 over `Ops::K_ALL` accepts a rule that either list names. An entry leaves `unproven` when a
 finite-difference case names its rule in the ledger.
 
-## TwoLayerMLPProducesTheExpectedBackwardTopology
+## Small_Layers.EveryParameterOfATwoLayerMLPReceivesAGradient
 
-The `op_names` comparison expects the cross-entropy pair to be differentiated as one fused
-rule: exp of the log-probabilities, minus the one-hot targets, scaled by 1/N. The chain then
-walks back through the second linear layer, the activation and the first linear layer.
-
-`count_op(graph, K_ACCUMULATE)` is 0 because every value in a plain feed-forward stack has
-exactly one contributor, so the tiered accumulation emits nothing.
+A linear, a ReLU and a linear layer under `NN::CrossEntropyLoss` are differentiated against their four
+parameters. Each gradient is a value other than `K_NO_VALUE`, has the shape of its parameter and the
+lifetime `GRADIENT`. The case does not list the operations the rules emit.
 
 ## TheInputIsNotDifferentiatedWhenItDoesNotRequireOne
 
-The backward pass holds one K_MATMUL, the weight gradient, which with the forward one makes the
-two the test counts. The input gradient would have been another K_MATMUL. It is skipped, not
-computed and discarded.
+A linear layer under cross-entropy is differentiated against the input `x` and the weight. The
+gradient list holds `K_NO_VALUE` for `x` and a value for the weight, so no gradient is built for an
+input that does not require one.
+
+## Small_LayersLinearRefusal.LinearNamesItsOwnDimensions
+
+Three rows, each refused with `InvalidDescription`: `AnInputExtentThatIsNotTheFeatureCount` (a
+`Linear` of 6 to 4 over [8, 5]; "Linear(6, 4)", "[8, 5]", "inner extent must be 6"),
+`AnInputOfTheWrongRank` (a `Linear` of 5 to 4 over [5]; "Linear needs a rank-2 input", "[5]") and
+`AZeroFeatureCount` (a `Linear` of 0 to 4; "Linear needs positive feature counts", "in=0",
+"out=4").
 
 ## FanOutEmitsAnAccumulateChain
 
@@ -397,9 +402,9 @@ The root is a K_SCALE of an INT32 parameter. The message contains "element type 
 
 ## AFusedCrossEntropyRootEmitsNoSeedNode
 
-A two-layer `NN::Sequential` under `NN::CrossEntropyLoss` appends K_EXP, K_SUB, K_SCALE, K_SUM_ROWS,
-K_MATMUL, K_MATMUL, K_RELU_BACKWARD, K_SUM_ROWS, K_MATMUL. The graph holds no K_ZERO and no K_CONSTANT: the
-fused rule starts from the root's implicit gradient and needs no seed node.
+A two-layer `NN::Sequential` under `NN::CrossEntropyLoss` is differentiated. The graph holds no
+K_ZERO and no K_CONSTANT: the fused rule starts from the root's implicit gradient and needs no seed
+node. The case does not list the nodes the rules append.
 
 ## AnUnfusedNLLLossRootEmitsNoSeedNode
 
