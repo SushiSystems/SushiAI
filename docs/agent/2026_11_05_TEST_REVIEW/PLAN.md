@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M31 to M52 are left
+**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M37 and M40 to M52 are left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
