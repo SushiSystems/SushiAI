@@ -1,19 +1,24 @@
 # tests/vision/datasets/test_mask_png.cpp
 
 
-Suites: `Small_DatasetsMaskPng`.
+Suites: `Small_DatasetsMaskPng` and `Medium_DatasetsMaskPng`.
 
-Tests `read_mask_png` in `modules/vision/datasets/include/SushiAI/vision/datasets/mask_png.hpp`
-over one-byte files the cases write under the system's temporary directory. Unless a case says
-otherwise the options name four classes and the split "train", so the images are under
-`images/train` and the masks under `masks/train`.
+Tests `read_mask_png` in `modules/vision/datasets/include/SushiAI/vision/datasets/mask_png.hpp`.
+The `Small_` cases read one-byte files served by a `MemorySource` under the folder `data`; the
+two `Medium_` cases write them under the system's temporary directory and read them through the
+file-system overload. Unless a case says otherwise the options name four classes and the split
+"train", so the images are under `images/train` and the masks under `masks/train`.
 
 ## EachImageRefersToTheMaskOfItsStem
 
-The list has a class count of 4, no class names, two samples and four files. The first sample
-is `images/train/a/c.jpeg` with the mask `masks/train/a/c.png`, and has no class index and no
-object. The second is `images/train/b.jpg` with `masks/train/b.png`. The files `notes.md` and
-`index.txt` are not listed.
+Two images and two masks below the images and masks folders give two samples and four files. The
+first sample is `images/train/a/c.jpeg` with the mask `masks/train/a/c.png`, and the second is
+`images/train/b.jpg` with `masks/train/b.png`. The files `notes.md` and `index.txt` are not
+listed.
+
+## TheListHoldsAClassCountAndNoLabel
+
+The list has a class count of 4, no class names, and a sample with no class index and no object.
 
 ## TheFoldersMayBeNamedAndTheSplitLeftOut
 
@@ -35,13 +40,24 @@ and "the mask has no image".
 The images `a.jpg` and `a.png` with one mask `a.png` fail with `InvalidFile`,
 "images/train/a.png", "shares the mask" and "masks/train/a.png".
 
-## TheOptionsAndTheFoldersAreChecked
+## AClassCountBelowOneIsRefused
 
 A class count of 0 fails with `InvalidDescription`, "read_mask_png" and
-"the class count is 0". An absent image folder fails with `FileNotFound`, "images/train" and
-"no such directory", and an absent mask folder with `FileNotFound`, "masks/train" and
-"no such directory". Two empty folders fail with `InvalidFile`, "images/train" and
-"holds no image".
+"the class count is 0".
+
+## AnAbsentImageFolderIsReported
+
+A source without `images/train` fails with `FileNotFound`, "images/train" and
+"no such directory".
+
+## AnAbsentMaskFolderIsReported
+
+A source with `images/train` and without `masks/train` fails with `FileNotFound`,
+"masks/train" and "no such directory".
+
+## AnImageFolderWithoutAnImageIsRefused
+
+Two empty folders fail with `InvalidFile`, "images/train" and "holds no image".
 
 ## TheSuffixesPairNamesThatDiffer
 
@@ -60,7 +76,12 @@ With `image_suffix` "_left", the image `b.png` fails with `InvalidFile`, "images
 With `mask_suffix` "_ids", the mask `b_ids.png` without an image fails with `InvalidFile`,
 "masks/train/b_ids.png" and "the mask has no image".
 
-## AnImageAndAMaskServedFromMemoryArePaired
+## ImagesAndMasksOnDiskArePairedByTheirStems
 
-A `MemorySource` holding `images/train/a.jpg` and `masks/train/a.png` gives one sample whose
-file is index 0 and whose mask is index 1.
+`Medium_DatasetsMaskPng`. The files of the first case, written under the temporary directory,
+give the same two samples through the file-system overload.
+
+## AnImageFolderAbsentFromTheDiskIsNotFound
+
+`Medium_DatasetsMaskPng`. A temporary directory without `images/train` fails with `FileNotFound`,
+"images/train" and "no such directory".
