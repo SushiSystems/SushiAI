@@ -712,3 +712,5 @@ The files below have a page beside them that says what each case pins.
 | `test_free_training_loop.cpp` | [`test_free_training_loop.md`](test_free_training_loop.md) |
 | `test_anchor_objective.cpp` | [`test_anchor_objective.md`](test_anchor_objective.md) |
 | `test_anchor_objective_factory.cpp` | [`test_anchor_objective_factory.md`](test_anchor_objective_factory.md) |
+| `test_detection_run_check.cpp` | [`test_detection_run_check.md`](test_detection_run_check.md) |
+| `test_detection_truth_check.cpp` | [`test_detection_truth_check.md`](test_detection_truth_check.md) |

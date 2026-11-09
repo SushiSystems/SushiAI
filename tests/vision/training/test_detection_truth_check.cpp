@@ -28,6 +28,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -62,6 +63,34 @@ namespace
                        0.0f, 0.0f, 3.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f};
         return truth;
     }
+
+    /** @brief Names an array to shorten and the sizes the refusal states. */
+    struct ShortArray
+    {
+        void (*shorten)(GroundTruthBatch&);  /**< Removes the last element of one array. */
+        const char* sizes;                   /**< What the message says the truth holds. */
+    };
+
+    /** @brief Provides the arrays of another size than the layout needs. */
+    class Small_DetectionTruthCheckSizes : public ::testing::TestWithParam<ShortArray>
+    {
+
+    };
+
+    /** @brief Names a label to set on a row and what the refusal names. */
+    struct StrayLabel
+    {
+        std::size_t row;        /**< The row that receives the label. */
+        std::int32_t label;     /**< The label set. */
+        const char* holder;     /**< Names who holds the classes. */
+        const char* needles[3]; /**< What the message names; "" matches any. */
+    };
+
+    /** @brief Provides the labels of valid rows outside the classes. */
+    class Small_DetectionTruthCheckLabels : public ::testing::TestWithParam<StrayLabel>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that a truth of the declared batch and matching arrays passes. */
@@ -94,44 +123,40 @@ TEST(Small_DetectionTruthCheck, ANegativeRowCountIsRefused)
 }
 
 /** @brief Tests that each array of the wrong size is refused with the sizes it needs. */
-TEST(Small_DetectionTruthCheck, AnArrayOfAnotherSizeIsRefusedWithTheSizesItNeeds)
+TEST_P(Small_DetectionTruthCheckSizes, AnArrayOfAnotherSizeIsRefusedWithTheSizesItNeeds)
 {
-    GroundTruthBatch short_labels = make_truth();
-    short_labels.labels.pop_back();
-    SA_EXPECT_FAILURE(check_truth_layout(short_labels, K_IMAGES, "heads were declared for"),
+    GroundTruthBatch truth = make_truth();
+    GetParam().shorten(truth);
+
+    SA_EXPECT_FAILURE(check_truth_layout(truth, K_IMAGES, "heads were declared for"),
                       StatusCode::Incompatible, "needs 4 labels, 4 flags and 16 box values",
-                      "holds 3, 4 and 16");
-
-    GroundTruthBatch short_valid = make_truth();
-    short_valid.valid.pop_back();
-    SA_EXPECT_FAILURE(check_truth_layout(short_valid, K_IMAGES, "heads were declared for"),
-                      StatusCode::Incompatible, "holds 4, 3 and 16");
-
-    GroundTruthBatch short_boxes = make_truth();
-    short_boxes.boxes.pop_back();
-    SA_EXPECT_FAILURE(check_truth_layout(short_boxes, K_IMAGES, "heads were declared for"),
-                      StatusCode::Incompatible, "holds 4, 4 and 15");
+                      GetParam().sizes);
 }
 
-/** @brief Tests that a valid row with a label at or above the classes is refused by its row. */
-TEST(Small_DetectionTruthCheck, AValidLabelOutsideTheClassesNamesTheRowAndTheHolder)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectionTruthCheckSizes,
+    ::testing::Values(
+        ShortArray{[](GroundTruthBatch& truth) { truth.labels.pop_back(); }, "holds 3, 4 and 16"},
+        ShortArray{[](GroundTruthBatch& truth) { truth.valid.pop_back(); }, "holds 4, 3 and 16"},
+        ShortArray{[](GroundTruthBatch& truth) { truth.boxes.pop_back(); }, "holds 4, 4 and 15"}));
+
+/** @brief Tests that a valid row with a label outside the classes is refused by its row. */
+TEST_P(Small_DetectionTruthCheckLabels, AValidLabelOutsideTheClassesNamesTheRowAndTheHolder)
 {
+    const StrayLabel& row = GetParam();
     GroundTruthBatch truth = make_truth();
-    truth.labels[2] = K_CLASSES;
+    truth.labels[row.row] = row.label;
 
-    SA_EXPECT_FAILURE(check_truth_labels(truth, K_CLASSES, "head.1"),
-                      StatusCode::InvalidDescription, "row 2", "label 3", "head.1 has 3 classes");
+    SA_EXPECT_FAILURE(check_truth_labels(truth, K_CLASSES, row.holder),
+                      StatusCode::InvalidDescription, row.needles[0], row.needles[1],
+                      row.needles[2]);
 }
 
-/** @brief Tests that a negative label of a valid row is refused. */
-TEST(Small_DetectionTruthCheck, ANegativeValidLabelIsRefused)
-{
-    GroundTruthBatch truth = make_truth();
-    truth.labels[0] = -1;
-
-    SA_EXPECT_FAILURE(check_truth_labels(truth, K_CLASSES, "the ports"),
-                      StatusCode::InvalidDescription, "row 0", "label -1");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectionTruthCheckLabels,
+    ::testing::Values(
+        StrayLabel{2, K_CLASSES, "head.1", {"row 2", "label 3", "head.1 has 3 classes"}},
+        StrayLabel{0, -1, "the ports", {"row 0", "label -1", ""}}));
 
 /** @brief Tests that a padding row may hold any label, since no step reads it. */
 TEST(Small_DetectionTruthCheck, APaddingRowMayHoldAnyLabel)

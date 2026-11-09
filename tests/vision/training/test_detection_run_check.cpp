@@ -137,6 +137,29 @@ namespace
         subject.classes = K_CLASSES;
         return subject;
     }
+
+    /** @brief Names a plan the check refuses and what the refusal names. */
+    struct RefusedEpochs
+    {
+        DetectionRunPlan plan;  /**< The plan given. */
+        const char* reason;     /**< What the message says of the epoch. */
+        const char* got;        /**< The value the message states. */
+    };
+
+    /** @brief Returns a plan of @p epochs epochs that starts at epoch @p first. */
+    DetectionRunPlan plan_of(std::int64_t epochs, std::int64_t first)
+    {
+        DetectionRunPlan plan;
+        plan.epochs = epochs;
+        plan.first_epoch = first;
+        return plan;
+    }
+
+    /** @brief Provides the plans with epochs the run cannot use. */
+    class Small_DetectionRunCheckEpochs : public ::testing::TestWithParam<RefusedEpochs>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that a dataset of the subject's batch and roles passes with a default plan. */
@@ -170,22 +193,20 @@ TEST(Small_DetectionRunCheck, ThePlanCopiesTheFieldsOfTheOptions)
 }
 
 /** @brief Tests that no epoch and a negative first epoch are refused, naming the run. */
-TEST(Small_DetectionRunCheck, EpochsTheRunCannotUseAreRefusedNamingTheRun)
+TEST_P(Small_DetectionRunCheckEpochs, EpochsTheRunCannotUseAreRefusedNamingTheRun)
 {
     const DescribedDataset dataset(K_BATCHES, K_BATCH, truth_roles());
+    const RefusedEpochs& row = GetParam();
 
-    DetectionRunPlan no_epoch;
-    no_epoch.epochs = 0;
-    SA_EXPECT_FAILURE(check_detection_run(dataset, make_subject(), no_epoch),
-                      StatusCode::InvalidDescription, "A test run needs at least one epoch",
-                      "got 0");
-
-    DetectionRunPlan negative;
-    negative.first_epoch = -1;
-    SA_EXPECT_FAILURE(check_detection_run(dataset, make_subject(), negative),
-                      StatusCode::InvalidDescription, "A test run starts at an epoch index",
-                      "got -1");
+    SA_EXPECT_FAILURE(check_detection_run(dataset, make_subject(), row.plan),
+                      StatusCode::InvalidDescription, row.reason, row.got);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectionRunCheckEpochs,
+    ::testing::Values(
+        RefusedEpochs{plan_of(0, 0), "A test run needs at least one epoch", "got 0"},
+        RefusedEpochs{plan_of(1, -1), "A test run starts at an epoch index", "got -1"}));
 
 /** @brief Tests that a dataset without batches is refused, naming it. */
 TEST(Small_DetectionRunCheck, ADatasetWithoutBatchesIsRefused)
@@ -253,5 +274,6 @@ TEST(Small_DetectionRunCheck, RolesOverAnotherClassCountAreRefused)
     subject.classes = K_CLASSES + 1;
     const DescribedDataset dataset(K_BATCHES, K_BATCH, truth_roles());
 
-    EXPECT_FALSE(check_detection_run(dataset, subject, DetectionRunPlan{}).is_ok());
+    SA_EXPECT_FAILURE(check_detection_run(dataset, subject, DetectionRunPlan{}),
+                      StatusCode::Incompatible, "'stub'", "'labels'", "was compiled for");
 }
