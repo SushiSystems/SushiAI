@@ -29,6 +29,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -137,24 +138,49 @@ TEST(Small_LayerNorm, ATraceDeclaresTheGainAndTheBiasAndEmitsOneNode)
     EXPECT_EQ(graph.value(y).dtype, DType::Float32);
 }
 
-/** @brief Tests that the gain is a [dim] scale, the bias a [dim] bias, both of the input's type. */
-TEST(Small_LayerNorm, TheGainIsAScaleAndTheBiasABias)
+/** @brief Tests that the gain is a [dim] scale of the input's type. */
+TEST(Small_LayerNorm, TheGainIsAScaleOfTheInputType)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    LayerNorm layer = make_layer();
+
+    static_cast<void>(layer.forward(Trace::evaluation(builder),
+                                    builder.input(Shape{5, K_DIM}, "x", DType::Float64)));
+
+    ASSERT_TRUE(layer.weight.declared());
+    EXPECT_EQ(layer.weight.shape(), (Shape{K_DIM}));
+    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Scale);
+    EXPECT_EQ(layer.weight.dtype(), DType::Float64);
+}
+
+/** @brief Tests that the bias is a [dim] bias of the input's type. */
+TEST(Small_LayerNorm, TheBiasIsABiasOfTheInputType)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    LayerNorm layer = make_layer();
+
+    static_cast<void>(layer.forward(Trace::evaluation(builder),
+                                    builder.input(Shape{5, K_DIM}, "x", DType::Float64)));
+
+    ASSERT_TRUE(layer.bias.declared());
+    EXPECT_EQ(layer.bias.shape(), (Shape{K_DIM}));
+    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
+    EXPECT_EQ(layer.bias.dtype(), DType::Float64);
+}
+
+/** @brief Tests that the layer's epsilon is the one the node stores. */
+TEST(Small_LayerNorm, TheEpsilonIsStoredInTheNode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     LayerNorm layer = make_layer();
     layer.epsilon = 1e-3;
-    const Graph::ValueID y = layer.forward(
-        Trace::evaluation(builder), builder.input(Shape{5, K_DIM}, "x", DType::Float64));
 
-    ASSERT_TRUE(layer.weight.declared());
-    ASSERT_TRUE(layer.bias.declared());
-    EXPECT_EQ(layer.weight.shape(), (Shape{K_DIM}));
-    EXPECT_EQ(layer.bias.shape(), (Shape{K_DIM}));
-    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Scale);
-    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
-    EXPECT_EQ(layer.weight.dtype(), DType::Float64);
-    EXPECT_EQ(layer.bias.dtype(), DType::Float64);
+    const Graph::ValueID y = layer.forward(Trace::evaluation(builder),
+                                           builder.input(Shape{5, K_DIM}, "x"));
+
     EXPECT_EQ(graph.node(graph.value(y).producer).attributes.values[0], 1e-3);
 }
 
@@ -182,18 +208,32 @@ TEST(Small_LayerNorm, TheWalkYieldsTheGainThenTheBias)
     EXPECT_EQ(names, (std::vector<std::string>{"norm.weight", "norm.bias"}));
 }
 
-/** @brief Tests that an input of another width and an integer input fail and declare nothing. */
-TEST(Small_LayerNorm, AnInputThatDoesNotFitFails)
+/** @brief Tests that an input of another width fails and declares nothing. */
+TEST(Small_LayerNorm, AnInputOfAnotherWidthFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID wide = builder.input(Shape{2, K_DIM + 1}, "wide");
-    const Graph::ValueID whole = builder.input(Shape{2, K_DIM}, "whole", DType::Int32);
     LayerNorm layer = make_layer();
     const std::size_t nodes_before = graph.node_count();
 
     SA_EXPECT_FAILURE(refused(layer, builder, wide), StatusCode::InvalidDescription,
                       "LayerNorm(4)", "[..., 4] input", "[2, 5]");
+
+    EXPECT_EQ(graph.node_count(), nodes_before);
+    EXPECT_FALSE(layer.weight.declared());
+    EXPECT_TRUE(graph.has_refusal());
+}
+
+/** @brief Tests that an integer input fails and declares nothing. */
+TEST(Small_LayerNorm, AnIntegerInputFails)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID whole = builder.input(Shape{2, K_DIM}, "whole", DType::Int32);
+    LayerNorm layer = make_layer();
+    const std::size_t nodes_before = graph.node_count();
+
     SA_EXPECT_FAILURE(refused(layer, builder, whole), StatusCode::InvalidDescription,
                       "LayerNorm(4)", "half, float32 or float64 input", "int32");
 
@@ -202,19 +242,27 @@ TEST(Small_LayerNorm, AnInputThatDoesNotFitFails)
     EXPECT_TRUE(graph.has_refusal());
 }
 
-/** @brief Tests that a dim that is not positive and an epsilon that is not positive each fail. */
-TEST(Small_LayerNorm, ALayerDescribedWrongFails)
+/** @brief Tests that a dim that is not positive fails. */
+TEST(Small_LayerNorm, ADimThatIsNotPositiveFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, K_DIM}, "x");
-
     LayerNorm no_dim{};
-    LayerNorm no_epsilon = make_layer();
-    no_epsilon.epsilon = 0.0;
 
     SA_EXPECT_FAILURE(refused(no_dim, builder, x), StatusCode::InvalidDescription,
                       "positive dim", "got 0");
+}
+
+/** @brief Tests that an epsilon that is not positive fails and declares nothing. */
+TEST(Small_LayerNorm, AnEpsilonThatIsNotPositiveFails)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, K_DIM}, "x");
+    LayerNorm no_epsilon = make_layer();
+    no_epsilon.epsilon = 0.0;
+
     SA_EXPECT_FAILURE(refused(no_epsilon, builder, x), StatusCode::InvalidDescription,
                       "LayerNorm(4)", "positive epsilon");
     EXPECT_FALSE(no_epsilon.weight.declared());
@@ -255,31 +303,49 @@ TEST(Small_LayerNorm, TheFactoryReadsTheWidthAndTheEpsilon)
     EXPECT_EQ(node->ports()[0].shape, (Shape{6, K_DIM}));
 }
 
-/** @brief Tests that the factory refuses a stray key, a bad epsilon and an input that is off. */
-TEST(Small_LayerNorm, TheFactoryRefusesARowThatDoesNotFit)
+namespace
 {
-    const Shape input{6, K_DIM};
-    const Shape pair[] = {Shape{K_DIM}, Shape{K_DIM}};
-    const Shape deep{1, 1, 1, 1, 1, K_DIM};
-    const Config::Value plain = SaTest::require_value(Config::parse_json("{}", "<test>"));
-    const Config::Value stray =
-        SaTest::require_value(Config::parse_json(R"({"momentum": 0.1})", "<test>"));
-    const Config::Value negative =
-        SaTest::require_value(Config::parse_json(R"({"ln_epsilon": -1.0})", "<test>"));
-    const Config::Value text =
-        SaTest::require_value(Config::parse_json(R"({"ln_epsilon": "small"})", "<test>"));
-
-    SA_EXPECT_FAILURE(NN::make_layer_norm_node(NN::ShapeSpan(&input, 1), stray, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'momentum'");
-    SA_EXPECT_FAILURE(NN::make_layer_norm_node(NN::ShapeSpan(&input, 1), negative, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'ln_epsilon'", "positive");
-    SA_EXPECT_FAILURE(NN::make_layer_norm_node(NN::ShapeSpan(&input, 1), text, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'ln_epsilon'", "a number");
-    SA_EXPECT_FAILURE(NN::make_layer_norm_node(NN::ShapeSpan(pair, 2), plain, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "reads one input", "given 2");
-    SA_EXPECT_FAILURE(NN::make_layer_norm_node(NN::ShapeSpan(&deep, 1), plain, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "rank 1 to 5");
+    /** @brief Holds a factory input the layer norm refuses, with the words its message names. */
+    struct FactoryRefusalRow
+    {
+        std::string name;          /**< The row's name. */
+        std::vector<Shape> inputs; /**< The input shapes given to the factory. */
+        std::string attributes;    /**< The JSON text of the row's attributes. */
+        std::string first;         /**< The first substring the message names after "layer 3". */
+        std::string second;        /**< The second substring the message names. */
+    };
 }
+
+/** @brief Runs the factory over each row it refuses. */
+class Small_LayerNormFactoryRefusal : public ::testing::TestWithParam<FactoryRefusalRow>
+{
+};
+
+/** @brief Tests that the factory refuses the row, naming layer 3 and the reason. */
+TEST_P(Small_LayerNormFactoryRefusal, TheFactoryRefusesTheRow)
+{
+    const FactoryRefusalRow& row = GetParam();
+    const Config::Value attributes =
+        SaTest::require_value(Config::parse_json(row.attributes, "<test>"));
+
+    SA_EXPECT_FAILURE(NN::make_layer_norm_node(NN::ShapeSpan(row.inputs.data(), row.inputs.size()),
+                                               attributes, "layer 3"),
+                      StatusCode::InvalidDescription, "layer 3", row.first, row.second);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LayerNormFactoryRefusal,
+    ::testing::Values(
+        FactoryRefusalRow{"AStrayKey", {Shape{6, K_DIM}}, R"({"momentum": 0.1})", "'momentum'", ""},
+        FactoryRefusalRow{"AnEpsilonThatIsNotPositive", {Shape{6, K_DIM}},
+                          R"({"ln_epsilon": -1.0})", "'ln_epsilon'", "positive"},
+        FactoryRefusalRow{"AnEpsilonThatIsNotANumber", {Shape{6, K_DIM}},
+                          R"({"ln_epsilon": "small"})", "'ln_epsilon'", "a number"},
+        FactoryRefusalRow{"TwoInputs", {Shape{K_DIM}, Shape{K_DIM}}, "{}", "reads one input",
+                          "given 2"},
+        FactoryRefusalRow{"ARankOutsideOneToFive", {Shape{1, 1, 1, 1, 1, K_DIM}}, "{}",
+                          "rank 1 to 5", ""}),
+    [](const ::testing::TestParamInfo<FactoryRefusalRow>& info) { return info.param.name; });
 
 /** @brief Tests that a trace over a value the graph does not hold stops the process. */
 TEST(Medium_LayerNormDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
@@ -300,16 +366,33 @@ namespace
     constexpr double K_EPSILON = 1e-5;
 
     /**
-     * @brief Bounds the absolute error of a FLOAT32 result computed on the device against a double
-     * host value; 512 unit roundoffs of float, the smallest power of two that covers 2e-5.
+     * @brief Counts the roundings on the longest path to a normalised value: the two sums over a
+     * row (mean and variance), the inverse deviation and the scale and shift. The device's inverse
+     * square root is not specified to the last bit, so the count is 32 where the path holds about
+     * a dozen.
      */
-    constexpr double K_FLOAT32_TOLERANCE = 512.0 * TestSupport::unit_roundoff<float>();
+    constexpr double K_ROUNDED_OPERATIONS = 32.0;
+
+    /**
+     * @brief Bounds the amplification of a rounding in the mean by the inverse deviation: the
+     * seeded rows have a variance of at least 1/256 of one, so 1 / sqrt(variance) is at most 16.
+     */
+    constexpr double K_DEVIATION_AMPLIFICATION = 16.0;
+
+    /**
+     * @brief Bounds the absolute error of a FLOAT32 result computed on the device against a double
+     * host value: the rounded operations, each amplified, times the unit roundoff of float.
+     */
+    constexpr double K_FLOAT32_TOLERANCE =
+        K_ROUNDED_OPERATIONS * K_DEVIATION_AMPLIFICATION * TestSupport::unit_roundoff<float>();
 
     /**
      * @brief Bounds the absolute error of a FLOAT64 result computed on the device against a double
-     * host value; 16384 unit roundoffs of double, the smallest power of two that covers 1e-12.
+     * host value: the same count with the unit roundoff of double, and a factor of 32 for a device
+     * kernel whose double inverse square root is an iteration, not a correctly rounded call.
      */
-    constexpr double K_FLOAT64_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+    constexpr double K_FLOAT64_TOLERANCE = 32.0 * K_ROUNDED_OPERATIONS * K_DEVIATION_AMPLIFICATION *
+                                           TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the row length of the value the gradient cases normalise. */
     constexpr int64_t K_WIDTH = 4;
@@ -364,6 +447,19 @@ namespace
     }
 
     /**
+     * @brief Returns the one-hot targets of an [N, C] value: row r names class r mod C, so every
+     * class is a target.
+     */
+    std::vector<double> cycling_one_hot_targets(const Shape& logit_shape)
+    {
+        std::vector<double> one_hot(static_cast<std::size_t>(logit_shape.num_elements()), 0.0);
+        for (int64_t row = 0; row < logit_shape[0]; ++row)
+            one_hot[static_cast<std::size_t>(row * logit_shape[1] + row % logit_shape[1])] = 1.0;
+
+        return one_hot;
+    }
+
+    /**
      * @brief Holds a FLOAT64 graph whose loss and gradient can both be evaluated at a point.
      *
      * The loss is the cross-entropy of what the build function returns, an [N, C] value, and
@@ -395,19 +491,10 @@ namespace
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
 
-                Result<std::unique_ptr<CompiledStep>> compiled =
-                    CompiledStep::compile(backend, graph_, pool_);
-                SA_EXPECT_OK(compiled);
-                if (compiled.has_value())
-                    step_ = std::move(compiled).value();
+                // The graph is fixed here, so a refusal is a defect: require_value stops the test.
+                step_ = SaTest::require_value(CompiledStep::compile(backend, graph_, pool_));
 
-                // Row r of the targets names class r mod C, so every class is a target.
-                std::vector<double> one_hot(
-                    static_cast<std::size_t>(logit_shape.num_elements()), 0.0);
-                for (int64_t row = 0; row < logit_shape[0]; ++row)
-                    one_hot[static_cast<std::size_t>(row * logit_shape[1]
-                                                     + row % logit_shape[1])] = 1.0;
-                write_tensor(pool_.tensor(targets_), one_hot);
+                write_tensor(pool_.tensor(targets_), cycling_one_hot_targets(logit_shape));
             }
 
             /** @brief Writes the values of a leaf that is not the variable. */
@@ -416,12 +503,9 @@ namespace
                 write_tensor(pool_.tensor(id), values);
             }
 
-            /** @brief Returns the loss at @p point, or zero when the step did not compile. */
+            /** @brief Returns the loss at @p point. */
             double value(SushiRuntime::span<const double> point)
             {
-                if (step_ == nullptr)
-                    return 0.0;
-
                 write_tensor(pool_.tensor(variable_), point);
                 SA_EXPECT_OK(step_->run());
                 return read_tensor(pool_.tensor(loss_))[0];
@@ -430,16 +514,12 @@ namespace
             /** @brief Writes the analytic gradient at @p point into @p out. */
             void gradient(SushiRuntime::span<const double> point, SushiRuntime::span<double> out)
             {
-                if (step_ == nullptr)
-                    return;
-
                 write_tensor(pool_.tensor(variable_), point);
                 SA_EXPECT_OK(step_->run());
 
                 const std::vector<double> values = read_tensor(pool_.tensor(gradient_));
                 ASSERT_EQ(values.size(), out.size());
-                for (std::size_t i = 0; i < values.size(); ++i)
-                    out[i] = values[i];
+                std::copy(values.begin(), values.end(), out.begin());
             }
 
         private:
@@ -511,33 +591,65 @@ TEST_F(Medium_LayerNorm, EachRowIsNormalisedByItsOwnStatistics)
                     normalised_on_host(values, gain, bias, 5), K_FLOAT32_TOLERANCE);
 }
 
-/** @brief Tests that the saved statistics are each row's mean and 1 / sqrt(variance + eps). */
-TEST_F(Medium_LayerNorm, TheSavedStatisticsAreTheRowMeanAndInverseDeviation)
+namespace
 {
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-    const ValueID x = builder.input(Shape{2, 4}, "x", DType::Float64);
-    const ValueID gamma = builder.input(Shape{4}, "gamma", DType::Float64);
-    const ValueID beta = builder.input(Shape{4}, "beta", DType::Float64);
-    const Result<Graph::LayerNormResult> out = builder.layer_norm(x, gamma, beta, K_EPSILON);
-    ASSERT_TRUE(out.has_value());
+    /** @brief Holds the FLOAT64 layer norm of two rows, run once, and the ids of its outputs. */
+    class SavedStatistics
+    {
+        public:
+            /** @brief Runs LAYER_NORM over rows {1, 2, 3, 4} and {-4, -2, 0, 2} on @p backend. */
+            explicit SavedStatistics(SushiAI::ExecutionBackend& backend) : pool_(backend.engine())
+            {
+                const GraphBuilder builder(graph_);
+                const ValueID x = builder.input(Shape{2, 4}, "x", DType::Float64);
+                const ValueID gamma = builder.input(Shape{4}, "gamma", DType::Float64);
+                const ValueID beta = builder.input(Shape{4}, "beta", DType::Float64);
+                out_ = SaTest::require_value(builder.layer_norm(x, gamma, beta, K_EPSILON));
 
-    // Row 0 has mean 2.5 and variance 1.25; row 1 has mean -1 and variance 5.
-    const std::vector<double> values = {1.0, 2.0, 3.0, 4.0, -4.0, -2.0, 0.0, 2.0};
+                SA_EXPECT_OK(pool_.materialise_leaves(graph_));
+                write_tensor(pool_.tensor(x),
+                             std::vector<double>{1.0, 2.0, 3.0, 4.0, -4.0, -2.0, 0.0, 2.0});
+                write_tensor(pool_.tensor(gamma), std::vector<double>(4, 1.0));
+                write_tensor(pool_.tensor(beta), std::vector<double>(4, 0.0));
 
-    TensorPool pool(*engine);
-    SA_EXPECT_OK(pool.materialise_leaves(graph));
-    write_tensor(pool.tensor(x), values);
-    write_tensor(pool.tensor(gamma), std::vector<double>(4, 1.0));
-    write_tensor(pool.tensor(beta), std::vector<double>(4, 0.0));
+                step_ = SaTest::require_value(CompiledStep::compile(backend, graph_, pool_));
+                SA_EXPECT_OK(step_->run());
+            }
 
-    std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
-    SA_EXPECT_OK(step->run());
+            /** @brief Returns the saved mean of each row. */
+            std::vector<double> mean()
+            {
+                return read_tensor(pool_.tensor(out_.saved_mean));
+            }
 
-    expect_elements(read_tensor(pool.tensor(out.value().saved_mean)), {2.5, -1.0},
-                    K_FLOAT64_TOLERANCE);
-    expect_elements(read_tensor(pool.tensor(out.value().saved_inv_std)),
+            /** @brief Returns the saved inverse deviation of each row. */
+            std::vector<double> inverse_deviation()
+            {
+                return read_tensor(pool_.tensor(out_.saved_inv_std));
+            }
+
+        private:
+            Graph::Graph graph_;
+            TensorPool pool_;
+            Graph::LayerNormResult out_{};
+            std::unique_ptr<CompiledStep> step_;
+    };
+}
+
+/** @brief Tests that the saved mean of each row is its mean: 2.5 and -1. */
+TEST_F(Medium_LayerNorm, TheSavedMeanIsTheRowMean)
+{
+    SavedStatistics run(backend());
+
+    expect_elements(run.mean(), {2.5, -1.0}, K_FLOAT64_TOLERANCE);
+}
+
+/** @brief Tests that the saved inverse deviation is 1 / sqrt(variance + eps): variances 1.25, 5. */
+TEST_F(Medium_LayerNorm, TheSavedInverseDeviationIsOneOverTheRowDeviation)
+{
+    SavedStatistics run(backend());
+
+    expect_elements(run.inverse_deviation(),
                     {1.0 / std::sqrt(1.25 + K_EPSILON), 1.0 / std::sqrt(5.0 + K_EPSILON)},
                     K_FLOAT64_TOLERANCE);
 }
