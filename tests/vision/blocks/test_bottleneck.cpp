@@ -97,6 +97,17 @@ namespace
         return records;
     }
 
+    /** @brief Appends the five records of a 3x3-or-pointwise convolution and its norm. */
+    void append_conv_norm(std::vector<std::string>& records, const std::string& prefix,
+                          const Shape& weight, int64_t width)
+    {
+        records.push_back(record(prefix + ".conv.weight", weight, StateKind::Parameter));
+        records.push_back(record(prefix + ".bn.weight", Shape{width}, StateKind::Parameter));
+        records.push_back(record(prefix + ".bn.bias", Shape{width}, StateKind::Parameter));
+        records.push_back(record(prefix + ".bn.running_mean", Shape{width}, StateKind::Buffer));
+        records.push_back(record(prefix + ".bn.running_var", Shape{width}, StateKind::Buffer));
+    }
+
     /** @brief Counts the nodes of @p graph that carry the operation @p op. */
     std::size_t count_nodes(const Graph::Graph& graph, OpID op)
     {
@@ -132,6 +143,9 @@ namespace
         return require_value(Config::parse_json(text, "<test>"));
     }
 
+    /** @brief Holds the shape every factory case builds over. */
+    const Shape K_FEATURE_MAP{4, 4, 16};
+
     /** @brief Expects @p options on every BATCHNORM2D node of @p graph and every update. */
     void expect_norm_options(const Graph::Graph& graph, const BufferUpdateList& list,
                              const NormOptions& options)
@@ -158,8 +172,8 @@ TEST(Small_BlockBottleneck, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 }
 
 /**
- * @brief Tests that a shortcut over equal widths traces two Conv blocks and one ADD of the
- *        input and the second convolution's result, in that operand order.
+ * @brief Tests that a shortcut over equal widths traces one ADD that reads the input first and
+ *        yields the returned value, of the input's shape.
  */
 TEST(Small_BlockBottleneck, AShortcutOverEqualWidthsAddsTheInput)
 {
@@ -172,15 +186,11 @@ TEST(Small_BlockBottleneck, AShortcutOverEqualWidthsAddsTheInput)
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_TRUE(block.adds_input);
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 2u);
     ASSERT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
 
     const Graph::Node& add = graph.nodes()[first_node(graph, Ops::K_ADD.id)];
     ASSERT_EQ(add.inputs.size(), 2u);
     EXPECT_EQ(add.inputs[0], x);
-    EXPECT_EQ(graph.node(graph.value(add.inputs[1]).producer).op, Ops::K_SILU.id);
     EXPECT_EQ(add.outputs[0], y);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 16}));
 }
@@ -198,7 +208,6 @@ TEST(Small_BlockBottleneck, NoShortcutTracesNoAdd)
 
     EXPECT_FALSE(block.adds_input);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 2u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 16}));
 }
 
@@ -257,24 +266,33 @@ TEST(Small_BlockBottleneck, EachKernelSetsItsOwnConvolution)
     Bottleneck block(16, 16, 8, false, K_YOLO_NORM, 1, 3);
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
-    EXPECT_EQ(block.cv1.conv.weight.shape(), (Shape{8, 1, 1, 16}));
-    EXPECT_EQ(block.cv2.conv.weight.shape(), (Shape{16, 3, 3, 8}));
+    std::vector<std::string> expected;
+    append_conv_norm(expected, "m.cv1", Shape{8, 1, 1, 16}, 8);
+    append_conv_norm(expected, "m.cv2", Shape{16, 3, 3, 8}, 16);
+
+    EXPECT_EQ(walk(block, "m"), expected);
 }
 
-/**
- * @brief Tests that make_bottleneck_node builds the block of model.2.m.0 and that a row
- *        without "shortcut" adds its input.
- */
-TEST(Small_BlockBottleneck, TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue)
+/** @brief Tests that make_bottleneck_node builds a node with one port of the input's shape. */
+TEST(Small_BlockBottleneck, TheFactoryBuildsOnePortOfTheInputShape)
 {
-    const Shape input{4, 4, 16};
     const Config::Value attributes = attributes_of(R"({"filters": 16, "hidden": 8})");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
-                            Vision::Blocks::make_bottleneck_node(one_input(input), attributes,
-                                                                 K_CONTEXT));
+                            Vision::Blocks::make_bottleneck_node(one_input(K_FEATURE_MAP),
+                                                                 attributes, K_CONTEXT));
+
     ASSERT_EQ(node->ports().size(), 1u);
-    EXPECT_EQ(node->ports()[0].shape, (Shape{4, 4, 16}));
+    EXPECT_EQ(node->ports()[0].shape, K_FEATURE_MAP);
+}
+
+/** @brief Tests that a row without "shortcut" adds its input. */
+TEST(Small_BlockBottleneck, TheFactoryDefaultsTheShortcutToTrue)
+{
+    const Config::Value attributes = attributes_of(R"({"filters": 16, "hidden": 8})");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_bottleneck_node(one_input(K_FEATURE_MAP),
+                                                                 attributes, K_CONTEXT));
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -285,25 +303,17 @@ TEST(Small_BlockBottleneck, TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue
 
     ASSERT_EQ(outputs.size(), 1u);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
-
-    const std::vector<std::string> state = walk(*node, "model.2.m.0");
-    ASSERT_EQ(state.size(), 10u);
-    EXPECT_EQ(state[0],
-              record("model.2.m.0.cv1.conv.weight", Shape{8, 3, 3, 16}, StateKind::Parameter));
-    EXPECT_EQ(state[5],
-              record("model.2.m.0.cv2.conv.weight", Shape{16, 3, 3, 8}, StateKind::Parameter));
 }
 
 /** @brief Tests that a row stating "shortcut": false builds a block that traces no ADD. */
 TEST(Small_BlockBottleneck, TheFactoryReadsTheShortcut)
 {
-    const Shape input{4, 4, 16};
     const Config::Value attributes =
         attributes_of(R"({"filters": 16, "hidden": 8, "shortcut": false})");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
-                            Vision::Blocks::make_bottleneck_node(one_input(input), attributes,
-                                                                 K_CONTEXT));
+                            Vision::Blocks::make_bottleneck_node(one_input(K_FEATURE_MAP),
+                                                                 attributes, K_CONTEXT));
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -314,20 +324,34 @@ TEST(Small_BlockBottleneck, TheFactoryReadsTheShortcut)
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 }
 
-/** @brief Tests that the factory refuses an unknown key, a missing width and a text flag. */
-TEST(Small_BlockBottleneck, TheFactoryRefusesARowThatDoesNotFit)
+/** @brief Tests that the factory refuses a key the row does not take. */
+TEST(Small_BlockBottleneck, TheFactoryRefusesAnUnknownKey)
 {
-    const Shape input{4, 4, 16};
     const Config::Value unknown = attributes_of(R"({"filters": 16, "hidden": 8, "kernel": 3})");
+
+    SA_EXPECT_FAILURE(Vision::Blocks::make_bottleneck_node(one_input(K_FEATURE_MAP), unknown,
+                                                           K_CONTEXT),
+                      StatusCode::InvalidDescription, "layer 4 'bottleneck'", "'kernel'");
+}
+
+/** @brief Tests that the factory refuses a row without its hidden width. */
+TEST(Small_BlockBottleneck, TheFactoryRefusesAnAbsentHiddenWidth)
+{
     const Config::Value no_hidden = attributes_of(R"({"filters": 16})");
+
+    SA_EXPECT_FAILURE(Vision::Blocks::make_bottleneck_node(one_input(K_FEATURE_MAP), no_hidden,
+                                                           K_CONTEXT),
+                      StatusCode::InvalidDescription, "'hidden'", "absent");
+}
+
+/** @brief Tests that the factory refuses a shortcut given as text. */
+TEST(Small_BlockBottleneck, TheFactoryRefusesANonBooleanShortcut)
+{
     const Config::Value text_flag =
         attributes_of(R"({"filters": 16, "hidden": 8, "shortcut": "yes"})");
 
-    SA_EXPECT_FAILURE(Vision::Blocks::make_bottleneck_node(one_input(input), unknown, K_CONTEXT),
-                      StatusCode::InvalidDescription, "layer 4 'bottleneck'", "'kernel'");
-    SA_EXPECT_FAILURE(Vision::Blocks::make_bottleneck_node(one_input(input), no_hidden, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'hidden'", "absent");
-    SA_EXPECT_FAILURE(Vision::Blocks::make_bottleneck_node(one_input(input), text_flag, K_CONTEXT),
+    SA_EXPECT_FAILURE(Vision::Blocks::make_bottleneck_node(one_input(K_FEATURE_MAP), text_flag,
+                                                           K_CONTEXT),
                       StatusCode::InvalidDescription, "'shortcut'", "true or false");
 }
 

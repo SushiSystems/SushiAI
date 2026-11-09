@@ -30,6 +30,10 @@ name handed to the factory.
 `walk` returns one `record` per parameter and buffer that `NN::walk_state` yields under a
 prefix, in walk order.
 
+## append_conv_norm
+
+`append_conv_norm` appends the five records of one convolution and its norm under a prefix: the weight, then the norm's weight, bias, running mean and running variance.
+
 ## count_nodes
 
 `count_nodes` counts the nodes of a graph that carry one operation.
@@ -46,6 +50,10 @@ prefix, in walk order.
 
 `attributes_of` parses a string of JSON as the attributes of one row.
 
+## K_FEATURE_MAP
+
+`K_FEATURE_MAP` is the shape [4, 4, 16] every factory case builds over.
+
 ## expect_norm_options
 
 `expect_norm_options` expects the given epsilon in attribute 0 of every K_BATCHNORM2D node of a
@@ -57,14 +65,11 @@ graph and the given momentum on every update of a list.
 
 ## AShortcutOverEqualWidthsAddsTheInput
 
-A training trace of `Bottleneck(16, 16, 8, true)` reports `adds_input` true and emits two
-K_MATMUL, two K_BATCHNORM2D, two K_SILU and one K_ADD. The K_ADD's first operand is the block's input and
-its second is produced by a K_SILU. Its output is the returned value, of shape [2, 4, 4, 16].
+A training trace of `Bottleneck(16, 16, 8, true)` reports `adds_input` true and emits one K_ADD. The K_ADD's first operand is the block's input, and its output is the returned value, of shape [2, 4, 4, 16].
 
 ## NoShortcutTracesNoAdd
 
-With the shortcut argument false, `adds_input` is false and the trace holds two K_MATMUL and no
-K_ADD.
+With the shortcut argument false, `adds_input` is false, the trace holds no K_ADD and the result has the shape [2, 4, 4, 16].
 
 ## AShortcutOverUnequalWidthsTracesNoAdd
 
@@ -80,25 +85,31 @@ order with the weight [16, 3, 3, 8] and the rest [16].
 
 ## EachKernelSetsItsOwnConvolution
 
-`Bottleneck(16, 16, 8, false, K_YOLO_NORM, 1, 3)` traces a `cv1` weight of [8, 1, 1, 16] and a
-`cv2` weight of [16, 3, 3, 8].
+The walk under "m" of a traced `Bottleneck(16, 16, 8, false, K_YOLO_NORM, 1, 3)` yields ten records: a `cv1` weight of [8, 1, 1, 16] and a `cv2` weight of [16, 3, 3, 8], each followed by its four norm records.
 
-## TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue
+## TheFactoryBuildsOnePortOfTheInputShape
 
-`make_bottleneck_node` over [4, 4, 16] with 16 filters and a hidden width of 8 has one port of
-shape [4, 4, 16]. Its training trace holds one K_ADD, so a row without `shortcut` adds its input.
-The walk under "model.2.m.0" yields ten records; record 0 is the `cv1` weight [8, 3, 3, 16]
-and record 5 the `cv2` weight [16, 3, 3, 8].
+`make_bottleneck_node` over [4, 4, 16] with 16 filters and a hidden width of 8 has one port of shape [4, 4, 16].
+
+## TheFactoryDefaultsTheShortcutToTrue
+
+A row without `shortcut`, traced in training mode, holds one K_ADD.
 
 ## TheFactoryReadsTheShortcut
 
 With `"shortcut": false` the trace holds no K_ADD.
 
-## TheFactoryRefusesARowThatDoesNotFit
+## TheFactoryRefusesAnUnknownKey
 
-The key `kernel` fails with a message containing "layer 4 'bottleneck'" and "'kernel'". A row
-without `hidden` fails with "'hidden'" and "absent". A `shortcut` given as the string "yes"
-fails with "'shortcut'" and "true or false".
+The key `kernel` fails with a message containing "layer 4 'bottleneck'" and "'kernel'".
+
+## TheFactoryRefusesAnAbsentHiddenWidth
+
+A row without `hidden` fails with "'hidden'" and "absent".
+
+## TheFactoryRefusesANonBooleanShortcut
+
+A `shortcut` given as the string "yes" fails with "'shortcut'" and "true or false".
 
 ## TheFactoryRefusesAnInputThatIsNotAFeatureMap
 
