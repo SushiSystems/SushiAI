@@ -72,9 +72,20 @@ namespace SushiAI
         [[nodiscard]] Result<DarknetImportRun> import_darknet_stem(std::string_view stem) noexcept;
 
         /**
+         * @brief Checks the imported tensors against the entries of a state, strictly in both ways.
+         * @param tensors The imported tensors.
+         * @param entries The entries a built model's state holds; no storage is read.
+         * @return Incompatible naming a tensor without an entry, of another dtype, shape or payload
+         *         size, or stated twice, and an entry no tensor supplies.
+         */
+        [[nodiscard]] Status check_tensors_against_entries(
+            SushiRuntime::span<const IO::ImportedTensor> tensors,
+            SushiRuntime::span<const NN::StateEntry> entries) noexcept;
+
+        /**
          * @brief Copies each tensor into the state entry of its name, strictly in both ways.
-         * @return Incompatible naming a tensor without an entry, of another dtype or shape or
-         *         stated twice, and an entry no tensor supplies.
+         * @return The refusal of check_tensors_against_entries, naming the tensor or the entry;
+         *         nothing is copied when it refuses.
          */
         [[nodiscard]] Status fill_imported_state(
             SushiRuntime::span<const IO::ImportedTensor> tensors, NN::ModelState& state) noexcept;

@@ -1,12 +1,13 @@
 # tests/vision/darknet_import_cases/test_darknet_import.cpp
 
 
-Suites: `Small_DarknetImport`, `Medium_DarknetImportCases`.
+Suites: `Medium_DarknetImportFiles`, `Medium_DarknetImportCases`, `Small_DarknetImportEntries`.
 
-Tests `fill_imported_state` and `import_darknet_stem` in
+Tests `check_tensors_against_entries`, `fill_imported_state` and `import_darknet_stem` in
 `modules/vision/darknet_import_cases/include/SushiAI/vision/darknet_import_cases/darknet_import.hpp`.
-The medium cases build a `NN::ModelState` from two entries on the shared runtime and fill it
-from tensors made in memory, so no Darknet file is read. `check_imported_rows` and
+The refusal cases call `check_tensors_against_entries` on the two entries and tensors made in
+memory, so they need no engine and no Darknet file. The medium fill case builds a `NN::ModelState`
+from the two entries on the shared runtime and fills it from tensors made in memory. `check_imported_rows` and
 `check_imported_weights` compare a real import against its translation, and
 `check_written_import` compares the files a real import writes against it; the suite
 `DarknetImport` in `tests/vision/importers/test_darknet_import/test_import.cpp` runs them and
@@ -23,7 +24,7 @@ base plus `i`.
 
 ## AStemWithoutFilesIsNotFound
 
-`import_darknet_stem` of a stem no reference data directory holds fails with FileNotFound naming
+`Medium_`, since the import looks for files. `import_darknet_stem` of a stem no reference data directory holds fails with FileNotFound naming
 its cfg.
 
 ## EveryTensorLandsInTheEntryOfItsName
@@ -36,10 +37,14 @@ compare exactly.
 
 A tensor named "1.weight" fails with Incompatible, naming it and "no such entry".
 
-## ARepeatedOrMisshapenTensorIsRefused
+## ATensorStatedTwiceIsRefused
 
-"0.bias" given twice fails with Incompatible naming "'0.bias' twice". "0.weight" of [3, 2]
-against an entry of [2, 3] fails with Incompatible naming the tensor and its shape.
+"0.bias" given twice fails with Incompatible naming "'0.bias' twice".
+
+## ATensorOfAnotherShapeIsRefused
+
+"0.weight" of [3, 2] against an entry of [2, 3] fails with Incompatible naming the tensor and
+its shape.
 
 ## AnEntryNoTensorSuppliesIsRefused
 

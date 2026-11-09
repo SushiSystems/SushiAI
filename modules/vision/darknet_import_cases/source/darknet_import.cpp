@@ -34,6 +34,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -147,41 +148,55 @@ namespace SushiAI
             return run;
         }
 
-        Status fill_imported_state(SushiRuntime::span<const IO::ImportedTensor> tensors,
-                                   NN::ModelState& state) noexcept
+        Status check_tensors_against_entries(SushiRuntime::span<const IO::ImportedTensor> tensors,
+                                             SushiRuntime::span<const NN::StateEntry> entries) noexcept
         {
+            std::unordered_map<std::string_view, const NN::StateEntry*> by_name;
+            for (const NN::StateEntry& entry : entries)
+                by_name.emplace(entry.name, &entry);
+
             std::unordered_set<std::string_view> supplied;
             for (const IO::ImportedTensor& tensor : tensors)
             {
                 const IO::TensorRecord& record = tensor.record;
-                const Result<SushiBLAS::Tensor*> found = state.tensor(record.name);
-                SA_FAIL_IF(!found.has_value(), StatusCode::Incompatible,
+                const auto found = by_name.find(record.name);
+                SA_FAIL_IF(found == by_name.end(), StatusCode::Incompatible,
                            "the imported model holds '{}', and the built model has no such entry",
                            record.name);
-                SushiBLAS::Tensor* const entry = found.value();
+                const NN::StateEntry& entry = *found->second;
 
                 SA_FAIL_IF(!supplied.insert(record.name).second, StatusCode::Incompatible,
                            "the imported model supplies '{}' twice", record.name);
-                SA_FAIL_IF(record.dtype != entry->dtype, StatusCode::Incompatible,
+                SA_FAIL_IF(record.dtype != entry.dtype, StatusCode::Incompatible,
                            "the imported model holds '{}' as {}, but the built model's is {}",
-                           record.name, dtype_name(record.dtype), dtype_name(entry->dtype));
-                SA_FAIL_IF(record.shape != shape_of(*entry), StatusCode::Incompatible,
+                           record.name, dtype_name(record.dtype), dtype_name(entry.dtype));
+                SA_FAIL_IF(record.shape != entry.shape, StatusCode::Incompatible,
                            "the imported model holds '{}' with shape {}, but the built model's "
                            "is {}",
-                           record.name, record.shape.to_string(), shape_of(*entry).to_string());
+                           record.name, record.shape.to_string(), entry.shape.to_string());
                 SA_FAIL_IF(tensor.payload.size() != record.payload_bytes(),
                            StatusCode::Incompatible, "'{}' holds {} bytes, but its shape needs {}",
                            record.name, tensor.payload.size(), record.payload_bytes());
-
-                std::memcpy(entry->data(), tensor.payload.data(), tensor.payload.size());
             }
 
-            for (const NN::StateEntry& entry : state.entries())
+            for (const NN::StateEntry& entry : entries)
             {
                 SA_FAIL_IF(supplied.count(entry.name) == 0, StatusCode::Incompatible,
                            "the imported model does not supply the built model's '{}'",
                            entry.name);
             }
+
+            return Status();
+        }
+
+        Status fill_imported_state(SushiRuntime::span<const IO::ImportedTensor> tensors,
+                                   NN::ModelState& state) noexcept
+        {
+            SA_TRY(check_tensors_against_entries(tensors, state.entries()));
+
+            for (const IO::ImportedTensor& tensor : tensors)
+                std::memcpy(state.tensor(tensor.record.name).value()->data(), tensor.payload.data(),
+                            tensor.payload.size());
 
             return Status();
         }

@@ -62,7 +62,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M41 | the tests of `vision/blocks` (12 files): 73 rewrite, 7 resize, 20 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M42 | the tests of `vision/codecs` (5 files): 21 rewrite, 6 resize, 2 split, 3 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M43 | the tests of `vision/darknet_forward_cases` (1 file): 4 rewrite, 3 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
-| M44 | the tests of `vision/darknet_import_cases` (1 file): 3 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M44 | the tests of `vision/darknet_import_cases` (1 file): 3 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M45 | the tests of `vision/darknet_training_cases` (1 file): 1 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M46 | the tests of `vision/datasets` (39 files): 96 rewrite, 63 resize, 38 split, 3 merge, 13 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M47 | the tests of `vision/detect` (47 files): 226 rewrite, 19 resize, 32 split, 14 merge, 18 delete, 1 characterize | T1, T2, T3, T4, T5, T6, T7, T8 | todo |

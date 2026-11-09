@@ -97,7 +97,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the import of a stem no reference holds fails naming its cfg. */
-TEST(Small_DarknetImport, AStemWithoutFilesIsNotFound)
+TEST(Medium_DarknetImportFiles, AStemWithoutFilesIsNotFound)
 {
     SA_EXPECT_FAILURE(SaTest::import_darknet_stem("sushiai_no_such_model"),
                       StatusCode::FileNotFound, "sushiai_no_such_model.cfg");
@@ -120,38 +120,38 @@ TEST_F(Medium_DarknetImportCases, EveryTensorLandsInTheEntryOfItsName)
 }
 
 /** @brief Tests that a tensor the state has no entry for is refused by name. */
-TEST_F(Medium_DarknetImportCases, ATensorWithoutAnEntryIsRefused)
+TEST(Small_DarknetImportEntries, ATensorWithoutAnEntryIsRefused)
 {
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, two_entries()));
     const std::vector<IO::ImportedTensor> tensors = {make_tensor("1.weight", Shape{3}, 0.0f)};
 
-    SA_EXPECT_FAILURE(SaTest::fill_imported_state(tensors, state), StatusCode::Incompatible,
-                      "'1.weight'", "no such entry");
+    SA_EXPECT_FAILURE(SaTest::check_tensors_against_entries(tensors, two_entries()),
+                      StatusCode::Incompatible, "'1.weight'", "no such entry");
 }
 
-/** @brief Tests that a tensor stated twice, or of another shape, is refused by name. */
-TEST_F(Medium_DarknetImportCases, ARepeatedOrMisshapenTensorIsRefused)
+/** @brief Tests that a tensor stated twice is refused by name. */
+TEST(Small_DarknetImportEntries, ATensorStatedTwiceIsRefused)
 {
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, two_entries()));
     const std::vector<IO::ImportedTensor> twice = {make_tensor("0.bias", Shape{3}, 0.0f),
                                                    make_tensor("0.bias", Shape{3}, 0.0f)};
+
+    SA_EXPECT_FAILURE(SaTest::check_tensors_against_entries(twice, two_entries()),
+                      StatusCode::Incompatible, "'0.bias' twice");
+}
+
+/** @brief Tests that a tensor of another shape than its entry is refused by name. */
+TEST(Small_DarknetImportEntries, ATensorOfAnotherShapeIsRefused)
+{
     const std::vector<IO::ImportedTensor> misshapen = {make_tensor("0.weight", Shape{3, 2}, 0.0f)};
 
-    SA_EXPECT_FAILURE(SaTest::fill_imported_state(twice, state), StatusCode::Incompatible,
-                      "'0.bias' twice");
-    SA_EXPECT_FAILURE(SaTest::fill_imported_state(misshapen, state), StatusCode::Incompatible,
-                      "'0.weight'", "shape");
+    SA_EXPECT_FAILURE(SaTest::check_tensors_against_entries(misshapen, two_entries()),
+                      StatusCode::Incompatible, "'0.weight'", "shape");
 }
 
 /** @brief Tests that an entry no tensor supplies is refused by name. */
-TEST_F(Medium_DarknetImportCases, AnEntryNoTensorSuppliesIsRefused)
+TEST(Small_DarknetImportEntries, AnEntryNoTensorSuppliesIsRefused)
 {
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, two_entries()));
     const std::vector<IO::ImportedTensor> tensors = {make_tensor("0.weight", Shape{2, 3}, 0.0f)};
 
-    SA_EXPECT_FAILURE(SaTest::fill_imported_state(tensors, state), StatusCode::Incompatible,
-                      "does not supply", "'0.bias'");
+    SA_EXPECT_FAILURE(SaTest::check_tensors_against_entries(tensors, two_entries()),
+                      StatusCode::Incompatible, "does not supply", "'0.bias'");
 }
