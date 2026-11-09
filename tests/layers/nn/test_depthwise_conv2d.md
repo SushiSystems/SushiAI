@@ -65,10 +65,19 @@ channels, are StrideOneKeepsTheExtents ([8, 6, 4] to itself), StrideTwoHalvesThe
 `same_padded(4, 4, 5, 2)` gives 4 channels, a 5x5 window, stride 2 on both axes, a top and left
 padding of 2, and dilation 1 on both axes.
 
+## Small_DepthwiseConv2dChannelCheck.UnequalCountsAreRefused
+
+`check_depthwise_channels` returns `InvalidDescription` for the pairs (in 8, out 4) and (in 4, out 8),
+with a message containing "keeps its channel count" and both counts, as `in=8` and `out=4`.
+
+## EqualChannelCountsAreAccepted
+
+`check_depthwise_channels(4, 4)` is a success.
+
 ## SamePaddedRefusesUnequalChannelCounts
 
 The case is in the suite `Medium_DepthwiseConv2dDeathTest`, because a death test starts a child
-process. `same_padded(4, 8, 3, 1)` stops the process with a report containing "keeps its channel
+process; it holds that `same_padded` stops on the refusal the check returns. `same_padded(4, 8, 3, 1)` stops the process with a report containing "keeps its channel
 count".
 
 ## Small_DepthwiseConv2dForwardRefusal.ForwardRefuses

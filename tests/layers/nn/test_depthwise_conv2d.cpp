@@ -299,6 +299,41 @@ TEST(Small_DepthwiseConv2d, SamePaddedBuildsAPaddedLayerOfTheGivenStride)
     EXPECT_EQ(layer.geometry.dilation_w, 1);
 }
 
+/** @brief Holds the channel counts check_depthwise_channels() is asked about. */
+struct ChannelCountRow
+{
+    std::string name;     /**< The row's name. */
+    int64_t in_channels;  /**< The channel count entering the layer. */
+    int64_t out_channels; /**< The channel count asked of the layer. */
+};
+
+/** @brief Runs the channel count check over each pair it refuses. */
+class Small_DepthwiseConv2dChannelCheck : public ::testing::TestWithParam<ChannelCountRow>
+{
+};
+
+/** @brief Tests that the check refuses a pair of unequal counts and names both. */
+TEST_P(Small_DepthwiseConv2dChannelCheck, UnequalCountsAreRefused)
+{
+    const ChannelCountRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(NN::check_depthwise_channels(row.in_channels, row.out_channels),
+                      StatusCode::InvalidDescription, "keeps its channel count",
+                      "in=" + std::to_string(row.in_channels),
+                      "out=" + std::to_string(row.out_channels));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DepthwiseConv2dChannelCheck,
+    ::testing::Values(ChannelCountRow{"FewerOut", 8, 4}, ChannelCountRow{"MoreOut", 4, 8}),
+    [](const ::testing::TestParamInfo<ChannelCountRow>& info) { return info.param.name; });
+
+/** @brief Tests that the check accepts equal counts. */
+TEST(Small_DepthwiseConv2d, EqualChannelCountsAreAccepted)
+{
+    SA_EXPECT_OK(NN::check_depthwise_channels(4, 4));
+}
+
 /** @brief Tests that same_padded() stops the process when the channel counts differ. */
 TEST(Medium_DepthwiseConv2dDeathTest, SamePaddedRefusesUnequalChannelCounts)
 {

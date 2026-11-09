@@ -268,7 +268,8 @@ both are PLAN unit U9.
 `DepthwiseConv2d` filters each channel of an NHWC activation with its own window of taps. The
 weight is rank 3, [kernel_h, kernel_w, channels], and `GraphBuilder::depthwise_conv2d` owns the
 node. `DepthwiseConv2d::same_padded(in, out, kernel, stride)` builds a layer padded by
-kernel / 2 on every side; it stops the process when `in` and `out` differ. The layer has no bias. Both fans
+kernel / 2 on every side; it stops the process when `in` and `out` differ. `check_depthwise_channels(in, out)`
+returns that refusal as a `Status`, so a caller checks a row before it builds the layer. The layer has no bias. Both fans
 of the weight are kernel_h * kernel_w, since each channel reads and writes only its own taps.
 
 Source: YOLO26 plan, `docs/agent/2026_10_07_YOLO26/PLAN.md`, unit U5.

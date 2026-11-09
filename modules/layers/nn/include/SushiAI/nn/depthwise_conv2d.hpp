@@ -41,6 +41,15 @@ namespace SushiAI
 {
     namespace NN
     {
+        /**
+         * @brief Checks that a depthwise layer can keep its channel count from @p in_channels to
+         *        @p out_channels.
+         * @return A success, or InvalidDescription naming both counts; same_padded() stops on
+         *         the same refusal.
+         */
+        [[nodiscard]] Status check_depthwise_channels(int64_t in_channels,
+                                                      int64_t out_channels) noexcept;
+
         /** @brief Filters each channel of an NHWC activation with its own window of taps. */
         struct DepthwiseConv2d
         {
@@ -63,7 +72,7 @@ namespace SushiAI
 
             /**
              * @brief Builds a bias-free depthwise convolution padded by kernel / 2 on every side.
-             * @pre @p in_channels equals @p out_channels.
+             * @pre check_depthwise_channels() accepts @p in_channels and @p out_channels.
              * @return A layer with dilation 1 whose geometry output_shape() and forward() check.
              */
             [[nodiscard]] static DepthwiseConv2d same_padded(int64_t in_channels,

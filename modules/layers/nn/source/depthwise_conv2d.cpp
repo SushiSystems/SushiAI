@@ -60,12 +60,20 @@ namespace SushiAI
             }
         } // namespace
 
+        Status check_depthwise_channels(int64_t in_channels, int64_t out_channels) noexcept
+        {
+            SA_FAIL_IF(in_channels != out_channels, StatusCode::InvalidDescription,
+                       "DepthwiseConv2d keeps its channel count; got in={} and out={}",
+                       in_channels, out_channels);
+
+            return Status();
+        }
+
         DepthwiseConv2d DepthwiseConv2d::same_padded(int64_t in_channels, int64_t out_channels,
                                                      int64_t kernel, int64_t stride) noexcept
         {
-            SA_FATAL_IF(in_channels != out_channels,
-                        "DepthwiseConv2d keeps its channel count; got in={} and out={}",
-                        in_channels, out_channels);
+            const Status checked = check_depthwise_channels(in_channels, out_channels);
+            SA_FATAL_IF(!checked.is_ok(), "{}", checked.message());
 
             DepthwiseConv2d layer;
             layer.channels = in_channels;
