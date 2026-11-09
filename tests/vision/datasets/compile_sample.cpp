@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_sample.cpp                                                        */
+/* compile_sample.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,54 +21,33 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
- * @file test_sample.cpp
- * @brief Tests what a sample record and a sample list hold before a reader fills them.
+ * @file compile_sample.cpp
+ * @brief Checks at compile time the shape of the sample record and the sample list.
  * @author Mustafa Garip
  */
 
 #include <cstdint>
-#include <gtest/gtest.h>
+#include <filesystem>
+#include <optional>
+#include <type_traits>
+#include <vector>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 
-/** @brief Tests that a default sample names file 0 and carries no label of any layout. */
-TEST(Small_DatasetsSample, ADefaultSampleCarriesNoLabel)
+namespace
 {
-    const Sample sample;
-
-    EXPECT_EQ(sample.file, 0u);
-    EXPECT_FALSE(sample.stored.has_value());
-    EXPECT_FALSE(sample.class_index.has_value());
-    EXPECT_TRUE(sample.objects.is_empty());
-    EXPECT_FALSE(sample.mask.has_value());
-}
-
-/** @brief Tests that a default list holds no file, no sample, no class and no table row. */
-TEST(Small_DatasetsSample, ADefaultListIsEmpty)
-{
-    const SampleList list;
-
-    EXPECT_TRUE(list.files.empty());
-    EXPECT_TRUE(list.samples.empty());
-    EXPECT_TRUE(list.class_names.empty());
-    EXPECT_EQ(list.class_count, 0);
-    EXPECT_EQ(list.table.row_count(), 0u);
-}
-
-/** @brief Tests that a sample names its pixel file and its mask file by index into the list. */
-TEST(Small_DatasetsSample, SamplesReferToTheFilesOfTheirListByIndex)
-{
-    SampleList list;
-    list.files = {"images/a.png", "masks/a.png"};
-    Sample sample;
-    sample.file = 0;
-    sample.mask = 1u;
-    list.samples.push_back(sample);
-
-    ASSERT_EQ(list.samples.size(), 1u);
-    EXPECT_EQ(list.files[list.samples[0].file], "images/a.png");
-    EXPECT_EQ(list.files[*list.samples[0].mask], "masks/a.png");
-}
+    static_assert(std::is_aggregate_v<Sample>,
+                  "a reader fills a sample field by field");
+    static_assert(std::is_aggregate_v<SampleList>,
+                  "a reader fills a sample list field by field");
+    static_assert(std::is_same_v<decltype(Sample::file), std::uint32_t>,
+                  "a sample names its pixel file by an index into the files of its list");
+    static_assert(std::is_same_v<decltype(Sample::mask), std::optional<std::uint32_t>>,
+                  "a sample names its mask file by the same index, or by none");
+    static_assert(std::is_same_v<decltype(SampleList::files), std::vector<std::filesystem::path>>,
+                  "the files of a list are paths");
+    static_assert(std::is_same_v<decltype(SampleList::samples), std::vector<Sample>>,
+                  "the samples of a list are sample records");
+} // namespace

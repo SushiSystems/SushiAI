@@ -37,7 +37,7 @@ sushiai_add_test_program(OWNER vision/datasets
         test_reader_section.cpp
         test_reader_table.cpp
         test_regression_collator.cpp
-        test_sample.cpp
+        compile_sample.cpp
         test_sample_cache.cpp
         test_sample_pipeline.cpp
         test_segmentation_collator.cpp
