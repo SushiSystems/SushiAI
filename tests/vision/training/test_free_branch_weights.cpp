@@ -89,3 +89,12 @@ TEST(Small_FreeBranchWeights, ARunOfOneEpochUsesTheStart)
 
     EXPECT_FLOAT_EQ(one_to_many_weight(weights, 0, 1), 0.8f);
 }
+
+/** @brief Tests that a weight below 0 is refused, naming its key. */
+TEST(Small_FreeBranchWeights, AWeightBelowZeroIsRefusedNamingItsKey)
+{
+    const Value section = Value::object({"one_to_many_weight_start"}, {Value::real(-0.25)});
+
+    SA_EXPECT_FAILURE(read_free_branch_weights(section), StatusCode::InvalidDescription,
+                      "one_to_many_weight_start", "0..1");
+}

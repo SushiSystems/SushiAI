@@ -89,10 +89,16 @@ namespace
         }
         return outputs;
     }
+
+    /** @brief Provides the level of each of the three levels of the fixture. */
+    class Small_TrainingFreeModelFactsLevel : public ::testing::TestWithParam<std::size_t>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests that both copies give three levels of strides 8, 16 and 32 and their ports. */
-TEST(Small_TrainingFreeModelFacts, AThreeLevelHeadGivesItsStridesPortsAndWidths)
+/** @brief Tests that a three-level head gives reg_max 1, its classes and a one-to-one copy. */
+TEST(Small_TrainingFreeModelFacts, AThreeLevelHeadGivesItsCountsAndTheOneToOneFlag)
 {
     const std::vector<Train::OutputShape> outputs = published_ports(DetectOptions());
     SA_ASSERT_OK_AND_ASSIGN(const FreeModelFacts facts, derive_free_model_facts(K_INPUT, outputs));
@@ -100,21 +106,39 @@ TEST(Small_TrainingFreeModelFacts, AThreeLevelHeadGivesItsStridesPortsAndWidths)
     EXPECT_EQ(facts.reg_max, 1);
     EXPECT_EQ(facts.classes, K_CLASSES);
     EXPECT_TRUE(facts.has_one_to_one);
+    EXPECT_EQ(facts.levels.size(), 3u);
+}
+
+/** @brief Tests that a level has the stride and the sides its grid gives over the input. */
+TEST_P(Small_TrainingFreeModelFactsLevel, ALevelGivesItsStrideAndSides)
+{
+    const std::size_t level = GetParam();
+    const std::vector<Train::OutputShape> outputs = published_ports(DetectOptions());
+    SA_ASSERT_OK_AND_ASSIGN(const FreeModelFacts facts, derive_free_model_facts(K_INPUT, outputs));
     ASSERT_EQ(facts.levels.size(), 3u);
 
-    const std::array<std::int64_t, 3> strides = {8, 16, 32};
-    for (std::size_t level = 0; level < 3; ++level)
-    {
-        const std::string index = std::to_string(level);
-        EXPECT_EQ(facts.levels[level].stride, strides[level]);
-        EXPECT_EQ(facts.levels[level].height, K_SIDES[level]);
-        EXPECT_EQ(facts.levels[level].width, K_SIDES[level]);
-        EXPECT_EQ(facts.levels[level].one_to_many.boxes, "one2many.level" + index + ".boxes");
-        EXPECT_EQ(facts.levels[level].one_to_many.scores, "one2many.level" + index + ".scores");
-        EXPECT_EQ(facts.levels[level].one_to_one.boxes, "one2one.level" + index + ".boxes");
-        EXPECT_EQ(facts.levels[level].one_to_one.scores, "one2one.level" + index + ".scores");
-    }
+    EXPECT_EQ(facts.levels[level].stride, 64 / K_SIDES[level]);
+    EXPECT_EQ(facts.levels[level].height, K_SIDES[level]);
+    EXPECT_EQ(facts.levels[level].width, K_SIDES[level]);
 }
+
+/** @brief Tests that a level names the ports of both copies by its index. */
+TEST_P(Small_TrainingFreeModelFactsLevel, ALevelNamesThePortsOfBothCopies)
+{
+    const std::size_t level = GetParam();
+    const std::string index = std::to_string(level);
+    const std::vector<Train::OutputShape> outputs = published_ports(DetectOptions());
+    SA_ASSERT_OK_AND_ASSIGN(const FreeModelFacts facts, derive_free_model_facts(K_INPUT, outputs));
+    ASSERT_EQ(facts.levels.size(), 3u);
+
+    EXPECT_EQ(facts.levels[level].one_to_many.boxes, "one2many.level" + index + ".boxes");
+    EXPECT_EQ(facts.levels[level].one_to_many.scores, "one2many.level" + index + ".scores");
+    EXPECT_EQ(facts.levels[level].one_to_one.boxes, "one2one.level" + index + ".boxes");
+    EXPECT_EQ(facts.levels[level].one_to_one.scores, "one2one.level" + index + ".scores");
+}
+
+INSTANTIATE_TEST_SUITE_P(Levels, Small_TrainingFreeModelFactsLevel,
+                         ::testing::Values(0u, 1u, 2u));
 
 /** @brief Tests that a single-copy head of reg_max 16 gives reg_max 16 and no one-to-one. */
 TEST(Small_TrainingFreeModelFacts, ASingleCopyHeadGivesItsRegMax)
@@ -135,9 +159,17 @@ TEST(Small_TrainingFreeModelFacts, ASingleCopyHeadGivesItsRegMax)
 TEST(Small_TrainingFreeModelFacts, RefusesALevelThatDoesNotDivideTheInput)
 {
     const std::vector<Train::OutputShape> outputs = published_ports(DetectOptions());
+
     SA_EXPECT_FAILURE(derive_free_model_facts(Shape{60, 60, 3}, outputs),
                       StatusCode::InvalidDescription, "'one2many.level0.boxes'", "8 by 8",
                       "60 by 60");
+}
+
+/** @brief Tests that an input that is not square is refused, naming the first port. */
+TEST(Small_TrainingFreeModelFacts, RefusesAnInputThatIsNotSquare)
+{
+    const std::vector<Train::OutputShape> outputs = published_ports(DetectOptions());
+
     SA_EXPECT_FAILURE(derive_free_model_facts(Shape{64, 32, 3}, outputs),
                       StatusCode::InvalidDescription, "'one2many.level0.boxes'",
                       "equal along H and W");

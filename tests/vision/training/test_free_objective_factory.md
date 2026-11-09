@@ -4,9 +4,13 @@ Suites: `Small_FreeObjectiveFactory`.
 
 Tests `build_free_objective` and `make_free_objective` of `free_objective_factory.hpp`. `free_objective_ports.hpp` holds the two-level model of ports that this file and `test_free_objective.cpp` share.
 
-### TheFactoryDerivesTheFactsAndReadsTheGains
+### TheFactoryDerivesTheFacts
 
-A section with a box gain of 5 builds an objective of two levels, `reg_max` 2, a stride of 16 at the second level and the default class gain.
+A section of the type `anchor_free` builds an objective of two levels, `reg_max` 2 and a stride of 16 at the second level.
+
+### TheFactoryReadsTheGainsOfTheSection
+
+A section with a box gain of 5 sets it and leaves the class gain at its default.
 
 ### TheFactoryRefusesAKeyThatIsNoGain
 
@@ -14,7 +18,7 @@ The key "reg_max" fails with `InvalidDescription` naming it.
 
 ### TheBranchWeightKeysAreKeysOfTheSection
 
-The keys `one_to_many_weight_start` and `one_to_many_weight_end` are accepted.
+The keys `one_to_many_weight_start` of 0.6 and `one_to_many_weight_end` of 0.2 are accepted, and the objective's `branch_weights()` hold 0.6 and 0.2.
 
 ### ASectionOfAnotherTypeIsRefused
 

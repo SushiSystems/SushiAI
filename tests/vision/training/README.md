@@ -722,3 +722,7 @@ The files below have a page beside them that says what each case pins.
 | `test_pixel_extents.cpp` | [`test_pixel_extents.md`](test_pixel_extents.md) |
 | `test_segmentation_metrics.cpp` | [`test_segmentation_metrics.md`](test_segmentation_metrics.md) |
 | `test_truth_from_roles.cpp` | [`test_truth_from_roles.md`](test_truth_from_roles.md) |
+| `test_free_model_facts.cpp` | [`test_free_model_facts.md`](test_free_model_facts.md) |
+| `test_free_objective.cpp` | [`test_free_objective.md`](test_free_objective.md) |
+| `test_free_loss_gains.cpp` | [`test_free_loss_gains.md`](test_free_loss_gains.md) |
+| `test_free_branch_weights.cpp` | [`test_free_branch_weights.md`](test_free_branch_weights.md) |

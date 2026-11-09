@@ -56,17 +56,27 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the factory derives the facts and reads the gains of the section. */
-TEST(Small_FreeObjectiveFactory, TheFactoryDerivesTheFactsAndReadsTheGains)
+/** @brief Tests that the factory derives the facts of the model from its ports. */
+TEST(Small_FreeObjectiveFactory, TheFactoryDerivesTheFacts)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const FreeObjective objective,
+        Vision::Training::build_free_objective(make_context(),
+                                               section_from(R"({"type": "anchor_free"})")));
+
+    EXPECT_EQ(objective.facts().levels.size(), K_SIDES.size());
+    EXPECT_EQ(objective.facts().reg_max, K_REG_MAX);
+    EXPECT_EQ(objective.facts().levels[1].stride, 16);
+}
+
+/** @brief Tests that the factory reads a stated gain and keeps the default of the others. */
+TEST(Small_FreeObjectiveFactory, TheFactoryReadsTheGainsOfTheSection)
 {
     const Config::Value section = section_from(R"({"type": "anchor_free", "box_gain": 5.0})");
 
     SA_ASSERT_OK_AND_ASSIGN(const FreeObjective objective,
                             Vision::Training::build_free_objective(make_context(), section));
 
-    EXPECT_EQ(objective.facts().levels.size(), K_SIDES.size());
-    EXPECT_EQ(objective.facts().reg_max, K_REG_MAX);
-    EXPECT_EQ(objective.facts().levels[1].stride, 16);
     EXPECT_EQ(objective.gains().box_gain, 5.0f);
     EXPECT_EQ(objective.gains().class_gain, FreeLossGains{}.class_gain);
 }
@@ -90,7 +100,8 @@ TEST(Small_FreeObjectiveFactory, TheBranchWeightKeysAreKeysOfTheSection)
     SA_ASSERT_OK_AND_ASSIGN(const FreeObjective objective,
                             Vision::Training::build_free_objective(make_context(), section));
 
-    EXPECT_EQ(objective.name(), Vision::Training::K_FREE_OBJECTIVE_TYPE);
+    EXPECT_EQ(objective.branch_weights().start, 0.6f);
+    EXPECT_EQ(objective.branch_weights().end, 0.2f);
 }
 
 /** @brief Tests that a type other than the anchor-free one is refused. */

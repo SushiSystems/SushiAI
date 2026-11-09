@@ -28,6 +28,7 @@
 
 #include <string>
 #include <vector>
+#include <limits>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -82,4 +83,14 @@ TEST(Small_FreeLossGains, AGainThatIsNoNumberIsRefusedNamingItsKey)
     const Value section = Value::object({"box_gain"}, {Value::string("high")});
 
     SA_EXPECT_FAILURE(read_free_loss_gains(section), StatusCode::InvalidDescription, "box_gain");
+}
+
+/** @brief Tests that an infinite gain is refused, naming its key. */
+TEST(Small_FreeLossGains, AnInfiniteGainIsRefusedNamingItsKey)
+{
+    const Value section = Value::object({"l1_gain"},
+                                        {Value::real(std::numeric_limits<double>::infinity())});
+
+    SA_EXPECT_FAILURE(read_free_loss_gains(section), StatusCode::InvalidDescription, "l1_gain",
+                      "finite");
 }

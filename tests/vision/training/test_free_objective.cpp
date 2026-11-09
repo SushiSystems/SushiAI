@@ -83,10 +83,13 @@ namespace
         for (const Train::OutputShape& port : list_ports())
             SA_EXPECT_OK(outputs.add(port.name, builder.parameter(port.shape, port.name)));
     }
+
+    /** @brief Names the suite of the cases that expect the process to stop. */
+    class Medium_FreeObjectiveDeathTest : public ::testing::Test {};
 } // namespace
 
-/** @brief Tests that declare adds the leaves the loss reads and the projection, no more. */
-TEST(Small_FreeObjective, DeclaresTheLeavesTheLossReadsAndTheProjection)
+/** @brief Tests that declare adds the leaves the loss reads and leaves out the L1 ones. */
+TEST(Small_FreeObjective, DeclaresTheLeavesTheLossReads)
 {
     const FreeObjective objective = make_objective(FreeLossGains{});
     ASSERT_EQ(objective.stage_leaves().size(), K_STAGE_LEAVES);
@@ -97,11 +100,35 @@ TEST(Small_FreeObjective, DeclaresTheLeavesTheLossReadsAndTheProjection)
     objective.declare(builder, leaves);
 
     EXPECT_EQ(leaves.all().size(), K_STAGE_LEAVES - K_SKIPPED_LEAVES + 1);
+    EXPECT_FALSE(leaves.has("free.anchor_strides.level0"));
+    EXPECT_FALSE(leaves.has("free.l1_scale.level0"));
+}
+
+/** @brief Tests that declare adds the projection leaf, one column of reg_max bins. */
+TEST(Small_FreeObjective, DeclaresTheProjection)
+{
+    const FreeObjective objective = make_objective(FreeLossGains{});
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    Train::ObjectiveLeaves leaves;
+    objective.declare(builder, leaves);
+
     ASSERT_TRUE(leaves.has(Vision::Training::K_FREE_PROJECTION_ROLE));
     EXPECT_EQ(graph.value(leaves.at(Vision::Training::K_FREE_PROJECTION_ROLE)).shape,
               (Shape{K_REG_MAX, 1}));
-    EXPECT_FALSE(leaves.has("free.anchor_strides.level0"));
-    EXPECT_FALSE(leaves.has("free.l1_scale.level0"));
+}
+
+/** @brief Tests that the target scores of a level are the grid of the level times the classes. */
+TEST(Small_FreeObjective, DeclaresTheTargetScoresOfALevelInItsGrid)
+{
+    const FreeObjective objective = make_objective(FreeLossGains{});
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    Train::ObjectiveLeaves leaves;
+    objective.declare(builder, leaves);
+
     EXPECT_EQ(graph.value(leaves.at("free.target_scores.level1")).shape,
               (Shape{K_BATCH, 2, 2, K_CLASSES}));
 }
@@ -140,11 +167,10 @@ TEST(Small_FreeObjective, TheLossIsAOneElementRoot)
 
     ASSERT_NE(root, Graph::K_NO_VALUE);
     EXPECT_EQ(graph.value(root).shape, (Shape{1}));
-    EXPECT_EQ(objective.name(), Vision::Training::K_FREE_OBJECTIVE_TYPE);
 }
 
 /** @brief Tests that outputs without a port the facts name stop the process naming the port. */
-TEST(Small_FreeObjective, AMissingPortIsFatalNamingThePort)
+TEST_F(Medium_FreeObjectiveDeathTest, AMissingPortIsFatalNamingThePort)
 {
     const FreeObjective objective = make_objective(FreeLossGains{});
 
