@@ -272,6 +272,62 @@ namespace
         return std::string(body.stem) + " " + name_layer(layers, layer.index) + ", " + shape;
     }
 
+    /** @brief Lists the section type of each layer of @p layers, in file order. */
+    std::vector<std::string_view> list_section_types(const std::vector<BodyLayer>& layers)
+    {
+        std::vector<std::string_view> types;
+        types.reserve(layers.size());
+        for (const BodyLayer& layer : layers)
+            types.push_back(layer.type);
+
+        return types;
+    }
+
+    /** @brief Holds the first layer outside the bounds and the count of the layers after it. */
+    struct LayerComparison
+    {
+        std::string first_outside;     /**< Names the first layer outside; empty if none. */
+        std::size_t later_outside = 0; /**< Counts the layers outside the bounds after the first. */
+    };
+
+    /**
+     * @brief Compares the output of every non-[yolo] layer of @p run with its dump.
+     * @return The comparison; the failure of a dump that cannot be loaded, or Incompatible
+     *         for a layer the run did not observe.
+     */
+    Result<LayerComparison> compare_layers(const FullBodyCase& body,
+                                           const std::vector<BodyLayer>& layers,
+                                           const DarknetForwardRun& run)
+    {
+        LayerComparison comparison;
+        for (const BodyLayer& layer : layers)
+        {
+            if (layer.is_head)
+                continue;
+
+            SA_TRY_ASSIGN(const DarknetTensor reference,
+                          SaTest::load_darknet_reference(body.directory, layer.dump));
+            const std::vector<float>* const ours =
+                find_output(run, SaTest::name_observed_layer(layer.index));
+            SA_FAIL_IF(ours == nullptr, StatusCode::Incompatible,
+                       "the run observed no output for {}", layer.dump);
+
+            const ::testing::AssertionResult result =
+                within_tolerance(name_measurement(body, layers, layer, reference.extents), *ours,
+                                 reference.values, K_LAYER_ABSOLUTE, K_LAYER_RELATIVE);
+            if (result)
+                continue;
+
+            if (comparison.first_outside.empty())
+                comparison.first_outside =
+                    std::string(result.message()) + "\n" + name_reads(run.model, layers, layer);
+            else
+                ++comparison.later_outside;
+        }
+
+        return comparison;
+    }
+
     /** @brief Runs on an engine over one model, and skips when a file of that model is missing. */
     class FullBodyTest : public SaTest::EngineTest
     {
@@ -332,31 +388,52 @@ namespace
 
 } // namespace
 
-/**
- * @brief Tests that the cfg has the 24 sections REPORT section 14 names, in that order, that
- *        its [yolo] sections are those of the parity table, that a one-layer route takes no
- *        row of its own, and that the layers a layer reads are those the cfg gives it.
- */
-TEST_F(Medium_DarknetYolov3TinyLayers, TheSectionsAndRowsAreThoseOfTheDumps)
+/** @brief Tests that the cfg has the 24 sections REPORT section 14 names, in that order. */
+TEST_F(Medium_DarknetYolov3TinyLayers, TheSectionsAreThoseOfTheDumps)
 {
-    const std::size_t count = std::size(K_YOLOV3_TINY_SECTIONS);
     const std::vector<BodyLayer> layers = list_layers(config);
-    ASSERT_EQ(layers.size(), count);
-    for (std::size_t i = 0; i < count; ++i)
-    {
-        SCOPED_TRACE(layers[i].dump);
-        EXPECT_EQ(layers[i].type, std::string(K_YOLOV3_TINY_SECTIONS[i]));
-    }
-    EXPECT_EQ(list_head_layers(layers),
-              SaTest::find_darknet_parity_model(K_YOLOV3_TINY.stem).yolo_layers);
 
+    EXPECT_EQ(list_section_types(layers),
+              std::vector<std::string_view>(std::begin(K_YOLOV3_TINY_SECTIONS),
+                                            std::end(K_YOLOV3_TINY_SECTIONS)));
+}
+
+/** @brief Tests that the [yolo] sections of the cfg are the layers of the parity table. */
+TEST_F(Medium_DarknetYolov3TinyLayers, TheYoloSectionsAreThoseOfTheParityTable)
+{
+    EXPECT_EQ(list_head_layers(list_layers(config)),
+              SaTest::find_darknet_parity_model(K_YOLOV3_TINY.stem).yolo_layers);
+}
+
+/** @brief Tests that the folded translation has one row per section and the heads of the cfg. */
+TEST_F(Medium_DarknetYolov3TinyLayers, TheTranslationHoldsOneRowPerSectionAndTheHeads)
+{
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel model,
         SaTest::translate_darknet_file(K_YOLOV3_TINY.stem, DarknetNormalisation::Folded));
-    ASSERT_EQ(model.row_of_layer.size(), count);
-    EXPECT_EQ(list_translated_heads(model), list_head_layers(layers));
-    // SPEC 2.1: a one-layer route has no row; layer 17 reads the row of layer 13.
+
+    EXPECT_EQ(model.row_of_layer.size(), std::size(K_YOLOV3_TINY_SECTIONS));
+    EXPECT_EQ(list_translated_heads(model), list_head_layers(list_layers(config)));
+}
+
+/** @brief Tests that a one-layer route takes no row of its own (SPEC 2.1). */
+TEST_F(Medium_DarknetYolov3TinyLayers, AOneLayerRouteSharesTheRowOfItsSource)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetModel model,
+        SaTest::translate_darknet_file(K_YOLOV3_TINY.stem, DarknetNormalisation::Folded));
+
+    // Layer 17 reads the row of layer 13.
     EXPECT_EQ(model.row_of_layer[17], model.row_of_layer[13]);
+}
+
+/** @brief Tests that the layers a layer reads are those the cfg gives it. */
+TEST_F(Medium_DarknetYolov3TinyLayers, TheLayersAreReadAsTheCfgGivesThem)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetModel model,
+        SaTest::translate_darknet_file(K_YOLOV3_TINY.stem, DarknetNormalisation::Folded));
+
     EXPECT_EQ(list_read_layers(model, 0), (std::vector<std::int64_t>{Config::K_MODEL_INPUT}));
     EXPECT_EQ(list_read_layers(model, 17), (std::vector<std::int64_t>{13}));
     EXPECT_EQ(list_read_layers(model, 20), (std::vector<std::int64_t>{19, 8}));
@@ -364,10 +441,10 @@ TEST_F(Medium_DarknetYolov3TinyLayers, TheSectionsAndRowsAreThoseOfTheDumps)
 
 /**
  * @brief Tests that the output of every non-[yolo] layer of the folded model equals its Darknet
- *        dump within 1e-3 absolute plus 1e-4 relative.
+ *        dump within the layer bounds.
  *
- * Every layer prints its index, type, extents, largest difference and bound, in file order.
- * The failure names the first layer outside the bound and the layers that layer reads.
+ * The failure names the first layer outside the bound, the layers that layer reads, and how many
+ * later layers are outside it too.
  */
 TEST_P(Medium_DarknetLayers, EveryLayerMatchesItsDumpWithinTolerance)
 {
@@ -384,36 +461,11 @@ TEST_P(Medium_DarknetLayers, EveryLayerMatchesItsDumpWithinTolerance)
     ASSERT_EQ(run.model.row_of_layer.size(), layers.size());
     ASSERT_EQ(list_translated_heads(run.model), list_head_layers(layers));
 
-    std::string first_outside;
-    std::size_t later_outside = 0;
-    for (const BodyLayer& layer : layers)
-    {
-        if (layer.is_head)
-            continue;
+    SA_ASSERT_OK_AND_ASSIGN(const LayerComparison comparison, compare_layers(body, layers, run));
 
-        SCOPED_TRACE(layer.dump);
-        SA_ASSERT_OK_AND_ASSIGN(const DarknetTensor reference,
-                                SaTest::load_darknet_reference(body.directory, layer.dump));
-        const std::vector<float>* const ours =
-            find_output(run, SaTest::name_observed_layer(layer.index));
-        ASSERT_NE(ours, nullptr);
-
-        const ::testing::AssertionResult result =
-            within_tolerance(name_measurement(body, layers, layer, reference.extents), *ours,
-                             reference.values, K_LAYER_ABSOLUTE, K_LAYER_RELATIVE);
-        if (result)
-            continue;
-
-        if (first_outside.empty())
-            first_outside =
-                std::string(result.message()) + "\n" + name_reads(run.model, layers, layer);
-        else
-            ++later_outside;
-    }
-
-    EXPECT_TRUE(first_outside.empty())
-        << "first layer outside tolerance: " << first_outside << "\n"
-        << later_outside << " later layers are outside it too";
+    EXPECT_TRUE(comparison.first_outside.empty())
+        << "first layer outside tolerance: " << comparison.first_outside << "\n"
+        << comparison.later_outside << " later layers are outside it too";
 }
 
 INSTANTIATE_TEST_SUITE_P(, Medium_DarknetLayers, ::testing::ValuesIn(K_FULL_BODY_CASES),
