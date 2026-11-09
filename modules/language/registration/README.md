@@ -20,8 +20,8 @@ registries; their declarations live in `node_registry.hpp`, `dataset_registry.hp
 
 This module is the one place that adds the two objective rows; `language/training` declares
 the objectives and their factories and knows no registry. It is also the one module that
-sees both `language/blocks` and `language/training`, so its test compares the port names of
-a block with experts with the prefixes `expert_balance` looks for.
+sees both `language/blocks` and `language/training`, so its test builds a decoder with experts and
+an objective that reads the outputs the blocks publish by name.
 
 ## A decoder with experts
 

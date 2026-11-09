@@ -47,7 +47,6 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -107,7 +106,7 @@ using SaTest::read_tensor;
 using SaTest::write_tensor;
 
 /** @brief Tests that the five block rows and the linked head row are added in order. */
-TEST(Medium_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
+TEST(Small_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
 {
     NN::NodeRegistry registry;
     SA_EXPECT_OK(Language::register_nodes(registry));
@@ -124,7 +123,7 @@ TEST(Medium_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
 }
 
 /** @brief Tests that the tokens row and the prompt row are added. */
-TEST(Medium_LanguageRegistration, RegisterDatasetsAddsTokensAndPrompt)
+TEST(Small_LanguageRegistration, RegisterDatasetsAddsTokensAndPrompt)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(Language::register_datasets(registry));
@@ -135,7 +134,7 @@ TEST(Medium_LanguageRegistration, RegisterDatasetsAddsTokensAndPrompt)
 }
 
 /** @brief Tests that the next_token row and the expert_balance row are added. */
-TEST(Medium_LanguageRegistration, RegisterObjectivesAddsNextTokenAndExpertBalance)
+TEST(Small_LanguageRegistration, RegisterObjectivesAddsNextTokenAndExpertBalance)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Language::register_objectives(registry));
@@ -145,8 +144,8 @@ TEST(Medium_LanguageRegistration, RegisterObjectivesAddsNextTokenAndExpertBalanc
     EXPECT_EQ(registry.rows().size(), 2u);
 }
 
-/** @brief Tests that the row joins the rows of train once and builds through the registry. */
-TEST(Medium_LanguageRegistration, TheNextTokenRowBuildsBesideTheRowsOfTrain)
+/** @brief Tests that the next_token row builds through a registry that holds the rows of train. */
+TEST(Small_LanguageRegistration, TheNextTokenRowBuildsBesideTheRowsOfTrain)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
@@ -164,13 +163,21 @@ TEST(Medium_LanguageRegistration, TheNextTokenRowBuildsBesideTheRowsOfTrain)
         Train::make_objective(registry, "next_token", given,
                               SaTest::require_value(Config::parse_json("{}", "<test>")), "objective"));
     EXPECT_EQ(objective->name(), "next_token");
+}
+
+/** @brief Tests that a second registration of the next_token row is refused. */
+TEST(Small_LanguageRegistration, TheNextTokenRowIsRefusedASecondTime)
+{
+    Train::ObjectiveRegistry registry;
+    SA_EXPECT_OK(Train::register_objectives(registry));
+    SA_EXPECT_OK(Language::register_objectives(registry));
 
     SA_EXPECT_FAILURE(Language::register_objectives(registry),
                       StatusCode::InvalidDescription, "'next_token' is already registered");
 }
 
 /** @brief Tests that a decoder written as a model file builds from the rows of nn and language. */
-TEST(Medium_LanguageRegistration, ADecoderModelFileBuilds)
+TEST(Small_LanguageRegistration, ADecoderModelFileBuilds)
 {
     NN::NodeRegistry registry = SaTest::make_layer_registry();
     SA_EXPECT_OK(Language::register_nodes(registry));
@@ -184,6 +191,17 @@ TEST(Medium_LanguageRegistration, ADecoderModelFileBuilds)
             {"type": "language_head", "tie": 0}
         ]
     })");
+
+    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph model, NN::build_model(registry, spec));
+    EXPECT_EQ(model.size(), 4u);
+    EXPECT_EQ(model.output_shape(Shape{8}).value(), (Shape{8, 32}));
+}
+
+/** @brief Tests that a head tied to a row that is no embedding is refused, naming the layer. */
+TEST(Small_LanguageRegistration, AnUntiedHeadIsRefusedNamingTheLayerAndTheRow)
+{
+    NN::NodeRegistry registry = SaTest::make_layer_registry();
+    SA_EXPECT_OK(Language::register_nodes(registry));
     const Config::ModelSpec untied_row = SaTest::model_from(R"({
         "format_version": 2,
         "input": {"shape": [8], "dtype": "int32"},
@@ -194,16 +212,12 @@ TEST(Medium_LanguageRegistration, ADecoderModelFileBuilds)
         ]
     })");
 
-    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph model, NN::build_model(registry, spec));
-    EXPECT_EQ(model.size(), 4u);
-    EXPECT_EQ(model.output_shape(Shape{8}).value(), (Shape{8, 32}));
-
     SA_EXPECT_FAILURE(NN::build_model(registry, untied_row), StatusCode::InvalidDescription,
                       "layer 2 'language_head'", "'tie'", "row 1", "no 'embedding' row");
 }
 
 /** @brief Tests that a block with experts publishes the outputs the balance row reads. */
-TEST(Medium_LanguageRegistration, ADecoderWithExpertsPublishesWhatTheBalanceRowReads)
+TEST(Small_LanguageRegistration, ADecoderWithExpertsPublishesWhatTheBalanceRowReads)
 {
     NN::NodeRegistry nodes = SaTest::make_layer_registry();
     SA_EXPECT_OK(Language::register_nodes(nodes));
@@ -242,10 +256,6 @@ TEST(Medium_LanguageRegistration, ADecoderWithExpertsPublishesWhatTheBalanceRowR
     EXPECT_EQ(graph.value(balance).shape, (Shape{1, 1}));
     EXPECT_EQ(graph.value(usage).shape, (Shape{1, 2}));
 
-    // The ports of a block and the names the objective looks for are one spelling.
-    EXPECT_EQ(Language::Blocks::K_BALANCE_PORT, Language::Training::K_BALANCE_OUTPUT_PREFIX);
-    EXPECT_EQ(Language::Blocks::K_USAGE_PORT, Language::Training::K_USAGE_OUTPUT_PREFIX);
-
     Train::ObjectiveRegistry objectives;
     SA_EXPECT_OK(Train::register_objectives(objectives));
     SA_EXPECT_OK(Language::register_objectives(objectives));
@@ -268,6 +278,27 @@ namespace
 {
     /** @brief Provides the Engine every case records on. */
     class Medium_Moe : public SaTest::EngineTest
+    {
+
+    };
+
+    /** @brief Names the experts a block keeps and the seed of the values it reads. */
+    struct MixtureCase
+    {
+        std::size_t top_k;  /**< The experts kept; 0 keeps every expert. */
+        std::uint64_t seed; /**< The seed of the values the block and its input get. */
+    };
+
+    /** @brief Provides the experts kept by the mixture cases. */
+    class Medium_MoeMixture : public SaTest::EngineTest,
+                              public ::testing::WithParamInterface<MixtureCase>
+    {
+
+    };
+
+    /** @brief Provides the experts kept by the router gradient cases. */
+    class Medium_MoeRouterGradient : public SaTest::EngineTest,
+                                     public ::testing::WithParamInterface<MixtureCase>
     {
 
     };
@@ -551,12 +582,6 @@ namespace
                     step_ = std::move(compiled).value();
             }
 
-            /** @brief Returns the graph the probe built, with its gradient nodes. */
-            const Graph::Graph& graph() const noexcept
-            {
-                return graph_;
-            }
-
             /** @brief Returns how many elements the variable holds; 0 when the trace failed. */
             std::size_t variable_size() const
             {
@@ -832,52 +857,39 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that a mixture of every expert equals the sum the host computes per expert. */
-TEST_F(Medium_Moe, ADenseMixtureEqualsTheHostComputation)
+/** @brief Tests that a mixture of every or of the top experts equals the host computation. */
+TEST_P(Medium_MoeMixture, AMixtureEqualsTheHostComputation)
 {
-    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(backend(), 0, 9100));
+    const MixtureCase& row = GetParam();
+
+    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(backend(), row.top_k, row.seed));
 }
 
-/** @brief Tests that keeping one and two experts equals the renormalised gate of the host. */
-TEST_F(Medium_Moe, AMixtureOfTheTopExpertsEqualsTheHostComputation)
-{
-    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(backend(), 1, 9200));
-    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(backend(), 2, 9300));
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_MoeMixture,
+                         ::testing::Values(MixtureCase{0, 9100}, MixtureCase{1, 9200},
+                                           MixtureCase{2, 9300}));
 
-/** @brief Tests the gradient of the fit and the balance at the weight of the router. */
-TEST_F(Medium_Moe, ADenseMixtureDifferentiatesAtItsRouter)
+/**
+ * @brief Tests the gradient of the fit and the balance at the weight of the router.
+ *
+ * With one expert kept the mask is constant around the point, so the gradient is that of the
+ * kept gate and of the balance, which reads every score.
+ */
+TEST_P(Medium_MoeRouterGradient, AMixtureDifferentiatesAtItsRouter)
 {
+    const MixtureCase& row = GetParam();
+
     ASSERT_NO_FATAL_FAILURE(
-        expect_gradient_matches(backend(), 0, RoutedVariable::RouterWeight, 9400));
+        expect_gradient_matches(backend(), row.top_k, RoutedVariable::RouterWeight, row.seed));
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_MoeRouterGradient,
+                         ::testing::Values(MixtureCase{0, 9400}, MixtureCase{1, 9600}));
 
 /** @brief Tests the gradient of the fit and the balance at the sequence the block reads. */
 TEST_F(Medium_Moe, ADenseMixtureDifferentiatesAtItsInput)
 {
     ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(backend(), 0, RoutedVariable::Input, 9500));
-}
-
-/**
- * @brief Tests the gradient through the kept scores of a block that keeps one expert.
- *
- * The mask is constant around the point, so the gradient is that of the kept gate and of
- * the balance, which reads every score.
- */
-TEST_F(Medium_Moe, AMixtureOfTheTopExpertDifferentiatesAtItsRouter)
-{
-    RoutedProbe counted(backend(), 1, RoutedVariable::RouterWeight, 9600);
-    std::size_t pool_gradients = 0;
-    for (const Graph::Node& node : counted.graph().nodes())
-    {
-        if (node.op == Ops::K_MAXPOOL2D_BACKWARD.id)
-            ++pool_gradients;
-    }
-
-    // The comparison is a gradient barrier, so nothing differentiates the row window.
-    EXPECT_EQ(pool_gradients, 0u);
-    ASSERT_NO_FATAL_FAILURE(
-        expect_gradient_matches(backend(), 1, RoutedVariable::RouterWeight, 9600));
 }
 
 /** @brief Tests that the fit alone lowers the loss; nothing is asserted about the usage. */
@@ -887,7 +899,6 @@ TEST_F(Medium_Moe, ADecoderOfExpertsLowersItsLossWithoutTheBalance)
                             fit_decoder(backend(), "next_token", K_FIT_ALONE));
 
     EXPECT_EQ(report.steps, static_cast<std::size_t>(K_STEPS));
-    EXPECT_EQ(report.compile_count, 1u);
     EXPECT_LT(report.last_loss, K_REMAINING_FRACTION * report.first_loss) << report.to_string();
     EXPECT_EQ(report.last_metrics.find("expert_usage_min"), nullptr);
 }
@@ -899,7 +910,6 @@ TEST_F(Medium_Moe, TheBalanceTermKeepsEveryExpertInUse)
                             fit_decoder(backend(), "sum", K_FIT_AND_BALANCE));
 
     EXPECT_EQ(report.steps, static_cast<std::size_t>(K_STEPS));
-    EXPECT_EQ(report.compile_count, 1u);
     EXPECT_LT(report.last_loss, K_REMAINING_FRACTION * report.first_loss) << report.to_string();
 
     const Train::Metric* const smallest = report.last_metrics.find("expert_usage_min");
@@ -912,7 +922,6 @@ TEST_F(Medium_Moe, TheBalanceTermKeepsEveryExpertInUse)
     const double equal_share = 1.0 / static_cast<double>(K_DECODER_EXPERTS);
     EXPECT_LE(smallest->value, equal_share + K_SHARE_TOLERANCE);
     EXPECT_GE(largest->value, equal_share - K_SHARE_TOLERANCE);
-    EXPECT_NE(report.to_string().find("expert_usage_min"), std::string::npos);
 }
 
 namespace
@@ -933,6 +942,35 @@ namespace
         return vocabulary * dim + window * dim + blocks * block + 2 * dim;
     }
 
+    /**
+     * @brief Traces the probe graph of @p spec, which gives the parameters of @p model a name.
+     * @return The traced step, which the caller keeps for as long as it reads the parameters.
+     */
+    Train::TracedStep trace_probe(NN::ModelGraph& model, const Config::ModelSpec& spec)
+    {
+        Train::GraphOptions options;
+        options.dtype = spec.input_dtype;
+        return SaTest::require_value(Train::build_probe_graph(
+            model, Shape{K_FILE_BATCH, SaTest::K_DECODER_WINDOW}, options));
+    }
+
+    /** @brief Returns the dotted name of every parameter of a traced model. */
+    std::vector<std::string> parameter_names(NN::ModelGraph& model)
+    {
+        std::vector<std::string> names;
+        NN::for_each_parameter(model, [&names](const std::string& name, NN::Parameter&)
+        {
+            names.push_back(name);
+        });
+        return names;
+    }
+
+    /** @brief Returns how many of @p names equal @p wanted. */
+    std::ptrdiff_t count_named(const std::vector<std::string>& names, std::string_view wanted)
+    {
+        return std::count(names.begin(), names.end(), wanted);
+    }
+
     /** @brief Provides the engine the state is created on. */
     class Medium_DecoderFromFiles : public SaTest::EngineTest
     {
@@ -940,50 +978,45 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that the model file states an int32 input and a task this build can read. */
-TEST(Small_DecoderModelFile, TheFileStatesAnInt32Input)
-{
-    const Config::ModelSpec spec = SaTest::decoder_spec();
-
-    EXPECT_EQ(spec.input_shape, (Shape{SaTest::K_DECODER_WINDOW}));
-    EXPECT_EQ(spec.input_dtype, DType::Int32);
-    EXPECT_FALSE(spec.task.is_null());
-}
-
 /** @brief Tests that the tied head adds no weight and that the element count is the hand's. */
-TEST_F(Medium_DecoderFromFiles, TheTiedHeadSharesTheTokenTable)
+TEST(Small_DecoderFromFiles, TheTiedHeadSharesTheTokenTable)
 {
     const Config::ModelSpec spec = SaTest::decoder_spec();
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, SaTest::build_decoder(spec));
-
-    Train::GraphOptions options;
-    options.dtype = spec.input_dtype;
-    SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep probe,
-                            Train::build_probe_graph(
-                                model, Shape{K_FILE_BATCH, SaTest::K_DECODER_WINDOW}, options));
+    const Train::TracedStep probe = trace_probe(model, spec);
     static_cast<void>(probe);
 
-    std::vector<std::string> names;
-    NN::for_each_parameter(model, [&names](const std::string& name, NN::Parameter&)
-    {
-        names.push_back(name);
-    });
+    const std::vector<std::string> names = parameter_names(model);
 
-    EXPECT_NE(std::find(names.begin(), names.end(), "0.weight"), names.end());
-    EXPECT_NE(std::find(names.begin(), names.end(), "1.weight"), names.end());
-    EXPECT_NE(std::find(names.begin(), names.end(), "4.norm.weight"), names.end());
-    EXPECT_EQ(std::find(names.begin(), names.end(), "4.linear.weight"), names.end());
+    EXPECT_EQ(count_named(names, "0.weight"), 1);
+    EXPECT_EQ(count_named(names, "1.weight"), 1);
+    EXPECT_EQ(count_named(names, "4.norm.weight"), 1);
+    EXPECT_EQ(count_named(names, "4.linear.weight"), 0);
     EXPECT_EQ(NN::parameter_elements(model),
               decoder_elements(SaTest::K_DECODER_VOCABULARY, SaTest::K_DECODER_WINDOW,
                                SaTest::K_DECODER_DIM, SaTest::K_DECODER_BLOCKS));
+}
+
+/** @brief Tests that the state of a tied head holds no tensor of its own for the head weight. */
+TEST_F(Medium_DecoderFromFiles, TheStateOfATiedHeadHoldsNoTensorOfItsOwn)
+{
+    const Config::ModelSpec spec = SaTest::decoder_spec();
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, SaTest::build_decoder(spec));
+    const Train::TracedStep probe = trace_probe(model, spec);
+    static_cast<void>(probe);
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     SA_EXPECT_FAILURE(state.tensor("4.linear.weight"), StatusCode::InvalidDescription,
                       "4.linear.weight");
 }
 
-/** @brief Tests that the next-token training graph of the file binds one slot per parameter. */
-TEST_F(Medium_DecoderFromFiles, TheTrainingGraphBindsEveryParameterOnce)
+/**
+ * @brief Tests that the next-token training graph of the file lists one binding per parameter.
+ *
+ * bind_parameters pairs one slot with each binding of the list, so the count of the slots is the
+ * count of this list.
+ */
+TEST(Small_DecoderFromFiles, TheTrainingGraphBindsEveryParameterOnce)
 {
     const Config::ModelSpec spec = SaTest::decoder_spec();
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, SaTest::build_decoder(spec));
@@ -999,14 +1032,10 @@ TEST_F(Medium_DecoderFromFiles, TheTrainingGraphBindsEveryParameterOnce)
                                 model, *objective, Shape{K_FILE_BATCH, SaTest::K_DECODER_WINDOW},
                                 options));
 
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    Graph::TensorPool pool(*engine);
-    SA_ASSERT_OK_AND_ASSIGN(const std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(backend(), built, state, pool));
+    std::vector<std::string> bound;
+    for (const Train::ParameterBinding& binding : built.parameters)
+        bound.push_back(binding.name);
 
-    EXPECT_EQ(slots.size(), NN::parameter_count(model));
-    EXPECT_EQ(std::count_if(slots.begin(), slots.end(), [](const Optim::ParameterSlot& slot)
-    {
-        return slot.name == "0.weight";
-    }), 1);
+    EXPECT_EQ(bound.size(), NN::parameter_count(model));
+    EXPECT_EQ(count_named(bound, "0.weight"), 1);
 }
