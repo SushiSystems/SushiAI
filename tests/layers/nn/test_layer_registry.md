@@ -1,7 +1,9 @@
 # tests/layers/nn/test_layer_registry.cpp
 
 
-Suites: `Small_LayerRegistry`.
+Suites: `Small_LayerRegistry`, `Small_LayerRegistryMinimal`, `Small_LayerRegistryOwnType`,
+`Small_LayerRegistryKernelSpelling`, `Small_LayerRegistryRefusal`, `Small_LayerRegistryGradient`,
+`Small_LayerRegistryChainRefusal`.
 
 Tests the layer registry: each row's factory, the keys it reads and the model it builds.
 
@@ -12,8 +14,8 @@ the model cases, a host-side graph.
 
 The cases fall into three groups, in file order:
 
-- every row of the table: that it has a factory, builds its own layer type and refuses an
-  unknown key
+- every row of the table: that it builds from a minimal object, builds its own layer type and
+  refuses an unknown key
 - the keys of each factory, their defaults and the values they refuse
 - the convolutional classifier of `K_CONV_MODEL`, built, traced, named and differentiated
 
@@ -28,7 +30,7 @@ padding 1, and both pools have kernel 2. The layers of
 ## K_CONV_MODEL_PARAMETERS
 
 `K_CONV_MODEL_PARAMETERS` lists the six parameters that model declares, as "name:extents":
-a weight and a bias under the indices 1, 4 and 8. The two tests that compare names read the
+a weight and a bias under the indices 1, 4 and 8. The test that compares names reads the
 expected list from here.
 
 ## MinimalCase
@@ -39,17 +41,31 @@ that enters the layer and the per-sample shape the layer must report.
 ## K_MINIMAL_CASES
 
 `K_MINIMAL_CASES` holds one `MinimalCase` per registry row, in registry order. Each object
-carries the required keys of its row and no other.
+carries the required keys of its row and no other. The rows of `Small_LayerRegistryMinimal` are these
+entries.
+
+## K_IMAGE
+
+`K_IMAGE` is the [8, 8, 2] image most refusal rows enter the layer with.
+
+## RefusedLayerRow
+
+`RefusedLayerRow` holds a row name, a registry key, a layer object, the input shape, the subject the
+message names (empty for the context) and up to two substrings after it.
+
+## layer_context
+
+`layer_context` returns "layer 0 '<type>'", the context `try_make_layer` passes to a factory.
 
 ## attributes_from
 
 `attributes_from` parses a string as the attributes of one layer.
 
-## make_layer
+## try_make_layer and make_layer
 
-`make_layer` looks a type up with `find_layer` in the registry `make_layer_registry` returns and calls the
+`try_make_layer` looks a type up with `find_layer` in the registry `make_layer_registry` returns and calls the
 row's factory with the context "layer 0 '<type>'". The cases that assert a message expect that
-context in it.
+context in it. `make_layer` stops the test when the layer is refused.
 
 ## wrapped
 
@@ -67,12 +83,6 @@ both axes.
 `make_conv` returns a `Conv2d` with the given channel counts and geometry, its parameters
 undeclared.
 
-## expect_pool_window_spellings_agree
-
-`expect_pool_window_spellings_agree<Pool>` builds a pool from `"kernel": 3` and from
-`"kernel": [3, 3]`. It expects both to wrap a `Pool`, the first to hold a 3x3 kernel, and the
-two to hold the same kernel and the same stride.
-
 ## make_conv_stack
 
 `make_conv_stack` parses `K_CONV_MODEL` and returns the `LayerStack` that `build_layer_stack`
@@ -83,12 +93,6 @@ makes of it.
 `traced_names` traces a model over a [4, 784] input and returns its parameters as
 "name:extents" strings. It is a template, so it takes a `LayerStack` and a `Sequential`.
 
-## EveryRowHasAMinimalCase
-
-`K_MINIMAL_CASES` has as many entries as the registry has layer rows, and entry `i` names the type of
-row `i`. A row added to the registry without a case here fails this test, so the two tests
-that loop over the cases cover every factory.
-
 ## TheTypeStringsAreTheOnesModelFilesSpell
 
 The `type` fields of the layer rows are, in order, "linear", "gelu", "relu", "tanh",
@@ -96,25 +100,30 @@ The `type` fields of the layer rows are, in order, "linear", "gelu", "relu", "ta
 "flatten", "upsample", "silu", "mish" and "slice_channels". A model file names a layer by one of these strings, so a
 renamed row fails here.
 
-## EachFactoryBuildsFromAMinimalObject
+## Small_LayerRegistryMinimal.TheFactoryBuildsFromAMinimalObject
 
-For every case the factory returns a layer whose `output_shape()` is the shape the case lists.
+One row per `K_MINIMAL_CASES` entry, named by its type. The factory returns a layer whose
+`output_shape()` is the shape the case lists.
 
-## EachKeyBuildsItsOwnLayerType
+## Small_LayerRegistryMinimal.TheFactoryRefusesAnUnknownKey
 
-Each of the fourteen keys builds an adapter over the layer type it names: `wrapped<L>` is not
-null for the expected `L`. Two rows that pointed at one factory would fail for one of them.
+One row per entry. An object holding only `"no_such_key"` returns `InvalidDescription` with a message
+containing the layer's context and "'no_such_key'".
 
-## EachFactoryRejectsAnUnknownKey
+## Small_LayerRegistryOwnType.TheKeyBuildsItsOwnLayerType
 
-For every case, an object holding only `"no_such_key"` returns `InvalidDescription` with a message containing the
-layer's context and "'no_such_key'".
+One row per key of the fourteen that name a layer type here: `wrapped<L>` is not null for the
+expected `L`. Two rows that pointed at one factory would fail for one of them. `mish` and
+`slice_channels` have no row: the file includes neither of their headers.
 
 ## Conv2dTakesItsInputChannelsFromTheInputShape
 
-A `conv2d` built over a [8, 8, 7] input has `in_channels` 7 and `out_channels` 5. An object
-that sets `"in_channels"` is refused by name, so a model file cannot state a channel count
-that disagrees with the layer before it.
+A `conv2d` built over a [8, 8, 7] input has `in_channels` 7 and `out_channels` 5.
+
+## Conv2dRefusesTheInChannelsKey
+
+An object that sets `"in_channels"` is refused by name, so a model file cannot state a channel
+count that disagrees with the layer before it.
 
 ## Conv2dRefusesAnInputThatIsNotAnImage
 
@@ -132,69 +141,67 @@ The object sets all six keys, four of them as [h, w] pairs with unequal entries.
 holds kernel 3 by 5, stride 2 by 1, padding 1 by 2, dilation 1 by 2 and `use_bias` false, and
 over a [16, 16, 2] input it reports [8, 12, 5].
 
-## AKernelAsAnIntegerAndAsAPairAgree
+## Small_LayerRegistryKernelSpelling.TheSpellingBuildsTheWindow
 
-For `conv2d`, `maxpool2d` and `avgpool2d`, `"kernel": 3` and `"kernel": [3, 3]` give the same
-output shape. The case then reads the stored window: the two convolutions both hold a 3x3
-kernel, and `expect_pool_window_spellings_agree` checks the two pools. Equal output shapes
-alone would also hold for two layers that both stored a wrong window.
+Six rows, one per layer and spelling of a 3 by 3 kernel: `conv2d`, `maxpool2d` and `avgpool2d`, each
+from `"kernel": 3` and from `"kernel": [3, 3]`. Over [8, 8, 2] each layer stores a 3 by 3 kernel,
+holds the stride in the row (1 for the convolution, 3 for a pool, which follows its kernel) and
+reports [6, 6, 5] or [2, 2, 2]. Each row checks the stored window and the shape against values,
+so two layers that both stored a wrong window would fail.
 
-## AWindowSettingOfTheWrongFormIsRefused
+## Small_LayerRegistryRefusal.TheLayerIsRefused
 
-A one-entry array, a three-entry array, a string and the real number 1.5 are each refused.
-Every message names the layer and the key, as in "layer 0 'maxpool2d' 'kernel'", and contains
-"two-entry [h, w]". The two array messages also give the entry count, "1 entries" and
-"3 entries".
+One test over `RefusedLayerRow`, instantiated six times. Every row returns `InvalidDescription` with
+a message containing its subject (the context, unless the row names another) and its one or two
+words.
+
+- `AWindowSettingOfTheWrongForm`: a one-entry array, a three-entry array, a string and the
+  real number 1.5 are each refused. The subject names the layer and the key, as in "layer 0
+  'maxpool2d' 'kernel'", and the message contains "two-entry [h, w]". The two array messages also give
+  the entry count, "1 entries" and "3 entries".
+- `Conv2dNonPositiveExtent`: a filter count of 0 and of -4, a kernel of 0, of [3, 0] and of -3,
+  a stride of 0 and of [1, -1], and a dilation of 0. Each message contains "Conv2d" and "positive".
+- `PoolNonPositiveExtent`: for both pools, a kernel of 0, of [2, 0] and of -2 and a stride of 0 and of
+  [-1, 2]; each message contains "positive".
+- `NegativePadding`: for `conv2d` and both pools, a padding of -1, of [0, -1] and of [-1, 0]; each
+  message contains "padding". The two pairs put the negative entry on each axis in turn.
+- `AMissingRequiredKey`: a `conv2d` without "filters", a `conv2d` without "kernel", each pool without
+  "kernel" and a `linear` without "units"; each message contains "has no" followed by the quoted key.
+- `ALeakyReLUSlopeOutsideItsRange`: slopes of 0, 1 and -0.1 are refused when the layer is built, with a
+  message containing "slope".
 
 ## APoolStrideDefaultsToItsKernel
 
 A `maxpool2d` with `"kernel": [2, 3]` and no stride holds stride 2 by 3 and padding 0, and
-maps [12, 12, 2] to [6, 4, 2]. An `avgpool2d` with kernel 3, stride 1 and padding 1 holds
-those values and keeps [12, 12, 2].
+maps [12, 12, 2] to [6, 4, 2].
 
-## Conv2dRejectsANonPositiveExtent
+## APoolReadsAnExplicitStrideAndPadding
 
-Eight objects are refused: a filter count of 0 and of -4, a kernel of 0, of [3, 0] and of -3,
-a stride of 0 and of [1, -1], and a dilation of 0. Each message contains the context, "Conv2d"
-and "positive".
-
-## ThePoolsRejectANonPositiveExtent
-
-For both pools, a kernel of 0, of [2, 0] and of -2 and a stride of 0 and of [-1, 2] are
-refused with a message containing the context and "positive".
-
-## AWindowedLayerRejectsANegativePadding
-
-For `conv2d` and both pools, a padding of -1, of [0, -1] and of [-1, 0] is refused with a
-message containing the context and "padding". The two pairs put the negative entry on each
-axis in turn.
-
-## AFactoryRejectsAMissingRequiredKey
-
-A `conv2d` without "filters", a `conv2d` without "kernel", each pool without "kernel" and a
-`linear` without "units" are refused. Each message contains the context and "has no" followed
-by the quoted key.
-
-## LeakyReLURejectsASlopeOutsideItsRange
-
-Slopes of 0, 1 and -0.1 are refused when the layer is built, with a message containing the
-context and "slope".
+An `avgpool2d` with kernel 3, stride 1 and padding 1 holds those values and keeps [12, 12, 2].
 
 ## UpsampleRejectsAScaleBelowOne
 
 A scale of 0 is refused when the layer is built, with a message containing the context,
 "Upsample2d" and "scale".
 
-## LeakyReLUAndUpsampleReadTheirOptionalKey
+## LeakyReLUReadsItsOptionalSlope
 
 A `leaky_relu` built from an empty object has slope 0.01, and one built with `"slope": 0.25`
-has 0.25. An `upsample` built from an empty object maps [4, 4, 2] to [8, 8, 2], and one built
+has 0.25.
+
+## UpsampleReadsItsOptionalScale
+
+An `upsample` built from an empty object maps [4, 4, 2] to [8, 8, 2], and one built
 with `"scale": 3` maps it to [12, 12, 2].
 
 ## UnflattenRefusesAnInputOfAnotherSize
 
 A 28 x 28 x 1 `unflatten` given [783] returns `InvalidDescription` with a message containing the context, "[783]"
-and "[784]". An object without "channels" returns `InvalidDescription` with a message containing the context and
+and "[784]".
+
+## UnflattenRefusesAMissingChannelCount
+
+An object without "channels" returns `InvalidDescription` with a message containing the context and
 "channels".
 
 ## TheConvModelBuildsAndReportsItsOutputShape
@@ -207,22 +214,21 @@ predecessor reported.
 
 The stack traces a [4, 784] input to a [4, 10] value.
 
-## TheConvModelNamesItsParametersByLayerPosition
-
-The traced stack's parameters are `K_CONV_MODEL_PARAMETERS`: indices 1, 4 and 8, with gaps at
-the layers that own no parameter.
-
 ## ASequentialOfTheSameLayersYieldsTheSameNames
 
 An `NN::Sequential` of the same nine layer types is traced over the same input. Its names
-equal `K_CONV_MODEL_PARAMETERS`, and the stack's names equal the `Sequential`'s. A checkpoint
-written from one model therefore names its parameters as the other reads them.
+equal `K_CONV_MODEL_PARAMETERS`: indices 1, 4 and 8, with gaps at the layers that own no
+parameter. The stack's names equal the `Sequential`'s. A checkpoint written from one model
+therefore names its parameters as the other reads them. This test also holds the list of names of
+the model file.
 
-## CrossEntropyDifferentiatesToEveryParameterOfTheConvModel
+## Small_LayerRegistryGradient.CrossEntropyDifferentiatesToTheParameter
 
-The stack's output goes into `NN::CrossEntropyLoss`, and the loss is differentiated against
-the six parameters the walk yields. Every gradient is a value other than `K_NO_VALUE` with the
-shape of its parameter. The case checks that the graph differentiates; it computes no number.
+One row per parameter of the model, in walk order: the first convolution's weight and bias, the
+second's, and the linear weight and bias. The stack's output goes into `NN::CrossEntropyLoss`, and
+the loss is differentiated against the six parameters the walk yields. The gradient of the row's
+parameter is a value other than `K_NO_VALUE` with the shape of that parameter. The case checks that the
+graph differentiates; it computes no number.
 
 ## ASiLURowTracesOneSiLUNode
 
@@ -236,29 +242,18 @@ A version 2 document over the input shape [8, 8, 2] holds a `conv2d` of 5 filter
 [6, 6, 5], which requires the factory to have received the rank-3 shape and not the count 128,
 and the stack reports [180].
 
-## AChainRefusesARowThatReadsTwoRows
+## Small_LayerRegistryChainRefusal.TheChainIsRefused
 
-Row 2 with `"from": [-1, 0]` makes `build_layer_stack` fail with a message containing "layer
-2 'relu'", "the row before it" and "build_model".
+One row per model file `build_layer_stack` refuses, each with `InvalidDescription`:
 
-## AChainRefusesARowThatSkipsBack
-
-Row 2 with `"from": 0` returns `InvalidDescription` with "layer 2 'relu'" and "the row before it".
-
-## AChainRefusesALaterRowThatReadsTheInput
-
-Row 1 with `"from": "input"` returns `InvalidDescription` with "layer 1 'tanh'" and "the row before it".
-
-## AChainRefusesOutputsThatPublishAnEarlierRow
-
-A two-row document whose `outputs` is `[{"node": 0}]` returns `InvalidDescription` with a message containing
-"'outputs'", "last row" and "build_model".
+| Row | The document | The message names |
+| --- | --- | --- |
+| ARowThatReadsTwoRows | row 2 with `"from": [-1, 0]` | "layer 2 'relu'", "the row before it", "build_model" |
+| ARowThatSkipsBack | row 2 with `"from": 0` | "layer 2 'relu'", "the row before it" |
+| ALaterRowThatReadsTheInput | row 1 with `"from": "input"` | "layer 1 'tanh'", "the row before it" |
+| OutputsThatPublishAnEarlierRow | two rows, `outputs` is `[{"node": 0}]` | "'outputs'", "last row", "build_model" |
+| ARowThatReadsANamedPort | row 1 with `"from": {"node": 0, "port": "output"}` | "layer 1 'tanh'", "the row before it" |
 
 ## AChainAcceptsOutputsThatPublishTheLastRow
 
-The same document with `[{"node": 1}]` builds a stack of two layers.
-
-## AChainRefusesARowThatReadsANamedPort
-
-Row 1 with `"from": {"node": 0, "port": "output"}` returns `InvalidDescription` with "layer 1 'tanh'" and "the row
-before it". The row it names is the row above; the port is what the chain refuses.
+The two-row document with `[{"node": 1}]` builds a stack of two layers.

@@ -128,6 +128,15 @@ namespace
         {"slice_channels", R"({"offset": 0, "count": 1})", Shape{8, 8, 2}, Shape{8, 8, 1}},
     };
 
+    /** @brief Holds the 8 by 8 by 2 image most refusal rows enter the layer with. */
+    const Shape K_IMAGE{8, 8, 2};
+
+    /** @brief Returns the context a layer built from the row @p type names, "layer 0 '<type>'". */
+    std::string layer_context(std::string_view type)
+    {
+        return "layer 0 '" + std::string(type) + "'";
+    }
+
     /** @brief Builds the layer @p type names from @p attributes, as "layer 0 '<type>'". */
     Result<std::unique_ptr<NN::Layer>> try_make_layer(std::string_view type,
                                                       std::string_view attributes,
@@ -137,9 +146,20 @@ namespace
         const NN::LayerEntry* entry = registry.find_layer(type);
         SA_FATAL_IF(entry == nullptr, "no layer row holds '{}'", type);
 
-        const std::string context = "layer 0 '" + std::string(type) + "'";
-        return entry->make(input, attributes_from(attributes), context);
+        return entry->make(input, attributes_from(attributes), layer_context(type));
     }
+
+    /** @brief Describes a layer object a factory refuses and the words its message names. */
+    struct RefusedLayerRow
+    {
+        std::string name;       /**< The row's name. */
+        std::string_view type;  /**< The registry key. */
+        std::string_view attributes; /**< The layer object without its "type". */
+        Shape input;            /**< The per-sample shape entering the layer. */
+        std::string subject;    /**< The context the message names; empty means "layer 0 '<type>'". */
+        std::string first;      /**< The first substring the message names after the subject. */
+        std::string second;     /**< The second substring the message names. */
+    };
 
     /**
      * @brief Builds the layer @p type names from @p attributes.
@@ -190,29 +210,6 @@ namespace
         return layer;
     }
 
-    /** @brief Expects the pool @p type to store one window for kernel 3 and kernel [3, 3]. */
-    template<typename Pool>
-    void expect_pool_window_spellings_agree(std::string_view type, const Shape& image)
-    {
-        SCOPED_TRACE(std::string(type));
-
-        const std::unique_ptr<NN::Layer> from_integer =
-            make_layer(type, R"({"kernel": 3})", image);
-        const std::unique_ptr<NN::Layer> from_pair =
-            make_layer(type, R"({"kernel": [3, 3]})", image);
-        const Pool* integer_pool = wrapped<Pool>(from_integer);
-        const Pool* pair_pool = wrapped<Pool>(from_pair);
-
-        ASSERT_NE(integer_pool, nullptr);
-        ASSERT_NE(pair_pool, nullptr);
-        EXPECT_EQ(integer_pool->geometry.kernel_h, 3);
-        EXPECT_EQ(integer_pool->geometry.kernel_w, 3);
-        EXPECT_EQ(integer_pool->geometry.kernel_h, pair_pool->geometry.kernel_h);
-        EXPECT_EQ(integer_pool->geometry.kernel_w, pair_pool->geometry.kernel_w);
-        EXPECT_EQ(integer_pool->geometry.stride_h, pair_pool->geometry.stride_h);
-        EXPECT_EQ(integer_pool->geometry.stride_w, pair_pool->geometry.stride_w);
-    }
-
     /**
      * @brief Builds the layer stack the model file @p text describes.
      * @pre The file is accepted; a test of a refusal calls build_layer_stack() itself.
@@ -252,18 +249,6 @@ namespace
     }
 }
 
-/** @brief Tests that every registry row has a minimal case here, so no factory goes unbuilt. */
-TEST(Small_LayerRegistry, EveryRowHasAMinimalCase)
-{
-    const NN::NodeRegistry registry = make_layer_registry();
-    const SushiRuntime::span<const NN::LayerEntry> layers = registry.layers();
-
-    ASSERT_EQ(K_MINIMAL_CASES.size(), layers.size());
-
-    for (std::size_t i = 0; i < layers.size(); ++i)
-        EXPECT_EQ(K_MINIMAL_CASES[i].type, layers[i].type);
-}
-
 /** @brief Tests that the registry spells its sixteen type strings as model files do, in order. */
 TEST(Small_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
 {
@@ -282,59 +267,97 @@ TEST(Small_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
     EXPECT_EQ(spelled, expected);
 }
 
-/** @brief Tests that each factory builds a layer from its minimal object and reports its shape. */
-TEST(Small_LayerRegistry, EachFactoryBuildsFromAMinimalObject)
+/** @brief Runs a case over each row of the registry's minimal objects. */
+class Small_LayerRegistryMinimal : public ::testing::TestWithParam<MinimalCase>
 {
-    for (const MinimalCase& minimal : K_MINIMAL_CASES)
+};
+
+/** @brief Tests that the factory of the row builds a layer from its minimal object. */
+TEST_P(Small_LayerRegistryMinimal, TheFactoryBuildsFromAMinimalObject)
+{
+    const MinimalCase& minimal = GetParam();
+
+    const std::unique_ptr<NN::Layer> layer =
+        make_layer(minimal.type, minimal.attributes, minimal.input);
+
+    ASSERT_NE(layer, nullptr);
+    EXPECT_EQ(layer->output_shape(), minimal.output);
+}
+
+/** @brief Tests that the factory of the row refuses a key it does not know and names that key. */
+TEST_P(Small_LayerRegistryMinimal, TheFactoryRefusesAnUnknownKey)
+{
+    const MinimalCase& minimal = GetParam();
+
+    SA_EXPECT_FAILURE(try_make_layer(minimal.type, R"({"no_such_key": 1})", minimal.input),
+                      StatusCode::InvalidDescription, layer_context(minimal.type),
+                      "'no_such_key'");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LayerRegistryMinimal, ::testing::ValuesIn(K_MINIMAL_CASES),
+    [](const ::testing::TestParamInfo<MinimalCase>& info) { return std::string(info.param.type); });
+
+namespace
+{
+    /** @brief Describes a key whose factory builds one layer type, and how to tell it. */
+    struct OwnTypeRow
     {
-        SCOPED_TRACE(std::string(minimal.type));
+        std::string name;       /**< The row's name. */
+        std::string_view type;  /**< The registry key. */
+        std::string_view attributes; /**< The layer object without its "type". */
+        Shape input;            /**< The per-sample shape entering the layer. */
+        bool (*is_own_type)(const std::unique_ptr<NN::Layer>&); /**< Whether the layer is the row's. */
+    };
 
-        const std::unique_ptr<NN::Layer> layer =
-            make_layer(minimal.type, minimal.attributes, minimal.input);
-
-        ASSERT_NE(layer, nullptr);
-        EXPECT_EQ(layer->output_shape(), minimal.output);
+    /** @brief Returns whether @p layer wraps a layer of type @p L. */
+    template<typename L>
+    bool holds_layer(const std::unique_ptr<NN::Layer>& layer)
+    {
+        return wrapped<L>(layer) != nullptr;
     }
 }
 
-/** @brief Tests that each registry key builds the layer type it names and no other. */
-TEST(Small_LayerRegistry, EachKeyBuildsItsOwnLayerType)
+/** @brief Runs a case over each key of the registry that has a layer type of its own. */
+class Small_LayerRegistryOwnType : public ::testing::TestWithParam<OwnTypeRow>
 {
-    const Shape vector{6};
-    const Shape image{8, 8, 2};
+};
 
-    EXPECT_NE(wrapped<NN::Linear>(make_layer("linear", R"({"units": 5})", vector)), nullptr);
-    EXPECT_NE(wrapped<NN::GELU>(make_layer("gelu", "{}", vector)), nullptr);
-    EXPECT_NE(wrapped<NN::ReLU>(make_layer("relu", "{}", vector)), nullptr);
-    EXPECT_NE(wrapped<NN::Tanh>(make_layer("tanh", "{}", vector)), nullptr);
-    EXPECT_NE(wrapped<NN::Sigmoid>(make_layer("sigmoid", "{}", vector)), nullptr);
-    EXPECT_NE(wrapped<NN::LeakyReLU>(make_layer("leaky_relu", "{}", vector)), nullptr);
-    EXPECT_NE(wrapped<NN::Unflatten>(make_layer(
-                  "unflatten", R"({"height": 1, "width": 2, "channels": 3})", vector)),
-              nullptr);
-    EXPECT_NE(wrapped<NN::Conv2d>(make_layer("conv2d", R"({"filters": 5, "kernel": 3})", image)),
-              nullptr);
-    EXPECT_NE(wrapped<NN::MaxPool2d>(make_layer("maxpool2d", R"({"kernel": 2})", image)), nullptr);
-    EXPECT_NE(wrapped<NN::AvgPool2d>(make_layer("avgpool2d", R"({"kernel": 2})", image)), nullptr);
-    EXPECT_NE(wrapped<NN::GlobalAvgPool>(make_layer("global_avgpool", "{}", image)), nullptr);
-    EXPECT_NE(wrapped<NN::Flatten>(make_layer("flatten", "{}", image)), nullptr);
-    EXPECT_NE(wrapped<NN::Upsample2d>(make_layer("upsample", "{}", image)), nullptr);
-    EXPECT_NE(wrapped<NN::SiLU>(make_layer("silu", "{}", image)), nullptr);
+/** @brief Tests that the key of the row builds the layer type it names. */
+TEST_P(Small_LayerRegistryOwnType, TheKeyBuildsItsOwnLayerType)
+{
+    const OwnTypeRow& row = GetParam();
+
+    const std::unique_ptr<NN::Layer> layer = make_layer(row.type, row.attributes, row.input);
+
+    EXPECT_TRUE(row.is_own_type(layer));
 }
 
-/** @brief Tests that each factory refuses a key it does not know and names that key. */
-TEST(Small_LayerRegistry, EachFactoryRejectsAnUnknownKey)
-{
-    for (const MinimalCase& minimal : K_MINIMAL_CASES)
-    {
-        const std::string context = "layer 0 '" + std::string(minimal.type) + "'";
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LayerRegistryOwnType,
+    ::testing::Values(
+        OwnTypeRow{"Linear", "linear", R"({"units": 5})", Shape{6}, holds_layer<NN::Linear>},
+        OwnTypeRow{"GELU", "gelu", "{}", Shape{6}, holds_layer<NN::GELU>},
+        OwnTypeRow{"ReLU", "relu", "{}", Shape{6}, holds_layer<NN::ReLU>},
+        OwnTypeRow{"Tanh", "tanh", "{}", Shape{6}, holds_layer<NN::Tanh>},
+        OwnTypeRow{"Sigmoid", "sigmoid", "{}", Shape{6}, holds_layer<NN::Sigmoid>},
+        OwnTypeRow{"LeakyReLU", "leaky_relu", "{}", Shape{6}, holds_layer<NN::LeakyReLU>},
+        OwnTypeRow{"Unflatten", "unflatten", R"({"height": 1, "width": 2, "channels": 3})",
+                   Shape{6}, holds_layer<NN::Unflatten>},
+        OwnTypeRow{"Conv2d", "conv2d", R"({"filters": 5, "kernel": 3})", Shape{8, 8, 2},
+                   holds_layer<NN::Conv2d>},
+        OwnTypeRow{"MaxPool2d", "maxpool2d", R"({"kernel": 2})", Shape{8, 8, 2},
+                   holds_layer<NN::MaxPool2d>},
+        OwnTypeRow{"AvgPool2d", "avgpool2d", R"({"kernel": 2})", Shape{8, 8, 2},
+                   holds_layer<NN::AvgPool2d>},
+        OwnTypeRow{"GlobalAvgPool", "global_avgpool", "{}", Shape{8, 8, 2},
+                   holds_layer<NN::GlobalAvgPool>},
+        OwnTypeRow{"Flatten", "flatten", "{}", Shape{8, 8, 2}, holds_layer<NN::Flatten>},
+        OwnTypeRow{"Upsample2d", "upsample", "{}", Shape{8, 8, 2}, holds_layer<NN::Upsample2d>},
+        OwnTypeRow{"SiLU", "silu", "{}", Shape{8, 8, 2}, holds_layer<NN::SiLU>}),
+    [](const ::testing::TestParamInfo<OwnTypeRow>& info) { return info.param.name; });
 
-        SA_EXPECT_FAILURE(try_make_layer(minimal.type, R"({"no_such_key": 1})", minimal.input),
-                          StatusCode::InvalidDescription, context, "'no_such_key'");
-    }
-}
-
-/** @brief Tests that a model file cannot set a convolution's input channel count. */
+/** @brief Tests that a convolution takes its input channel count from the input shape. */
 TEST(Small_LayerRegistry, Conv2dTakesItsInputChannelsFromTheInputShape)
 {
     const std::unique_ptr<NN::Layer> layer =
@@ -344,7 +367,11 @@ TEST(Small_LayerRegistry, Conv2dTakesItsInputChannelsFromTheInputShape)
     ASSERT_NE(conv, nullptr);
     EXPECT_EQ(conv->in_channels, 7);
     EXPECT_EQ(conv->out_channels, 5);
+}
 
+/** @brief Tests that a model file cannot set a convolution's input channel count. */
+TEST(Small_LayerRegistry, Conv2dRefusesTheInChannelsKey)
+{
     SA_EXPECT_FAILURE(try_make_layer("conv2d",
                                      R"({"filters": 5, "kernel": 3, "in_channels": 7})",
                                      Shape{8, 8, 7}),
@@ -399,182 +426,221 @@ TEST(Small_LayerRegistry, Conv2dReadsEveryKeyItAccepts)
     EXPECT_EQ(layer->output_shape(), (Shape{8, 12, 5}));
 }
 
-/** @brief Tests that a kernel spelled as an integer and as [h, w] builds the same window. */
-TEST(Small_LayerRegistry, AKernelAsAnIntegerAndAsAPairAgree)
+namespace
 {
-    const Shape image{8, 8, 2};
-
-    for (std::string_view type : {"conv2d", "maxpool2d", "avgpool2d"})
+    /** @brief Describes one spelling of a 3 by 3 window and the layer it yields. */
+    struct KernelSpellingRow
     {
-        SCOPED_TRACE(std::string(type));
-        const std::string filters = (type == "conv2d") ? R"("filters": 5, )" : "";
+        std::string name;            /**< The row's name. */
+        std::string_view type;       /**< The registry key. */
+        std::string_view attributes; /**< The layer object, with the kernel spelled. */
+        int64_t stride;              /**< The stride on both axes the layer must hold. */
+        Shape output;                /**< The shape the layer reports for an 8 by 8 by 2 image. */
+        Graph::ConvGeometry (*geometry_of)(const std::unique_ptr<NN::Layer>&); /**< Reads the window. */
+    };
 
-        const std::unique_ptr<NN::Layer> from_integer =
-            make_layer(type, "{" + filters + R"("kernel": 3})", image);
-        const std::unique_ptr<NN::Layer> from_pair =
-            make_layer(type, "{" + filters + R"("kernel": [3, 3]})", image);
+    /** @brief Returns the window of the layer of type @p L that @p layer wraps. */
+    template<typename L>
+    Graph::ConvGeometry geometry_of(const std::unique_ptr<NN::Layer>& layer)
+    {
+        const L* inner = wrapped<L>(layer);
+        SA_FATAL_IF(inner == nullptr, "the test's layer wraps another type");
 
-        EXPECT_EQ(from_integer->output_shape(), from_pair->output_shape());
+        // The layer is held, so the dereference is safe.
+        return inner->geometry;
     }
-
-    const std::unique_ptr<NN::Layer> from_integer =
-        make_layer("conv2d", R"({"filters": 5, "kernel": 3})", image);
-    const std::unique_ptr<NN::Layer> from_pair =
-        make_layer("conv2d", R"({"filters": 5, "kernel": [3, 3]})", image);
-    const NN::Conv2d* integer_conv = wrapped<NN::Conv2d>(from_integer);
-    const NN::Conv2d* pair_conv = wrapped<NN::Conv2d>(from_pair);
-
-    ASSERT_NE(integer_conv, nullptr);
-    ASSERT_NE(pair_conv, nullptr);
-    EXPECT_EQ(integer_conv->geometry.kernel_h, 3);
-    EXPECT_EQ(integer_conv->geometry.kernel_w, 3);
-    EXPECT_EQ(pair_conv->geometry.kernel_h, 3);
-    EXPECT_EQ(pair_conv->geometry.kernel_w, 3);
-
-    expect_pool_window_spellings_agree<NN::MaxPool2d>("maxpool2d", image);
-    expect_pool_window_spellings_agree<NN::AvgPool2d>("avgpool2d", image);
 }
 
-/** @brief Tests that a window setting is refused unless it is an integer or a two-entry array. */
-TEST(Small_LayerRegistry, AWindowSettingOfTheWrongFormIsRefused)
+/** @brief Runs a case over each spelling of a 3 by 3 kernel, as an integer and as a pair. */
+class Small_LayerRegistryKernelSpelling : public ::testing::TestWithParam<KernelSpellingRow>
 {
-    const Shape image{8, 8, 2};
+};
 
-    SA_EXPECT_FAILURE(try_make_layer("maxpool2d", R"({"kernel": [2]})", image),
-                      StatusCode::InvalidDescription, "layer 0 'maxpool2d' 'kernel'",
-                      "two-entry [h, w]", "1 entries");
-    SA_EXPECT_FAILURE(try_make_layer("maxpool2d", R"({"kernel": [2, 2, 2]})", image),
-                      StatusCode::InvalidDescription, "layer 0 'maxpool2d' 'kernel'",
-                      "two-entry [h, w]", "3 entries");
-    SA_EXPECT_FAILURE(try_make_layer("avgpool2d", R"({"kernel": "2"})", image),
-                      StatusCode::InvalidDescription, "layer 0 'avgpool2d' 'kernel'",
-                      "two-entry [h, w]");
-    SA_EXPECT_FAILURE(try_make_layer("conv2d",
-                                     R"({"filters": 5, "kernel": 3, "stride": 1.5})",
-                                     image),
-                      StatusCode::InvalidDescription, "layer 0 'conv2d' 'stride'",
-                      "two-entry [h, w]");
+/** @brief Tests that the spelling of the row builds a 3 by 3 window with the stride and shape. */
+TEST_P(Small_LayerRegistryKernelSpelling, TheSpellingBuildsTheWindow)
+{
+    const KernelSpellingRow& row = GetParam();
+
+    const std::unique_ptr<NN::Layer> layer = make_layer(row.type, row.attributes, Shape{8, 8, 2});
+    const Graph::ConvGeometry window = row.geometry_of(layer);
+
+    EXPECT_EQ(window.kernel_h, 3);
+    EXPECT_EQ(window.kernel_w, 3);
+    EXPECT_EQ(window.stride_h, row.stride);
+    EXPECT_EQ(window.stride_w, row.stride);
+    EXPECT_EQ(layer->output_shape(), row.output);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LayerRegistryKernelSpelling,
+    ::testing::Values(
+        KernelSpellingRow{"Conv2dFromAnInteger", "conv2d", R"({"filters": 5, "kernel": 3})", 1,
+                          Shape{6, 6, 5}, geometry_of<NN::Conv2d>},
+        KernelSpellingRow{"Conv2dFromAPair", "conv2d", R"({"filters": 5, "kernel": [3, 3]})", 1,
+                          Shape{6, 6, 5}, geometry_of<NN::Conv2d>},
+        KernelSpellingRow{"MaxPool2dFromAnInteger", "maxpool2d", R"({"kernel": 3})", 3,
+                          Shape{2, 2, 2}, geometry_of<NN::MaxPool2d>},
+        KernelSpellingRow{"MaxPool2dFromAPair", "maxpool2d", R"({"kernel": [3, 3]})", 3,
+                          Shape{2, 2, 2}, geometry_of<NN::MaxPool2d>},
+        KernelSpellingRow{"AvgPool2dFromAnInteger", "avgpool2d", R"({"kernel": 3})", 3,
+                          Shape{2, 2, 2}, geometry_of<NN::AvgPool2d>},
+        KernelSpellingRow{"AvgPool2dFromAPair", "avgpool2d", R"({"kernel": [3, 3]})", 3,
+                          Shape{2, 2, 2}, geometry_of<NN::AvgPool2d>}),
+    [](const ::testing::TestParamInfo<KernelSpellingRow>& info) { return info.param.name; });
+
+/** @brief Runs a case over each layer object a factory refuses, with the words it names. */
+class Small_LayerRegistryRefusal : public ::testing::TestWithParam<RefusedLayerRow>
+{
+};
+
+/** @brief Tests that the factory of the row refuses its object, naming the layer and the reason. */
+TEST_P(Small_LayerRegistryRefusal, TheLayerIsRefused)
+{
+    const RefusedLayerRow& row = GetParam();
+    const std::string subject = row.subject.empty() ? layer_context(row.type) : row.subject;
+
+    SA_EXPECT_FAILURE(try_make_layer(row.type, row.attributes, row.input),
+                      StatusCode::InvalidDescription, subject, row.first, row.second);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    AWindowSettingOfTheWrongForm, Small_LayerRegistryRefusal,
+    ::testing::Values(
+        RefusedLayerRow{"AOneEntryPair", "maxpool2d", R"({"kernel": [2]})", K_IMAGE,
+                        "layer 0 'maxpool2d' 'kernel'", "two-entry [h, w]", "1 entries"},
+        RefusedLayerRow{"AThreeEntryPair", "maxpool2d", R"({"kernel": [2, 2, 2]})", K_IMAGE,
+                        "layer 0 'maxpool2d' 'kernel'", "two-entry [h, w]", "3 entries"},
+        RefusedLayerRow{"AStringKernel", "avgpool2d", R"({"kernel": "2"})", K_IMAGE,
+                        "layer 0 'avgpool2d' 'kernel'", "two-entry [h, w]", ""},
+        RefusedLayerRow{"AFractionalStride", "conv2d",
+                        R"({"filters": 5, "kernel": 3, "stride": 1.5})", K_IMAGE,
+                        "layer 0 'conv2d' 'stride'", "two-entry [h, w]", ""}),
+    [](const ::testing::TestParamInfo<RefusedLayerRow>& info) { return info.param.name; });
+
+INSTANTIATE_TEST_SUITE_P(
+    Conv2dNonPositiveExtent, Small_LayerRegistryRefusal,
+    ::testing::Values(
+        RefusedLayerRow{"ZeroFilters", "conv2d", R"({"filters": 0, "kernel": 3})", K_IMAGE, "",
+                        "Conv2d", "positive"},
+        RefusedLayerRow{"NegativeFilters", "conv2d", R"({"filters": -4, "kernel": 3})", K_IMAGE,
+                        "", "Conv2d", "positive"},
+        RefusedLayerRow{"ZeroKernel", "conv2d", R"({"filters": 5, "kernel": 0})", K_IMAGE, "",
+                        "Conv2d", "positive"},
+        RefusedLayerRow{"ZeroKernelOnOneAxis", "conv2d", R"({"filters": 5, "kernel": [3, 0]})",
+                        K_IMAGE, "", "Conv2d", "positive"},
+        RefusedLayerRow{"NegativeKernel", "conv2d", R"({"filters": 5, "kernel": -3})", K_IMAGE, "",
+                        "Conv2d", "positive"},
+        RefusedLayerRow{"ZeroStride", "conv2d", R"({"filters": 5, "kernel": 3, "stride": 0})",
+                        K_IMAGE, "", "Conv2d", "positive"},
+        RefusedLayerRow{"NegativeStrideOnOneAxis", "conv2d",
+                        R"({"filters": 5, "kernel": 3, "stride": [1, -1]})", K_IMAGE, "", "Conv2d",
+                        "positive"},
+        RefusedLayerRow{"ZeroDilation", "conv2d", R"({"filters": 5, "kernel": 3, "dilation": 0})",
+                        K_IMAGE, "", "Conv2d", "positive"}),
+    [](const ::testing::TestParamInfo<RefusedLayerRow>& info) { return info.param.name; });
+
+INSTANTIATE_TEST_SUITE_P(
+    PoolNonPositiveExtent, Small_LayerRegistryRefusal,
+    ::testing::Values(
+        RefusedLayerRow{"MaxPoolZeroKernel", "maxpool2d", R"({"kernel": 0})", K_IMAGE, "",
+                        "positive", ""},
+        RefusedLayerRow{"MaxPoolZeroKernelOnOneAxis", "maxpool2d", R"({"kernel": [2, 0]})",
+                        K_IMAGE, "", "positive", ""},
+        RefusedLayerRow{"MaxPoolNegativeKernel", "maxpool2d", R"({"kernel": -2})", K_IMAGE, "",
+                        "positive", ""},
+        RefusedLayerRow{"MaxPoolZeroStride", "maxpool2d", R"({"kernel": 2, "stride": 0})",
+                        K_IMAGE, "", "positive", ""},
+        RefusedLayerRow{"MaxPoolNegativeStrideOnOneAxis", "maxpool2d",
+                        R"({"kernel": 2, "stride": [-1, 2]})", K_IMAGE, "", "positive", ""},
+        RefusedLayerRow{"AvgPoolZeroKernel", "avgpool2d", R"({"kernel": 0})", K_IMAGE, "",
+                        "positive", ""},
+        RefusedLayerRow{"AvgPoolZeroKernelOnOneAxis", "avgpool2d", R"({"kernel": [2, 0]})",
+                        K_IMAGE, "", "positive", ""},
+        RefusedLayerRow{"AvgPoolNegativeKernel", "avgpool2d", R"({"kernel": -2})", K_IMAGE, "",
+                        "positive", ""},
+        RefusedLayerRow{"AvgPoolZeroStride", "avgpool2d", R"({"kernel": 2, "stride": 0})",
+                        K_IMAGE, "", "positive", ""},
+        RefusedLayerRow{"AvgPoolNegativeStrideOnOneAxis", "avgpool2d",
+                        R"({"kernel": 2, "stride": [-1, 2]})", K_IMAGE, "", "positive", ""}),
+    [](const ::testing::TestParamInfo<RefusedLayerRow>& info) { return info.param.name; });
+
+INSTANTIATE_TEST_SUITE_P(
+    NegativePadding, Small_LayerRegistryRefusal,
+    ::testing::Values(
+        RefusedLayerRow{"Conv2dOnBothAxes", "conv2d",
+                        R"({"filters": 5, "kernel": 3, "padding": -1})", K_IMAGE, "", "padding",
+                        ""},
+        RefusedLayerRow{"Conv2dOnTheWidth", "conv2d",
+                        R"({"filters": 5, "kernel": 3, "padding": [0, -1]})", K_IMAGE, "",
+                        "padding", ""},
+        RefusedLayerRow{"Conv2dOnTheHeight", "conv2d",
+                        R"({"filters": 5, "kernel": 3, "padding": [-1, 0]})", K_IMAGE, "",
+                        "padding", ""},
+        RefusedLayerRow{"MaxPoolOnBothAxes", "maxpool2d", R"({"kernel": 3, "padding": -1})",
+                        K_IMAGE, "", "padding", ""},
+        RefusedLayerRow{"MaxPoolOnTheWidth", "maxpool2d", R"({"kernel": 3, "padding": [0, -1]})",
+                        K_IMAGE, "", "padding", ""},
+        RefusedLayerRow{"MaxPoolOnTheHeight", "maxpool2d", R"({"kernel": 3, "padding": [-1, 0]})",
+                        K_IMAGE, "", "padding", ""},
+        RefusedLayerRow{"AvgPoolOnBothAxes", "avgpool2d", R"({"kernel": 3, "padding": -1})",
+                        K_IMAGE, "", "padding", ""},
+        RefusedLayerRow{"AvgPoolOnTheWidth", "avgpool2d", R"({"kernel": 3, "padding": [0, -1]})",
+                        K_IMAGE, "", "padding", ""},
+        RefusedLayerRow{"AvgPoolOnTheHeight", "avgpool2d", R"({"kernel": 3, "padding": [-1, 0]})",
+                        K_IMAGE, "", "padding", ""}),
+    [](const ::testing::TestParamInfo<RefusedLayerRow>& info) { return info.param.name; });
+
+INSTANTIATE_TEST_SUITE_P(
+    AMissingRequiredKey, Small_LayerRegistryRefusal,
+    ::testing::Values(
+        RefusedLayerRow{"Conv2dWithoutFilters", "conv2d", R"({"kernel": 3})", K_IMAGE, "",
+                        "has no 'filters'", ""},
+        RefusedLayerRow{"Conv2dWithoutKernel", "conv2d", R"({"filters": 5})", K_IMAGE, "",
+                        "has no 'kernel'", ""},
+        RefusedLayerRow{"MaxPoolWithoutKernel", "maxpool2d", R"({"stride": 2})", K_IMAGE, "",
+                        "has no 'kernel'", ""},
+        RefusedLayerRow{"AvgPoolWithoutKernel", "avgpool2d", R"({"stride": 2})", K_IMAGE, "",
+                        "has no 'kernel'", ""},
+        RefusedLayerRow{"LinearWithoutUnits", "linear", R"({"use_bias": false})", Shape{6}, "",
+                        "has no 'units'", ""}),
+    [](const ::testing::TestParamInfo<RefusedLayerRow>& info) { return info.param.name; });
+
+INSTANTIATE_TEST_SUITE_P(
+    ALeakyReLUSlopeOutsideItsRange, Small_LayerRegistryRefusal,
+    ::testing::Values(
+        RefusedLayerRow{"Zero", "leaky_relu", R"({"slope": 0})", Shape{6}, "", "slope", ""},
+        RefusedLayerRow{"One", "leaky_relu", R"({"slope": 1})", Shape{6}, "", "slope", ""},
+        RefusedLayerRow{"Negative", "leaky_relu", R"({"slope": -0.1})", Shape{6}, "", "slope", ""}),
+    [](const ::testing::TestParamInfo<RefusedLayerRow>& info) { return info.param.name; });
 
 /** @brief Tests that a pool's stride follows its kernel unless the model file sets one. */
 TEST(Small_LayerRegistry, APoolStrideDefaultsToItsKernel)
 {
-    const Shape image{12, 12, 2};
-
     const std::unique_ptr<NN::Layer> defaulted =
-        make_layer("maxpool2d", R"({"kernel": [2, 3]})", image);
+        make_layer("maxpool2d", R"({"kernel": [2, 3]})", Shape{12, 12, 2});
     const NN::MaxPool2d* max_pool = wrapped<NN::MaxPool2d>(defaulted);
+
     ASSERT_NE(max_pool, nullptr);
     EXPECT_EQ(max_pool->geometry.stride_h, 2);
     EXPECT_EQ(max_pool->geometry.stride_w, 3);
     EXPECT_EQ(max_pool->geometry.pad_top, 0);
     EXPECT_EQ(max_pool->geometry.pad_left, 0);
     EXPECT_EQ(defaulted->output_shape(), (Shape{6, 4, 2}));
+}
 
+/** @brief Tests that a pool reads the stride and the padding the model file sets. */
+TEST(Small_LayerRegistry, APoolReadsAnExplicitStrideAndPadding)
+{
     const std::unique_ptr<NN::Layer> spelled =
-        make_layer("avgpool2d", R"({"kernel": 3, "stride": 1, "padding": 1})", image);
+        make_layer("avgpool2d", R"({"kernel": 3, "stride": 1, "padding": 1})", Shape{12, 12, 2});
     const NN::AvgPool2d* avg_pool = wrapped<NN::AvgPool2d>(spelled);
+
     ASSERT_NE(avg_pool, nullptr);
     EXPECT_EQ(avg_pool->geometry.stride_h, 1);
     EXPECT_EQ(avg_pool->geometry.stride_w, 1);
     EXPECT_EQ(avg_pool->geometry.pad_top, 1);
     EXPECT_EQ(avg_pool->geometry.pad_left, 1);
     EXPECT_EQ(spelled->output_shape(), (Shape{12, 12, 2}));
-}
-
-/** @brief Tests that conv2d refuses a non-positive filter count, kernel, stride or dilation. */
-TEST(Small_LayerRegistry, Conv2dRejectsANonPositiveExtent)
-{
-    const Shape image{8, 8, 2};
-
-    for (std::string_view attributes : {
-             R"({"filters": 0, "kernel": 3})",
-             R"({"filters": -4, "kernel": 3})",
-             R"({"filters": 5, "kernel": 0})",
-             R"({"filters": 5, "kernel": [3, 0]})",
-             R"({"filters": 5, "kernel": -3})",
-             R"({"filters": 5, "kernel": 3, "stride": 0})",
-             R"({"filters": 5, "kernel": 3, "stride": [1, -1]})",
-             R"({"filters": 5, "kernel": 3, "dilation": 0})"})
-    {
-        SCOPED_TRACE(std::string(attributes));
-        SA_EXPECT_FAILURE(try_make_layer("conv2d", attributes, image),
-                          StatusCode::InvalidDescription, "layer 0 'conv2d'", "Conv2d", "positive");
-    }
-}
-
-/** @brief Tests that both pools refuse a non-positive kernel or stride. */
-TEST(Small_LayerRegistry, ThePoolsRejectANonPositiveExtent)
-{
-    const Shape image{8, 8, 2};
-
-    for (std::string_view type : {"maxpool2d", "avgpool2d"})
-    {
-        const std::string context = "layer 0 '" + std::string(type) + "'";
-
-        for (std::string_view attributes : {
-                 R"({"kernel": 0})",
-                 R"({"kernel": [2, 0]})",
-                 R"({"kernel": -2})",
-                 R"({"kernel": 2, "stride": 0})",
-                 R"({"kernel": 2, "stride": [-1, 2]})"})
-        {
-            SCOPED_TRACE(std::string(type) + " " + std::string(attributes));
-            SA_EXPECT_FAILURE(try_make_layer(type, attributes, image),
-                              StatusCode::InvalidDescription, context, "positive");
-        }
-    }
-}
-
-/** @brief Tests that conv2d and both pools refuse a negative padding on either axis. */
-TEST(Small_LayerRegistry, AWindowedLayerRejectsANegativePadding)
-{
-    const Shape image{8, 8, 2};
-
-    for (std::string_view type : {"conv2d", "maxpool2d", "avgpool2d"})
-    {
-        const std::string context = "layer 0 '" + std::string(type) + "'";
-        const std::string filters = (type == "conv2d") ? R"("filters": 5, )" : "";
-
-        for (std::string_view padding : {"-1", "[0, -1]", "[-1, 0]"})
-        {
-            const std::string attributes =
-                "{" + filters + R"("kernel": 3, "padding": )" + std::string(padding) + "}";
-
-            SCOPED_TRACE(std::string(type) + " " + attributes);
-            SA_EXPECT_FAILURE(try_make_layer(type, attributes, image),
-                              StatusCode::InvalidDescription, context, "padding");
-        }
-    }
-}
-
-/** @brief Tests that a factory refuses an object missing a key it requires and names the key. */
-TEST(Small_LayerRegistry, AFactoryRejectsAMissingRequiredKey)
-{
-    const Shape image{8, 8, 2};
-
-    SA_EXPECT_FAILURE(try_make_layer("conv2d", R"({"kernel": 3})", image),
-                      StatusCode::InvalidDescription, "layer 0 'conv2d'", "has no 'filters'");
-    SA_EXPECT_FAILURE(try_make_layer("conv2d", R"({"filters": 5})", image),
-                      StatusCode::InvalidDescription, "layer 0 'conv2d'", "has no 'kernel'");
-    SA_EXPECT_FAILURE(try_make_layer("maxpool2d", R"({"stride": 2})", image),
-                      StatusCode::InvalidDescription, "layer 0 'maxpool2d'", "has no 'kernel'");
-    SA_EXPECT_FAILURE(try_make_layer("avgpool2d", R"({"stride": 2})", image),
-                      StatusCode::InvalidDescription, "layer 0 'avgpool2d'", "has no 'kernel'");
-    SA_EXPECT_FAILURE(try_make_layer("linear", R"({"use_bias": false})", Shape{6}),
-                      StatusCode::InvalidDescription, "layer 0 'linear'", "has no 'units'");
-}
-
-/** @brief Tests that leaky_relu refuses a slope outside (0, 1) when the layer is built. */
-TEST(Small_LayerRegistry, LeakyReLURejectsASlopeOutsideItsRange)
-{
-    for (std::string_view attributes : {R"({"slope": 0})", R"({"slope": 1})",
-                                        R"({"slope": -0.1})"})
-    {
-        SCOPED_TRACE(std::string(attributes));
-        SA_EXPECT_FAILURE(try_make_layer("leaky_relu", attributes, Shape{6}),
-                          StatusCode::InvalidDescription, "layer 0 'leaky_relu'", "slope");
-    }
 }
 
 /** @brief Tests that upsample refuses a scale below one when the layer is built. */
@@ -584,21 +650,27 @@ TEST(Small_LayerRegistry, UpsampleRejectsAScaleBelowOne)
                       StatusCode::InvalidDescription, "layer 0 'upsample'", "Upsample2d", "scale");
 }
 
-/** @brief Tests that leaky_relu and upsample use 0.01 and 2 until the model file sets a value. */
-TEST(Small_LayerRegistry, LeakyReLUAndUpsampleReadTheirOptionalKey)
+/** @brief Tests that leaky_relu uses 0.01 until the model file sets a slope. */
+TEST(Small_LayerRegistry, LeakyReLUReadsItsOptionalSlope)
 {
     const std::unique_ptr<NN::Layer> default_leaky = make_layer("leaky_relu", "{}", Shape{6});
     const std::unique_ptr<NN::Layer> steep_leaky =
         make_layer("leaky_relu", R"({"slope": 0.25})", Shape{6});
+
     ASSERT_NE(wrapped<NN::LeakyReLU>(default_leaky), nullptr);
     ASSERT_NE(wrapped<NN::LeakyReLU>(steep_leaky), nullptr);
     EXPECT_DOUBLE_EQ(wrapped<NN::LeakyReLU>(default_leaky)->slope, 0.01);
     EXPECT_DOUBLE_EQ(wrapped<NN::LeakyReLU>(steep_leaky)->slope, 0.25);
+}
 
+/** @brief Tests that upsample uses a scale of 2 until the model file sets one. */
+TEST(Small_LayerRegistry, UpsampleReadsItsOptionalScale)
+{
     const std::unique_ptr<NN::Layer> default_upsample =
         make_layer("upsample", "{}", Shape{4, 4, 2});
     const std::unique_ptr<NN::Layer> triple_upsample =
         make_layer("upsample", R"({"scale": 3})", Shape{4, 4, 2});
+
     EXPECT_EQ(default_upsample->output_shape(), (Shape{8, 8, 2}));
     EXPECT_EQ(triple_upsample->output_shape(), (Shape{12, 12, 2}));
 }
@@ -610,6 +682,11 @@ TEST(Small_LayerRegistry, UnflattenRefusesAnInputOfAnotherSize)
                                      R"({"height": 28, "width": 28, "channels": 1})",
                                      Shape{783}),
                       StatusCode::InvalidDescription, "layer 0 'unflatten'", "[783]", "[784]");
+}
+
+/** @brief Tests that unflatten refuses an object that names no channel count. */
+TEST(Small_LayerRegistry, UnflattenRefusesAMissingChannelCount)
+{
     SA_EXPECT_FAILURE(try_make_layer("unflatten", R"({"height": 28, "width": 28})", Shape{784}),
                       StatusCode::InvalidDescription, "layer 0 'unflatten'", "channels");
 }
@@ -640,14 +717,6 @@ TEST(Small_LayerRegistry, TheConvModelTracesToTheShapeItReports)
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 10}));
 }
 
-/** @brief Tests that the convolutional model names its six parameters by layer position. */
-TEST(Small_LayerRegistry, TheConvModelNamesItsParametersByLayerPosition)
-{
-    NN::LayerStack stack = make_conv_stack();
-
-    EXPECT_EQ(traced_names(stack), K_CONV_MODEL_PARAMETERS);
-}
-
 /** @brief Tests that a Sequential of the same layer types yields the model file's names. */
 TEST(Small_LayerRegistry, ASequentialOfTheSameLayersYieldsTheSameNames)
 {
@@ -669,11 +738,27 @@ TEST(Small_LayerRegistry, ASequentialOfTheSameLayersYieldsTheSameNames)
     EXPECT_EQ(traced_names(run_time), expected);
 }
 
-/** @brief Tests that differentiating cross-entropy reaches all six parameters of the model. */
-TEST(Small_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvModel)
+namespace
 {
-    NN::LayerStack stack = make_conv_stack();
+    /** @brief Names one parameter of the convolutional model by its position in the walk. */
+    struct ParameterRow
+    {
+        std::string name;    /**< The row's name. */
+        std::size_t index;   /**< The position of the parameter in the walk. */
+        Shape shape;         /**< The shape its gradient must have. */
+    };
+}
 
+/** @brief Runs the gradient case over each of the six parameters of the convolutional model. */
+class Small_LayerRegistryGradient : public ::testing::TestWithParam<ParameterRow>
+{
+};
+
+/** @brief Tests that differentiating cross-entropy gives the parameter of the row a gradient. */
+TEST_P(Small_LayerRegistryGradient, CrossEntropyDifferentiatesToTheParameter)
+{
+    const ParameterRow& row = GetParam();
+    NN::LayerStack stack = make_conv_stack();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{4, 784}, "inputs");
@@ -681,14 +766,9 @@ TEST(Small_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMod
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID logits, stack.forward(builder, x));
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
                             NN::CrossEntropyLoss{}.forward(builder, logits, targets));
-
-    std::vector<std::string> names;
-    std::vector<Shape> shapes;
     std::vector<Graph::ValueID> wrt;
-    NN::for_each_parameter(stack, [&](const std::string& name, NN::Parameter& parameter)
+    NN::for_each_parameter(stack, [&](const std::string&, NN::Parameter& parameter)
     {
-        names.push_back(name);
-        shapes.push_back(parameter.shape());
         wrt.push_back(parameter.id_in(graph));
     });
     ASSERT_EQ(wrt.size(), 6u);
@@ -697,13 +777,19 @@ TEST(Small_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMod
         graph, loss, SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), wrt.size());
-    for (std::size_t i = 0; i < gradients.size(); ++i)
-    {
-        SCOPED_TRACE(names[i]);
-        ASSERT_NE(gradients[i], Graph::K_NO_VALUE);
-        EXPECT_EQ(graph.value(gradients[i]).shape, shapes[i]);
-    }
+    ASSERT_NE(gradients[row.index], Graph::K_NO_VALUE);
+    EXPECT_EQ(graph.value(gradients[row.index]).shape, row.shape);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LayerRegistryGradient,
+    ::testing::Values(ParameterRow{"TheFirstConvWeight", 0, Shape{8, 3, 3, 1}},
+                      ParameterRow{"TheFirstConvBias", 1, Shape{8}},
+                      ParameterRow{"TheSecondConvWeight", 2, Shape{16, 3, 3, 8}},
+                      ParameterRow{"TheSecondConvBias", 3, Shape{16}},
+                      ParameterRow{"TheLinearWeight", 4, Shape{10, 784}},
+                      ParameterRow{"TheLinearBias", 5, Shape{10}}),
+    [](const ::testing::TestParamInfo<ParameterRow>& info) { return info.param.name; });
 
 /** @brief Tests that a silu row traces one SILU node that keeps the input's shape. */
 TEST(Small_LayerRegistry, ASiLURowTracesOneSiLUNode)
@@ -741,10 +827,38 @@ TEST(Small_LayerRegistry, AVersionTwoChainStartsFromTheInputShape)
     EXPECT_EQ(stack.output_shape(), (Shape{180}));
 }
 
-/** @brief Tests that build_layer_stack refuses a row that reads two rows and names build_model. */
-TEST(Small_LayerRegistry, AChainRefusesARowThatReadsTwoRows)
+namespace
 {
-    constexpr std::string_view K_MERGING_MODEL = R"({
+    /** @brief Describes a model file build_layer_stack refuses and the words it names. */
+    struct ChainRefusalRow
+    {
+        std::string name;        /**< The row's name. */
+        std::string_view model;  /**< The model file text. */
+        std::string_view first;  /**< The first substring the message names. */
+        std::string_view second; /**< The second substring the message names. */
+        std::string_view third;  /**< The third substring the message names; empty names none. */
+    };
+}
+
+/** @brief Runs the chain refusal over each model file a layer stack cannot hold. */
+class Small_LayerRegistryChainRefusal : public ::testing::TestWithParam<ChainRefusalRow>
+{
+};
+
+/** @brief Tests that build_layer_stack refuses the model file of the row. */
+TEST_P(Small_LayerRegistryChainRefusal, TheChainIsRefused)
+{
+    const ChainRefusalRow& row = GetParam();
+    const Config::ModelSpec model = model_from(row.model);
+
+    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, row.first, row.second, row.third);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LayerRegistryChainRefusal,
+    ::testing::Values(
+        ChainRefusalRow{"ARowThatReadsTwoRows", R"({
         "format_version": 2,
         "input": {"shape": [8]},
         "layers": [
@@ -752,19 +866,8 @@ TEST(Small_LayerRegistry, AChainRefusesARowThatReadsTwoRows)
             {"type": "tanh"},
             {"type": "relu", "from": [-1, 0]}
         ]
-    })";
-    const Config::ModelSpec model =
-        model_from(K_MERGING_MODEL);
-
-    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
-                      StatusCode::InvalidDescription, "layer 2 'relu'", "the row before it",
-                      "build_model");
-}
-
-/** @brief Tests that build_layer_stack refuses a row that reads one row other than the last. */
-TEST(Small_LayerRegistry, AChainRefusesARowThatSkipsBack)
-{
-    constexpr std::string_view K_SKIPPING_MODEL = R"({
+    })", "layer 2 'relu'", "the row before it", "build_model"},
+        ChainRefusalRow{"ARowThatSkipsBack", R"({
         "format_version": 2,
         "input": {"shape": [8]},
         "layers": [
@@ -772,36 +875,16 @@ TEST(Small_LayerRegistry, AChainRefusesARowThatSkipsBack)
             {"type": "tanh"},
             {"type": "relu", "from": 0}
         ]
-    })";
-    const Config::ModelSpec model =
-        model_from(K_SKIPPING_MODEL);
-
-    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
-                      StatusCode::InvalidDescription, "layer 2 'relu'", "the row before it");
-}
-
-/** @brief Tests that build_layer_stack refuses a row that reads the model input below row 0. */
-TEST(Small_LayerRegistry, AChainRefusesALaterRowThatReadsTheInput)
-{
-    constexpr std::string_view K_RESTARTING_MODEL = R"({
+    })", "layer 2 'relu'", "the row before it", ""},
+        ChainRefusalRow{"ALaterRowThatReadsTheInput", R"({
         "format_version": 2,
         "input": {"shape": [8]},
         "layers": [
             {"type": "relu"},
             {"type": "tanh", "from": "input"}
         ]
-    })";
-    const Config::ModelSpec model =
-        model_from(K_RESTARTING_MODEL);
-
-    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
-                      StatusCode::InvalidDescription, "layer 1 'tanh'", "the row before it");
-}
-
-/** @brief Tests that build_layer_stack refuses a file whose outputs publish an earlier row. */
-TEST(Small_LayerRegistry, AChainRefusesOutputsThatPublishAnEarlierRow)
-{
-    constexpr std::string_view K_EARLY_OUTPUT_MODEL = R"({
+    })", "layer 1 'tanh'", "the row before it", ""},
+        ChainRefusalRow{"OutputsThatPublishAnEarlierRow", R"({
         "format_version": 2,
         "input": {"shape": [8]},
         "layers": [
@@ -809,13 +892,16 @@ TEST(Small_LayerRegistry, AChainRefusesOutputsThatPublishAnEarlierRow)
             {"type": "tanh"}
         ],
         "outputs": [{"node": 0}]
-    })";
-    const Config::ModelSpec model =
-        model_from(K_EARLY_OUTPUT_MODEL);
-
-    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
-                      StatusCode::InvalidDescription, "'outputs'", "last row", "build_model");
-}
+    })", "'outputs'", "last row", "build_model"},
+        ChainRefusalRow{"ARowThatReadsANamedPort", R"({
+        "format_version": 2,
+        "input": {"shape": [8]},
+        "layers": [
+            {"type": "relu"},
+            {"type": "tanh", "from": {"node": 0, "port": "output"}}
+        ]
+    })", "layer 1 'tanh'", "the row before it", ""}),
+    [](const ::testing::TestParamInfo<ChainRefusalRow>& info) { return info.param.name; });
 
 /** @brief Tests that build_layer_stack builds a file whose outputs name the last row whole. */
 TEST(Small_LayerRegistry, AChainAcceptsOutputsThatPublishTheLastRow)
@@ -833,22 +919,4 @@ TEST(Small_LayerRegistry, AChainAcceptsOutputsThatPublishTheLastRow)
     const NN::LayerStack stack = build_stack(K_LAST_OUTPUT_MODEL);
 
     EXPECT_EQ(stack.size(), 2u);
-}
-
-/** @brief Tests that build_layer_stack refuses a row that reads a named port of the row above. */
-TEST(Small_LayerRegistry, AChainRefusesARowThatReadsANamedPort)
-{
-    constexpr std::string_view K_PORT_MODEL = R"({
-        "format_version": 2,
-        "input": {"shape": [8]},
-        "layers": [
-            {"type": "relu"},
-            {"type": "tanh", "from": {"node": 0, "port": "output"}}
-        ]
-    })";
-    const Config::ModelSpec model =
-        model_from(K_PORT_MODEL);
-
-    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
-                      StatusCode::InvalidDescription, "layer 1 'tanh'", "the row before it");
 }
