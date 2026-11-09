@@ -21,117 +21,94 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_regression_collator.cpp
- * @brief Tests the regression collator.
+ * @brief Tests the regression collator: its refusals, its one values role and the rows it copies.
  * @author Mustafa Garip
  */
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <utility>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include "datasets_test_support.hpp"
-#include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure/status.hpp>
-#include <SushiAI/data/dataset.hpp>
-#include <SushiAI/data/input.hpp>
-#include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/data/roles.hpp>
-#include <SushiAI/data/target.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/vision/datasets/binary_collator.hpp>
-#include <SushiAI/vision/datasets/fit_mask.hpp>
-#include <SushiAI/vision/datasets/fitted_sample.hpp>
-#include <SushiAI/vision/datasets/multi_label_collator.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/regression_collator.hpp>
-#include <SushiAI/vision/datasets/sample.hpp>
-#include <SushiAI/vision/datasets/segmentation_collator.hpp>
-#include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
-using Vision::Imaging::ImageSize;
-using Vision::Imaging::PixelBox;
 namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Holds the size of every image and mask of these tests. */
-    constexpr ImageSize K_SIZE{1, 2};
-
-    /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Medium_RegressionCollator : public SaTest::EngineTest
+    /** @brief Provides a host engine, a two-file list and two gray samples. */
+    class Small_RegressionCollator : public Support::CollatorBench
     {
-        protected:
-            /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
-            void SetUp() override
-            {
-                SaTest::EngineTest::SetUp();
-                list.files = {"first.png", "second.png"};
-
-                samples.resize(2);
-                samples[0].image = Support::uniform_image(K_SIZE, 1, 51);
-                samples[0].file = 0;
-                samples[1].image = Support::uniform_image(K_SIZE, 1, 255);
-                samples[1].file = 1;
-            }
-
-            /** @brief Returns the samples as the span a collator takes. */
-            SushiRuntime::span<const FittedSample> span() const
-            {
-                return SushiRuntime::span<const FittedSample>(samples.data(), samples.size());
-            }
-
-            /** @brief Allocates a batch of two samples of a shape over some roles. */
-            Data::Batch allocate(const Shape& sample,
-                                 const std::vector<Data::TargetDescription>& targets)
-            {
-                const Data::InputDescription input{sample, DType::Float32};
-                Result<Data::Batch> batch = Data::allocate_batch(*engine, 2, input, targets);
-                EXPECT_TRUE(batch.status().is_ok());
-                return std::move(batch).value();
-            }
-
-            /** @brief Allocates a batch of two gray images of K_SIZE over some roles. */
-            Data::Batch allocate_images(const std::vector<Data::TargetDescription>& targets)
-            {
-                return allocate(Shape{K_SIZE.height, K_SIZE.width, 1}, targets);
-            }
-
-            /** @brief Holds the files the samples name. */
-            SampleList list;
-
-            /** @brief Holds the fitted samples of the batch. */
-            std::vector<FittedSample> samples;
     };
+
+    /** @brief Holds the counts a make refuses and the text of the refusal. */
+    struct MakeRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the count of features. */
+        std::int32_t features;
+
+        /** @brief Holds the count of targets. */
+        std::int32_t targets;
+
+        /** @brief Holds the text the refusal carries. */
+        const char* message;
+    };
+
+    /** @brief Holds one refused make per row. */
+    class Small_RegressionCollatorMakeRefusal : public ::testing::TestWithParam<MakeRefusal>
+    {
+    };
+
+    /**
+     * @brief Gives each sample three features and two targets out of rows of five values, and
+     *        drops its image.
+     */
+    void hold_rows(std::vector<FittedSample>& samples, const std::vector<float>& rows)
+    {
+        for (std::size_t i = 0; i < samples.size(); ++i)
+        {
+            samples[i].image = Vision::Imaging::Image();
+            samples[i].features = SushiRuntime::span<const float>(rows.data() + i * 5, 3);
+            samples[i].targets = SushiRuntime::span<const float>(rows.data() + i * 5 + 3, 2);
+        }
+    }
 } // namespace
 
-/** @brief Tests that regression copies the features into the inputs and the targets beside. */
-TEST_F(Medium_RegressionCollator, RegressionCopiesFeaturesAndTargets)
+/** @brief Tests that make refuses a count of no feature and a count of no target. */
+TEST_P(Small_RegressionCollatorMakeRefusal, MakeRefusesAFeatureOrTargetCountOfZero)
 {
-    SA_EXPECT_FAILURE(RegressionCollator::make(0, 1), StatusCode::InvalidDescription,
-                      "RegressionCollator", "0 features");
-    SA_EXPECT_FAILURE(RegressionCollator::make(3, 0), StatusCode::InvalidDescription,
-                      "RegressionCollator", "0 targets");
+    const MakeRefusal& row = GetParam();
 
-    const std::vector<float> rows = {1.0f, 2.0f, 3.0f, 10.0f, 20.0f,
-                                     4.0f, 5.0f, 6.0f, 40.0f, 50.0f};
-    for (std::size_t i = 0; i < samples.size(); ++i)
-    {
-        samples[i].image = Vision::Imaging::Image();
-        samples[i].features = SushiRuntime::span<const float>(rows.data() + i * 5, 3);
-        samples[i].targets = SushiRuntime::span<const float>(rows.data() + i * 5 + 3, 2);
-    }
+    SA_EXPECT_FAILURE(RegressionCollator::make(row.features, row.targets),
+                      StatusCode::InvalidDescription, "RegressionCollator", row.message);
+}
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_RegressionCollatorMakeRefusal,
+    ::testing::Values(MakeRefusal{"ZeroFeatures", 0, 1, "0 features"},
+                      MakeRefusal{"ZeroTargets", 3, 0, "0 targets"}),
+    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return std::string(info.param.name); });
+
+/** @brief Tests that regression publishes one values role of the target width. */
+TEST(Small_RegressionCollatorTargets, RegressionPublishesOneValuesRole)
+{
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RegressionCollator> collator,
                             RegressionCollator::make(3, 2));
 
@@ -140,30 +117,45 @@ TEST_F(Medium_RegressionCollator, RegressionCopiesFeaturesAndTargets)
     EXPECT_EQ(collator->targets()[0].role, Data::K_ROLE_VALUES);
     EXPECT_EQ(collator->targets()[0].sample_shape, Shape{2});
     EXPECT_EQ(collator->targets()[0].dtype, DType::Float32);
+}
 
+/** @brief Tests that regression copies the features into the inputs and the targets beside. */
+TEST_F(Small_RegressionCollator, RegressionCopiesFeaturesAndTargets)
+{
+    const std::vector<float> rows = {1.0f, 2.0f, 3.0f, 10.0f, 20.0f,
+                                     4.0f, 5.0f, 6.0f, 40.0f, 50.0f};
+    hold_rows(samples, rows);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RegressionCollator> collator,
+                            RegressionCollator::make(3, 2));
     Data::Batch batch = allocate(Shape{3}, collator->targets());
+
     SA_EXPECT_OK(collator->collate(list, span(), batch));
 
     // The values are copied and never computed, so they compare exactly.
-    const float* inputs = batch.inputs.data_as<float>();
-    const float* values = batch.targets[0].values.data_as<float>();
-    EXPECT_EQ(std::vector<float>(inputs, inputs + 6),
-              (std::vector<float>{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}));
-    EXPECT_EQ(std::vector<float>(values, values + 4),
-              (std::vector<float>{10.0f, 20.0f, 40.0f, 50.0f}));
+    EXPECT_EQ(SaTest::read_tensor(batch.inputs),
+              (std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}));
+    EXPECT_EQ(SaTest::read_tensor(batch.targets[0].values),
+              (std::vector<double>{10.0, 20.0, 40.0, 50.0}));
 }
 
-/** @brief Tests that regression refuses a sample of images and inputs of another width. */
-TEST_F(Medium_RegressionCollator, RegressionRefusesWhatHoldsNoRow)
+/** @brief Tests that regression refuses samples that hold images and no row. */
+TEST_F(Small_RegressionCollator, RegressionRefusesASampleThatHoldsNoRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RegressionCollator> collator,
                             RegressionCollator::make(3, 2));
-
     Data::Batch batch = allocate(Shape{3}, collator->targets());
+
     SA_EXPECT_FAILURE(collator->collate(list, span(), batch), StatusCode::InvalidDescription,
                       "first.png", "RegressionCollator", "0 features and 0 targets");
+}
 
+/** @brief Tests that regression refuses inputs narrower than the rows it copies. */
+TEST_F(Small_RegressionCollator, RegressionRefusesInputsOfAnotherWidth)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RegressionCollator> collator,
+                            RegressionCollator::make(3, 2));
     Data::Batch narrow = allocate(Shape{2}, collator->targets());
+
     SA_EXPECT_FAILURE(collator->collate(list, span(), narrow), StatusCode::Incompatible,
                       "RegressionCollator", "float32 of [2, 3]");
 }

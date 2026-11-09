@@ -21,100 +21,86 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_detection_collator.cpp
- * @brief Tests the detection collator.
+ * @brief Tests the detection collator: its refusals, its three roles and the file it names.
  * @author Mustafa Garip
  */
 
-#include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <utility>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiRuntime/core/span.hpp>
 #include "datasets_test_support.hpp"
-#include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure/status.hpp>
-#include <SushiAI/data/dataset.hpp>
-#include <SushiAI/data/input.hpp>
-#include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/data/roles.hpp>
-#include <SushiAI/data/target.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/vision/datasets/batch_inputs.hpp>
-#include <SushiAI/vision/datasets/classification_collator.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/detection_collator.hpp>
-#include <SushiAI/vision/datasets/fitted_sample.hpp>
-#include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
-#include <SushiAI/vision/imaging/image.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
-using Vision::Imaging::ImageSize;
 using Vision::Imaging::PixelBox;
 namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Holds the size of every image of these tests. */
-    constexpr ImageSize K_SIZE{1, 2};
-
-    /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Medium_DetectionCollator : public SaTest::EngineTest
+    /** @brief Provides a host engine, a two-file list and two gray samples. */
+    class Small_DetectionCollator : public Support::CollatorBench
     {
-        protected:
-            /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
-            void SetUp() override
-            {
-                SaTest::EngineTest::SetUp();
-                list.files = {"first.png", "crowded.png"};
-
-                samples.resize(2);
-                samples[0].image = Support::uniform_image(K_SIZE, 1, 51);
-                samples[0].file = 0;
-                samples[1].image = Support::uniform_image(K_SIZE, 1, 255);
-                samples[1].file = 1;
-            }
-
-            /** @brief Returns the samples as the span a collator takes. */
-            SushiRuntime::span<const FittedSample> span() const
-            {
-                return SushiRuntime::span<const FittedSample>(samples.data(), samples.size());
-            }
-
-            /** @brief Allocates a batch of two gray images of K_SIZE over some roles. */
-            Data::Batch allocate(const std::vector<Data::TargetDescription>& targets)
-            {
-                const Data::InputDescription input{Shape{K_SIZE.height, K_SIZE.width, 1},
-                                                   DType::Float32};
-                Result<Data::Batch> batch = Data::allocate_batch(*engine, 2, input, targets);
-                EXPECT_TRUE(batch.status().is_ok());
-                return std::move(batch).value();
-            }
-
-            /** @brief Holds the files the samples name. */
-            SampleList list;
-
-            /** @brief Holds the fitted samples of the batch. */
-            std::vector<FittedSample> samples;
     };
+
+    /** @brief Holds the count of classes and of objects a make refuses, and its message. */
+    struct MakeRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the count of classes. */
+        std::int32_t classes;
+
+        /** @brief Holds the count of object slots per image. */
+        std::int32_t objects;
+
+        /** @brief Holds the text the refusal carries. */
+        const char* message;
+    };
+
+    /** @brief Holds one refused make per row. */
+    class Small_DetectionCollatorMakeRefusal : public ::testing::TestWithParam<MakeRefusal>
+    {
+    };
+
+    /** @brief Adds some objects of one class, each covering the whole image, to a sample. */
+    void add_full_boxes(FittedSample& sample, std::int32_t count, std::int32_t class_index)
+    {
+        for (std::int32_t object = 0; object < count; ++object)
+            sample.objects.add(class_index, PixelBox{0.0f, 0.0f, 1.0f, 1.0f});
+    }
 } // namespace
 
-/** @brief Tests that detection publishes boxes, classes and valid with M slots per image. */
-TEST_F(Medium_DetectionCollator, DetectionPublishesThreeRoles)
+/** @brief Tests that make refuses a count of no class and a count of no object. */
+TEST_P(Small_DetectionCollatorMakeRefusal, MakeRefusesACountOfNothing)
 {
-    SA_EXPECT_FAILURE(DetectionCollator::make(0, 4), StatusCode::InvalidDescription,
-                      "DetectionCollator", "0 classes");
-    SA_EXPECT_FAILURE(DetectionCollator::make(3, 0), StatusCode::InvalidDescription,
-                      "DetectionCollator", "0 objects");
+    const MakeRefusal& row = GetParam();
 
+    SA_EXPECT_FAILURE(DetectionCollator::make(row.classes, row.objects),
+                      StatusCode::InvalidDescription, "DetectionCollator", row.message);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectionCollatorMakeRefusal,
+    ::testing::Values(MakeRefusal{"ZeroClasses", 0, 4, "0 classes"},
+                      MakeRefusal{"ZeroObjects", 3, 0, "0 objects"}),
+    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return std::string(info.param.name); });
+
+/** @brief Tests that detection publishes boxes, classes and valid with M slots per image. */
+TEST(Small_DetectionCollatorTargets, DetectionPublishesThreeRoles)
+{
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DetectionCollator> collator,
                             DetectionCollator::make(3, 4));
     const std::vector<Data::TargetDescription>& targets = collator->targets();
@@ -134,60 +120,47 @@ TEST_F(Medium_DetectionCollator, DetectionPublishesThreeRoles)
 }
 
 /** @brief Tests that detection writes pixel corners in object order and zeroes the padding. */
-TEST_F(Medium_DetectionCollator, DetectionWritesCornersAndPadsWithZero)
+TEST_F(Small_DetectionCollator, DetectionWritesCornersAndPadsWithZero)
 {
     samples[1].objects.add(2, PixelBox{0.25f, 0.5f, 1.5f, 1.0f});
-
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DetectionCollator> collator,
                             DetectionCollator::make(3, 2));
-    Data::Batch batch = allocate(collator->targets());
+    Data::Batch batch = allocate_images(collator->targets());
 
     // A stale value in every slot shows that the padding is written and not left as it was.
-    for (Data::BatchTarget& target : batch.targets)
-    {
-        if (target.values.dtype == DType::Float32)
-            std::fill_n(target.values.data_as<float>(), target.values.num_elements, 9.0f);
-        else
-            std::fill_n(target.values.data_as<std::int32_t>(), target.values.num_elements, 9);
-    }
-
+    Support::fill_targets(batch, 9);
     SA_EXPECT_OK(collator->collate(list, span(), batch));
 
-    const float* boxes = batch.targets[0].values.data_as<float>();
-    const std::int32_t* classes = batch.targets[1].values.data_as<std::int32_t>();
-    const float* valid = batch.targets[2].values.data_as<float>();
-    const std::vector<float> expected_boxes = {0.0f, 0.0f,  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                                               0.25f, 0.5f, 1.5f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-    const std::vector<std::int32_t> expected_classes = {0, 0, 2, 0};
-    const std::vector<float> expected_valid = {0.0f, 0.0f, 1.0f, 0.0f};
-
     // The values are copied and never computed, so they compare exactly.
-    EXPECT_EQ(std::vector<float>(boxes, boxes + 16), expected_boxes);
-    EXPECT_EQ(std::vector<std::int32_t>(classes, classes + 4), expected_classes);
-    EXPECT_EQ(std::vector<float>(valid, valid + 4), expected_valid);
+    EXPECT_EQ(SaTest::read_tensor(batch.targets[0].values),
+              (std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.25, 0.5, 1.5, 1.0, 0.0, 0.0, 0.0, 0.0}));
+    EXPECT_EQ(SaTest::read_tensor(batch.targets[1].values),
+              (std::vector<double>{0.0, 0.0, 2.0, 0.0}));
+    EXPECT_EQ(SaTest::read_tensor(batch.targets[2].values),
+              (std::vector<double>{0.0, 0.0, 1.0, 0.0}));
 }
 
 /** @brief Tests that an image with more objects than M is a failure naming its file. */
-TEST_F(Medium_DetectionCollator, DetectionNamesTheFileOfAnImageWithTooManyObjects)
+TEST_F(Small_DetectionCollator, DetectionNamesTheFileOfAnImageWithTooManyObjects)
 {
-    for (std::int32_t object = 0; object < 3; ++object)
-        samples[1].objects.add(0, PixelBox{0.0f, 0.0f, 1.0f, 1.0f});
-
+    add_full_boxes(samples[1], 3, 0);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DetectionCollator> collator,
                             DetectionCollator::make(3, 2));
-    Data::Batch batch = allocate(collator->targets());
+    Data::Batch batch = allocate_images(collator->targets());
+
     SA_EXPECT_FAILURE(collator->collate(list, span(), batch), StatusCode::InvalidDescription,
-                      "crowded.png", "DetectionCollator", "3 objects", "at most 2");
+                      "second.png", "DetectionCollator", "3 objects", "at most 2");
 }
 
 /** @brief Tests that an object of a class the set lacks is a failure naming its file. */
-TEST_F(Medium_DetectionCollator, DetectionRefusesAClassOutsideTheSet)
+TEST_F(Small_DetectionCollator, DetectionRefusesAClassOutsideTheSet)
 {
-    samples[0].objects.add(3, PixelBox{0.0f, 0.0f, 1.0f, 1.0f});
-
+    add_full_boxes(samples[0], 1, 3);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DetectionCollator> collator,
                             DetectionCollator::make(3, 2));
-    Data::Batch batch = allocate(collator->targets());
+    Data::Batch batch = allocate_images(collator->targets());
+
     SA_EXPECT_FAILURE(collator->collate(list, span(), batch), StatusCode::InvalidDescription,
                       "first.png", "object 0", "class 3", "[0, 3)");
 }

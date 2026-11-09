@@ -21,108 +21,87 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_binary_collator.cpp
- * @brief Tests the binary collator.
+ * @brief Tests the binary collator: its refusals, its one float label and the file it names.
  * @author Mustafa Garip
  */
 
-#include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <utility>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiRuntime/core/span.hpp>
 #include "datasets_test_support.hpp"
-#include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure/status.hpp>
-#include <SushiAI/data/dataset.hpp>
-#include <SushiAI/data/input.hpp>
-#include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/data/roles.hpp>
-#include <SushiAI/data/target.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/binary_collator.hpp>
-#include <SushiAI/vision/datasets/fit_mask.hpp>
-#include <SushiAI/vision/datasets/fitted_sample.hpp>
-#include <SushiAI/vision/datasets/multi_label_collator.hpp>
-#include <SushiAI/vision/datasets/regression_collator.hpp>
-#include <SushiAI/vision/datasets/sample.hpp>
-#include <SushiAI/vision/datasets/segmentation_collator.hpp>
-#include <SushiAI/vision/imaging/boxes.hpp>
-#include <SushiAI/vision/imaging/image.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
-using Vision::Imaging::ImageSize;
-using Vision::Imaging::PixelBox;
 namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Holds the size of every image and mask of these tests. */
-    constexpr ImageSize K_SIZE{1, 2};
-
-    /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Medium_BinaryCollator : public SaTest::EngineTest
+    /** @brief Provides a host engine, a two-file list and two gray samples. */
+    class Small_BinaryCollator : public Support::CollatorBench
     {
-        protected:
-            /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
-            void SetUp() override
-            {
-                SaTest::EngineTest::SetUp();
-                list.files = {"first.png", "second.png"};
-
-                samples.resize(2);
-                samples[0].image = Support::uniform_image(K_SIZE, 1, 51);
-                samples[0].file = 0;
-                samples[1].image = Support::uniform_image(K_SIZE, 1, 255);
-                samples[1].file = 1;
-            }
-
-            /** @brief Returns the samples as the span a collator takes. */
-            SushiRuntime::span<const FittedSample> span() const
-            {
-                return SushiRuntime::span<const FittedSample>(samples.data(), samples.size());
-            }
-
-            /** @brief Allocates a batch of two samples of a shape over some roles. */
-            Data::Batch allocate(const Shape& sample,
-                                 const std::vector<Data::TargetDescription>& targets)
-            {
-                const Data::InputDescription input{sample, DType::Float32};
-                Result<Data::Batch> batch = Data::allocate_batch(*engine, 2, input, targets);
-                EXPECT_TRUE(batch.status().is_ok());
-                return std::move(batch).value();
-            }
-
-            /** @brief Allocates a batch of two gray images of K_SIZE over some roles. */
-            Data::Batch allocate_images(const std::vector<Data::TargetDescription>& targets)
-            {
-                return allocate(Shape{K_SIZE.height, K_SIZE.width, 1}, targets);
-            }
-
-            /** @brief Holds the files the samples name. */
-            SampleList list;
-
-            /** @brief Holds the fitted samples of the batch. */
-            std::vector<FittedSample> samples;
     };
+
+    /** @brief Holds a positive class make refuses. */
+    class Small_BinaryCollatorPositive : public ::testing::TestWithParam<std::int32_t>
+    {
+    };
+
+    /** @brief Holds a positive class, and the labels it makes of the classes 1 and 0. */
+    struct LabelRow
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the class that is positive. */
+        std::int32_t positive;
+
+        /** @brief Holds the label of the sample of class 1. */
+        float first;
+
+        /** @brief Holds the label of the sample of class 0. */
+        float second;
+    };
+
+    /** @brief Holds one choice of the positive class per row. */
+    class Small_BinaryCollatorLabels : public Support::CollatorBench,
+                                       public ::testing::WithParamInterface<LabelRow>
+    {
+    };
+
+    /** @brief Names a test after the positive class it refuses. */
+    std::string positive_row_name(const ::testing::TestParamInfo<std::int32_t>& info)
+    {
+        return info.param < 0 ? "Minus" + std::to_string(-info.param)
+                              : "Class" + std::to_string(info.param);
+    }
 } // namespace
 
-/** @brief Tests that binary publishes labels as one float32 per sample that is no index. */
-TEST_F(Medium_BinaryCollator, BinaryPublishesLabels)
+/** @brief Tests that make refuses a positive class that is neither 0 nor 1. */
+TEST_P(Small_BinaryCollatorPositive, MakeRefusesAPositiveClassOtherThanZeroAndOne)
 {
-    SA_EXPECT_FAILURE(BinaryCollator::make(2), StatusCode::InvalidDescription, "BinaryCollator",
-                      "the positive class is 2");
-    SA_EXPECT_FAILURE(BinaryCollator::make(-1), StatusCode::InvalidDescription,
-                      "the positive class is -1");
+    const std::string message = "the positive class is " + std::to_string(GetParam());
 
+    SA_EXPECT_FAILURE(BinaryCollator::make(GetParam()), StatusCode::InvalidDescription,
+                      "BinaryCollator", message);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_BinaryCollatorPositive, ::testing::Values(2, -1),
+                         positive_row_name);
+
+/** @brief Tests that binary publishes labels as one float32 per sample that is no index. */
+TEST(Small_BinaryCollatorTargets, BinaryPublishesOneFloatLabelPerSample)
+{
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCollator> collator,
                             BinaryCollator::make(1));
 
@@ -135,37 +114,49 @@ TEST_F(Medium_BinaryCollator, BinaryPublishesLabels)
 }
 
 /** @brief Tests that binary writes 1 for the positive class, whichever of the two it is. */
-TEST_F(Medium_BinaryCollator, BinaryWritesOneForThePositiveClass)
+TEST_P(Small_BinaryCollatorLabels, BinaryWritesOneForThePositiveClass)
 {
+    const LabelRow& row = GetParam();
     samples[0].class_index = 1;
     samples[1].class_index = 0;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCollator> collator,
+                            BinaryCollator::make(row.positive));
+    Data::Batch batch = allocate_images(collator->targets());
 
-    for (const std::int32_t positive : {1, 0})
-    {
-        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCollator> collator,
-                                BinaryCollator::make(positive));
-        Data::Batch batch = allocate_images(collator->targets());
-        SA_EXPECT_OK(collator->collate(list, span(), batch));
+    SA_EXPECT_OK(collator->collate(list, span(), batch));
 
-        // The labels are the constants 0 and 1, so they compare exactly.
-        const float* labels = batch.targets[0].values.data_as<float>();
-        EXPECT_EQ(labels[0], positive == 1 ? 1.0f : 0.0f);
-        EXPECT_EQ(labels[1], positive == 1 ? 0.0f : 1.0f);
-    }
+    // The labels are the constants 0 and 1, so they compare exactly.
+    EXPECT_EQ(SaTest::read_tensor(batch.targets[0].values),
+              (std::vector<double>{row.first, row.second}));
 }
 
-/** @brief Tests that binary names the file of a sample with no class or a third class. */
-TEST_F(Medium_BinaryCollator, BinaryNamesTheFileOfASampleItCannotLabel)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BinaryCollatorLabels,
+    ::testing::Values(LabelRow{"ClassOneIsPositive", 1, 1.0f, 0.0f},
+                      LabelRow{"ClassZeroIsPositive", 0, 0.0f, 1.0f}),
+    [](const ::testing::TestParamInfo<LabelRow>& info) { return std::string(info.param.name); });
+
+/** @brief Tests that binary names the file of a sample with no class index. */
+TEST_F(Small_BinaryCollator, BinaryNamesTheFileOfASampleWithoutAClass)
 {
     samples[0].class_index = 1;
-
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCollator> collator,
                             BinaryCollator::make(1));
     Data::Batch batch = allocate_images(collator->targets());
+
     SA_EXPECT_FAILURE(collator->collate(list, span(), batch), StatusCode::InvalidDescription,
                       "second.png", "BinaryCollator", "no class index");
+}
 
+/** @brief Tests that binary names the file of a sample of a third class. */
+TEST_F(Small_BinaryCollator, BinaryNamesTheFileOfASampleOfAThirdClass)
+{
+    samples[0].class_index = 1;
     samples[1].class_index = 2;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCollator> collator,
+                            BinaryCollator::make(1));
+    Data::Batch batch = allocate_images(collator->targets());
+
     SA_EXPECT_FAILURE(collator->collate(list, span(), batch), StatusCode::InvalidDescription,
                       "second.png", "class index 2", "[0, 2)");
 }

@@ -1,15 +1,17 @@
 # tests/vision/datasets: test_batch_inputs.cpp, test_classification_collator.cpp, test_detection_collator.cpp
 
 
-The scaled inputs and the roles the classification and detection collators write, and the batches they refuse. The input writer runs on a host engine; the collators still need an engine.
+The scaled inputs and the roles the classification and detection collators write, and the batches they refuse. Every case runs on a host engine.
 
-Suites: `Small_BatchInputs` and `Unit_DatasetsCollators`.
+Suites: `Small_BatchInputs`, `Small_ClassificationCollator`, `Small_ClassificationCollatorTargets`,
+`Small_DetectionCollator`, `Small_DetectionCollatorMakeRefusal` and `Small_DetectionCollatorTargets`.
 
 Tests `write_batch_inputs`, `ClassificationCollator` and `DetectionCollator` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/`. `Small_BatchInputs` holds a
-`HostExecutionBackend`, so its batches are host tensors and no device or process-wide engine is
-reached. Each case builds its own two gray samples of one row and two columns, the first of level
-51 and the second of level 255, and allocates a batch of two such images.
+`HostExecutionBackend`, and the collator suites derive from `Support::CollatorBench`, so their
+batches are host tensors and no device or process-wide engine is reached. The collator cases
+hold two gray samples of one row and two columns, the first of level 51 from `first.png` and
+the second of level 255 from `second.png`, and allocate a batch of two such images.
 
 ## InputsAreBytesDividedBy255
 
@@ -26,35 +28,47 @@ With the second image 2 by 2, `write_batch_inputs` fails with `Incompatible`,
 With one sample and a tensor for two, `write_batch_inputs` fails with `Incompatible`,
 "write_batch_inputs" and "holds 2 images".
 
-## ClassificationPublishesLabels
+## MakeRefusesZeroClasses
 
 `ClassificationCollator::make(0)` fails with `InvalidDescription`, "ClassificationCollator" and
-"0 classes". A collator of 7 classes reports the task `K_TASK_CLASSIFICATION` and one target:
-the role `K_ROLE_LABELS`, an empty sample shape, `Int32` and 7 classes.
+"0 classes".
+
+## ClassificationPublishesOneInt32LabelPerSample
+
+A collator of 7 classes reports the task `K_TASK_CLASSIFICATION` and one target: the role
+`K_ROLE_LABELS`, an empty sample shape, `Int32` and 7 classes.
 
 ## ClassificationWritesTheClassOfEachSample
 
 With the class indices 6 and 0, `collate` writes the labels 6 and 0, and the third input value
-is 1.0.
+is 1.0 within the typed tolerance of a byte divided by 255.
 
 ## ClassificationNamesTheFileOfASampleWithoutAClass
 
 With no class index on the second sample, `collate` fails with `InvalidDescription`,
-"crowded.png", "ClassificationCollator" and "no class index". With the class index 7 over 7
-classes it fails with "crowded.png", "class index 7" and "[0, 7)".
+"second.png", "ClassificationCollator" and "no class index".
+
+## ClassificationNamesTheFileOfASampleOfAClassOutsideTheSet
+
+With the class index 7 over 7 classes on the second sample, `collate` fails with
+`InvalidDescription`, "second.png", "class index 7" and "[0, 7)".
 
 ## ABatchWithoutTheRoleIsRefused
 
 Over a batch allocated without targets, `collate` fails with `Incompatible`,
 "ClassificationCollator" and "no role 'labels'".
 
+## MakeRefusesACountOfNothing
+
+`Small_DetectionCollatorMakeRefusal`, one row each: `DetectionCollator::make` fails with
+`InvalidDescription` for 0 classes ("DetectionCollator", "0 classes") and for 0 objects
+("0 objects").
+
 ## DetectionPublishesThreeRoles
 
-`DetectionCollator::make` fails with `InvalidDescription` for 0 classes ("0 classes") and for
-0 objects ("0 objects"). A collator of 3 classes and 4 objects reports the task
-`K_TASK_DETECTION` and three targets: `K_ROLE_BOXES` of shape [4, 4] and `Float32`,
-`K_ROLE_CLASSES` of shape [4], `Int32` and 3 classes, and `K_ROLE_VALID` of shape [4] and
-`Float32`.
+A collator of 3 classes and 4 objects reports the task `K_TASK_DETECTION` and three targets:
+`K_ROLE_BOXES` of shape [4, 4] and `Float32`, `K_ROLE_CLASSES` of shape [4], `Int32` and 3
+classes, and `K_ROLE_VALID` of shape [4] and `Float32`.
 
 ## DetectionWritesCornersAndPadsWithZero
 
@@ -65,7 +79,7 @@ and the valid flag 1 into the third slot and zero into every other slot.
 ## DetectionNamesTheFileOfAnImageWithTooManyObjects
 
 Three objects on the second image with two slots fail with `InvalidDescription`,
-"crowded.png", "DetectionCollator", "3 objects" and "at most 2".
+"second.png", "DetectionCollator", "3 objects" and "at most 2".
 
 ## DetectionRefusesAClassOutsideTheSet
 

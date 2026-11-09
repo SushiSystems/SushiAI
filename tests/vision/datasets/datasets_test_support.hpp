@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -36,9 +37,19 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/input.hpp>
+#include <SushiAI/data/materialised_dataset.hpp>
+#include <SushiAI/data/target.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/vision/datasets/fitted_sample.hpp>
+#include <SushiAI/vision/datasets/sample.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
@@ -218,5 +229,77 @@ namespace SushiAI::Vision::Datasets::Support
         }
 
         return ::testing::AssertionSuccess();
+    }
+    /** @brief Holds the size of the gray images the collator tests collate. */
+    inline constexpr Imaging::ImageSize K_BENCH_SIZE{1, 2};
+
+    /**
+     * @brief Provides a host engine, a two-file list and two gray samples to the tests of the
+     *        collators; a test derives from it under its own Small_ suite name.
+     *
+     * The first sample is level 51 of "first.png" and the second is level 255 of "second.png".
+     * The batches it allocates are host tensors, so no device and no process-wide engine is
+     * reached.
+     */
+    class CollatorBench : public ::testing::Test
+    {
+        protected:
+            /** @brief Names the two files and makes one gray sample of K_BENCH_SIZE per file. */
+            void SetUp() override
+            {
+                list.files = {"first.png", "second.png"};
+
+                samples.resize(2);
+                samples[0].image = uniform_image(K_BENCH_SIZE, 1, 51);
+                samples[0].file = 0;
+                samples[1].image = uniform_image(K_BENCH_SIZE, 1, 255);
+                samples[1].file = 1;
+            }
+
+            /** @brief Returns the samples as the span a collator takes. */
+            SushiRuntime::span<const FittedSample> span() const
+            {
+                return SushiRuntime::span<const FittedSample>(samples.data(), samples.size());
+            }
+
+            /** @brief Allocates a batch of two samples of a shape over some roles. */
+            Data::Batch allocate(const Shape& sample,
+                                 const std::vector<Data::TargetDescription>& targets)
+            {
+                const Data::InputDescription input{sample, DType::Float32};
+                Result<Data::Batch> batch =
+                    Data::allocate_batch(backend.engine(), 2, input, targets);
+                EXPECT_TRUE(batch.status().is_ok());
+                return std::move(batch).value();
+            }
+
+            /** @brief Allocates a batch of two gray images of K_BENCH_SIZE over some roles. */
+            Data::Batch allocate_images(const std::vector<Data::TargetDescription>& targets)
+            {
+                return allocate(Shape{K_BENCH_SIZE.height, K_BENCH_SIZE.width, 1}, targets);
+            }
+
+            /** @brief Holds the files the samples name. */
+            SampleList list;
+
+            /** @brief Holds the fitted samples of the batch. */
+            std::vector<FittedSample> samples;
+
+            /** @brief Holds the host engine the batches are allocated from. */
+            HostExecutionBackend backend;
+    };
+
+    /** @brief Writes one value into every element of every role of a batch. */
+    inline void fill_targets(Data::Batch& batch, std::int32_t value)
+    {
+        for (Data::BatchTarget& target : batch.targets)
+        {
+            if (target.values.dtype == DType::Float32)
+                std::fill_n(target.values.data_as<float>(), target.values.num_elements,
+                            static_cast<float>(value));
+            else
+                std::fill_n(target.values.data_as<std::int32_t>(), target.values.num_elements,
+                            value);
+        }
     }
 } // namespace SushiAI::Vision::Datasets::Support
