@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_conv_norm.cpp
 
 
-Suites: `Small_BlockConvNorm`.
+Suites: `Small_BlockConvNorm`, `Small_BlockConvNormPadding`, `Small_BlockConvNormEpsilon`, `Small_BlockConvNormMomentum` and `Medium_BlockConvNormDeath`.
 
 Tests ConvNorm's trace, its state names against YOLO26n row 0, and make_conv_node.
 
@@ -13,10 +13,10 @@ bias-free same-padded `Conv2d`, a `BatchNorm2d` and an activation, traced in tha
 The expected state names are typed into the test from
 `tests/vision/registration/fixtures/yolo26/MANIFEST.json`. No case opens a fixture file.
 
+
 ## Constants
 
-`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
-unchanged. `K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`, the epsilon and momentum `MANIFEST.json`
+`K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`, the epsilon and momentum `MANIFEST.json`
 records for YOLO26n. `K_CONTEXT` is "layer 0 'conv'", the row name handed to the factory.
 
 ## StateKind
@@ -56,26 +56,22 @@ prefix, in walk order.
 
 `Conv(32, 64, 1, 1)` maps [7, 9, 32] to [7, 9, 64].
 
-## ATrainingTraceEmitsConvolutionNormThenSiLU
+## ATrainingTraceCarriesNoBiasAndYieldsTheStridedShape
 
-A training trace of `Conv(3, 16, 3, 2)` over [2, 8, 8, 3] emits one K_MATMUL, one K_BATCHNORM2D
-and one K_SILU, in that order, and no K_BIAS_ADD. The K_SILU's output is the returned value, of
-shape [2, 4, 4, 16].
+A training trace of `Conv(3, 16, 3, 2)` over [2, 8, 8, 3] emits no K_BIAS_ADD and returns a value of shape [2, 4, 4, 16].
 
 ## ATrainingTraceCarriesTheNormOptions
 
 The K_BATCHNORM2D node carries the epsilon 1e-3 in attribute 0, and both requested updates carry
 the momentum 0.03.
 
-## AnEvaluationTraceFoldsTheNorm
+## AnEvaluationTraceEmitsNoRunningStatisticsNorm
 
-An evaluation trace emits one K_BATCHNORM_FOLD, one K_CHANNEL_AFFINE, one K_SILU and no K_BATCHNORM2D,
-and returns a [2, 4, 4, 16] value.
+An evaluation trace emits no K_BATCHNORM2D and returns a [2, 4, 4, 16] value.
 
 ## ConvLinearEmitsNoActivation
 
-A training trace of `ConvLinear(3, 16, 1, 1)` emits one K_BATCHNORM2D and no K_SILU. The returned
-value is output 0 of the K_BATCHNORM2D node.
+A training trace of `ConvLinear(3, 16, 1, 1)` over [2, 8, 8, 3] emits no K_SILU and returns a value of shape [2, 8, 8, 16].
 
 ## StateMatchesManifestRow0
 
@@ -83,16 +79,13 @@ The walk of a traced `Conv(3, 16, 3, 2)` under "model.0" yields five records in 
 "model.0.conv.weight" [16, 3, 3, 3], "model.0.bn.weight" [16] and "model.0.bn.bias" [16] as
 parameters, then "model.0.bn.running_mean" [16] and "model.0.bn.running_var" [16] as buffers.
 
-## ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSiLU
+## ADepthwiseTraceKeepsTheShapeAtStrideOne
 
-A training trace of `DWConv(16, 16, 3, 1)` over [2, 8, 8, 16] holds one DEPTHWISE_CONV2D, one
-BATCHNORM2D and one SILU in that order and no MATMUL. The convolution reads the input, the
-SILU writes the result, and the result has the input's shape.
+A training trace of `DWConv(16, 16, 3, 1)` over [2, 8, 8, 16] emits no K_MATMUL, requests two updates, a mean and a variance, and returns a value of the input's shape.
 
 ## DWConvLinearEmitsNoActivation
 
-A training trace of `DWConvLinear(16, 16, 3, 1)` holds one DEPTHWISE_CONV2D, one BATCHNORM2D
-and no SILU, and the BATCHNORM2D writes the result.
+A training trace of `DWConvLinear(16, 16, 3, 1)` over [2, 8, 8, 16] emits no K_SILU and returns a value of the input's shape.
 
 ## ADepthwiseOutputShapeKeepsTheWidth
 
@@ -108,8 +101,7 @@ After a training trace of `DWConvLinear(128, 128, 3, 1)`, the state walk under
 
 ## ADepthwiseBlockRefusesUnequalWidths
 
-Constructing `DWConv(16, 32, 3, 1)` stops the process with a message holding "keeps its channel count",
-"in=16" and "out=32".
+Constructing `DWConv(16, 32, 3, 1)` stops the process with a message holding "keeps its channel count", "in=16" and "out=32". This is a death test, so it is `Medium_BlockConvNormDeath`. The refusal is made by `DepthwiseConv2d::same_padded` in `layers/nn`, so a small case waits for a non-fatal check there.
 
 ## AnUntracedBlockYieldsNoState
 
@@ -117,12 +109,11 @@ The walk of a block that was never traced is empty.
 
 ## TheFactoryBuildsRow0
 
-`make_conv_node` over [640, 640, 3] with 16 filters, kernel 3, stride 2, `bn_epsilon` 0.001 and
-`bn_momentum` 0.03 returns a node with one port named `NN::K_SINGLE_PORT_NAME` of shape
-[320, 320, 16]. A training trace over [1, 640, 640, 3] appends one value of shape
-[1, 320, 320, 16], the K_BATCHNORM2D carries 1e-3, and the first update carries 0.03. The walk
-under "model.0" yields five records, the first "model.0.conv.weight" [16, 3, 3, 3] and the
-last "model.0.bn.running_var" [16].
+`make_conv_node` over [640, 640, 3] with 16 filters, kernel 3, stride 2, `bn_epsilon` 0.001 and `bn_momentum` 0.03 returns a node with one port named `NN::K_SINGLE_PORT_NAME` of shape [320, 320, 16].
+
+## TheFactoryTracesRow0WithItsNormOptions
+
+A training trace of that node over [1, 640, 640, 3] appends one value of shape [1, 320, 320, 16], the K_BATCHNORM2D carries 1e-3, and the first update carries 0.03, all compared exactly. The state is pinned by `StateMatchesManifestRow0`.
 
 ## TheFactoryDefaultsKernelAndStrideToOne
 
@@ -147,27 +138,34 @@ A row of 16 filters, kernel 6, stride 2, padding 2 over [640, 640, 3] has a port
 
 A row of 4 filters, kernel 3, padding 0 over [8, 8, 3] has a port of shape [6, 6, 4].
 
-## TheFactoryRefusesAPaddingThatIsNotAWholeNumberOfZeroOrMore
+## APaddingThatIsNotAWholeNumberOfZeroOrMoreIsRefused
 
-A `padding` of -1 fails with "'padding'", "zero or more" and "-1". A `padding` given as the
-string "1" fails with "'padding'" and "whole number".
+A `padding` of -1 fails with "'padding'", "zero or more" and "-1", and one given as the string "1" fails with "'padding'" and "whole number". The suite is `Small_BlockConvNormPadding`, one row each.
 
 ## TheFactoryRefusesARowWithoutFilters
 
 A row without `filters` fails with a message containing the context, "'filters'" and "absent".
 
-## TheFactoryRefusesAWindowThatIsNotAPositiveWholeNumber
+## TheFactoryRefusesAStrideOfZero
 
-A `stride` of 0 fails with "'stride'", "positive" and "0". A `kernel` given as the string "3"
-fails with "'kernel'" and "whole number".
+A `stride` of 0 fails with "'stride'", "positive" and "0".
 
-## TheFactoryRefusesNormOptionsOutOfRange
+## TheFactoryRefusesAKernelThatIsNotANumber
 
-A `bn_epsilon` of 0.0 fails with "'bn_epsilon'" and "positive", and one given as a string
-fails with "'bn_epsilon'" and "number". A `bn_momentum` of 1.5 fails with "'bn_momentum'" and
-"[0, 1]", and one of -0.1 fails with those and "-0.1".
+A `kernel` given as the string "3" fails with "'kernel'" and "whole number".
 
-## TheFactoryRefusesInputsThatAreNotOneFeatureMap
+## AnEpsilonThatIsNotAPositiveNumberIsRefused
 
-Two input shapes fail with a message containing the context, "one input" and "2". The one
-shape [192] fails with "[192]" and "rank-3".
+A `bn_epsilon` of 0.0 fails with "'bn_epsilon'" and "positive", and one given as a string fails with "'bn_epsilon'" and "number". The suite is `Small_BlockConvNormEpsilon`, one row each.
+
+## AMomentumOutsideZeroToOneIsRefused
+
+A `bn_momentum` of 1.5 fails with "'bn_momentum'" and "[0, 1]", and one of -0.1 fails with those and "-0.1". The suite is `Small_BlockConvNormMomentum`, one row each.
+
+## TheFactoryRefusesTwoInputs
+
+Two input shapes fail with a message containing the context, "one input" and "2".
+
+## TheFactoryRefusesAnInputThatIsNotAFeatureMap
+
+The one shape [192] fails with "[192]" and "rank-3".

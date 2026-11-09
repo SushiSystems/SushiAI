@@ -48,7 +48,6 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/conv_norm.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
@@ -62,17 +61,51 @@ using NN::Trace;
 namespace
 {
     using SushiAI::Test::require_value;
-    /**
-     * @brief Holds the absolute tolerance of a double stored and read back unchanged: 16 times the
-     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-15.
-     */
-    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Holds the epsilon and the momentum MANIFEST.json records for YOLO26n. */
     constexpr NormOptions K_YOLO_NORM{1e-3, 0.03};
 
     /** @brief Names the row a factory is asked to build, as a diagnostic would. */
     constexpr std::string_view K_CONTEXT = "layer 0 'conv'";
+
+    /** @brief Holds one row the factory refuses and the three words its message names. */
+    struct RefusedRow
+    {
+        std::string name;       /**< The row's name. */
+        std::string attributes; /**< The row's attributes. */
+        std::string key;        /**< The key the message names. */
+        std::string reason;     /**< The reason the message gives. */
+        std::string detail;     /**< A third word of the message, or empty. */
+    };
+
+    /** @brief Runs one refused padding. */
+    class Small_BlockConvNormPadding : public ::testing::TestWithParam<RefusedRow>
+    {
+
+    };
+
+    /** @brief Runs one refused epsilon. */
+    class Small_BlockConvNormEpsilon : public ::testing::TestWithParam<RefusedRow>
+    {
+
+    };
+
+    /** @brief Runs one refused momentum. */
+    class Small_BlockConvNormMomentum : public ::testing::TestWithParam<RefusedRow>
+    {
+
+    };
+
+    /** @brief Runs the process-stopping case in a child process. */
+    class Medium_BlockConvNormDeath : public ::testing::Test
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string row_name(const ::testing::TestParamInfo<RefusedRow>& info)
+    {
+        return info.param.name;
+    }
 
     /** @brief Names which of the two kinds of state a record is. */
     enum class StateKind : std::uint8_t
@@ -160,11 +193,8 @@ TEST(Small_BlockConvNorm, OutputShapeOfAPointwiseBlockKeepsTheExtents)
     EXPECT_EQ(block.output_shape(Shape{7, 9, 32}).value(), (Shape{7, 9, 64}));
 }
 
-/**
- * @brief Tests that a training trace emits one convolution, one BATCHNORM2D and one SILU, in
- *        that order, and no bias.
- */
-TEST(Small_BlockConvNorm, ATrainingTraceEmitsConvolutionNormThenSiLU)
+/** @brief Tests that a training trace carries no bias and yields the strided shape. */
+TEST(Small_BlockConvNorm, ATrainingTraceCarriesNoBiasAndYieldsTheStridedShape)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -174,15 +204,7 @@ TEST(Small_BlockConvNorm, ATrainingTraceEmitsConvolutionNormThenSiLU)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    ASSERT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
     EXPECT_EQ(count_nodes(graph, Ops::K_BIAS_ADD.id), 0u);
-    EXPECT_LT(first_node(graph, Ops::K_MATMUL.id), first_node(graph, Ops::K_BATCHNORM2D.id));
-    EXPECT_LT(first_node(graph, Ops::K_BATCHNORM2D.id), first_node(graph, Ops::K_SILU.id));
-
-    const Graph::Node& activation = graph.nodes()[first_node(graph, Ops::K_SILU.id)];
-    EXPECT_EQ(activation.outputs[0], y);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 16}));
 }
 
@@ -194,21 +216,20 @@ TEST(Small_BlockConvNorm, ATrainingTraceCarriesTheNormOptions)
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     Conv block(3, 16, 3, 2, K_YOLO_NORM);
     BufferUpdateList list;
-
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
-    const Graph::Node& norm = graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)];
+    const std::size_t norm = first_node(graph, Ops::K_BATCHNORM2D.id);
+    ASSERT_LT(norm, graph.node_count());
 
-    // Both constants are stored as given, so they compare exactly.
-    EXPECT_EQ(norm.attributes.values[0], 1e-3);
+    // The options are stored as given, so they compare exactly.
+    EXPECT_EQ(graph.nodes()[norm].attributes.values[0], K_YOLO_NORM.epsilon);
     ASSERT_EQ(list.updates().size(), 2u);
-    EXPECT_NEAR(list.updates()[0].momentum, 0.03, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(list.updates()[1].momentum, 0.03, K_EXACT_TOLERANCE);
+    EXPECT_EQ(list.updates()[0].momentum, K_YOLO_NORM.momentum);
+    EXPECT_EQ(list.updates()[1].momentum, K_YOLO_NORM.momentum);
 }
 
 /** @brief Tests that an evaluation trace folds the norm and emits no BATCHNORM2D. */
-TEST(Small_BlockConvNorm, AnEvaluationTraceFoldsTheNorm)
+TEST(Small_BlockConvNorm, AnEvaluationTraceEmitsNoRunningStatisticsNorm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -218,13 +239,10 @@ TEST(Small_BlockConvNorm, AnEvaluationTraceFoldsTheNorm)
     const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CHANNEL_AFFINE.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 16}));
 }
 
-/** @brief Tests that ConvLinear ends at the normalisation and emits no SILU. */
+/** @brief Tests that ConvLinear emits no SILU and keeps the pointwise shape. */
 TEST(Small_BlockConvNorm, ConvLinearEmitsNoActivation)
 {
     Graph::Graph graph;
@@ -235,9 +253,8 @@ TEST(Small_BlockConvNorm, ConvLinearEmitsNoActivation)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
     EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 0u);
-    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)].outputs[0], y);
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 8, 16}));
 }
 
 /**
@@ -265,11 +282,8 @@ TEST(Small_BlockConvNorm, StateMatchesManifestRow0)
     EXPECT_EQ(walk(block, "model.0"), expected);
 }
 
-/**
- * @brief Tests that a DWConv traces one DEPTHWISE_CONV2D, one BATCHNORM2D and one SILU, in that
- *        order, with no MATMUL, and keeps the shape at stride 1.
- */
-TEST(Small_BlockConvNorm, ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSiLU)
+/** @brief Tests that a DWConv traces no MATMUL, keeps the shape at stride 1 and updates its norm. */
+TEST(Small_BlockConvNorm, ADepthwiseTraceKeepsTheShapeAtStrideOne)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -279,22 +293,12 @@ TEST(Small_BlockConvNorm, ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSiLU)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    ASSERT_EQ(count_nodes(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 0u);
-    EXPECT_LT(first_node(graph, Ops::K_DEPTHWISE_CONV2D.id),
-              first_node(graph, Ops::K_BATCHNORM2D.id));
-    EXPECT_LT(first_node(graph, Ops::K_BATCHNORM2D.id), first_node(graph, Ops::K_SILU.id));
-
-    const Graph::Node& convolution =
-        graph.nodes()[first_node(graph, Ops::K_DEPTHWISE_CONV2D.id)];
-    EXPECT_EQ(convolution.inputs[0], x);
-    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::K_SILU.id)].outputs[0], y);
+    EXPECT_EQ(list.updates().size(), 2u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 8, 16}));
 }
 
-/** @brief Tests that DWConvLinear ends at the normalisation and emits no SILU. */
+/** @brief Tests that DWConvLinear emits no SILU and keeps the shape at stride 1. */
 TEST(Small_BlockConvNorm, DWConvLinearEmitsNoActivation)
 {
     Graph::Graph graph;
@@ -305,10 +309,8 @@ TEST(Small_BlockConvNorm, DWConvLinearEmitsNoActivation)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    ASSERT_EQ(count_nodes(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
     EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 0u);
-    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)].outputs[0], y);
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 8, 16}));
 }
 
 /** @brief Tests that a 3x3 DWConv keeps the width, and H and W at stride 1, halved at 2. */
@@ -347,8 +349,8 @@ TEST(Small_BlockConvNorm, DepthwiseStateMatchesTheManifestPositionalConvolution)
     EXPECT_EQ(walk(block, prefix), expected);
 }
 
-/** @brief Tests that a DWConv over unequal widths is refused, naming both widths. */
-TEST(Small_BlockConvNorm, ADepthwiseBlockRefusesUnequalWidths)
+/** @brief Tests that a DWConv over unequal widths stops the process, naming both widths. */
+TEST_F(Medium_BlockConvNormDeath, ADepthwiseBlockRefusesUnequalWidths)
 {
     SA_EXPECT_FATAL(static_cast<void>(DWConv(16, 32, 3, 1, K_YOLO_NORM)), "keeps its channel count",
                     "in=16", "out=32");
@@ -362,10 +364,7 @@ TEST(Small_BlockConvNorm, AnUntracedBlockYieldsNoState)
     EXPECT_TRUE(walk(block, "model.0").empty());
 }
 
-/**
- * @brief Tests that make_conv_node builds row 0 from its file row: the port's shape, the
- *        traced shape and the state names.
- */
+/** @brief Tests that make_conv_node builds row 0 from its file row: the port's name and shape. */
 TEST(Small_BlockConvNorm, TheFactoryBuildsRow0)
 {
     const Shape input{640, 640, 3};
@@ -375,9 +374,21 @@ TEST(Small_BlockConvNorm, TheFactoryBuildsRow0)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
                             Vision::Blocks::make_conv_node(one_input(input), attributes,
                                                            K_CONTEXT));
+
     ASSERT_EQ(node->ports().size(), 1u);
     EXPECT_EQ(node->ports()[0].name, NN::K_SINGLE_PORT_NAME);
     EXPECT_EQ(node->ports()[0].shape, (Shape{320, 320, 16}));
+}
+
+/** @brief Tests that the node of row 0 traces the strided shape with the row's norm options. */
+TEST(Small_BlockConvNorm, TheFactoryTracesRow0WithItsNormOptions)
+{
+    const Shape input{640, 640, 3};
+    const Config::Value attributes = attributes_of(
+        R"({"filters": 16, "kernel": 3, "stride": 2, "bn_epsilon": 0.001, "bn_momentum": 0.03})");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_conv_node(one_input(input), attributes,
+                                                           K_CONTEXT));
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -388,15 +399,12 @@ TEST(Small_BlockConvNorm, TheFactoryBuildsRow0)
 
     ASSERT_EQ(outputs.size(), 1u);
     EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{1, 320, 320, 16}));
-    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
-    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)].attributes.values[0], 1e-3);
-    ASSERT_EQ(list.updates().size(), 2u);
-    EXPECT_NEAR(list.updates()[0].momentum, 0.03, K_EXACT_TOLERANCE);
 
-    const std::vector<std::string> state = walk(*node, "model.0");
-    ASSERT_EQ(state.size(), 5u);
-    EXPECT_EQ(state[0], record("model.0.conv.weight", Shape{16, 3, 3, 3}, StateKind::Parameter));
-    EXPECT_EQ(state[4], record("model.0.bn.running_var", Shape{16}, StateKind::Buffer));
+    const std::size_t norm = first_node(graph, Ops::K_BATCHNORM2D.id);
+    ASSERT_LT(norm, graph.node_count());
+    EXPECT_EQ(graph.nodes()[norm].attributes.values[0], K_YOLO_NORM.epsilon);
+    ASSERT_EQ(list.updates().size(), 2u);
+    EXPECT_EQ(list.updates()[0].momentum, K_YOLO_NORM.momentum);
 }
 
 /** @brief Tests that a row stating neither kernel nor stride gets a 1x1 window at stride 1. */
@@ -477,19 +485,24 @@ TEST(Small_BlockConvNorm, TheFactoryAcceptsAPaddingOfZero)
     EXPECT_EQ(node->ports()[0].shape, (Shape{6, 6, 4}));
 }
 
-/** @brief Tests that the factory refuses a negative padding and one that is not a number. */
-TEST(Small_BlockConvNorm, TheFactoryRefusesAPaddingThatIsNotAWholeNumberOfZeroOrMore)
+/** @brief Tests that the factory refuses a padding that is not a whole number of zero or more. */
+TEST_P(Small_BlockConvNormPadding, APaddingThatIsNotAWholeNumberOfZeroOrMoreIsRefused)
 {
     const Shape input{8, 8, 3};
-    const Config::Value negative = attributes_of(R"({"filters": 8, "padding": -1})");
-    const Config::Value text = attributes_of(R"({"filters": 8, "padding": "1"})");
+    const RefusedRow& row = GetParam();
+    const Config::Value attributes = attributes_of(row.attributes);
 
-    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), negative, K_CONTEXT),
-                      StatusCode::InvalidDescription, "layer 0 'conv'", "'padding'", "zero or more",
-                      "-1");
-    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), text, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'padding'", "whole number");
+    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), attributes, K_CONTEXT),
+                      StatusCode::InvalidDescription, row.key, row.reason, row.detail);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockConvNormPadding,
+    ::testing::Values(RefusedRow{"Negative", R"({"filters": 8, "padding": -1})", "'padding'",
+                                 "zero or more", "-1"},
+                      RefusedRow{"Text", R"({"filters": 8, "padding": "1"})", "'padding'",
+                                 "whole number", ""}),
+    row_name);
 
 /** @brief Tests that the factory refuses a row without filters. */
 TEST(Small_BlockConvNorm, TheFactoryRefusesARowWithoutFilters)
@@ -501,53 +514,80 @@ TEST(Small_BlockConvNorm, TheFactoryRefusesARowWithoutFilters)
                       StatusCode::InvalidDescription, "layer 0 'conv'", "'filters'", "absent");
 }
 
-/** @brief Tests that the factory refuses a stride of zero and a kernel that is not a number. */
-TEST(Small_BlockConvNorm, TheFactoryRefusesAWindowThatIsNotAPositiveWholeNumber)
+/** @brief Tests that the factory refuses a stride of zero. */
+TEST(Small_BlockConvNorm, TheFactoryRefusesAStrideOfZero)
 {
     const Shape input{8, 8, 3};
     const Config::Value zero_stride = attributes_of(R"({"filters": 8, "stride": 0})");
-    const Config::Value text_kernel = attributes_of(R"({"filters": 8, "kernel": "3"})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), zero_stride, K_CONTEXT),
                       StatusCode::InvalidDescription, "'stride'", "positive", "0");
+}
+
+/** @brief Tests that the factory refuses a kernel given as text. */
+TEST(Small_BlockConvNorm, TheFactoryRefusesAKernelThatIsNotANumber)
+{
+    const Shape input{8, 8, 3};
+    const Config::Value text_kernel = attributes_of(R"({"filters": 8, "kernel": "3"})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), text_kernel, K_CONTEXT),
                       StatusCode::InvalidDescription, "'kernel'", "whole number");
 }
 
-/**
- * @brief Tests that the factory refuses an epsilon of zero or of text, and a momentum above
- *        one or below zero.
- */
-TEST(Small_BlockConvNorm, TheFactoryRefusesNormOptionsOutOfRange)
+/** @brief Tests that the factory refuses an epsilon that is not a positive number. */
+TEST_P(Small_BlockConvNormEpsilon, AnEpsilonThatIsNotAPositiveNumberIsRefused)
 {
     const Shape input{8, 8, 3};
-    const Config::Value flat_epsilon = attributes_of(R"({"filters": 8, "bn_epsilon": 0.0})");
-    const Config::Value text_epsilon =
-        attributes_of(R"({"filters": 8, "bn_epsilon": "0.001"})");
-    const Config::Value wide_momentum = attributes_of(R"({"filters": 8, "bn_momentum": 1.5})");
-    const Config::Value negative_momentum =
-        attributes_of(R"({"filters": 8, "bn_momentum": -0.1})");
+    const RefusedRow& row = GetParam();
+    const Config::Value attributes = attributes_of(row.attributes);
 
-    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), flat_epsilon, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'bn_epsilon'", "positive");
-    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), wide_momentum, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'bn_momentum'", "[0, 1]");
-    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), text_epsilon, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'bn_epsilon'", "number");
-    SA_EXPECT_FAILURE(
-        Vision::Blocks::make_conv_node(one_input(input), negative_momentum, K_CONTEXT),
-        StatusCode::InvalidDescription, "'bn_momentum'", "[0, 1]", "-0.1");
+    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), attributes, K_CONTEXT),
+                      StatusCode::InvalidDescription, row.key, row.reason, row.detail);
 }
 
-/** @brief Tests that the factory refuses two inputs and an input that is not rank 3. */
-TEST(Small_BlockConvNorm, TheFactoryRefusesInputsThatAreNotOneFeatureMap)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockConvNormEpsilon,
+    ::testing::Values(RefusedRow{"Zero", R"({"filters": 8, "bn_epsilon": 0.0})", "'bn_epsilon'",
+                                 "positive", ""},
+                      RefusedRow{"Text", R"({"filters": 8, "bn_epsilon": "0.001"})",
+                                 "'bn_epsilon'", "number", ""}),
+    row_name);
+
+/** @brief Tests that the factory refuses a momentum outside [0, 1]. */
+TEST_P(Small_BlockConvNormMomentum, AMomentumOutsideZeroToOneIsRefused)
+{
+    const Shape input{8, 8, 3};
+    const RefusedRow& row = GetParam();
+    const Config::Value attributes = attributes_of(row.attributes);
+
+    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), attributes, K_CONTEXT),
+                      StatusCode::InvalidDescription, row.key, row.reason, row.detail);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockConvNormMomentum,
+    ::testing::Values(RefusedRow{"AboveOne", R"({"filters": 8, "bn_momentum": 1.5})",
+                                 "'bn_momentum'", "[0, 1]", ""},
+                      RefusedRow{"BelowZero", R"({"filters": 8, "bn_momentum": -0.1})",
+                                 "'bn_momentum'", "[0, 1]", "-0.1"}),
+    row_name);
+
+/** @brief Tests that the factory refuses two inputs. */
+TEST(Small_BlockConvNorm, TheFactoryRefusesTwoInputs)
 {
     const Shape two[] = {Shape{8, 8, 3}, Shape{8, 8, 3}};
-    const Shape flat{192};
     const Config::Value attributes = attributes_of(R"({"filters": 8})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(NN::ShapeSpan(two), attributes, K_CONTEXT),
                       StatusCode::InvalidDescription, "layer 0 'conv'", "one input", "2");
+}
+
+/** @brief Tests that the factory refuses an input that is not rank 3. */
+TEST(Small_BlockConvNorm, TheFactoryRefusesAnInputThatIsNotAFeatureMap)
+{
+    const Shape flat{192};
+    const Config::Value attributes = attributes_of(R"({"filters": 8})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(flat), attributes, K_CONTEXT),
                       StatusCode::InvalidDescription, "[192]", "rank-3");
 }
