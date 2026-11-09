@@ -75,6 +75,9 @@ namespace SushiAI
             SPPF(int64_t in_channels, int64_t out_channels, int64_t kernel, int64_t pool_count,
                  bool shortcut, NN::NormOptions norm);
 
+            /** @brief Returns the side of the pool's window, the kernel the constructor took. */
+            [[nodiscard]] int64_t kernel_size() const noexcept;
+
             /** @brief Lists the two children that hold state, under "cv1" and "cv2". */
             static constexpr auto fields() noexcept
             {

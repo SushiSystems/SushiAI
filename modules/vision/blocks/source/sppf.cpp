@@ -85,6 +85,11 @@ namespace SushiAI
 
         }
 
+        int64_t SPPF::kernel_size() const noexcept
+        {
+            return pool.geometry.kernel_h;
+        }
+
         Graph::ValueID SPPF::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             const Graph::GraphBuilder& builder = trace.builder();

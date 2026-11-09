@@ -75,6 +75,10 @@ graph and the given momentum on every update of a list.
 `SPPF(256, 256, 5, 3, true)` maps [20, 20, 256] to [20, 20, 256], and `SPPF(64, 96, 5, 3,
 true)` maps [5, 7, 64] to [5, 7, 96].
 
+## TheKernelSizeIsTheOneTheConstructorTook
+
+`SPPF(256, 256, 5, 3, true, ...)` reports a kernel size of 5 and `SPPF(64, 64, 3, 1, false, ...)` one of 3.
+
 ## ThePoolKeepsTheExtents
 
 The `output_shape([20, 20, 128])` of the pool of `SPPF(256, 256, 5, 3, true)` is [20, 20, 128].

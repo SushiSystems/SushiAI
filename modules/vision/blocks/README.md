@@ -130,7 +130,7 @@ of the "bottleneck" inner block of `c3k2` has a hidden width of `hidden / 2`; he
 `pools` times in a chain, then `cv2` over `cv1`'s result and every pooled value joined, then
 an add of its input when `adds_input` holds. `make_sppf_node` reads `filters` and the optional
 `kernel`, 5 when absent, `pools`, 3 when absent, and `shortcut`, false when absent. The kernel
-must be odd.
+must be odd. `kernel_size()` returns the side of the pool window.
 
 ### attention.hpp
 

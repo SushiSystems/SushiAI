@@ -230,6 +230,16 @@ TEST(Small_BlockSppf, OutputShapeKeepsTheExtentsAndSetsTheWidth)
     EXPECT_EQ(widening.output_shape(Shape{5, 7, 64}).value(), (Shape{5, 7, 96}));
 }
 
+/** @brief Tests that the block reports the kernel it was built with: 5 for row 9, 3 for a narrow pool. */
+TEST(Small_BlockSppf, TheKernelSizeIsTheOneTheConstructorTook)
+{
+    const SPPF row9(256, 256, 5, 3, true, K_YOLO_NORM);
+    const SPPF narrow(64, 64, 3, 1, false, K_YOLO_NORM);
+
+    EXPECT_EQ(row9.kernel_size(), 5);
+    EXPECT_EQ(narrow.kernel_size(), 3);
+}
+
 /** @brief Tests that the pool keeps the extents of its input. */
 TEST(Small_BlockSppf, ThePoolKeepsTheExtents)
 {
