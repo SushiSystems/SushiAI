@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
@@ -68,8 +69,6 @@ using Graph::ValueID;
 
 namespace
 {
-    class Medium_StaticMemory : public SaTest::EngineTest {};
-
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 8;
@@ -171,124 +170,162 @@ namespace
         run.arena_count = pool.has_plan() ? pool.arenas().arena_count() : 0;
         return run;
     }
-}
 
-/**
- * @brief Tests that twelve steps after the first leave the live allocation count unchanged.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
-{
-    const auto live_allocations = []
+    /** @brief Trains the model on a fresh Engine and returns what it cost. */
+    void train_on_fresh_engine(bool packed, Graph::FusionOptions fusion, Outcome& outcome)
     {
-        return SaTest::TestEnvironment::runtime().advanced().live_allocation_count();
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
+        SA_ASSERT_OK_AND_ASSIGN(outcome, train(backend, packed, fusion));
+    }
+
+    /** @brief Provides the Engine the packed ZERO buffer case records on. */
+    class Medium_StaticMemory : public SaTest::EngineTest {};
+
+    /** @brief Replays a trained step over one batch and expects the allocations to hold. */
+    class Medium_StaticMemoryReplay : public ::testing::TestWithParam<std::size_t>
+    {
+        protected:
+            /** @brief Builds the trainer, takes the first step and records the baseline. */
+            void SetUp() override
+            {
+                engine = std::make_unique<SushiBLAS::Engine>(SaTest::TestEnvironment::runtime());
+                backend = std::make_unique<RuntimeExecutionBackend>(
+                    SaTest::TestEnvironment::runtime(), *engine);
+
+                SA_ASSERT_OK_AND_ASSIGN(
+                    built, Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
+                SA_ASSERT_OK_AND_ASSIGN(state, NN::ModelState::create(*engine, model));
+                pool = std::make_unique<TensorPool>(*engine);
+                SA_ASSERT_OK_AND_ASSIGN(slots,
+                                        Train::bind_parameters(*backend, built, *state, *pool));
+                SA_EXPECT_OK(NN::initialize(*backend, *state));
+
+                ASSERT_TRUE(pool->has_plan());
+                ASSERT_GT(pool->arenas().arena_count(), 0u)
+                    << "nothing was packed, so this proves nothing";
+
+                SA_ASSERT_OK_AND_ASSIGN(
+                    optimizer, Optim::AdamW::make(*backend, slots, Optim::AdamWOptions{}));
+
+                Train::TrainerOptions options;
+                options.track_metrics = false;
+                objective = std::make_unique<Train::CrossEntropyObjective>(
+                    SaTest::classifier_objective(built));
+                SA_ASSERT_OK_AND_ASSIGN(
+                    trainer, Train::Trainer::make(*backend, built, *pool, *objective, *optimizer,
+                                                  options));
+                SA_ASSERT_OK_AND_ASSIGN(
+                    dataset, Data::SyntheticClassification::make(*backend, data_options()));
+
+                step_over(0);
+                baseline = live_allocations();
+                bytes_baseline = pool->allocated_bytes();
+            }
+
+            /** @brief Returns the live allocations of the runtime. */
+            static std::size_t live_allocations()
+            {
+                return SaTest::TestEnvironment::runtime().advanced().live_allocation_count();
+            }
+
+            /** @brief Runs one step over batch @p index and waits for the device. */
+            void step_over(std::size_t index)
+            {
+                Data::Batch batch;
+                ASSERT_TRUE(SaTest::status_is_ok(dataset->read(index, batch)));
+                SA_EXPECT_OK(trainer->run_step(batch));
+                SaTest::TestEnvironment::runtime().wait().value();
+            }
+
+            /** @brief Replays batch @p index and expects the allocations to stay as they were. */
+            void expect_replay_allocates_nothing(std::size_t index)
+            {
+                step_over(index);
+
+                // A compiled step must replay into the memory it already has.
+                EXPECT_EQ(live_allocations(), baseline)
+                    << "a replay changed the number of live buffers";
+                EXPECT_EQ(pool->allocated_bytes(), bytes_baseline);
+            }
+
+            MLP model{NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES}};
+            std::unique_ptr<SushiBLAS::Engine> engine;                  /**< @brief Owns the device state. */
+            std::unique_ptr<RuntimeExecutionBackend> backend;           /**< @brief Runs the steps. */
+            Train::TrainingGraph built;                                 /**< @brief The graph. */
+            std::optional<NN::ModelState> state;                        /**< @brief The parameters. */
+            std::unique_ptr<TensorPool> pool;                           /**< @brief The values. */
+            std::vector<Optim::ParameterSlot> slots;                    /**< @brief The slots. */
+            std::unique_ptr<Optim::AdamW> optimizer;                    /**< @brief The optimizer. */
+            std::unique_ptr<Train::CrossEntropyObjective> objective;    /**< @brief The objective. */
+            std::unique_ptr<Train::Trainer> trainer;                    /**< @brief The trainer. */
+            std::unique_ptr<Data::SyntheticClassification> dataset;     /**< @brief The data. */
+            std::size_t baseline = 0;                                   /**< @brief Buffers after step one. */
+            std::size_t bytes_baseline = 0;                             /**< @brief Pool bytes after step one. */
     };
 
-    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
-                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
-
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    TensorPool pool(*engine);
-    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(backend(), built, state, pool));
-    SA_EXPECT_OK(NN::initialize(backend(), state));
-
-    ASSERT_TRUE(pool.has_plan());
-    ASSERT_GT(pool.arenas().arena_count(), 0u) << "nothing was packed, so this proves nothing";
-
-    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(backend(), slots, Optim::AdamWOptions{}));
-
-    Train::TrainerOptions options;
-    options.track_metrics = false;
-    const auto objective = SaTest::classifier_objective(built);
-    SA_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<Train::Trainer> trainer,
-        Train::Trainer::make(backend(), built, pool, objective, *optimizer, options));
-
-    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(backend(), data_options()));
-
-    Data::Batch dataset_batch;
-    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
-    SA_EXPECT_OK(trainer->run_step(dataset_batch));
-    SaTest::TestEnvironment::runtime().wait().value();
-
-    const std::size_t baseline = live_allocations();
-    const std::size_t bytes_baseline = pool.allocated_bytes();
-
-    for (int step = 1; step <= 12; ++step)
+    /** @brief Holds a packed and an unpacked run of the fused model. */
+    class Medium_StaticMemoryAgreement : public ::testing::Test
     {
-        ASSERT_TRUE(SaTest::status_is_ok(
-            dataset->read(static_cast<std::size_t>(step) % K_BATCHES, dataset_batch)));
-        SA_EXPECT_OK(trainer->run_step(dataset_batch));
-        SaTest::TestEnvironment::runtime().wait().value();
+        protected:
+            /** @brief Trains the model with the planner on and off. */
+            void SetUp() override
+            {
+                ASSERT_NO_FATAL_FAILURE(train_on_fresh_engine(false, {}, unplanned));
+                ASSERT_NO_FATAL_FAILURE(train_on_fresh_engine(true, {}, planned));
+            }
 
-        EXPECT_EQ(live_allocations(), baseline)
-            << "step " << step << " changed the number of live buffers; a compiled step "
-            << "must replay into the memory it already has";
-        EXPECT_EQ(pool.allocated_bytes(), bytes_baseline);
-    }
+            Outcome unplanned;   /**< @brief Holds the run with no plan. */
+            Outcome planned;     /**< @brief Holds the run with the plan. */
+    };
 }
 
 /**
- * @brief Tests that packing allocates fewer bytes than no plan on the unfused graph.
+ * @brief Tests that four replays of one batch after the first step leave the allocations unchanged.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
+TEST_P(Medium_StaticMemoryReplay, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 {
-    SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend unplanned_backend(SaTest::TestEnvironment::runtime(),
-                                                       unplanned_engine);
-    SA_ASSERT_OK_AND_ASSIGN(const Outcome unplanned, train(unplanned_backend, false, unfused()));
-
-    SushiBLAS::Engine planned_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend planned_backend(SaTest::TestEnvironment::runtime(),
-                                                     planned_engine);
-    SA_ASSERT_OK_AND_ASSIGN(const Outcome planned, train(planned_backend, true, unfused()));
-
-    EXPECT_EQ(unplanned.arena_count, 0u);
-    EXPECT_GT(planned.arena_count, 0u);
-
-    // Both pools built the same tensors, so the unpacked figure is the same.
-    EXPECT_EQ(planned.unpacked_bytes, unplanned.unpacked_bytes);
-    EXPECT_EQ(unplanned.allocated_bytes, unplanned.unpacked_bytes);
-
-    // The planned pool holds fewer bytes than the unplanned one.
-    EXPECT_LT(planned.allocated_bytes, unplanned.allocated_bytes)
-        << "planned " << planned.allocated_bytes << " bytes against an unplanned "
-        << unplanned.allocated_bytes;
+    expect_replay_allocates_nothing(GetParam());
+    expect_replay_allocates_nothing(GetParam());
+    expect_replay_allocates_nothing(GetParam());
+    expect_replay_allocates_nothing(GetParam());
 }
 
-/**
- * @brief Tests that fusion removes intermediates and never allocates more than packing alone.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
+INSTANTIATE_TEST_SUITE_P(Batches, Medium_StaticMemoryReplay, ::testing::Values(0u, 1u, 2u));
+
+/** @brief Tests that fusion removes intermediates a packed unfused graph still holds. */
+TEST_F(Medium_StaticMemory, FusionRemovesIntermediates)
 {
-    SushiBLAS::Engine fused_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend fused_backend(SaTest::TestEnvironment::runtime(),
-                                                   fused_engine);
-    SA_ASSERT_OK_AND_ASSIGN(const Outcome fused, train(fused_backend, true));
-
-    SushiBLAS::Engine planned_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend planned_backend(SaTest::TestEnvironment::runtime(),
-                                                     planned_engine);
-    SA_ASSERT_OK_AND_ASSIGN(const Outcome planned, train(planned_backend, true, unfused()));
-
-    SushiBLAS::Engine loose_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend loose_backend(SaTest::TestEnvironment::runtime(),
-                                                   loose_engine);
-    SA_ASSERT_OK_AND_ASSIGN(const Outcome loose, train(loose_backend, false, unfused()));
+    Outcome fused;
+    Outcome planned;
+    ASSERT_NO_FATAL_FAILURE(train_on_fresh_engine(true, {}, fused));
+    ASSERT_NO_FATAL_FAILURE(train_on_fresh_engine(true, unfused(), planned));
 
     EXPECT_LT(fused.unpacked_bytes, planned.unpacked_bytes)
         << "fusion did not remove any intermediate at all";
+}
 
-    // Fusion on its own beats doing nothing, which is the claim worth pinning.
+/** @brief Tests that the fused graph allocates fewer bytes than an unplanned, unfused one. */
+TEST_F(Medium_StaticMemory, FusionAloneBeatsDoingNothing)
+{
+    Outcome fused;
+    Outcome loose;
+    ASSERT_NO_FATAL_FAILURE(train_on_fresh_engine(true, {}, fused));
+    ASSERT_NO_FATAL_FAILURE(train_on_fresh_engine(false, unfused(), loose));
+
     EXPECT_LT(fused.allocated_bytes, loose.allocated_bytes)
         << "fused " << fused.allocated_bytes << " against an unplanned, unfused "
         << loose.allocated_bytes;
+}
+
+/** @brief Tests that the fused graph allocates no more than the packed unfused one. */
+TEST_F(Medium_StaticMemory, FusionIsNeverWorseThanPackingAlone)
+{
+    Outcome fused;
+    Outcome planned;
+    ASSERT_NO_FATAL_FAILURE(train_on_fresh_engine(true, {}, fused));
+    ASSERT_NO_FATAL_FAILURE(train_on_fresh_engine(true, unfused(), planned));
 
     // Never worse than packed-but-unfused, hence <=; see tests/layers/train/README.md.
     EXPECT_LE(fused.allocated_bytes, planned.allocated_bytes)
@@ -296,36 +333,18 @@ TEST_F(Medium_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
         << planned.allocated_bytes;
 }
 
-/**
- * @brief Tests that packed and unpacked training agree byte for byte.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
+/** @brief Tests that packing changes no loss. */
+TEST_F(Medium_StaticMemoryAgreement, PackingChangesNoLoss)
 {
-    SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend unplanned_backend(SaTest::TestEnvironment::runtime(),
-                                                       unplanned_engine);
-    SA_ASSERT_OK_AND_ASSIGN(const Outcome unplanned, train(unplanned_backend, false));
-
-    SushiBLAS::Engine planned_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend planned_backend(SaTest::TestEnvironment::runtime(),
-                                                     planned_engine);
-    SA_ASSERT_OK_AND_ASSIGN(const Outcome planned, train(planned_backend, true));
-
-    ASSERT_EQ(planned.names, unplanned.names);
     ASSERT_EQ(planned.losses.size(), unplanned.losses.size());
+    EXPECT_EQ(planned.losses, unplanned.losses) << "packing changed a loss";
+}
 
-    for (std::size_t step = 0; step < planned.losses.size(); ++step)
-        EXPECT_EQ(planned.losses[step], unplanned.losses[step])
-            << "packing changed the loss at step " << step;
-
-    for (std::size_t i = 0; i < planned.parameters.size(); ++i)
-    {
-        const std::size_t at = SaTest::first_difference(planned.parameters[i],
-                                                        unplanned.parameters[i]);
-        EXPECT_EQ(at, planned.parameters[i].size())
-            << "packing changed parameter '" << planned.names[i] << "' from byte " << at;
-    }
+/** @brief Tests that packing changes no parameter byte. */
+TEST_F(Medium_StaticMemoryAgreement, PackingChangesNoParameterByte)
+{
+    ASSERT_EQ(planned.names, unplanned.names);
+    EXPECT_EQ(planned.parameters, unplanned.parameters) << "packing changed a parameter";
 }
 
 /**
