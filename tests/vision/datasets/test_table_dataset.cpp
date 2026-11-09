@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
@@ -40,11 +41,12 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 #include <SushiAI/vision/datasets/regression_collator.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/table_dataset.hpp>
 
 using namespace SushiAI;
@@ -53,8 +55,8 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Provides an engine and the builders of the lists these tests read. */
-    class Medium_DatasetsTableDataset : public SaTest::EngineTest
+    /** @brief Provides a host engine and the builders of the lists these tests read. */
+    class TableBench : public ::testing::Test
     {
         protected:
             /**
@@ -91,15 +93,87 @@ namespace
                 EXPECT_TRUE(made.status().is_ok());
                 return std::move(made).value();
             }
+
+            /** @brief Holds the host engine the batches are allocated from. */
+            HostExecutionBackend backend;
+    };
+
+    /** @brief Holds the tests that need no process of their own. */
+    class Small_DatasetsTableDataset : public TableBench
+    {
+    };
+
+    /** @brief Holds the test that stops its process. */
+    class Medium_DatasetsTableDataset : public TableBench
+    {
+    };
+
+    /** @brief Holds a list and options a make refuses, and the text of the refusal. */
+    struct MakeRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Tells whether the collator is missing. */
+        bool null_collator;
+
+        /** @brief Tells whether the list is a list of images with no table. */
+        bool no_table;
+
+        /** @brief Tells whether the table lacks its last number. */
+        bool ragged;
+
+        /** @brief Holds the rows of the list. */
+        std::size_t rows;
+
+        /** @brief Holds the batch size. */
+        std::int32_t batch_size;
+
+        /** @brief Holds a text the refusal carries. */
+        const char* message;
+
+        /** @brief Holds another text the refusal carries, or none. */
+        const char* detail;
+    };
+
+    /** @brief Holds one refused make per row. */
+    class Small_DatasetsTableDatasetMake : public TableBench,
+                                           public ::testing::WithParamInterface<MakeRefusal>
+    {
+    };
+
+    /** @brief Holds a batch and the rows a range read refuses, and the text of the refusal. */
+    struct RangeRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the index of the batch. */
+        std::size_t batch;
+
+        /** @brief Holds the rows asked for. */
+        Data::RowRange rows;
+
+        /** @brief Holds a text the refusal carries. */
+        const char* message;
+
+        /** @brief Holds another text the refusal carries, or none. */
+        const char* detail;
+    };
+
+    /** @brief Holds one refused range per row. */
+    class Small_DatasetsTableDatasetRange : public TableBench,
+                                            public ::testing::WithParamInterface<RangeRefusal>
+    {
     };
 } // namespace
 
 /** @brief Tests that the dataset reports the batch size, the shapes and the whole batches. */
-TEST_F(Medium_DatasetsTableDataset, ItDescribesItsBatches)
+TEST_F(Small_DatasetsTableDataset, ItDescribesItsBatches)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> dataset,
-        TableDataset::make(*engine, table_list(5), regression(), options()));
+        TableDataset::make(backend.engine(), table_list(5), regression(), options()));
 
     EXPECT_EQ(dataset->name(), "rows");
     EXPECT_EQ(dataset->batch_size(), 2);
@@ -111,11 +185,11 @@ TEST_F(Medium_DatasetsTableDataset, ItDescribesItsBatches)
 }
 
 /** @brief Tests that a batch holds its rows in list order, read through Data::Dataset. */
-TEST_F(Medium_DatasetsTableDataset, ABatchHoldsItsRowsInListOrder)
+TEST_F(Small_DatasetsTableDataset, ABatchHoldsItsRowsInListOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> made,
-        TableDataset::make(*engine, table_list(5), regression(), options()));
+        TableDataset::make(backend.engine(), table_list(5), regression(), options()));
     const Data::Dataset& dataset = *made;
 
     Data::Batch batch;
@@ -127,59 +201,75 @@ TEST_F(Medium_DatasetsTableDataset, ABatchHoldsItsRowsInListOrder)
     EXPECT_EQ(std::vector<float>(inputs, inputs + 4),
               (std::vector<float>{20.0f, 21.0f, 30.0f, 31.0f}));
     EXPECT_EQ(std::vector<float>(values, values + 2), (std::vector<float>{22.0f, 32.0f}));
+}
 
-    const float* const first = inputs;
-    ASSERT_TRUE(SaTest::status_is_ok(dataset.read(0, batch)));
-    EXPECT_EQ(batch.inputs.data_as<float>(), first);
-    EXPECT_EQ(first[0], 0.0f);
+/** @brief Tests that a second read into the same batch holds the rows of the second read. */
+TEST_F(Small_DatasetsTableDataset, ASecondReadHoldsItsOwnRows)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TableDataset> dataset,
+        TableDataset::make(backend.engine(), table_list(5), regression(), options()));
+    Data::Batch batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, batch)));
+
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
+
+    EXPECT_EQ(SaTest::read_tensor(batch.inputs), (std::vector<double>{0.0, 1.0, 10.0, 11.0}));
 }
 
 /** @brief Tests that make refuses a null collator, a list with no table and bad counts. */
-TEST_F(Medium_DatasetsTableDataset, MakeRefusesWhatItCannotBatch)
+TEST_P(Small_DatasetsTableDatasetMake, MakeRefusesWhatItCannotBatch)
 {
-    SA_EXPECT_FAILURE(TableDataset::make(*engine, table_list(4), nullptr, options()),
-                      StatusCode::InvalidDescription, "TableDataset", "'rows' has no collator");
+    const MakeRefusal& row = GetParam();
+    SampleList list = table_list(row.rows);
+    if (row.no_table)
+    {
+        list = SampleList();
+        list.samples.resize(row.rows);
+    }
+    if (row.ragged)
+        list.table.values.pop_back();
 
-    SampleList images;
-    images.samples.resize(4);
-    SA_EXPECT_FAILURE(TableDataset::make(*engine, images, regression(), options()),
-                      StatusCode::InvalidDescription, "a table of 0 features");
+    TableDatasetOptions made = options();
+    made.batch_size = row.batch_size;
 
-    SampleList ragged = table_list(4);
-    ragged.table.values.pop_back();
-    SA_EXPECT_FAILURE(TableDataset::make(*engine, ragged, regression(), options()),
-                      StatusCode::InvalidDescription, "4 samples and 11 numbers",
-                      "a row holds 3");
-
-    TableDatasetOptions empty = options();
-    empty.batch_size = 0;
-    SA_EXPECT_FAILURE(TableDataset::make(*engine, table_list(4), regression(), empty),
-                      StatusCode::InvalidDescription, "a batch size of 0");
-
-    SA_EXPECT_FAILURE(TableDataset::make(*engine, table_list(1), regression(), options()),
-                      StatusCode::InvalidDescription, "1 samples", "one batch of 2");
+    SA_EXPECT_FAILURE(TableDataset::make(backend.engine(), list,
+                                         row.null_collator ? nullptr : regression(), made),
+                      StatusCode::InvalidDescription, row.message, row.detail);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsTableDatasetMake,
+    ::testing::Values(
+        MakeRefusal{"ANullCollator", true, false, false, 4, 2, "'rows' has no collator", ""},
+        MakeRefusal{"AListWithNoTable", false, true, false, 4, 2, "a table of 0 features", ""},
+        MakeRefusal{"ARaggedTable", false, false, true, 4, 2, "4 samples and 11 numbers",
+                    "a row holds 3"},
+        MakeRefusal{"ABatchSizeOfZero", false, false, false, 4, 0, "a batch size of 0", ""},
+        MakeRefusal{"ABatchLargerThanTheList", false, false, false, 1, 2, "1 samples",
+                    "one batch of 2"}),
+    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return std::string(info.param.name); });
 
 /** @brief Tests that a batch index past the last batch stops the process. */
 TEST_F(Medium_DatasetsTableDataset, ABatchOutsideTheEpochStopsTheProcess)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> dataset,
-        TableDataset::make(*engine, table_list(2), regression(), options()));
+        TableDataset::make(backend.engine(), table_list(2), regression(), options()));
 
     Data::Batch batch;
     SA_EXPECT_FATAL((void)dataset->read(1, batch), "TableDataset", "1 batches", "batch 1");
 }
 
 /** @brief Tests that the failure of the collator reaches the caller of read. */
-TEST_F(Medium_DatasetsTableDataset, TheFailureOfTheCollatorIsReturned)
+TEST_F(Small_DatasetsTableDataset, TheFailureOfTheCollatorIsReturned)
 {
     Result<std::unique_ptr<RegressionCollator>> wide = RegressionCollator::make(2, 2);
     ASSERT_TRUE(wide.status().is_ok());
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> dataset,
-        TableDataset::make(*engine, table_list(2), std::move(wide).value(), options()));
+        TableDataset::make(backend.engine(), table_list(2), std::move(wide).value(), options()));
 
     Data::Batch batch;
     SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::InvalidDescription, "rows.csv",
@@ -187,13 +277,13 @@ TEST_F(Medium_DatasetsTableDataset, TheFailureOfTheCollatorIsReturned)
 }
 
 /** @brief Tests that a range read holds the rows the whole read holds at those positions. */
-TEST_F(Medium_DatasetsTableDataset, ARangeReadHoldsTheRowsOfTheWholeBatch)
+TEST_F(Small_DatasetsTableDataset, ARangeReadHoldsTheRowsOfTheWholeBatch)
 {
     TableDatasetOptions made = options();
     made.batch_size = 3;
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> dataset,
-        TableDataset::make(*engine, table_list(6), regression(), made));
+        TableDataset::make(backend.engine(), table_list(6), regression(), made));
 
     const Data::RowRange rows{2, 1};
     Data::Batch whole;
@@ -206,17 +296,24 @@ TEST_F(Medium_DatasetsTableDataset, ARangeReadHoldsTheRowsOfTheWholeBatch)
 }
 
 /** @brief Tests that a range outside the table dataset is refused with a Status, not a stop. */
-TEST_F(Medium_DatasetsTableDataset, RegressionABadRangeIsRefusedWithAStatus)
+TEST_P(Small_DatasetsTableDatasetRange, RegressionABadRangeIsRefusedWithAStatus)
 {
+    const RangeRefusal& row = GetParam();
     TableDatasetOptions made = options();
     made.batch_size = 3;
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> dataset,
-        TableDataset::make(*engine, table_list(6), regression(), made));
+        TableDataset::make(backend.engine(), table_list(6), regression(), made));
     Data::Batch batch;
-    SA_EXPECT_FAILURE((dataset->read_rows(1, Data::RowRange{2, 2}, batch)),
-                      SushiAI::StatusCode::InvalidDescription, "Rows 2 to 4",
-                      "of batch 1", "a batch of 3");
-    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
-                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+
+    SA_EXPECT_FAILURE(dataset->read_rows(row.batch, row.rows, batch),
+                      StatusCode::InvalidDescription, row.message, row.detail);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsTableDatasetRange,
+    ::testing::Values(RangeRefusal{"RowsPastTheBatch", 1, Data::RowRange{2, 2}, "Rows 2 to 4",
+                                   "of batch 1"},
+                      RangeRefusal{"ABatchPastTheEpoch", 99, Data::RowRange{0, 1},
+                                   "Batch 99 is out of range", ""}),
+    [](const ::testing::TestParamInfo<RangeRefusal>& info) { return std::string(info.param.name); });
