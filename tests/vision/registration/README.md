@@ -17,7 +17,7 @@ dataset refusals run on a `HostExecutionBackend`, so they are small too. The YOL
 `applications/examples/yolo26/model.json` and `tests/vision/registration/fixtures/yolo26/MANIFEST.json`;
 the file is the subject, so they are medium. The `Medium_Yolo26*` fixtures open `forward.sacp` and
 `weights.sushi` of the fixture directory in `SetUp` and skip the case, naming the file, when one is
-missing. `Medium_Yolo26Whole` runs the forward pass of the whole model once per case.
+missing. `Medium_Yolo26Whole` runs the forward pass of the whole model once for the program, in `SetUpTestSuite`, and every row reads it; a pass that cannot run skips the rows with its reason.
 
 ### RegisterNodesAddsTheTenBlocks
 

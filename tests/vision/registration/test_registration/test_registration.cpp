@@ -1596,30 +1596,83 @@ namespace
             std::optional<ReferenceFile> reference_file;
     };
 
-    /** @brief Runs the whole YOLO26n model over the fixture's image once per test. */
+    /** @brief Holds the one forward pass of the program: its tensors, or why it has none. */
+    struct SharedPass
+    {
+        ForwardOutputs outputs; /**< Every tensor the pass published, by name. */
+        std::string skip_reason; /**< Empty when the pass ran; else the reason to skip. */
+    };
+
+    /** @brief Runs the whole YOLO26n model over the fixture's image. */
+    SharedPass run_shared_pass()
+    {
+        SharedPass pass;
+        ReferenceFile input(SA_TEST_FIXTURE_DIR, "yolo26/input.sacp");
+        if (!input.is_present())
+        {
+            pass.skip_reason = input.reason();
+            return pass;
+        }
+        const ReferenceTensor image = input.read("image");
+        if (!image.found)
+        {
+            pass.skip_reason = image.reason;
+            return pass;
+        }
+
+        SaTest::TestEnvironment::engine().set_mode(SushiBLAS::ExecutionMode::Auto);
+        SaTest::TestEnvironment::engine().rng().reseed(0);
+        Result<ForwardOutputs> run = run_forward(SaTest::TestEnvironment::backend(),
+                                                 image.floats());
+        if (!run.has_value())
+            pass.skip_reason = "the forward pass failed: " + std::string(run.status().message());
+        else
+            pass.outputs = std::move(run).value();
+
+        return pass;
+    }
+
+    /**
+     * @brief Shares the YOLO26n forward pass between the rows of every suite that reads it.
+     *
+     * The first SetUpTestSuite runs the pass; the suites after it read the same tensors, so the
+     * pass runs once for the program and not once per row. A pass that could not run skips every
+     * row with its reason. Several suites share the pass, so no single TearDownTestSuite may
+     * free it: the holder frees it with the program.
+     */
     class Medium_Yolo26Whole : public Medium_Yolo26Forward
     {
         protected:
-            /** @brief Reads the image and runs the forward pass; skips when input.sacp is absent. */
+            /** @brief Runs the pass if no suite has run it yet. */
+            static void SetUpTestSuite()
+            {
+                shared();
+            }
+
+            /** @brief Skips the row when the shared pass could not run. */
             void SetUp() override
             {
                 Medium_Yolo26Forward::SetUp();
                 if (IsSkipped())
                     return;
-
-                ReferenceFile input(SA_TEST_FIXTURE_DIR, "yolo26/input.sacp");
-                if (!input.is_present())
-                    GTEST_SKIP() << input.reason();
-                const ReferenceTensor image = input.read("image");
-                ASSERT_TRUE(image.found) << image.reason;
-
-                Result<ForwardOutputs> run = run_forward(backend(), image.floats());
-                ASSERT_TRUE(run.has_value()) << run.status().message();
-                forward = std::move(run).value();
+                if (!shared().skip_reason.empty())
+                    GTEST_SKIP() << shared().skip_reason;
             }
 
-            /** @brief Holds every tensor the forward pass published, by name. */
-            ForwardOutputs forward;
+            /** @brief Returns every tensor the shared forward pass published, by name. */
+            const ForwardOutputs& forward() const
+            {
+                return shared().outputs;
+            }
+
+        private:
+            /** @brief Returns the pass, running it on the first call. */
+            static const SharedPass& shared()
+            {
+                static const SharedPass pass = run_shared_pass();
+
+                return pass;
+            }
     };
 
     /** @brief Names one port of the head: the copy, the level and the kind of the output. */
@@ -1716,7 +1769,7 @@ TEST_P(Medium_Yolo26FeatureRows, MatchesTheReferenceLevel)
 {
     const std::string name(GetParam().record);
 
-    EXPECT_TRUE(matches_reference(forward, reference(), name, K_ACTIVATION_TOLERANCE));
+    EXPECT_TRUE(matches_reference(forward(), reference(), name, K_ACTIVATION_TOLERANCE));
 }
 
 /**
@@ -1727,7 +1780,7 @@ TEST_P(Medium_Yolo26InnerRows, MatchesTheReferenceRow)
 {
     const std::string name(GetParam().record);
 
-    EXPECT_TRUE(matches_reference(forward, reference(), name, K_ACTIVATION_TOLERANCE));
+    EXPECT_TRUE(matches_reference(forward(), reference(), name, K_ACTIVATION_TOLERANCE));
 }
 
 INSTANTIATE_TEST_SUITE_P(Rows, Medium_Yolo26FeatureRows,
@@ -1761,7 +1814,7 @@ TEST_P(Medium_Yolo26Ports, MatchesTheReferenceRawOutput)
     const PortRow& row = GetParam();
     const std::string name = port_name(row.branch, row.level, row.kind);
 
-    EXPECT_TRUE(matches_reference(forward, reference(), name, K_ACTIVATION_TOLERANCE));
+    EXPECT_TRUE(matches_reference(forward(), reference(), name, K_ACTIVATION_TOLERANCE));
 }
 
 INSTANTIATE_TEST_SUITE_P(Ports, Medium_Yolo26Ports, ::testing::ValuesIn(port_rows()),
@@ -1779,7 +1832,7 @@ TEST_P(Medium_Yolo26Decode, MatchesTheReferenceDecodes)
     SA_READ_REFERENCE_OR_FAIL(scores, reference(), prefix + "scores");
 
     DecodedBranch decoded;
-    ASSERT_TRUE(decode_branch(forward, branch.branch, branch.decode, decoded));
+    ASSERT_TRUE(decode_branch(forward(), branch.branch, branch.decode, decoded));
 
     EXPECT_TRUE(near_reference(decoded.boxes, boxes.floats(), K_DECODE_TOLERANCE));
     EXPECT_TRUE(near_reference(decoded.scores, scores.floats(), K_PROBABILITY_TOLERANCE));
@@ -1800,7 +1853,7 @@ TEST_F(Medium_Yolo26Whole, TheTopScoresMatchTheReferenceDetections)
     SA_READ_REFERENCE_OR_FAIL(detections_reference, reference(), "one2one.detections");
 
     DecodedBranch decoded;
-    ASSERT_TRUE(decode_branch(forward, "one2one", &Vision::Detect::Free::decode_xyxy, decoded));
+    ASSERT_TRUE(decode_branch(forward(), "one2one", &Vision::Detect::Free::decode_xyxy, decoded));
 
     const std::int64_t anchors =
         SaTest::require_value(Vision::Detect::Free::count_anchors(K_LEVELS));
