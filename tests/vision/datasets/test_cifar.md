@@ -1,52 +1,61 @@
 # tests/vision/datasets/test_cifar.cpp
 
 
-Suites: `Small_DatasetsCifar`.
+Suites: `Small_DatasetsCifar`, `Small_DatasetsCifarLabel`, `Small_DatasetsCifarSize` and
+`Medium_DatasetsCifar`.
 
-Tests `read_cifar` in `modules/vision/datasets/include/SushiAI/vision/datasets/cifar.hpp` over
-batch files the cases write under the system's temporary directory. A record is its label
-bytes followed by three planes of 32 by 32 bytes, each plane filled with one level.
+Tests `read_cifar` in `modules/vision/datasets/include/SushiAI/vision/datasets/cifar.hpp`. The
+`Small_` cases read batch files from a `MemorySource` under the folder `data`; the `Medium_` cases
+write them under the system's temporary directory. A record is its label bytes followed by three
+planes of 32 by 32 bytes, each plane filled with one level.
 
 ## TheCIFAR10TrainingSplitListsItsFiveFilesInOrder
 
 With `data_batch_1.bin` to `data_batch_5.bin` each holding one record labelled with its batch
-number, the "train" split of CIFAR-10 has 10 classes, five files and five samples. Sample i
-names file i, the file is `data_batch_<i + 1>.bin` and the class is i + 1.
+number, the "train" split of CIFAR-10 has 10 classes, the five files in order, the files 0 to 4 for
+its five samples and the classes 1 to 5.
 
 ## ASampleRefersToThePlanesAfterItsLabel
 
-A `test_batch.bin` of two records gives the classes 3 and 9. The second sample's stored pixels
-start at byte 3074, are `K_CIFAR_SIDE` square with three channels and are `PlaneLayout::Planar`.
-`read_stored_pixels` over them gives 3072 bytes whose sampled pixels hold 40, 50, 60.
+In `test_batch.bin` with two records labelled 3 and 9, the samples have the classes 3 and 9. The
+second sample's pixels start at byte 3074, are 32 by 32 with three channels and are
+`PlaneLayout::Planar`.
 
-## CIFAR100TakesTheFineOrTheCoarseLabel
+## TheStoredPlanesReadBackAsOneInterleavedImage
 
-A `train.bin` record with the label bytes 19 and 87 reads as class 87 of 100 under
-`CIFARVariant::CIFAR100Fine`, with its pixels at offset 2, and as class 19 of 20 under
-`CIFARVariant::CIFAR100Coarse`.
+`read_stored_pixels` over the second sample, from a stream holding the batch file, gives an image
+of 32 by 32 pixels that each hold the bytes 40, 50, 60.
+
+## CIFAR100TakesTheFineLabelFromTheSecondByte
+
+A record labelled 19 and 87 gives 100 classes and one sample of class 87 whose pixels start at
+byte 2.
+
+## CIFAR100TakesTheCoarseLabelFromTheFirstByte
+
+The same record read as the coarse variant gives 20 classes and one sample of class 19.
 
 ## ALabelOutsideTheClassesNamesItsRecord
 
-A CIFAR-10 file whose second record has the label 10 fails with `InvalidFile`,
-"test_batch.bin", "record 2 of 2" and "label 10". A CIFAR-100 record with the coarse label 20
-fails with `InvalidFile`, "test.bin", "record 1 of 1" and "label 20".
+One row each: a CIFAR-10 file whose second of two records is labelled 10 fails with `InvalidFile`,
+"test_batch.bin", "record 2 of 2" and "label 10"; a CIFAR-100 coarse file whose only record has the
+coarse label 20 fails with "test.bin", "record 1 of 1" and "label 20".
 
 ## AFileThatIsNotWholeRecordsIsRefused
 
-A record one byte short fails with `InvalidFile`, "test_batch.bin", "3072 bytes" and
-"3073 bytes". An empty file fails with `InvalidFile`, "test_batch.bin" and "0 bytes".
-
-## AnAbsentFileIsNotFound
-
-With only `data_batch_1.bin` present, the "train" split fails with `FileNotFound` and
-"data_batch_2.bin".
+One row each: a file cut one byte short of a record fails with `InvalidFile`, "test_batch.bin",
+"3072 bytes" and "3073 bytes"; an empty file fails with "test_batch.bin" and "0 bytes".
 
 ## AnotherSplitIsRefused
 
-The split "val" fails with `InvalidDescription` and "'val'".
+The split "val" over an empty source fails with `InvalidDescription` and "'val'".
 
-## ABatchServedFromMemoryListsItsRecords
+## AnAbsentFileIsNotFound
 
-A `MemorySource` holding `test_batch.bin` in `data` of two records, labelled 3 and 9, gives the
-classes 3 and 9 of 10 through `read_cifar(options, source)`. The second record's pixels start at
-byte 3074. No file is written.
+With only `data_batch_1.bin` on disk, the training split fails with `FileNotFound` and
+"data_batch_2.bin". It reaches the file system, so it is `Medium_`.
+
+## ABatchOnDiskListsItsRecords
+
+The file-system form of `read_cifar` reads a written `test_batch.bin` of two records into two
+samples, the second of class 9 starting at byte 3074.
