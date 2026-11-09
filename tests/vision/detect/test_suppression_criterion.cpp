@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
+#include <SushiAI/vision/detect/iou.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
 #include <support/tolerance.hpp>
@@ -59,26 +60,15 @@ namespace
     const std::vector<float> K_SHIFTED_DIAGONAL{2.0f, 5.0f, 12.0f, 15.0f};
 } // namespace
 
-/** @brief Tests that the IoU of two overlapping boxes is the ratio of their areas. */
+/** @brief Tests that the IoU criterion measures what intersection_over_union does. */
 TEST(Small_DetectSuppressionCriterion, IoUOfOverlappingBoxesIsTheRatioOfAreas)
 {
     // Intersection 9 * 10 = 90; union 100 + 100 - 90 = 110.
     const std::vector<float> shifted{1.0f, 0.0f, 11.0f, 10.0f};
     const float measure =
         Detect::measure_suppression(K_SQUARE, shifted, Detect::SuppressionCriterion::IoU, 0.6f);
+    EXPECT_NEAR(measure, Detect::intersection_over_union(K_SQUARE, shifted), K_MEASURE_TOLERANCE);
     EXPECT_NEAR(measure, 90.0 / 110.0, K_MEASURE_TOLERANCE);
-}
-
-/** @brief Tests that disjoint and edge-touching boxes have an IoU of zero. */
-TEST(Small_DetectSuppressionCriterion, IoUIsZeroForDisjointAndTouchingBoxes)
-{
-    const std::vector<float> far{20.0f, 0.0f, 30.0f, 10.0f};
-    const std::vector<float> touching{10.0f, 0.0f, 20.0f, 10.0f};
-    EXPECT_EQ(Detect::measure_suppression(K_SQUARE, far, Detect::SuppressionCriterion::IoU, 0.6f),
-              0.0f);
-    EXPECT_EQ(
-        Detect::measure_suppression(K_SQUARE, touching, Detect::SuppressionCriterion::IoU, 0.6f),
-        0.0f);
 }
 
 /** @brief Tests that two empty boxes have an IoU of zero, not NaN. */
@@ -165,23 +155,6 @@ TEST(Small_DetectSuppressionCriterion, DistanceIoUKeepsTheFartherOfTwoEqualIoUBo
     EXPECT_EQ(iou_kept, (std::vector<std::int64_t>{0}));
 }
 
-/** @brief Tests that the IoU criterion keeps a box whose IoU equals the threshold. */
-TEST(Small_DetectSuppressionCriterion, IoUCriterionKeepsABoxAtTheThreshold)
-{
-    const std::vector<float> boxes{0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 0.0f, 2.0f, 1.0f};
-    const std::vector<float> scores{0.9f, 0.8f};
-    std::vector<std::int64_t> at_threshold;
-    std::vector<std::int64_t> below_iou;
-    Detect::suppress_overlaps(boxes, scores, 0.5f, Detect::SuppressionCriterion::IoU, 0.6f,
-                              at_threshold);
-    Detect::suppress_overlaps(boxes, scores, 0.25f, Detect::SuppressionCriterion::IoU, 0.6f,
-                              below_iou);
-
-    // The boxes share 2 of 4 + 2 - 2 = 4 units: an IoU of exactly 0.5.
-    EXPECT_EQ(at_threshold, (std::vector<std::int64_t>{0, 1}));
-    EXPECT_EQ(below_iou, (std::vector<std::int64_t>{0}));
-}
-
 /** @brief Tests that a zero-score row is never kept, even when it overlaps nothing. */
 TEST(Small_DetectSuppressionCriterion, ZeroScoreRowsAreNeverKept)
 {
@@ -238,16 +211,28 @@ TEST(Small_DetectSuppressionCriterion, SelectionAppliesTheConfiguredCriterion)
     EXPECT_EQ(detections[0], expected);
 }
 
-/** @brief Tests that the default configuration suppresses by IoU with exponent 0.6. */
+/**
+ * @brief Tests that a default configuration suppresses by IoU.
+ *
+ * Two 10 by 10 boxes shifted by 1.5 have an IoU of 85 / 115, 0.739, above the default threshold
+ * 0.7, so the second is suppressed. Their DistanceIoU with the default exponent is about 0.677,
+ * below the threshold, so a default that measured by distance would keep both.
+ */
 TEST(Small_DetectSuppressionCriterion, NMSConfigDefaultsToTheIoUCriterion)
 {
+    const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f, 6.5f, 5.0f, 10.0f, 10.0f};
+    const std::vector<float> scores{0.9f, 0.8f};
+    const Detect::PredictionShape shape{1, 2, 1};
     const Detect::NMSConfig config;
-    EXPECT_EQ(config.criterion, Detect::SuppressionCriterion::IoU);
-    EXPECT_FLOAT_EQ(config.distance_exponent, 0.6f);
+
+    std::vector<std::vector<float>> detections;
+    SA_EXPECT_OK(Detect::select_nms_detections(boxes, scores, shape, config, detections));
+    ASSERT_EQ(detections.size(), 1u);
+    EXPECT_EQ(detections[0], (std::vector<float>{0.0f, 0.0f, 10.0f, 10.0f, 0.9f, 0.0f}));
 }
 
 /** @brief Tests that boxes whose size is not four per score stop the process, with both counts. */
-TEST(Small_DetectSuppressionCriterionDeathTest, RejectsBoxesOfTheWrongSizeFatally)
+TEST(Medium_DetectSuppressionCriterionDeathTest, RejectsBoxesOfTheWrongSizeFatally)
 {
     const std::vector<float> boxes(5, 0.0f);
     const std::vector<float> scores(2, 0.5f);
@@ -258,7 +243,7 @@ TEST(Small_DetectSuppressionCriterionDeathTest, RejectsBoxesOfTheWrongSizeFatall
 }
 
 /** @brief Tests that a criterion value outside the enumeration stops the process. */
-TEST(Small_DetectSuppressionCriterionDeathTest, RejectsAnUnknownCriterionFatally)
+TEST(Medium_DetectSuppressionCriterionDeathTest, RejectsAnUnknownCriterionFatally)
 {
     const std::vector<float> boxes(4, 0.0f);
     const std::vector<float> scores(1, 0.5f);

@@ -1,20 +1,18 @@
 # tests/vision/detect/test_suppression_criterion.cpp
 
 
-Suites: `Small_DetectSuppressionCriterion`, `Small_DetectSuppressionCriterionDeathTest`.
+Suites: `Small_DetectSuppressionCriterion` and `Medium_DetectSuppressionCriterionDeathTest`.
 
 Tests `Detect::measure_suppression`, the six-argument `Detect::suppress_overlaps`, and the
 criterion fields of `Detect::NMSConfig`. Boxes are corner pairs, and most cases measure against
-one 10 by 10 square. Measures are compared to 1e-6.
+one 10 by 10 square. Measures are compared within 32 times the float unit roundoff.
+The two cases that the review moved are not here: the disjoint and touching-edge IoU is held by
+`test_iou.cpp`, and the IoU criterion at its threshold by `test_detections_nms.cpp`.
 
 ## IoUOfOverlappingBoxesIsTheRatioOfAreas
 
-The square and a copy shifted by 1 along x have an IoU of 90 / 110.
-
-## IoUIsZeroForDisjointAndTouchingBoxes
-
-A box 10 units away and a box that shares only an edge with the square each have an IoU of
-exactly 0.
+The square and a copy shifted by 1 along x have an IoU of 90 / 110, and the criterion measure
+equals `intersection_over_union` on the same boxes.
 
 ## IoUOfTwoEmptyBoxesIsZeroNotNaN
 
@@ -50,11 +48,6 @@ The measure of the square and a diagonally shifted box is the same in both order
 Of three boxes scored 0.9, 0.8 and 0.7, at a threshold of 0, the DistanceIoU criterion keeps
 rows 0 and 1. The IoU criterion keeps row 0 alone.
 
-## IoUCriterionKeepsABoxAtTheThreshold
-
-Two boxes with an IoU of exactly 0.5 are both kept at a threshold of 0.5. At a threshold of
-0.25 only the first is kept.
-
 ## ZeroScoreRowsAreNeverKept
 
 Of three boxes that do not overlap, scored 0.9, 0 and 0.5, the rows 0 and 2 are kept.
@@ -78,15 +71,17 @@ returns one image with two detections: the corners (0, 0, 10, 10) scored 0.9 and
 
 ## NMSConfigDefaultsToTheIoUCriterion
 
-A default `NMSConfig` has the criterion `SuppressionCriterion::IoU` and a `distance_exponent`
-of 0.6.
+A default `NMSConfig` over two 10 by 10 boxes shifted by 1.5 suppresses the second: their IoU,
+85 / 115 = 0.739, is above the default threshold 0.7, while their DistanceIoU with the default
+exponent, about 0.677, is below it. The case asserts the behaviour of the default, not its field
+values.
 
 ## RejectsBoxesOfTheWrongSizeFatally
 
-Five box values with two scores stop the process with a message holding "a suppression needs"
+A death test, so its suite is medium. Five box values with two scores stop the process with a message holding "a suppression needs"
 and "got 5 and 2 values".
 
 ## RejectsAnUnknownCriterionFatally
 
-A criterion cast from 7 stops the process with a message holding "must be IoU or DistanceIoU"
+A death test, so its suite is medium. A criterion cast from 7 stops the process with a message holding "must be IoU or DistanceIoU"
 and "got 7".
