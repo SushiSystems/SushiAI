@@ -53,6 +53,7 @@
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/io/imported_model_writer.hpp>
 #include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/scratch_files/scratch_directory.hpp>
 
 using namespace SushiAI;
 using IO::ExistingFiles;
@@ -62,37 +63,7 @@ using IO::ImportedTensor;
 namespace
 {
     using SushiAI::Test::require_value;
-    /** @brief Removes a directory under the system's temporary folder, before and after. */
-    class ScratchDirectory
-    {
-        public:
-            /** @brief Removes whatever a previous run left under @p name. */
-            explicit ScratchDirectory(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
-            {
-                std::error_code ignored;
-                std::filesystem::remove_all(path_, ignored);
-            }
-
-            /** @brief Removes the directory and what it holds. */
-            ~ScratchDirectory()
-            {
-                std::error_code ignored;
-                std::filesystem::remove_all(path_, ignored);
-            }
-
-            ScratchDirectory(const ScratchDirectory&) = delete;
-            ScratchDirectory& operator=(const ScratchDirectory&) = delete;
-            ScratchDirectory(ScratchDirectory&&) = delete;
-            ScratchDirectory& operator=(ScratchDirectory&&) = delete;
-
-            /** @brief Returns the directory, which need not exist. */
-            const std::filesystem::path& path() const noexcept { return path_; }
-
-        private:
-            /** @brief Holds the path of the directory. */
-            std::filesystem::path path_;
-    };
+    using SushiAI::Test::ScratchDirectory;
 
     /** @brief Returns a float32 tensor named @p name holding @p values under @p shape. */
     ImportedTensor make_tensor(std::string name, const Shape& shape,
@@ -126,6 +97,40 @@ namespace
         })");
         imported.notes.push_back("a note");
         return imported;
+    }
+
+    /** @brief Returns the file name of each path @p written holds, in order. */
+    std::vector<std::string> file_names(const IO::WrittenImport& written)
+    {
+        std::vector<std::string> names;
+        for (const std::filesystem::path& file : written.files)
+            names.push_back(file.filename().string());
+        return names;
+    }
+
+    /** @brief Holds a record of a weight file and the payload that follows it. */
+    struct ReadTensor
+    {
+        IO::TensorRecord record;            /**< The record header. */
+        std::vector<std::byte> payload;     /**< The bytes after the header. */
+    };
+
+    /** @brief Reads every record of the weight file at @p path, in order. */
+    std::vector<ReadTensor> read_weight_file(const std::filesystem::path& path)
+    {
+        std::vector<ReadTensor> tensors;
+        std::ifstream in(path, std::ios::binary);
+        EXPECT_TRUE(in.is_open());
+        IO::CheckpointReader reader = require_value(IO::CheckpointReader::open(in));
+        while (reader.read_count() < reader.count())
+        {
+            ReadTensor tensor;
+            tensor.record = require_value(reader.next());
+            tensor.payload.resize(tensor.record.payload_bytes());
+            SA_EXPECT_OK(reader.read_payload(tensor.record, tensor.payload.data()));
+            tensors.push_back(std::move(tensor));
+        }
+        return tensors;
     }
 
     /** @brief Returns the bytes of the file at @p path; empty when it cannot be opened. */
@@ -199,24 +204,48 @@ TEST(Small_ImportedModelWriter, ARecipeThatIsNoObjectIsRefused)
                       "must be an object");
 }
 
-/** @brief Tests that the three files are written and named in the order model, weights, train. */
-TEST(Small_ImportedModelWriter, WritesTheThreeFiles)
+namespace
 {
-    const ScratchDirectory scratch("sushiai_import_three_files");
+    /** @brief Holds whether the model has tensors and the files an import then writes. */
+    struct FileSetRow
+    {
+        std::string name;                 /**< The row's name. */
+        bool weighted;                    /**< Whether the model holds tensors. */
+        std::vector<std::string> files;   /**< The file names written, in order. */
+    };
+
+    /** @brief Runs the file set of an import over a model with and without tensors. */
+    class Medium_ImportedModelFiles : public ::testing::TestWithParam<FileSetRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests that the files are written and named in the order model, weights, train. */
+TEST_P(Medium_ImportedModelFiles, TheFilesWrittenAreNamedInOrder)
+{
+    const FileSetRow& row = GetParam();
+    const ScratchDirectory scratch("sushiai_import_file_set");
+    ImportedModel imported = make_imported();
+    if (!row.weighted)
+        imported.weights.clear();
+
     SA_ASSERT_OK_AND_ASSIGN(
         const IO::WrittenImport written,
-        IO::write_imported_model(make_imported(), scratch.path(), ExistingFiles::Refuse));
+        IO::write_imported_model(imported, scratch.path(), ExistingFiles::Refuse));
 
-    ASSERT_EQ(written.files.size(), 3u);
-    EXPECT_EQ(written.files[0], scratch.path() / "model.json");
-    EXPECT_EQ(written.files[1], scratch.path() / "weights.sushi");
-    EXPECT_EQ(written.files[2], scratch.path() / "train.json");
-    for (const std::filesystem::path& file : written.files)
-        EXPECT_TRUE(std::filesystem::is_regular_file(file)) << file.string();
+    EXPECT_EQ(file_names(written), row.files);
+    EXPECT_EQ(std::filesystem::exists(scratch.path() / "weights.sushi"), row.weighted);
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_ImportedModelFiles,
+    ::testing::Values(
+        FileSetRow{"WithTensors", true, {"model.json", "weights.sushi", "train.json"}},
+        FileSetRow{"WithoutTensors", false, {"model.json", "train.json"}}),
+    [](const ::testing::TestParamInfo<FileSetRow>& info) { return info.param.name; });
+
 /** @brief Tests that the model file reads back to the rows and the task it was given. */
-TEST(Small_ImportedModelWriter, TheModelFileReadsBack)
+TEST(Medium_ImportedModelWriter, TheModelFileReadsBack)
 {
     const ScratchDirectory scratch("sushiai_import_model_file");
     const ImportedModel imported = make_imported();
@@ -232,8 +261,23 @@ TEST(Small_ImportedModelWriter, TheModelFileReadsBack)
               "stub_task");
 }
 
-/** @brief Tests that the weight file holds each tensor's record and bytes, in order. */
-TEST(Small_ImportedModelWriter, TheWeightFileHoldsEveryTensor)
+namespace
+{
+    /** @brief Names the position of a tensor in the weight file. */
+    struct TensorRow
+    {
+        std::string name;       /**< The row's name. */
+        std::size_t index;      /**< The tensor's position in the model and in the file. */
+    };
+
+    /** @brief Runs the weight file check over each tensor of the model. */
+    class Medium_ImportedModelWeightFile : public ::testing::TestWithParam<TensorRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests that the weight file holds a tensor's record and bytes at its position. */
+TEST_P(Medium_ImportedModelWeightFile, TheWeightFileHoldsTheTensor)
 {
     const ScratchDirectory scratch("sushiai_import_weight_file");
     const ImportedModel imported = make_imported();
@@ -241,54 +285,46 @@ TEST(Small_ImportedModelWriter, TheWeightFileHoldsEveryTensor)
         const IO::WrittenImport written,
         IO::write_imported_model(imported, scratch.path(), ExistingFiles::Refuse));
 
-    std::ifstream in(written.files[1], std::ios::binary);
-    ASSERT_TRUE(in.is_open());
-    SA_ASSERT_OK_AND_ASSIGN(IO::CheckpointReader reader, IO::CheckpointReader::open(in));
-    ASSERT_EQ(reader.count(), 2u);
+    const std::vector<ReadTensor> read = read_weight_file(written.files[1]);
 
-    for (const ImportedTensor& wanted : imported.weights)
-    {
-        SA_ASSERT_OK_AND_ASSIGN(const IO::TensorRecord record, reader.next());
-        EXPECT_EQ(record.name, wanted.record.name);
-        EXPECT_EQ(record.dtype, wanted.record.dtype);
-        EXPECT_EQ(record.shape, wanted.record.shape);
-
-        std::vector<std::byte> payload(record.payload_bytes());
-        SA_EXPECT_OK(reader.read_payload(record, payload.data()));
-        EXPECT_EQ(payload, wanted.payload) << wanted.record.name;
-    }
+    ASSERT_EQ(read.size(), imported.weights.size());
+    const ReadTensor& got = read[GetParam().index];
+    const ImportedTensor& wanted = imported.weights[GetParam().index];
+    EXPECT_EQ(got.record.name, wanted.record.name);
+    EXPECT_EQ(got.record.dtype, wanted.record.dtype);
+    EXPECT_EQ(got.record.shape, wanted.record.shape);
+    EXPECT_EQ(got.payload, wanted.payload);
 }
 
-/** @brief Tests that `train` refuses the written training file by its "data" key. */
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_ImportedModelWeightFile,
+                         ::testing::Values(TensorRow{"TheWeight", 0}, TensorRow{"TheBias", 1}),
+                         [](const ::testing::TestParamInfo<TensorRow>& info)
+                         { return info.param.name; });
+
+/** @brief Tests that the composed training file is refused by its "data" key. */
 TEST(Small_ImportedModelWriter, TheTrainingFileIsRefusedUntilItsDataIsFilled)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Config::Value training,
+                            IO::compose_training_file(make_imported()));
+
+    SA_EXPECT_FAILURE(Config::parse_train(training, "<test>", std::filesystem::path()),
+                      StatusCode::InvalidDescription, "'data'", "must be an object", "null");
+}
+
+/** @brief Tests that the training file on disk is refused by its "data" key when it is read. */
+TEST(Medium_ImportedModelWriter, TheTrainingFileOnDiskIsRefusedUntilItsDataIsFilled)
 {
     const ScratchDirectory scratch("sushiai_import_training_file");
     SA_ASSERT_OK_AND_ASSIGN(
         const IO::WrittenImport written,
         IO::write_imported_model(make_imported(), scratch.path(), ExistingFiles::Refuse));
 
-    const std::filesystem::path training = written.files.back();
-    SA_EXPECT_FAILURE(Config::load_train(training), StatusCode::InvalidDescription, "'data'",
-                      "must be an object", "null");
-}
-
-/** @brief Tests that a model without tensors writes two files and no weight file. */
-TEST(Small_ImportedModelWriter, WritesNoWeightFileWithoutTensors)
-{
-    const ScratchDirectory scratch("sushiai_import_no_weights");
-    ImportedModel imported = make_imported();
-    imported.weights.clear();
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        const IO::WrittenImport written,
-        IO::write_imported_model(imported, scratch.path(), ExistingFiles::Refuse));
-
-    ASSERT_EQ(written.files.size(), 2u);
-    EXPECT_FALSE(std::filesystem::exists(scratch.path() / "weights.sushi"));
+    SA_EXPECT_FAILURE(Config::load_train(written.files.back()), StatusCode::InvalidDescription,
+                      "'data'", "must be an object", "null");
 }
 
 /** @brief Tests that an existing file is refused by name and left as it was. */
-TEST(Small_ImportedModelWriter, AnExistingFileIsRefusedAndLeftAlone)
+TEST(Medium_ImportedModelWriter, AnExistingFileIsRefusedAndLeftAlone)
 {
     const ScratchDirectory scratch("sushiai_import_existing");
     std::filesystem::create_directories(scratch.path());
@@ -306,7 +342,7 @@ TEST(Small_ImportedModelWriter, AnExistingFileIsRefusedAndLeftAlone)
 }
 
 /** @brief Tests that Replace overwrites a file that is already in the directory. */
-TEST(Small_ImportedModelWriter, ReplaceOverwritesAnExistingFile)
+TEST(Medium_ImportedModelWriter, ReplaceOverwritesAnExistingFile)
 {
     const ScratchDirectory scratch("sushiai_import_replace");
     std::filesystem::create_directories(scratch.path());
@@ -322,28 +358,35 @@ TEST(Small_ImportedModelWriter, ReplaceOverwritesAnExistingFile)
               std::string::npos);
 }
 
-/** @brief Tests that a tensor whose bytes differ from its record stops the write of any file. */
-TEST(Small_ImportedModelWriter, ATensorOfTheWrongSizeWritesNothing)
+/** @brief Tests that a tensor whose bytes differ from its record is refused by its name. */
+TEST(Small_ImportedModelWriter, ATensorOfTheWrongSizeIsRefused)
 {
-    const ScratchDirectory scratch("sushiai_import_wrong_size");
     ImportedModel imported = make_imported();
     imported.weights[1].payload.pop_back();
 
-    SA_EXPECT_FAILURE(
-        IO::write_imported_model(imported, scratch.path(), ExistingFiles::Refuse),
-        StatusCode::InvalidDescription, "'0.bias'", "7 bytes", "needs 8");
-
-    EXPECT_FALSE(std::filesystem::exists(scratch.path() / "model.json"));
+    SA_EXPECT_FAILURE(IO::check_imported_tensors(imported.weights),
+                      StatusCode::InvalidDescription, "'0.bias'", "7 bytes", "needs 8");
 }
 
 /** @brief Tests that a tensor name stated twice is refused by that name. */
 TEST(Small_ImportedModelWriter, ATensorNamedTwiceIsRefused)
 {
-    const ScratchDirectory scratch("sushiai_import_named_twice");
     ImportedModel imported = make_imported();
     imported.weights[1].record.name = "0.weight";
 
-    SA_EXPECT_FAILURE(
-        IO::write_imported_model(imported, scratch.path(), ExistingFiles::Refuse),
-        StatusCode::InvalidDescription, "'0.weight'", "twice");
+    SA_EXPECT_FAILURE(IO::check_imported_tensors(imported.weights),
+                      StatusCode::InvalidDescription, "'0.weight'", "twice");
+}
+
+/** @brief Tests that a refused tensor stops the write before any file exists. */
+TEST(Medium_ImportedModelWriter, ARefusedImportWritesNoFile)
+{
+    const ScratchDirectory scratch("sushiai_import_wrong_size");
+    ImportedModel imported = make_imported();
+    imported.weights[1].payload.pop_back();
+
+    EXPECT_FALSE(
+        IO::write_imported_model(imported, scratch.path(), ExistingFiles::Refuse).has_value());
+
+    EXPECT_FALSE(std::filesystem::exists(scratch.path() / "model.json"));
 }

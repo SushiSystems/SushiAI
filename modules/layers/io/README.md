@@ -171,4 +171,5 @@ The headers sit in `modules/layers/io/include/SushiAI/io/`.
 | `memory_input.hpp` | `MemoryInput` |
 | `imported_model.hpp` | `ImportedTensor`, `ImportedModel` |
 | `importer_registry.hpp` | `ImporterFunction`, `ImporterEntry`, `ImporterRegistry`, `import_model` |
-| `imported_model_writer.hpp` | `K_IMPORTED_MODEL_FILE`, `K_IMPORTED_WEIGHTS_FILE`, `K_IMPORTED_TRAINING_FILE`, `K_IMPORTED_CHECKPOINT_FILE`, `ExistingFiles`, `WrittenImport`, `compose_training_file`, `write_imported_model` |
+| `in_memory_importer.hpp` | `count_files_importer`, `refuse_no_file_importer`, `K_COUNTING_IMPORTER_ROW`, `K_REFUSING_IMPORTER_ROW` |
+| `imported_model_writer.hpp` | `K_IMPORTED_MODEL_FILE`, `K_IMPORTED_WEIGHTS_FILE`, `K_IMPORTED_TRAINING_FILE`, `K_IMPORTED_CHECKPOINT_FILE`, `ExistingFiles`, `WrittenImport`, `compose_training_file`, `check_imported_tensors`, `write_imported_model` |

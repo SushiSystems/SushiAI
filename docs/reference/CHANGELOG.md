@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-11-09 — io: Added check_imported_tensors, the checks of a weight file's tensors as a value function (`imported_model_writer.hpp`).
+- 2026-11-09 — io: Added the importer rows K_COUNTING_IMPORTER_ROW and K_REFUSING_IMPORTER_ROW, which read no file (`in_memory_importer.hpp`).
+- 2026-11-09 — test_tree: Apply the layers/io records (M32).
 - 2026-11-07 — optim: Added check_clip_norm and check_clip_kernel, the two refusals of a gradient clip as value functions (`gradient_clip.hpp`).
 - 2026-11-07 — optim: Added check_adamw_options, the range check AdamW::make() runs before it allocates (`adamw.hpp`).
 - 2026-11-07 — test_tree: Build the eager seams the last three M11 records need (RW-162, `5c7b7921`).

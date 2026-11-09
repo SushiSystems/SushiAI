@@ -33,6 +33,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -48,6 +49,7 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
+#include <SushiAI/data/in_memory_dataset.hpp>
 #include <SushiAI/data/epoch_permutation.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -337,50 +339,24 @@ namespace
     /** @brief Counts the bytes of a one-element Int64 record beside its name. */
     constexpr std::size_t K_SCALAR_RECORD_BYTES = 28;
 
-    /** @brief Reads the batches of another dataset in an order drawn anew at each epoch. */
-    class ShuffledBatches final : public Data::Dataset, public Data::EpochAware
+    /**
+     * @brief Returns a dataset that reads the batches of @p inner in an order drawn anew at
+     *        each epoch.
+     * @param inner The dataset the batches come from; it must outlive the result.
+     */
+    std::unique_ptr<Data::InMemoryEpochDataset> shuffled(const Data::Dataset& inner)
     {
-        public:
-            /** @brief Reads through @p inner, which must outlive this. */
-            explicit ShuffledBatches(const Data::Dataset& inner) : inner_(&inner)
+        const std::size_t count = inner.batch_count();
+        return std::make_unique<Data::InMemoryEpochDataset>(
+            count, inner.batch_size(), Data::describe_input(inner), inner.targets(),
+            [&inner, count](std::int64_t epoch, std::size_t index)
             {
-
-            }
-
-            int64_t batch_size() const noexcept override { return inner_->batch_size(); }
-            Shape sample_shape() const override { return inner_->sample_shape(); }
-            const std::vector<Data::TargetDescription>& targets() const noexcept override
-            {
-                return inner_->targets();
-            }
-            std::size_t batch_count() const noexcept override { return inner_->batch_count(); }
-            std::string_view name() const noexcept override { return "shuffled"; }
-
-            [[nodiscard]] Status read(std::size_t index, Data::Batch& batch) const override
-            {
-                const Data::EpochPermutation order(K_ORDER_SEED, epoch_, inner_->batch_count());
-                return inner_->read(static_cast<std::size_t>(order.at(index)), batch);
-            }
-
-            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange rows,
-                                           Data::Batch& batch) const override
-            {
-                const Data::EpochPermutation order(K_ORDER_SEED, epoch_, inner_->batch_count());
-                return inner_->read_rows(static_cast<std::size_t>(order.at(index)), rows, batch);
-            }
-
-            void begin_epoch(std::int64_t epoch) const noexcept override
-            {
-                epoch_ = epoch;
-            }
-
-        private:
-            /** @brief Points at the dataset the batches come from. */
-            const Data::Dataset* inner_;
-
-            /** @brief Holds the epoch the next read draws its order for. */
-            mutable std::int64_t epoch_ = 0;
-    };
+                const Data::EpochPermutation order(K_ORDER_SEED, epoch, count);
+                Data::Batch batch;
+                SA_EXPECT_OK(inner.read(static_cast<std::size_t>(order.at(index)), batch));
+                return batch;
+            });
+    }
 
     /**
      * @struct DropoutRun
@@ -517,17 +493,34 @@ namespace
     }
 } // namespace
 
-/** @brief Tests the resume of SGD with momentum across a change of the scheduled rate. */
-TEST_F(Medium_RunCheckpoint, AResumedSGDRunMatchesTheUninterruptedOneBitForBit)
+namespace
 {
-    expect_resume_is_bit_identical(backend(), Kind::SGD, "sushiai_run_checkpoint_sgd.sushi");
+    /** @brief Holds an optimizer kind and the scratch file its resume writes. */
+    struct KindRow
+    {
+        std::string name;     /**< The row's name. */
+        Kind kind;            /**< The optimizer the run trains with. */
+        std::string file;     /**< The scratch file name. */
+    };
+
+    /** @brief Runs the resume promise over each optimizer kind. */
+    class Medium_RunCheckpointResume : public SaTest::EngineTest,
+                                       public ::testing::WithParamInterface<KindRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests the resume across a change of the scheduled rate, once for each optimizer. */
+TEST_P(Medium_RunCheckpointResume, AResumedRunMatchesTheUninterruptedOneBitForBit)
+{
+    expect_resume_is_bit_identical(backend(), GetParam().kind, GetParam().file.c_str());
 }
 
-/** @brief Tests the resume of AdamW across a change of the scheduled rate. */
-TEST_F(Medium_RunCheckpoint, AResumedAdamWRunMatchesTheUninterruptedOneBitForBit)
-{
-    expect_resume_is_bit_identical(backend(), Kind::AdamW, "sushiai_run_checkpoint_adamw.sushi");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_RunCheckpointResume,
+    ::testing::Values(KindRow{"SGDWithMomentum", Kind::SGD, "sushiai_run_checkpoint_sgd.sushi"},
+                      KindRow{"AdamW", Kind::AdamW, "sushiai_run_checkpoint_adamw.sushi"}),
+    [](const ::testing::TestParamInfo<KindRow>& info) { return info.param.name; });
 
 /** @brief Tests that both savers, called right after a step, write that step's weights. */
 TEST_F(Medium_RunCheckpoint, RegressionASaveRightAfterAStepWritesThatStepsWeights)
@@ -559,8 +552,8 @@ TEST_F(Medium_RunCheckpoint, RegressionASaveRightAfterAStepWritesThatStepsWeight
     EXPECT_EQ(bits_of(*from_run), stepped);
 }
 
-/** @brief Tests that a file with model state alone loads as weights and refuses a resume. */
-TEST_F(Medium_RunCheckpoint, AFileWithoutRunStateIsWeightsAndNoResume)
+/** @brief Tests that a file with model state alone refuses a resume and says so. */
+TEST_F(Medium_RunCheckpoint, AFileWithoutRunStateRefusesAResume)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_weights.sushi");
 
@@ -571,12 +564,23 @@ TEST_F(Medium_RunCheckpoint, AFileWithoutRunStateIsWeightsAndNoResume)
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *fresh->state, *fresh->optimizer),
                       StatusCode::Incompatible, "sushiai_run_checkpoint_weights.sushi",
                       "version 2", "no run state", "'weights'");
+}
+
+/** @brief Tests that a file with model state alone loads as weights. */
+TEST_F(Medium_RunCheckpoint, AFileWithoutRunStateLoadsAsWeights)
+{
+    const SaTest::ScratchFile file("sushiai_run_checkpoint_weights_load.sushi");
+
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(backend(), Kind::SGD, 11));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), *saved->state));
+
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(backend(), Kind::SGD, 22));
     SA_EXPECT_OK(IO::load_checkpoint(file.path(), *fresh->state));
     EXPECT_EQ(bits_of(*fresh), bits_of(*saved));
 }
 
-/** @brief Tests that a version 1 file still loads as weights and refuses a resume. */
-TEST_F(Medium_RunCheckpoint, AVersionOneFileStillLoadsAsWeights)
+/** @brief Tests that a version 1 file refuses a resume and says so. */
+TEST_F(Medium_RunCheckpoint, AVersionOneFileRefusesAResume)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_version_one.sushi");
 
@@ -591,29 +595,8 @@ TEST_F(Medium_RunCheckpoint, AVersionOneFileStillLoadsAsWeights)
     write_bytes(file.path(), bytes);
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(backend(), Kind::SGD, 22));
-    SA_EXPECT_OK(IO::load_checkpoint(file.path(), *fresh->state));
-    EXPECT_EQ(bits_of(*fresh), bits_of(*saved));
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *fresh->state, *fresh->optimizer),
                       StatusCode::Incompatible, "version 1", "no run state");
-}
-
-/** @brief Tests that a version above the newest is refused with the versions read. */
-TEST_F(Medium_RunCheckpoint, AFutureVersionIsRefusedByBothLoaders)
-{
-    const SaTest::ScratchFile file("sushiai_run_checkpoint_future.sushi");
-
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(backend(), Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
-
-    std::string bytes = read_bytes(file.path());
-    ASSERT_GT(bytes.size(), 8u);
-    bytes[4] = 3;
-    write_bytes(file.path(), bytes);
-
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), *run->state), StatusCode::InvalidFile,
-                      "version 3", "versions 1 to 2");
-    SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *run->state, *run->optimizer),
-                      StatusCode::InvalidFile, "version 3", "versions 1 to 2");
 }
 
 /** @brief Tests that run state another optimizer type wrote is refused with both types. */
@@ -631,73 +614,115 @@ TEST_F(Medium_RunCheckpoint, RunStateOfAnotherOptimizerTypeIsRefused)
                       "'sgd'", "'adamw'");
 }
 
-/** @brief Tests that a missing and a surplus run-state record are each refused by name. */
-TEST_F(Medium_RunCheckpoint, AMissingOrSurplusRunStateRecordIsRefusedByName)
+namespace
 {
-    const SaTest::ScratchFile plain_file("sushiai_run_checkpoint_plain.sushi");
-    const SaTest::ScratchFile momentum_file("sushiai_run_checkpoint_momentum.sushi");
+    /** @brief Holds the momentum a file was written with, the one it loads into, and the words. */
+    struct StateRow
+    {
+        std::string name;          /**< The row's name. */
+        double written;            /**< The momentum of the run that wrote the file. */
+        double loaded;             /**< The momentum of the run that loads it. */
+        std::string first;         /**< A text the message holds. */
+        std::string second;        /**< Another text the message holds. */
+        std::string third;         /**< A third text the message holds. */
+    };
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer plain,
-                            make_run(backend(), Kind::SGD, 11, 0.0));
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer with_momentum,
-                            make_run(backend(), Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_run_checkpoint(plain_file.path(), *plain->state, *plain->optimizer));
-    SA_EXPECT_OK(IO::save_run_checkpoint(momentum_file.path(), *with_momentum->state,
-                                         *with_momentum->optimizer));
+    /** @brief Runs the run-state match over a missing and a surplus record. */
+    class Medium_RunCheckpointState : public SaTest::EngineTest,
+                                      public ::testing::WithParamInterface<StateRow>
+    {
+    };
+} // namespace
 
-    SA_EXPECT_FAILURE(IO::load_run_checkpoint(plain_file.path(), *with_momentum->state,
-                                              *with_momentum->optimizer),
-                      StatusCode::Incompatible, "does not supply", ".momentum'",
-                      "'sgd'");
-    SA_EXPECT_FAILURE(IO::load_run_checkpoint(momentum_file.path(), *plain->state,
-                                              *plain->optimizer),
-                      StatusCode::Incompatible, ".momentum'", "does not keep", "'sgd'");
+/** @brief Tests that a run-state record the file lacks or holds too many of is refused by name. */
+TEST_P(Medium_RunCheckpointState, ARunStateRecordTheOptimizerDisagreesOnIsRefusedByName)
+{
+    const StateRow& row = GetParam();
+    const SaTest::ScratchFile file("sushiai_run_checkpoint_state.sushi");
+
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer writer,
+                            make_run(backend(), Kind::SGD, 11, row.written));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer reader,
+                            make_run(backend(), Kind::SGD, 11, row.loaded));
+    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *writer->state, *writer->optimizer));
+
+    SA_EXPECT_FAILURE(
+        IO::load_run_checkpoint(file.path(), *reader->state, *reader->optimizer),
+        StatusCode::Incompatible, row.first, row.second, row.third);
 }
 
-/** @brief Tests that the progress of a run is written and read back, field for field. */
-TEST_F(Medium_RunCheckpoint, ARunCheckpointHoldsTheSeedAndThePositionOfItsRun)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_RunCheckpointState,
+    ::testing::Values(
+        StateRow{"Missing", 0.0, K_MOMENTUM, "does not supply", ".momentum'", "'sgd'"},
+        StateRow{"Surplus", K_MOMENTUM, 0.0, ".momentum'", "does not keep", "'sgd'"}),
+    [](const ::testing::TestParamInfo<StateRow>& info) { return info.param.name; });
+
+namespace
 {
+    /** @brief Holds the progress a save is given, if any, and the progress a load then reads. */
+    struct ProgressRow
+    {
+        std::string name;                          /**< The row's name. */
+        std::optional<IO::RunProgress> given;      /**< The progress the save states, if any. */
+        IO::RunProgress expected;                  /**< The progress the load reads. */
+    };
+
+    /** @brief Returns a progress holding the four fields given. */
+    IO::RunProgress progress_of(std::uint64_t seed, std::uint64_t step_runs, std::uint64_t epoch,
+                                std::uint64_t batch)
+    {
+        IO::RunProgress progress;
+        progress.seed = seed;
+        progress.step_runs = step_runs;
+        progress.epoch = epoch;
+        progress.batch = batch;
+        return progress;
+    }
+
+    /** @brief Runs the progress round trip over a stated progress and an absent one. */
+    class Medium_RunCheckpointProgress : public SaTest::EngineTest,
+                                         public ::testing::WithParamInterface<ProgressRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests that the progress of a run is written and read back, field for field. */
+TEST_P(Medium_RunCheckpointProgress, ARunCheckpointHoldsTheSeedAndThePositionOfItsRun)
+{
+    const ProgressRow& row = GetParam();
     const SaTest::ScratchFile file("sushiai_run_checkpoint_progress.sushi");
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(backend(), Kind::SGD, 11));
 
-    IO::RunProgress saved;
-    saved.seed = 9;
-    saved.step_runs = 6;
-    saved.epoch = 2;
-    saved.batch = 3;
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer,
-                                         saved));
+    // A save that states no progress writes the start of a run under the seed 0.
+    SA_EXPECT_OK(row.given
+                     ? IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer,
+                                               *row.given)
+                     : IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
 
     IO::RunProgress loaded;
     SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *run->state, *run->optimizer, &loaded));
-    EXPECT_EQ(loaded.seed, 9u);
-    EXPECT_EQ(loaded.step_runs, 6u);
-    EXPECT_EQ(loaded.epoch, 2u);
-    EXPECT_EQ(loaded.batch, 3u);
-
-    SA_EXPECT_OK(IO::check_run_seed(loaded, 9, file.path().string()));
-    SA_EXPECT_FAILURE(IO::check_run_seed(loaded, 10, file.path().string()),
-                      StatusCode::Incompatible, "sushiai_run_checkpoint_progress.sushi",
-                      "seed 9", "seed 10");
-
-    // A save that states no progress writes the start of a run under the seed 0.
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
-    SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *run->state, *run->optimizer, &loaded));
-    EXPECT_EQ(loaded.seed, 0u);
-    EXPECT_EQ(loaded.step_runs, 0u);
-    EXPECT_EQ(loaded.epoch, 0u);
-    EXPECT_EQ(loaded.batch, 0u);
+    EXPECT_EQ(loaded.seed, row.expected.seed);
+    EXPECT_EQ(loaded.step_runs, row.expected.step_runs);
+    EXPECT_EQ(loaded.epoch, row.expected.epoch);
+    EXPECT_EQ(loaded.batch, row.expected.batch);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_RunCheckpointProgress,
+    ::testing::Values(ProgressRow{"Stated", progress_of(9, 6, 2, 3), progress_of(9, 6, 2, 3)},
+                      ProgressRow{"Absent", std::nullopt, progress_of(0, 0, 0, 0)}),
+    [](const ::testing::TestParamInfo<ProgressRow>& info) { return info.param.name; });
 
 /** @brief Tests a resume in the middle of an epoch, with dropout and a shuffled order. */
 TEST_F(Medium_RunCheckpoint, AResumedRunWithDropoutAndAShuffledOrderMatchesBitForBit)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_dropout.sushi");
     SA_ASSERT_OK_AND_ASSIGN(const auto batches, make_dataset(backend()));
-    const ShuffledBatches dataset(*batches);
+    const std::unique_ptr<Data::InMemoryEpochDataset> dataset = shuffled(*batches);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<std::uint32_t> expected,
-                            train_whole_and_save_half(backend(), dataset, file.path()));
+                            train_whole_and_save_half(backend(), *dataset, file.path()));
 
     SA_ASSERT_OK_AND_ASSIGN(const DropoutRunPointer resumed,
                             make_dropout_run(backend(), K_OTHER_INIT_SEED));
@@ -711,10 +736,9 @@ TEST_F(Medium_RunCheckpoint, AResumedRunWithDropoutAndAShuffledOrderMatchesBitFo
     EXPECT_EQ(progress.epoch, 1u);
     EXPECT_EQ(progress.batch, 2u);
 
-    SA_EXPECT_OK(IO::check_run_seed(progress, K_GRAPH_SEED, file.path().string()));
     SA_EXPECT_OK(resumed->trainer->restore_run_count(
         static_cast<std::size_t>(progress.step_runs)));
-    SA_EXPECT_OK(advance_from(*resumed, dataset, progress, K_HALF_UPDATES));
+    SA_EXPECT_OK(advance_from(*resumed, *dataset, progress, K_HALF_UPDATES));
 
     EXPECT_EQ(progress.step_runs, 2 * K_HALF_UPDATES);
     EXPECT_EQ(progress.epoch, 3u);
@@ -723,85 +747,100 @@ TEST_F(Medium_RunCheckpoint, AResumedRunWithDropoutAndAShuffledOrderMatchesBitFo
     EXPECT_EQ(bits_of(*resumed->state), expected);
 }
 
-/** @brief Tests that a resume without the run count, or without the position, diverges. */
-TEST_F(Medium_RunCheckpoint, AResumeThatDropsTheRunCountOrThePositionDiverges)
+
+namespace
 {
-    const SaTest::ScratchFile file("sushiai_run_checkpoint_dropped.sushi");
-    SA_ASSERT_OK_AND_ASSIGN(const auto batches, make_dataset(backend()));
-    const ShuffledBatches dataset(*batches);
+    /** @brief Writes a run checkpoint of @p run to @p path, then cuts the progress records off. */
+    void save_without_progress(const std::filesystem::path& path, TrainedRun& run)
+    {
+        SA_EXPECT_OK(IO::save_run_checkpoint(path, *run.state, *run.optimizer));
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::vector<std::uint32_t> expected,
-                            train_whole_and_save_half(backend(), dataset, file.path()));
+        // The progress records close the file, so a file without them is a prefix and a count.
+        std::string bytes = read_bytes(path);
+        ASSERT_GT(bytes.size(), K_OFFSET_RUN_STATE_COUNT + 4 + progress_bytes());
+        ASSERT_GT(bytes[K_OFFSET_RUN_STATE_COUNT], 4);
+        bytes.resize(bytes.size() - progress_bytes());
+        bytes[K_OFFSET_RUN_STATE_COUNT] = static_cast<char>(bytes[K_OFFSET_RUN_STATE_COUNT] - 4);
+        write_bytes(path, bytes);
+    }
+} // namespace
 
-    // The masks of runs 0 to 5 are drawn again where the saved run would draw 6 to 11.
-    SA_ASSERT_OK_AND_ASSIGN(const DropoutRunPointer no_count,
-                            make_dropout_run(backend(), K_OTHER_INIT_SEED));
-    IO::RunProgress kept;
-    SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *no_count->state, *no_count->optimizer,
-                                         &kept));
-    SA_EXPECT_OK(advance_from(*no_count, dataset, kept, K_HALF_UPDATES));
-    EXPECT_NE(bits_of(*no_count->state), expected);
-
-    // The order of epoch 0 is read again from its first batch.
-    SA_ASSERT_OK_AND_ASSIGN(const DropoutRunPointer no_position,
-                            make_dropout_run(backend(), K_OTHER_INIT_SEED));
-    IO::RunProgress moved;
-    SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *no_position->state,
-                                         *no_position->optimizer, &moved));
-    SA_EXPECT_OK(no_position->trainer->restore_run_count(
-        static_cast<std::size_t>(moved.step_runs)));
-    moved.epoch = 0;
-    moved.batch = 0;
-    SA_EXPECT_OK(advance_from(*no_position, dataset, moved, K_HALF_UPDATES));
-    EXPECT_NE(bits_of(*no_position->state), expected);
-}
-
-/** @brief Tests that run state without the progress records is refused and still is weights. */
+/** @brief Tests that run state without the progress records is refused on a resume. */
 TEST_F(Medium_RunCheckpoint, RunStateWithoutTheProgressRecordsIsRefusedOnResume)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_no_progress.sushi");
-
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(backend(), Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *saved->state, *saved->optimizer));
-
-    // The progress records close the file, so a file without them is a prefix and a count.
-    std::string bytes = read_bytes(file.path());
-    ASSERT_GT(bytes.size(), K_OFFSET_RUN_STATE_COUNT + 4 + progress_bytes());
-    ASSERT_GT(bytes[K_OFFSET_RUN_STATE_COUNT], 4);
-    bytes.resize(bytes.size() - progress_bytes());
-    bytes[K_OFFSET_RUN_STATE_COUNT] = static_cast<char>(bytes[K_OFFSET_RUN_STATE_COUNT] - 4);
-    write_bytes(file.path(), bytes);
+    save_without_progress(file.path(), *saved);
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(backend(), Kind::SGD, 22));
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *fresh->state, *fresh->optimizer),
                       StatusCode::Incompatible, "sushiai_run_checkpoint_no_progress.sushi",
                       "does not supply", "'run.seed'", "'weights'");
+}
+
+/** @brief Tests that run state without the progress records still loads as weights. */
+TEST_F(Medium_RunCheckpoint, RunStateWithoutTheProgressRecordsStillLoadsAsWeights)
+{
+    const SaTest::ScratchFile file("sushiai_run_checkpoint_no_progress_weights.sushi");
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(backend(), Kind::SGD, 11));
+    save_without_progress(file.path(), *saved);
+
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(backend(), Kind::SGD, 22));
     SA_EXPECT_OK(IO::load_checkpoint(file.path(), *fresh->state));
     EXPECT_EQ(bits_of(*fresh), bits_of(*saved));
 }
 
-/** @brief Tests that a progress record of another type, or an epoch too large, is refused. */
-TEST_F(Medium_RunCheckpoint, AProgressRecordOfAnotherTypeOrRangeIsRefused)
+namespace
 {
+    /** @brief Holds a patch of the bytes of a run checkpoint and the refusal it earns. */
+    struct BadProgressRow
+    {
+        std::string name;                                 /**< The row's name. */
+        std::function<void(std::string&)> patch;          /**< Changes the written bytes. */
+        StatusCode code;                                  /**< The code of the refusal. */
+        std::string first;                                /**< A text the message holds. */
+        std::string second;                               /**< Another text the message holds. */
+    };
+
+    /** @brief Runs the progress refusal over a record of another type and one out of range. */
+    class Medium_RunCheckpointBadProgress : public SaTest::EngineTest,
+                                            public ::testing::WithParamInterface<BadProgressRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests that a progress record of another type, or an epoch too large, is refused. */
+TEST_P(Medium_RunCheckpointBadProgress, AProgressRecordOfAnotherTypeOrRangeIsRefused)
+{
+    const BadProgressRow& row = GetParam();
     const SaTest::ScratchFile file("sushiai_run_checkpoint_bad_progress.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
-    const std::string written = read_bytes(file.path());
-    ASSERT_GT(written.size(), progress_bytes());
+    std::string bytes = read_bytes(file.path());
+    ASSERT_GT(bytes.size(), progress_bytes());
+    row.patch(bytes);
+    write_bytes(file.path(), bytes);
 
-    // The last record ends with its type, its rank, one extent and eight payload bytes.
-    std::string retyped = written;
-    retyped[retyped.size() - 24] = static_cast<char>(DType::Float64);
-    write_bytes(file.path(), retyped);
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *run->state, *run->optimizer),
-                      StatusCode::Incompatible, "'run.batch'", "progress of a run");
-
-    // The payload of 'run.epoch' ends where the record of 'run.batch' starts.
-    std::string huge = written;
-    const std::size_t batch_record = K_SCALAR_RECORD_BYTES + IO::K_RUN_BATCH_STATE.size();
-    huge[huge.size() - batch_record - 1] = static_cast<char>(0x80);
-    write_bytes(file.path(), huge);
-    SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *run->state, *run->optimizer),
-                      StatusCode::InvalidFile, "'run.epoch'", "largest epoch index");
+                      row.code, row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_RunCheckpointBadProgress,
+    ::testing::Values(
+        // The last record ends with its type, its rank, one extent and eight payload bytes.
+        BadProgressRow{"AnotherType",
+                       [](std::string& bytes)
+                       { bytes[bytes.size() - 24] = static_cast<char>(DType::Float64); },
+                       StatusCode::Incompatible, "'run.batch'", "progress of a run"},
+        // The payload of 'run.epoch' ends where the record of 'run.batch' starts.
+        BadProgressRow{"AnEpochTooLarge",
+                       [](std::string& bytes)
+                       {
+                           const std::size_t batch_record =
+                               K_SCALAR_RECORD_BYTES + IO::K_RUN_BATCH_STATE.size();
+                           bytes[bytes.size() - batch_record - 1] = static_cast<char>(0x80);
+                       },
+                       StatusCode::InvalidFile, "'run.epoch'", "largest epoch index"}),
+    [](const ::testing::TestParamInfo<BadProgressRow>& info) { return info.param.name; });

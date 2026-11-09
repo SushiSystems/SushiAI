@@ -38,81 +38,63 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/imported_model.hpp>
+#include <SushiAI/io/in_memory_importer.hpp>
 #include <SushiAI/io/importer_registry.hpp>
 
 using namespace SushiAI;
 
 namespace
 {
-    /** @brief Returns a model whose only note is the number of files it was given. */
-    Result<IO::ImportedModel> count_files(SushiRuntime::span<const std::filesystem::path> files)
-    {
-        IO::ImportedModel imported;
-        imported.notes.push_back(std::to_string(files.size()));
-        return imported;
-    }
-
-    /** @brief Refuses a call without files, as an importer does for files it cannot read. */
-    Result<IO::ImportedModel> refuse_no_file(
-        SushiRuntime::span<const std::filesystem::path> files)
-    {
-        SA_FAIL_IF(files.empty(), StatusCode::InvalidFile, "the stub reads no file");
-        return IO::ImportedModel{};
-    }
-
-    /** @brief A row under a format no module registers. */
-    constexpr IO::ImporterEntry K_FIRST_ROW{"first", &count_files};
-
-    /** @brief A second row, whose importer refuses. */
-    constexpr IO::ImporterEntry K_SECOND_ROW{"second", &refuse_no_file};
+    using IO::K_COUNTING_IMPORTER_ROW;
+    using IO::K_REFUSING_IMPORTER_ROW;
 } // namespace
 
 /** @brief Tests that rows() returns the rows in the order add() received them. */
 TEST(Small_ImporterRegistry, AddKeepsInsertionOrder)
 {
     IO::ImporterRegistry registry;
-    SA_EXPECT_OK(registry.add(K_FIRST_ROW));
-    SA_EXPECT_OK(registry.add(K_SECOND_ROW));
+    SA_EXPECT_OK(registry.add(K_COUNTING_IMPORTER_ROW));
+    SA_EXPECT_OK(registry.add(K_REFUSING_IMPORTER_ROW));
 
     const SushiRuntime::span<const IO::ImporterEntry> rows = registry.rows();
     ASSERT_EQ(rows.size(), 2u);
-    EXPECT_EQ(rows[0].format, "first");
-    EXPECT_EQ(rows[1].format, "second");
+    EXPECT_EQ(rows[0].format, "counting");
+    EXPECT_EQ(rows[1].format, "refusing");
 }
 
 /** @brief Tests that find returns null for a format no row holds and the row of one it holds. */
 TEST(Small_ImporterRegistry, FindReturnsNullForAnUnknownFormat)
 {
     IO::ImporterRegistry registry;
-    EXPECT_EQ(registry.find("first"), nullptr);
+    EXPECT_EQ(registry.find("counting"), nullptr);
 
-    SA_EXPECT_OK(registry.add(K_FIRST_ROW));
+    SA_EXPECT_OK(registry.add(K_COUNTING_IMPORTER_ROW));
     EXPECT_EQ(registry.find("onnx"), nullptr);
 
-    const IO::ImporterEntry* row = registry.find("first");
+    const IO::ImporterEntry* row = registry.find("counting");
     ASSERT_NE(row, nullptr);
-    EXPECT_EQ(row->format, "first");
+    EXPECT_EQ(row->format, "counting");
 }
 
 /** @brief Tests that add refuses a format a row already holds and names the format. */
 TEST(Small_ImporterRegistry, AFormatAddedTwiceIsRefused)
 {
     IO::ImporterRegistry registry;
-    SA_EXPECT_OK(registry.add(K_FIRST_ROW));
+    SA_EXPECT_OK(registry.add(K_COUNTING_IMPORTER_ROW));
 
-    SA_EXPECT_FAILURE(registry.add(K_FIRST_ROW), StatusCode::InvalidDescription, "'first'",
-                      "already registered");
+    SA_EXPECT_FAILURE(registry.add(K_COUNTING_IMPORTER_ROW), StatusCode::InvalidDescription,
+                      "'counting'", "already registered");
 }
 
 /** @brief Tests that import_model hands the files to the row the format names. */
 TEST(Small_ImporterRegistry, ImportModelCallsTheRowOfTheFormat)
 {
     IO::ImporterRegistry registry;
-    SA_EXPECT_OK(registry.add(K_FIRST_ROW));
+    SA_EXPECT_OK(registry.add(K_COUNTING_IMPORTER_ROW));
     const std::vector<std::filesystem::path> files = {"a.cfg", "a.weights"};
 
     SA_ASSERT_OK_AND_ASSIGN(const IO::ImportedModel imported,
-                            IO::import_model(registry, "first", files));
+                            IO::import_model(registry, "counting", files));
     ASSERT_EQ(imported.notes.size(), 1u);
     EXPECT_EQ(imported.notes[0], "2");
 }
@@ -121,19 +103,19 @@ TEST(Small_ImporterRegistry, ImportModelCallsTheRowOfTheFormat)
 TEST(Small_ImporterRegistry, ImportModelReturnsTheFailureOfTheRow)
 {
     IO::ImporterRegistry registry;
-    SA_EXPECT_OK(registry.add(K_SECOND_ROW));
+    SA_EXPECT_OK(registry.add(K_REFUSING_IMPORTER_ROW));
 
-    SA_EXPECT_FAILURE(IO::import_model(registry, "second", {}), StatusCode::InvalidFile,
-                      "the stub reads no file");
+    SA_EXPECT_FAILURE(IO::import_model(registry, "refusing", {}), StatusCode::InvalidFile,
+                      "the importer reads no file");
 }
 
 /** @brief Tests that an unknown format is refused with every format the registry holds. */
 TEST(Small_ImporterRegistry, AnUnknownFormatListsTheFormatsTheRegistryHolds)
 {
     IO::ImporterRegistry registry;
-    SA_EXPECT_OK(registry.add(K_FIRST_ROW));
-    SA_EXPECT_OK(registry.add(K_SECOND_ROW));
+    SA_EXPECT_OK(registry.add(K_COUNTING_IMPORTER_ROW));
+    SA_EXPECT_OK(registry.add(K_REFUSING_IMPORTER_ROW));
 
     SA_EXPECT_FAILURE(IO::import_model(registry, "onnx", {}), StatusCode::InvalidDescription,
-                      "'onnx'", "'first', 'second'");
+                      "'onnx'", "'counting', 'refusing'");
 }

@@ -4,7 +4,7 @@ The tests of the module `layers/io`, one file per header of `modules/layers/io/i
 
 ## test_checkpoint.cpp
 
-Suites: `Medium_Checkpoint`.
+Suites: `Medium_Checkpoint`, `Small_CheckpointRefusal`.
 
 The file covers the device half of checkpointing: saving and loading records against the tensors
 of a `NN::ModelState`. The byte format's malformed-file surface needs no device and lives in
@@ -40,34 +40,11 @@ models disagree about what they hold.
 The return trip, `LayerStack` to `Sequential`, loads into a third model. That makes it a real
 load and not a comparison against values that were already there.
 
-### AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt
-
-The file is saved from a shallower model, so it has no `2.weight` or `2.bias`. Loading it into the
-deeper model is refused with a message that names `2.weight`, and the load reports
-`StatusCode::Incompatible` as a failure.
-
-### AParameterTheModelDoesNotHaveIsRefusedAndNamesIt
-
-The direction is reversed: the file is saved from the deeper model and loaded into the shallower
-one, so the file holds `2.weight`, which the model does not have. The load is refused with a
-message that names `2.weight` and says that this model has no such entry.
-
-### AShapeMismatchIsRefusedWithBothShapes
-
-The two models have the same parameter names and different widths. An element-count comparison
-would catch this pair but would miss a transpose, so the loader compares shapes.
-
-### ADuplicatedNameIsRefusedAndNamesTheDuplicate
-
-The file is built by hand because `save_checkpoint` cannot produce one: the walk yields each
-name once. A counter-based loader would accept this file and leave a parameter reading
-uninitialised device memory.
-
 Suites: `Medium_StateCheckpoint`.
 
 The cases save and load checkpoints over a `NN::ModelState`. The model is a batch norm named `bn`,
 so the state holds two parameters and two buffers. The cases pin the round trip, the order of the
-records in the file, the refusal of a file without buffers, and the refusal of an unwritable path.
+records in the file and the refusal of an unwritable path.
 
 ### SavesAndLoadsParametersAndBuffersBitForBit
 
@@ -77,29 +54,64 @@ equal the saved ones.
 
 ### TheFileListsEveryEntryInWalkOrder
 
-The file holds one record for each state entry, and the record names come in the state's entry
-order. The test reads each record and its payload back, and each payload is read at the length its
-header declares.
-
-### ACheckpointWithoutBuffersIsRefusedAndNamesTheRunningMean
-
-A file that holds only the parameters is refused by `load_checkpoint` as `Incompatible`, and the
-message contains "running_mean".
+`list_file` reads every record and its payload back and returns the names and the payload lengths.
+The test compares them with the names of the state entries and with the byte length of each
+entry's tensor, so the records come in the entry order of the state and each payload has the length
+its header declares.
 
 ### AnUnwritablePathIsInvalidFile
 
 `save_checkpoint` to a path inside a directory that does not exist is refused as `InvalidFile`.
 
+### Small_CheckpointRefusal
+
+These refusals load a checkpoint from bytes in memory into a state created on a host engine, so
+they need no device and no file. `checkpoint_bytes.hpp` writes the bytes with zero payloads,
+because each refusal is decided on names and shapes alone.
+
+#### AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt
+
+The file is saved from a shallower model, so it has no `2.weight` or `2.bias`. Loading it into the
+deeper model is refused with a message that names `2.weight`, and the load reports
+`StatusCode::Incompatible` as a failure.
+
+#### AParameterTheModelDoesNotHaveIsRefusedAndNamesIt
+
+The direction is reversed: the file is saved from the deeper model and loaded into the shallower
+one, so the file holds `2.weight`, which the model does not have. The load is refused with a
+message that names `2.weight` and says that this model has no such entry.
+
+#### AShapeMismatchIsRefusedWithBothShapes
+
+The bytes are in memory and the state is on a host engine, so the case is small.
+
+The two models have the same parameter names and different widths. An element-count comparison
+would catch this pair but would miss a transpose, so the loader compares shapes.
+
+#### ADuplicatedNameIsRefusedAndNamesTheDuplicate
+
+The file is built by hand because `save_checkpoint` cannot produce one: the walk yields each
+name once. A counter-based loader would accept this file and leave a parameter reading
+uninitialised device memory.
+
+#### ACheckpointWithoutBuffersIsRefusedAndNamesTheRunningMean
+
+A file that holds only the parameters is refused by `load_checkpoint` as `Incompatible`, and the
+message contains "running_mean".
+
 ## test_import_weights.cpp
 
-Suites: `Small_RenameRule`, `Small_MemoryInput`, `Medium_ImportWeights`.
+Suites: `Small_RenameRule`, `Small_RenameRuleStrip`, `Small_MemoryInput`, `Medium_ImportWeights`,
+`Small_ImportWeightsUnmatched`, `Small_ImportWeightsRefusal`.
 
 The four `Small_RenameRule` cases run the prefix rule with no device. They share this file with the
 integration cases, which load a checkpoint written under foreign names into a `NN::ModelState`.
 
-### RewritesAMatchingPrefix
+### AnEmptyToPrefixStripsTheMatchedPrefix
 
-The rule `model.` with the empty prefix turns `model.0.weight` into `0.weight`.
+The rule `model.` to the empty text turns `model.0.weight` into `0.weight` and `model.1.bias` into
+`1.bias`: the matched prefix goes and the rest of the name stays. The two names are the rows of
+`Small_RenameRuleStrip`.
 
 ### LeavesANameNoRuleMatches
 
@@ -110,27 +122,22 @@ A name that no rule's prefix starts is returned unchanged.
 With `model.` to `first.` listed before `model.0` to `second`, `model.0.weight` becomes
 `first.0.weight`. The order decides, and the longer prefix does not win.
 
-### AnEmptyToPrefixStripsThePrefix
-
-`model.1.bias` becomes `1.bias`.
-
 ### ARuleStripsAForeignPrefixAndEveryRecordLands
 
 A checkpoint holds `model.0.weight` and `model.0.bias`, written from a source state. A target state
 holds other values. Loading with the rule `model.` to the empty prefix leaves both target tensors
 with the bytes of the source.
 
-### WithoutTheRuleTheFirstRecordIsRefused
+### ARecordTheStateLacksIsRefusedAndNamed
 
-The same file, loaded with no rules, is refused as `Incompatible`. The message contains
-`'model.0.weight'`.
-
-### ARecordTheStateLacksIsRefusedUnderBothNames
-
-A record named `model.9.weight` has no entry once renamed. The refusal is `Incompatible`, and its
-message contains "holds 'model.9.weight'" and "renames to '9.weight'".
+A file holding one record that matches no entry is refused as `Incompatible`, from bytes in memory.
+The rows of `Small_ImportWeightsUnmatched` are the call without a rule, where the message names
+`model.0.weight`, and the call under the rule that strips `model.`, where it names both
+`model.9.weight` and the renamed `9.weight`.
 
 ### AnEntryTheFileLacksIsRefusedAndNamed
+
+The bytes are in memory and the state is on a host engine, so the case is small.
 
 The file holds only `model.0.weight`. The refusal is `Incompatible`, and its message contains
 "does not supply" and "'0.bias'".
@@ -158,62 +165,58 @@ The bytes of a two-record checkpoint load into a second state through the span f
 
 ## test_run_checkpoint.cpp
 
-Suites: `Medium_RunCheckpoint`.
+Suites: `Medium_RunCheckpoint`, `Medium_RunCheckpointResume`, `Medium_RunCheckpointState`,
+`Medium_RunCheckpointProgress`, `Medium_RunCheckpointBadProgress`.
 
 A run is a classifier over 6 features and 4 classes with a batch of 8, its state, an optimizer and a
 schedule, built from a seed. The cases save and load checkpoints with run state through
 `IO::save_run_checkpoint` and `IO::load_run_checkpoint`, in scratch files that are removed
 afterwards. Parameters are compared by their bit patterns.
 
-### AResumedSGDRunMatchesTheUninterruptedOneBitForBit
+### AResumedRunMatchesTheUninterruptedOneBitForBit
 
+Run once for each row of `Medium_RunCheckpointResume`: SGD with momentum and AdamW.
 SGD with a momentum of 0.9. One run takes 12 updates without interruption. A second takes 6 and is
 saved. A third, built from another seed, differs before the load, equals the second after it with a
 step count of 6, and after 6 more updates equals the uninterrupted run bit for bit with a step count
 of 12. The same file loaded as weights alone leaves the step count at 0, and 6 more updates from
 there do not give the uninterrupted run's parameters.
 
-### AResumedAdamWRunMatchesTheUninterruptedOneBitForBit
 
-The same sequence with AdamW.
+### AFileWithoutRunStateRefusesAResume
 
-### AFileWithoutRunStateIsWeightsAndNoResume
+A file with model state alone is refused by `load_run_checkpoint` as `Incompatible`, and the message
+names the file, version 2, "no run state" and the `weights` entry point.
 
-A file written by `save_checkpoint` is refused by `load_run_checkpoint` as `Incompatible`; the
-message contains the file name, "version 2", "no run state" and 'weights'. `load_checkpoint` reads
-it, and the parameters equal the saved ones.
+### AFileWithoutRunStateLoadsAsWeights
 
-### AVersionOneFileStillLoadsAsWeights
+The same kind of file loads through `load_checkpoint`, and the parameters match the saved run bit
+for bit.
 
-The run-state count is cut out of the header and the version byte set to 1. `load_checkpoint` reads
-the file and the parameters equal the saved ones. `load_run_checkpoint` refuses it as `Incompatible`
-with "version 1" and "no run state".
+### AVersionOneFileRefusesAResume
 
-### AFutureVersionIsRefusedByBothLoaders
-
-With the version byte set to 3, both loaders refuse the file as `InvalidFile`. Each message contains
-"version 3" and "versions 1 to 2".
+A file saved with model state alone and rewritten as version 1, with no run-state count, is refused
+by `load_run_checkpoint` as `Incompatible`, naming version 1 and "no run state". That a version 1
+file reads as weights is the format's own test, `AVersionOneFileReadsAsModelStateAlone`.
 
 ### RunStateOfAnotherOptimizerTypeIsRefused
 
 A file saved from an SGD run is refused for an AdamW run as `Incompatible`. The message contains the
 file name, 'sgd' and 'adamw'.
 
-### AMissingOrSurplusRunStateRecordIsRefusedByName
+### ARunStateRecordTheOptimizerDisagreesOnIsRefusedByName
 
-A file saved by SGD without momentum is refused by SGD with momentum; the message contains "does not
-supply" and a `.momentum` record. The file of the run with momentum is refused by the run without;
-the message contains "does not keep". Both refusals are `Incompatible` and name 'sgd'.
-
-The dropout cases train a classifier with one dropout of rate 0.25, traced with the seed
-20261011, under SGD with a momentum of 0.9, over a dataset that reads the four batches in an
-order `Data::EpochPermutation` draws for each epoch. Their loop keeps an `IO::RunProgress`.
+Run once for each row of `Medium_RunCheckpointState`. A file written without momentum, loaded into
+an SGD that keeps it, is refused for the `.momentum` record it does not supply. A file written
+with momentum, loaded into an SGD that keeps none, is refused for the surplus record. Both
+messages name the optimizer `sgd`.
 
 ### ARunCheckpointHoldsTheSeedAndThePositionOfItsRun
 
-A progress of seed 9, 6 step runs, epoch 2 and batch 3 is saved and read back field for field.
-`IO::check_run_seed` accepts 9 and refuses 10 with both. A save that states no progress reads
-back as zeros.
+Run once for each row of `Medium_RunCheckpointProgress`. A save that states the progress (seed 9,
+6 step runs, epoch 2, batch 3) loads back field for field. A save that states none loads as the
+start of a run under the seed 0. The refusal of another seed belongs to
+`test_run_progress.cpp`.
 
 ### AResumedRunWithDropoutAndAShuffledOrderMatchesBitForBit
 
@@ -222,26 +225,29 @@ third, built from another seed, loads the file, restores the run count of its tr
 6 more updates from the loaded position: its parameters equal the first run's bit for bit, and
 its progress ends at 12 step runs, epoch 3, batch 0.
 
-### AResumeThatDropsTheRunCountOrThePositionDiverges
-
-The same file. A run that does not restore the run count, and a run that restarts at epoch 0,
-batch 0, each end with other parameters than the uninterrupted run.
+The shuffled dataset is a `Data::InMemoryEpochDataset` whose batch maker reads the batch the epoch permutation names from the synthetic dataset.
 
 ### RunStateWithoutTheProgressRecordsIsRefusedOnResume
 
-The last 151 bytes of a saved file are cut and its run-state count lowered by 4. The resume is
-`Incompatible`, names `run.seed` and `weights`, and the file still loads as weights.
+A run checkpoint cut back to the file without its four progress records is refused on a resume,
+naming the file and `run.seed`.
+
+### RunStateWithoutTheProgressRecordsStillLoadsAsWeights
+
+The same file loads through `load_checkpoint`, and the parameters match the saved run bit for bit.
 
 ### AProgressRecordOfAnotherTypeOrRangeIsRefused
 
-`run.batch` retyped to float64 is `Incompatible`; a `run.epoch` with its top bit set is
-`InvalidFile`.
+Run once for each row of `Medium_RunCheckpointBadProgress`. The last record retyped as float64 is
+refused as `Incompatible` for `run.batch`. The payload of `run.epoch` made larger than the largest
+epoch index is refused as `InvalidFile`.
 
 ## test_checkpoint_format.cpp
 
 The checkpoint format's round trip, a version 1 file, the run-state section, and its refusal of each malformed byte pattern.
 
-Suites: `Small_CheckpointFormat`, `Small_CheckpointFormatDeathTest`.
+Suites: `Small_CheckpointFormat`, `Small_CheckpointFormatVersion`, `Small_CheckpointFormatOwner`,
+`Medium_CheckpointFormatDeathTest`.
 
 Tests the checkpoint format's round trip and its refusal of each malformed byte pattern.
 
@@ -265,21 +271,15 @@ The sample stream opens as two records. The first is `0.weight`, `Float32`, [2, 
 payload bytes, and its payload reads back as the six floats written. The second is `0.bias`
 of [2] with the two floats written. `read_count` is then 2.
 
-### DistinguishesTwoShapesWithTheSameElementCount
-
-This case covers the defect the format exists to close: an element count alone lets a [2, 3]
-weight load into a [3, 2] one. The shape is recorded, so the two records are not
-interchangeable.
-
 ### RejectsAForeignMagic
 
 With the magic bytes replaced by "JUNK" the read fails with `InvalidFile`, "SACP" and
 "not a SushiAI checkpoint".
 
-### RejectsAFutureVersion
+### ARejectedVersionNamesTheVersionsRead
 
-With the version patched to 3 the read fails with `InvalidFile`, "version 3" and
-"versions 1 to 2".
+Run once for each row of `Small_CheckpointFormatVersion`: version 3 and version 0. Each is refused
+as `InvalidFile`, naming the version and "versions 1 to 2".
 
 ### RejectsACountOverTheBound
 
@@ -354,11 +354,6 @@ record and 34 for the bias record.
 A version 1 stream opens with `version` 1, two records and a run-state count of 0, and both
 payloads read back as written.
 
-### RejectsAVersionBelowTheFirst
-
-With the version patched to 0 the read fails with `InvalidFile`, "version 0" and
-"versions 1 to 2".
-
 ### RoundTripsARunStateSection
 
 In the run-state stream, byte 50 opens the section with the owner length 3 and "sgd", and the
@@ -369,7 +364,9 @@ written. `read_count` is 1 and `run_state_read_count` is 2.
 
 ### AReaderOfModelStateLeavesTheRunStateUnread
 
-Reading the model records of the run-state stream alone succeeds.
+The owner length of the run-state section is set to zero, which makes the section malformed. A
+reader of the model records alone still reads them, and only the reader of the run state refuses
+the file, with "names no owner".
 
 ### RejectsARunStateCountOverTheBound
 
@@ -377,12 +374,10 @@ With the run-state count patched to 16385 the read fails with `InvalidFile`, "16
 "16384" and "run-state". `CheckpointWriter::create` with 16385 run-state records fails with
 `InvalidDescription` and the same three texts.
 
-### RejectsAMalformedRunStateOwner
+### AMalformedRunStateOwnerIsRefused
 
-The read fails with `InvalidFile` for an owner length of 0 ("names no owner"), an owner
-length of 257 ("run-state section", "257", "256") and a stream cut inside the owner
-("ended while reading", "run-state owner"). `begin_run_state("")` on a writer fails with
-`InvalidDescription`, "owner" and "0 bytes".
+Run once for each row of `Small_CheckpointFormatOwner`: an owner of length zero, one of 257 bytes,
+one cut short, and a writer given an empty owner. Each row states its code and its message.
 
 ### RejectsATruncatedRunStatePayload
 
@@ -411,7 +406,8 @@ a second `write` is fatal with "declared 1 run-state records" and "'b'".
 
 The three files of an imported model read back, the key order of the training file with `data` null, existing files refused or replaced, and a bad tensor writing nothing.
 
-Suites: `Small_ImportedModelWriter`.
+Suites: `Small_ImportedModelWriter`, `Medium_ImportedModelWriter`, `Medium_ImportedModelFiles`,
+`Medium_ImportedModelWeightFile`.
 
 Tests `IO::compose_training_file` and `IO::write_imported_model`. The imported model of every
 case has one `linear` row over the input shape [4], a task of type `stub_task`, the float32
@@ -443,30 +439,30 @@ and "training recipe".
 
 A recipe that is the integer 3 fails with `InvalidDescription` and "must be an object".
 
-### WritesTheThreeFiles
+### TheFilesWrittenAreNamedInOrder
 
-`write_imported_model` with `ExistingFiles::Refuse` returns three paths, `model.json`,
-`weights.sushi` and `train.json` under the directory, and each is a regular file.
+Run once for each row of `Medium_ImportedModelFiles`. With tensors the import writes `model.json`,
+`weights.sushi` and `train.json`, in that order. Without them it writes `model.json` and
+`train.json` and no weight file.
 
 ### TheModelFileReadsBack
 
 `Config::load_model` over the written model file returns the input shape that was given, one
 layer of type `linear` and a task of type `stub_task`.
 
-### TheWeightFileHoldsEveryTensor
+### TheWeightFileHoldsTheTensor
 
-`IO::CheckpointReader` over the written weight file counts two records. Each record has the
-name, the type and the shape of the tensor at its position, and its payload equals that
-tensor's bytes.
+Run once for each row of `Medium_ImportedModelWeightFile`, one per tensor. The weight file holds the
+record and the bytes of that tensor at its position.
 
 ### TheTrainingFileIsRefusedUntilItsDataIsFilled
 
-`Config::load_train` over the written training file raises an error containing `'data'`, "must
-be an object" and "null".
+The composed training file, parsed as a value, is refused for its `data` key. The small case needs
+no file.
 
-### WritesNoWeightFileWithoutTensors
+### TheTrainingFileOnDiskIsRefusedUntilItsDataIsFilled
 
-With no tensors the write returns two paths and `weights.sushi` does not exist.
+The training file the import wrote is read from disk by `load_train` and refused for its `data` key.
 
 ### AnExistingFileIsRefusedAndLeftAlone
 
@@ -479,13 +475,18 @@ fails with `Incompatible`, "train.json" and "exists already". The file still hol
 With a `train.json` holding "stale", the write under `ExistingFiles::Replace` is ok and the
 file contains "sushiai_train".
 
-### ATensorOfTheWrongSizeWritesNothing
+### ATensorOfTheWrongSizeIsRefused
 
-With one byte removed from the payload of `0.bias`, the write fails with `InvalidDescription`,
-`'0.bias'`, "7 bytes" and "needs 8", and `model.json` does not exist.
+`check_imported_tensors` refuses a tensor whose bytes differ from its record, naming the tensor and
+both sizes. It touches no file.
+
+### ARefusedImportWritesNoFile
+
+A refused tensor stops `write_imported_model` before the model file exists.
 
 ### ATensorNamedTwiceIsRefused
 
+`check_imported_tensors` refuses a name the model states twice. 
 With both tensors named `0.weight`, the write fails with `InvalidDescription`, `'0.weight'` and
 "twice".
 
@@ -494,6 +495,8 @@ With both tensors named `0.weight`, the write fails with `InvalidDescription`, `
 The importer rows in insertion order, a repeated format, a row's failure passed on and an unknown format listing the rows.
 
 Suites: `Small_ImporterRegistry`.
+
+The rows are `K_COUNTING_IMPORTER_ROW` and `K_REFUSING_IMPORTER_ROW` of `in_memory_importer.hpp`.
 
 Tests `IO::ImporterRegistry` and `IO::import_model`. The file registers two stub rows: `first`,
 whose importer returns a model with the number of files it was given as its one note, and
@@ -526,26 +529,34 @@ and "already registered".
 `import_model` for `onnx` fails with `InvalidDescription` and a message containing `'onnx'` and
 "'first', 'second'".
 
+## test_in_memory_importer.cpp
+
+Suites: `Small_InMemoryImporter`.
+
+Tests the two importer rows of `in_memory_importer.hpp`, which read no file. The counting importer
+notes how many files it was given, the refusing importer refuses a call without files, and it
+accepts a call that names one.
+
 ## test_run_progress.cpp
 
 The default of a run's progress, the names of its four records, and the refusal of a resume under another seed.
 
-Suites: `Small_RunProgress`.
+Suites: `Small_RunProgress`, `Small_RunProgressName`, `Small_RunProgressSeed`.
 
 Tests `IO::RunProgress` and `IO::check_run_seed` in
 `modules/layers/io/include/SushiAI/io/run_progress.hpp`.
 
-### ADefaultProgressIsTheStartOfARun
+### ARecordHasTheNameTheFormatStates
 
-A default `RunProgress` has the seed 0, 0 step runs, the epoch 0 and the batch 0.
+Run once for each row of `Small_RunProgressName`: the constants for the seed, the step runs, the
+epoch and the batch equal `run.seed`, `run.step_runs`, `run.epoch` and `run.batch`.
 
-### TheRecordsHaveDistinctNames
+### AResumeUnderTheSavedSeedIsAccepted
 
-`K_RUN_SEED_STATE` is "run.seed", `K_RUN_STEP_RUNS_STATE` is "run.step_runs",
-`K_RUN_EPOCH_STATE` is "run.epoch" and `K_RUN_BATCH_STATE` is "run.batch".
+`check_run_seed` accepts the seed the checkpoint holds.
 
 ### AResumeUnderAnotherSeedIsRefusedWithBothSeeds
 
-For a progress saved under the seed 20261011, `check_run_seed` passes that seed. The seed 7
-fails with `Incompatible`, "'last.sushi'", "seed 20261011" and "seed 7". A default progress
-checked against 20261011 fails with `Incompatible`, "seed 0" and "seed 20261011".
+Run once for each row of `Small_RunProgressSeed`: another seed, and a default progress that holds
+seed 0. Each is refused as `Incompatible`, naming the file and both seeds.
+

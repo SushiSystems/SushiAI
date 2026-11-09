@@ -47,6 +47,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -62,6 +63,7 @@
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/scratch_files/scratch_file.hpp>
+#include "checkpoint_bytes.hpp"
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -231,75 +233,6 @@ TEST_F(Medium_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAn
     EXPECT_EQ(third.bits(), sequential_bits);
 }
 
-TEST_F(Medium_Checkpoint, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt)
-{
-    const ScratchFile file("sushiai_missing.sushi");
-
-    // A different architecture, so the file lacks 2.weight and 2.bias.
-    using Shallow = NN::Sequential<NN::Linear>;
-    Materialised<Shallow> shallow(backend(), Shallow(NN::Linear{6, 8}), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), shallow.state()));
-
-    Materialised<MLP> deep(backend(), make_sequential(), 6);
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), deep.state()),
-                      StatusCode::Incompatible, "does not supply", "2.weight");
-}
-
-TEST_F(Medium_Checkpoint, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
-{
-    const ScratchFile file("sushiai_extra.sushi");
-
-    Materialised<MLP> deep(backend(), make_sequential(), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), deep.state()));
-
-    using Shallow = NN::Sequential<NN::Linear>;
-    Materialised<Shallow> shallow(backend(), Shallow(NN::Linear{6, 8}), 6);
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), shallow.state()),
-                      StatusCode::Incompatible, "2.weight", "this model has no such entry");
-}
-
-TEST_F(Medium_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
-{
-    const ScratchFile file("sushiai_shape.sushi");
-
-    // Shapes are compared, not element counts; see tests/layers/io/README.md.
-    using OneLayer = NN::Sequential<NN::Linear>;
-    Materialised<OneLayer> wide(backend(), OneLayer(NN::Linear{6, 8}), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), wide.state()));
-
-    Materialised<OneLayer> narrow(backend(), OneLayer(NN::Linear{6, 4}), 6);
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), narrow.state()),
-                      StatusCode::Incompatible, "0.weight", "[8, 6]", "[4, 6]");
-}
-
-TEST_F(Medium_Checkpoint, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
-{
-    const ScratchFile file("sushiai_duplicate.sushi");
-
-    // save_checkpoint cannot write a duplicated name; see tests/layers/io/README.md.
-    Materialised<MLP> model(backend(), make_sequential(), 5);
-
-    {
-        const std::vector<float> weight(8 * 6, 1.0f);
-        const std::vector<float> bias(8, 2.0f);
-        std::ofstream out(file.path(), std::ios::binary);
-        SA_ASSERT_OK_AND_ASSIGN(IO::CheckpointWriter writer,
-                                IO::CheckpointWriter::create(out, 4));
-        SA_EXPECT_OK(writer.write(IO::TensorRecord{"0.weight", DType::Float32, Shape{8, 6}},
-                                  weight.data()));
-        SA_EXPECT_OK(writer.write(IO::TensorRecord{"0.bias", DType::Float32, Shape{8}},
-                                  bias.data()));
-        SA_EXPECT_OK(writer.write(IO::TensorRecord{"0.bias", DType::Float32, Shape{8}},
-                                  bias.data()));
-        SA_EXPECT_OK(writer.write(IO::TensorRecord{"2.bias", DType::Float32, Shape{4}},
-                                  bias.data()));
-        writer.finish();
-    }
-
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), model.state()),
-                      StatusCode::Incompatible, "supplies", "0.bias", "twice");
-}
-
 namespace
 {
     class Medium_StateCheckpoint : public SaTest::EngineTest {};
@@ -364,32 +297,50 @@ namespace
         }
     }
 
-    /** @brief Writes a checkpoint that holds the parameters of @p state and no buffer. */
-    void write_parameters_only(const std::filesystem::path& path, NN::ModelState& state)
+    /** @brief Holds the names and payload lengths of the records of a checkpoint, in order. */
+    struct FileListing
     {
-        std::uint32_t count = 0;
+        std::vector<std::string> names;             /**< The record names. */
+        std::vector<std::uint64_t> payload_bytes;   /**< The payload length of each record. */
+    };
+
+    /** @brief Reads every record of the checkpoint at @p path and returns what it lists. */
+    FileListing list_file(const std::filesystem::path& path)
+    {
+        FileListing listed;
+        std::ifstream in(path, std::ios::binary);
+        EXPECT_TRUE(in.is_open());
+        IO::CheckpointReader reader = SaTest::require_value(IO::CheckpointReader::open(in));
+        while (reader.read_count() < reader.count())
+        {
+            const IO::TensorRecord record = SaTest::require_value(reader.next());
+            listed.names.push_back(record.name);
+            listed.payload_bytes.push_back(record.payload_bytes());
+            std::vector<std::uint8_t> payload(record.payload_bytes());
+            SA_EXPECT_OK(reader.read_payload(record, payload.data()));
+        }
+        return listed;
+    }
+
+    /** @brief Returns the name of each entry of @p state, in its order. */
+    std::vector<std::string> entry_names(NN::ModelState& state)
+    {
+        std::vector<std::string> names;
+        for (const NN::StateEntry& entry : state.entries())
+            names.push_back(entry.name);
+        return names;
+    }
+
+    /** @brief Returns the byte length of the float32 tensor of each entry of @p state. */
+    std::vector<std::uint64_t> entry_payload_bytes(NN::ModelState& state)
+    {
+        std::vector<std::uint64_t> lengths;
         for (const NN::StateEntry& entry : state.entries())
         {
-            if (entry.kind == NN::StateKind::Parameter)
-                ++count;
+            const SushiBLAS::Tensor& tensor = *state.tensor(entry.state).value();
+            lengths.push_back(static_cast<std::uint64_t>(tensor.num_elements) * sizeof(float));
         }
-
-        std::ofstream out(path, std::ios::binary);
-        SA_ASSERT_OK_AND_ASSIGN(IO::CheckpointWriter writer,
-                                IO::CheckpointWriter::create(out, count));
-        for (const NN::StateEntry& entry : state.entries())
-        {
-            if (entry.kind != NN::StateKind::Parameter)
-                continue;
-
-            IO::TensorRecord record;
-            record.name = entry.name;
-            record.dtype = entry.dtype;
-            record.shape = entry.shape;
-            const std::vector<std::uint8_t> payload(record.payload_bytes(), 0);
-            SA_EXPECT_OK(writer.write(record, payload.data()));
-        }
-        writer.finish();
+        return lengths;
     }
 
 } // namespace
@@ -441,41 +392,10 @@ TEST_F(Medium_StateCheckpoint, TheFileListsEveryEntryInWalkOrder)
     fill_state(state, 1.0f);
     SA_EXPECT_OK(IO::save_checkpoint(file.path(), state));
 
-    std::vector<std::string> expected_names;
-    for (const NN::StateEntry& entry : state.entries())
-        expected_names.push_back(entry.name);
+    const FileListing listed = list_file(file.path());
 
-    std::ifstream in(file.path(), std::ios::binary);
-    ASSERT_TRUE(in.is_open());
-    SA_ASSERT_OK_AND_ASSIGN(IO::CheckpointReader reader, IO::CheckpointReader::open(in));
-    ASSERT_EQ(reader.count(), expected_names.size());
-
-    std::vector<std::string> names;
-    while (reader.read_count() < reader.count())
-    {
-        SA_ASSERT_OK_AND_ASSIGN(IO::TensorRecord record, reader.next());
-        names.push_back(record.name);
-        std::vector<std::uint8_t> payload(record.payload_bytes());
-        SA_EXPECT_OK(reader.read_payload(record, payload.data()));
-    }
-    EXPECT_EQ(names, expected_names);
-}
-
-/**
- * @brief Tests that a checkpoint without the buffers is refused, and the refusal names the
- *        running mean the file does not supply.
- */
-TEST_F(Medium_StateCheckpoint, ACheckpointWithoutBuffersIsRefusedAndNamesTheRunningMean)
-{
-    const ScratchFile file("sushiai_state_no_buffers.sushi");
-
-    NormModel norm;
-    trace_norm(norm);
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, norm.model));
-    write_parameters_only(file.path(), state);
-
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), state), StatusCode::Incompatible,
-                      "running_mean");
+    EXPECT_EQ(listed.names, entry_names(state));
+    EXPECT_EQ(listed.payload_bytes, entry_payload_bytes(state));
 }
 
 /**
@@ -494,4 +414,80 @@ TEST_F(Medium_StateCheckpoint, AnUnwritablePathIsInvalidFile)
 
     SA_EXPECT_FAILURE(IO::save_checkpoint(directory / "state.sushi", state),
                       StatusCode::InvalidFile);
+}
+
+namespace
+{
+    using Shallow = NN::Sequential<NN::Linear>;
+
+    /** @brief The refusals of a load, decided on names and shapes, over bytes and a host state. */
+    class Small_CheckpointRefusal : public ::testing::Test
+    {
+        protected:
+            /** @brief The host backend the states of a case are created on. */
+            HostExecutionBackend backend;
+    };
+} // namespace
+
+/** @brief Tests that an entry the file does not supply is refused, and the refusal names it. */
+TEST_F(Small_CheckpointRefusal, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt)
+{
+    // A different architecture, so the file lacks 2.weight and 2.bias.
+    Materialised<Shallow> shallow(backend, Shallow(NN::Linear{6, 8}), 5);
+    const std::string file = SaTest::checkpoint_bytes(SaTest::records_of(shallow.state()));
+
+    Materialised<MLP> deep(backend, make_sequential(), 6);
+    SA_EXPECT_FAILURE(IO::load_checkpoint(SaTest::as_bytes(file), "shallow.sushi", deep.state()),
+                      StatusCode::Incompatible, "does not supply", "2.weight");
+}
+
+/** @brief Tests that a record the model has no entry for is refused, and the refusal names it. */
+TEST_F(Small_CheckpointRefusal, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
+{
+    Materialised<MLP> deep(backend, make_sequential(), 5);
+    const std::string file = SaTest::checkpoint_bytes(SaTest::records_of(deep.state()));
+
+    Materialised<Shallow> shallow(backend, Shallow(NN::Linear{6, 8}), 6);
+    SA_EXPECT_FAILURE(IO::load_checkpoint(SaTest::as_bytes(file), "deep.sushi", shallow.state()),
+                      StatusCode::Incompatible, "2.weight", "this model has no such entry");
+}
+
+/** @brief Tests that shapes are compared, not element counts, and the refusal shows both. */
+TEST_F(Small_CheckpointRefusal, AShapeMismatchIsRefusedWithBothShapes)
+{
+    Materialised<Shallow> wide(backend, Shallow(NN::Linear{6, 8}), 5);
+    const std::string file = SaTest::checkpoint_bytes(SaTest::records_of(wide.state()));
+
+    Materialised<Shallow> narrow(backend, Shallow(NN::Linear{6, 4}), 6);
+    SA_EXPECT_FAILURE(IO::load_checkpoint(SaTest::as_bytes(file), "wide.sushi", narrow.state()),
+                      StatusCode::Incompatible, "0.weight", "[8, 6]", "[4, 6]");
+}
+
+/** @brief Tests that a name the file supplies twice is refused, and the refusal names it. */
+TEST_F(Small_CheckpointRefusal, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
+{
+    // save_checkpoint cannot write a duplicated name, so the bytes are written by hand.
+    Materialised<MLP> model(backend, make_sequential(), 5);
+    const std::string file = SaTest::checkpoint_bytes(
+        {IO::TensorRecord{"0.weight", DType::Float32, Shape{8, 6}},
+         IO::TensorRecord{"0.bias", DType::Float32, Shape{8}},
+         IO::TensorRecord{"0.bias", DType::Float32, Shape{8}},
+         IO::TensorRecord{"2.bias", DType::Float32, Shape{4}}});
+
+    SA_EXPECT_FAILURE(
+        IO::load_checkpoint(SaTest::as_bytes(file), "duplicate.sushi", model.state()),
+        StatusCode::Incompatible, "supplies", "0.bias", "twice");
+}
+
+/** @brief Tests that a checkpoint without the buffers is refused, naming the running mean. */
+TEST_F(Small_CheckpointRefusal, ACheckpointWithoutBuffersIsRefusedAndNamesTheRunningMean)
+{
+    NormModel norm;
+    trace_norm(norm);
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
+                            NN::ModelState::create(backend.engine(), norm.model));
+    const std::string file = SaTest::checkpoint_bytes(SaTest::records_of(state, true));
+
+    SA_EXPECT_FAILURE(IO::load_checkpoint(SaTest::as_bytes(file), "parameters.sushi", state),
+                      StatusCode::Incompatible, "running_mean");
 }

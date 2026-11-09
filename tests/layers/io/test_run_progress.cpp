@@ -29,6 +29,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -41,37 +43,77 @@ namespace
 
     /** @brief Holds the seed the saved run of the cases was started with. */
     constexpr std::uint64_t K_SAVED_SEED = 20261011ull;
-}
 
-/** @brief Tests that a progress nobody filled is the start of a run under the seed 0. */
-TEST(Small_RunProgress, ADefaultProgressIsTheStartOfARun)
+    /** @brief Holds a record name constant and the text the checkpoint format states for it. */
+    struct NameRow
+    {
+        std::string name;                 /**< The row's name. */
+        std::string_view constant;        /**< The constant of the header. */
+        std::string_view stated;          /**< The name the format states. */
+    };
+
+    /** @brief Runs the record name check over each of the four records. */
+    class Small_RunProgressName : public ::testing::TestWithParam<NameRow>
+    {
+    };
+
+    /** @brief Holds a saved progress, the seed of the resuming run and the words of the refusal. */
+    struct SeedRow
+    {
+        std::string name;          /**< The row's name. */
+        RunProgress saved;         /**< What the checkpoint holds. */
+        std::uint64_t seed;        /**< The seed of the run that resumes. */
+        std::string saved_text;    /**< The saved seed as the message states it. */
+        std::string seed_text;     /**< The resuming seed as the message states it. */
+    };
+
+    /** @brief Runs the seed refusal over each pair of seeds that differ. */
+    class Small_RunProgressSeed : public ::testing::TestWithParam<SeedRow>
+    {
+    };
+
+    /** @brief Returns a progress saved under the seed @p seed. */
+    RunProgress saved_under(std::uint64_t seed)
+    {
+        RunProgress saved;
+        saved.seed = seed;
+        return saved;
+    }
+} // namespace
+
+/** @brief Tests that each run-state record has the name the checkpoint format states. */
+TEST_P(Small_RunProgressName, ARecordHasTheNameTheFormatStates)
 {
-    const RunProgress progress;
-
-    EXPECT_EQ(progress.seed, 0u);
-    EXPECT_EQ(progress.step_runs, 0u);
-    EXPECT_EQ(progress.epoch, 0u);
-    EXPECT_EQ(progress.batch, 0u);
+    EXPECT_EQ(GetParam().constant, GetParam().stated);
 }
 
-/** @brief Tests that the four records have four names, none of them an optimizer's. */
-TEST(Small_RunProgress, TheRecordsHaveDistinctNames)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_RunProgressName,
+    ::testing::Values(NameRow{"Seed", SushiAI::IO::K_RUN_SEED_STATE, "run.seed"},
+                      NameRow{"StepRuns", SushiAI::IO::K_RUN_STEP_RUNS_STATE, "run.step_runs"},
+                      NameRow{"Epoch", SushiAI::IO::K_RUN_EPOCH_STATE, "run.epoch"},
+                      NameRow{"Batch", SushiAI::IO::K_RUN_BATCH_STATE, "run.batch"}),
+    [](const ::testing::TestParamInfo<NameRow>& info) { return info.param.name; });
+
+/** @brief Tests that the seed a checkpoint holds is accepted. */
+TEST(Small_RunProgress, AResumeUnderTheSavedSeedIsAccepted)
 {
-    EXPECT_EQ(SushiAI::IO::K_RUN_SEED_STATE, "run.seed");
-    EXPECT_EQ(SushiAI::IO::K_RUN_STEP_RUNS_STATE, "run.step_runs");
-    EXPECT_EQ(SushiAI::IO::K_RUN_EPOCH_STATE, "run.epoch");
-    EXPECT_EQ(SushiAI::IO::K_RUN_BATCH_STATE, "run.batch");
+    SA_EXPECT_OK(
+        SushiAI::IO::check_run_seed(saved_under(K_SAVED_SEED), K_SAVED_SEED, "last.sushi"));
 }
 
-/** @brief Tests that the seed a checkpoint holds is accepted and any other is refused. */
-TEST(Small_RunProgress, AResumeUnderAnotherSeedIsRefusedWithBothSeeds)
+/** @brief Tests that any other seed is refused, naming the file and both seeds. */
+TEST_P(Small_RunProgressSeed, AResumeUnderAnotherSeedIsRefusedWithBothSeeds)
 {
-    RunProgress saved;
-    saved.seed = K_SAVED_SEED;
-
-    SA_EXPECT_OK(SushiAI::IO::check_run_seed(saved, K_SAVED_SEED, "last.sushi"));
-    SA_EXPECT_FAILURE(SushiAI::IO::check_run_seed(saved, 7, "last.sushi"),
-                      StatusCode::Incompatible, "'last.sushi'", "seed 20261011", "seed 7");
-    SA_EXPECT_FAILURE(SushiAI::IO::check_run_seed(RunProgress{}, K_SAVED_SEED, "last.sushi"),
-                      StatusCode::Incompatible, "seed 0", "seed 20261011");
+    const SeedRow& row = GetParam();
+    SA_EXPECT_FAILURE(SushiAI::IO::check_run_seed(row.saved, row.seed, "last.sushi"),
+                      StatusCode::Incompatible, "'last.sushi'", row.saved_text, row.seed_text);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_RunProgressSeed,
+    ::testing::Values(SeedRow{"AnotherSeed", saved_under(K_SAVED_SEED), 7, "seed 20261011",
+                              "seed 7"},
+                      SeedRow{"ADefaultProgress", RunProgress{}, K_SAVED_SEED, "seed 0",
+                              "seed 20261011"}),
+    [](const ::testing::TestParamInfo<SeedRow>& info) { return info.param.name; });

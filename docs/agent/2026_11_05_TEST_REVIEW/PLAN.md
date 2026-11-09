@@ -50,7 +50,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M29 | the tests of `core/version` (1 file): 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M30 | the tests of `language` (46 files): 152 rewrite, 27 resize, 33 split, 19 merge, 15 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09): every record of the 46 files is applied; the numeric blocks cases run on `Graph::HostEvaluator`, and the cases through `CAUSAL_MASK` stay `Medium_` because the mask has no host kernel |
 | M31 | the tests of `layers/classifier_objective` (1 file): 1 split, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
-| M32 | the tests of `layers/io` (8 files): 15 rewrite, 19 resize, 4 split, 10 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M32 | the tests of `layers/io` (8 files): 15 rewrite, 19 resize, 4 split, 10 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M33 | the tests of `layers/layer_rows` (2 files): 2 rewrite, 1 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M34 | the tests of `layers/layer_traces` (1 file): 2 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M35 | the tests of `layers/nn` (39 files): 89 rewrite, 42 resize, 36 split, 138 merge, 30 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |

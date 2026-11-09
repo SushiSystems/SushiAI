@@ -89,46 +89,6 @@ namespace SushiAI
                 return false;
             }
 
-            /**
-             * @brief Checks that every tensor can be a record of one weight file.
-             * @return InvalidDescription naming the tensor: an empty or an overlong name, a
-             *         name stated twice, bytes that differ from the record, or too many.
-             */
-            [[nodiscard]] Status validate_tensors(SushiRuntime::span<const ImportedTensor> tensors)
-            {
-                SA_FAIL_IF(tensors.size() > K_MAX_TENSOR_COUNT, StatusCode::InvalidDescription,
-                           "the imported model holds {} tensors, and a weight file holds at "
-                           "most {}",
-                           tensors.size(), K_MAX_TENSOR_COUNT);
-
-                return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate,
-                                              [&]() -> Status
-                {
-                    std::unordered_set<std::string_view> named;
-                    for (const ImportedTensor& tensor : tensors)
-                    {
-                        const std::string& name = tensor.record.name;
-                        SA_FAIL_IF(name.empty(), StatusCode::InvalidDescription,
-                                   "an imported tensor has no name");
-                        SA_FAIL_IF(name.size() > K_MAX_NAME_LENGTH,
-                                   StatusCode::InvalidDescription,
-                                   "the imported tensor '{}' has a name of {} bytes, and a "
-                                   "weight file holds at most {}",
-                                   name, name.size(), K_MAX_NAME_LENGTH);
-                        SA_FAIL_IF(!named.insert(name).second, StatusCode::InvalidDescription,
-                                   "the imported model states the tensor '{}' twice", name);
-                        SA_FAIL_IF(tensor.payload.size() != tensor.record.payload_bytes(),
-                                   StatusCode::InvalidDescription,
-                                   "the imported tensor '{}' holds {} bytes, but its shape {} "
-                                   "needs {}",
-                                   name, tensor.payload.size(), tensor.record.shape.to_string(),
-                                   tensor.record.payload_bytes());
-                    }
-
-                    return Status();
-                });
-            }
-
             /** @brief Returns InvalidDescription unless the recipe is null or an object. */
             [[nodiscard]] Status validate_recipe(const Config::Value& recipe)
             {
@@ -180,7 +140,7 @@ namespace SushiAI
 
             /**
              * @brief Writes @p tensors to @p path as one weight file.
-             * @pre validate_tensors succeeds on @p tensors.
+             * @pre check_imported_tensors succeeds on @p tensors.
              * @return InvalidFile naming the path when the file cannot be written.
              */
             [[nodiscard]] Status write_weights(const std::filesystem::path& path,
@@ -205,6 +165,41 @@ namespace SushiAI
             }
 
         } // namespace
+
+        Status check_imported_tensors(SushiRuntime::span<const ImportedTensor> tensors) noexcept
+        {
+            SA_FAIL_IF(tensors.size() > K_MAX_TENSOR_COUNT, StatusCode::InvalidDescription,
+                       "the imported model holds {} tensors, and a weight file holds at "
+                       "most {}",
+                       tensors.size(), K_MAX_TENSOR_COUNT);
+
+            return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate,
+                                          [&]() -> Status
+            {
+                std::unordered_set<std::string_view> named;
+                for (const ImportedTensor& tensor : tensors)
+                {
+                    const std::string& name = tensor.record.name;
+                    SA_FAIL_IF(name.empty(), StatusCode::InvalidDescription,
+                               "an imported tensor has no name");
+                    SA_FAIL_IF(name.size() > K_MAX_NAME_LENGTH,
+                               StatusCode::InvalidDescription,
+                               "the imported tensor '{}' has a name of {} bytes, and a "
+                               "weight file holds at most {}",
+                               name, name.size(), K_MAX_NAME_LENGTH);
+                    SA_FAIL_IF(!named.insert(name).second, StatusCode::InvalidDescription,
+                               "the imported model states the tensor '{}' twice", name);
+                    SA_FAIL_IF(tensor.payload.size() != tensor.record.payload_bytes(),
+                               StatusCode::InvalidDescription,
+                               "the imported tensor '{}' holds {} bytes, but its shape {} "
+                               "needs {}",
+                               name, tensor.payload.size(), tensor.record.shape.to_string(),
+                               tensor.record.payload_bytes());
+                }
+
+                return Status();
+            });
+        }
 
         Result<Config::Value> compose_training_file(const ImportedModel& imported) noexcept
         {
@@ -246,7 +241,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(const std::string model_text, Config::write_model(imported.model));
             SA_TRY_ASSIGN(const Config::Value training, compose_training_file(imported));
             SA_TRY_ASSIGN(const std::string training_text, Config::write_json(training));
-            SA_TRY(validate_tensors(imported.weights));
+            SA_TRY(check_imported_tensors(imported.weights));
 
             const bool weighted = !imported.weights.empty();
             SA_TRY_ASSIGN(WrittenImport written,

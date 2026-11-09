@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -55,6 +56,9 @@ namespace
     constexpr std::size_t K_OFFSET_DTYPE        = 28;   // after the 8-byte name
     constexpr std::size_t K_OFFSET_RANK         = 32;
     constexpr std::size_t K_OFFSET_FIRST_DIM    = 36;
+
+    // The owner length of the run state of run_state_stream(), after its one model record.
+    constexpr std::size_t K_OFFSET_RUN_STATE_OWNER_LENGTH = 50;
 
     const std::vector<float> K_WEIGHT{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
     const std::vector<float> K_BIAS{7.0f, 8.0f};
@@ -199,21 +203,6 @@ TEST(Small_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
     EXPECT_EQ(reader.read_count(), 2u);
 }
 
-TEST(Small_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
-{
-    // The recorded shape separates [2, 3] from [3, 2]; see tests/layers/io/README.md.
-    std::ostringstream out;
-    SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 1));
-    SA_EXPECT_OK(writer.write(TensorRecord{"w", SushiAI::DType::Float32, SushiAI::Shape{2, 3}},
-                              K_WEIGHT.data()));
-    writer.finish();
-
-    std::istringstream in(out.str());
-    SA_ASSERT_OK_AND_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
-    SA_ASSERT_OK_AND_ASSIGN(const TensorRecord record, reader.next());
-    EXPECT_NE(record.shape, (SushiAI::Shape{3, 2}));
-}
-
 TEST(Small_CheckpointFormat, RejectsAForeignMagic)
 {
     std::string bytes = sample_stream();
@@ -222,13 +211,37 @@ TEST(Small_CheckpointFormat, RejectsAForeignMagic)
                       "not a SushiAI checkpoint");
 }
 
-TEST(Small_CheckpointFormat, RejectsAFutureVersion)
+namespace
 {
+/** @brief Holds a version number the format cannot read and the words of its refusal. */
+struct VersionRow
+{
+    std::string name;        /**< The row's name. */
+    std::uint32_t version;   /**< The version patched into the header. */
+    std::string message;     /**< The version the refusal names. */
+};
+
+/** @brief Runs the version refusal over each version outside the readable ones. */
+class Small_CheckpointFormatVersion : public ::testing::TestWithParam<VersionRow>
+{
+};
+} // namespace
+
+/** @brief Tests that a version outside 1 to 2 is refused with the versions read. */
+TEST_P(Small_CheckpointFormatVersion, ARejectedVersionNamesTheVersionsRead)
+{
+    const VersionRow& row = GetParam();
     std::string bytes = sample_stream();
-    patch_u32(bytes, K_OFFSET_VERSION, 3u);
-    SA_EXPECT_FAILURE(read_everything(bytes), StatusCode::InvalidFile, "version 3",
+    patch_u32(bytes, K_OFFSET_VERSION, row.version);
+    SA_EXPECT_FAILURE(read_everything(bytes), StatusCode::InvalidFile, row.message,
                       "versions 1 to 2");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CheckpointFormatVersion,
+    ::testing::Values(VersionRow{"Future", 3u, "version 3"},
+                      VersionRow{"BelowTheFirst", 0u, "version 0"}),
+    [](const ::testing::TestParamInfo<VersionRow>& info) { return info.param.name; });
 
 TEST(Small_CheckpointFormat, RejectsACountOverTheBound)
 {
@@ -300,7 +313,7 @@ TEST(Small_CheckpointFormat, RefusesToWriteACountTypeTheFormatDoesNotCarry)
         StatusCode::InvalidDescription, "counts", "uint32", "does not carry");
 }
 
-TEST(Small_CheckpointFormatDeathTest, RejectsMoreRecordsThanDeclared)
+TEST(Medium_CheckpointFormatDeathTest, RejectsMoreRecordsThanDeclared)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 2));
@@ -315,7 +328,7 @@ TEST(Small_CheckpointFormatDeathTest, RejectsMoreRecordsThanDeclared)
         "declared 2", "'c'");
 }
 
-TEST(Small_CheckpointFormatDeathTest, RejectsFewerRecordsThanDeclared)
+TEST(Medium_CheckpointFormatDeathTest, RejectsFewerRecordsThanDeclared)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 2));
@@ -332,7 +345,7 @@ TEST(Small_CheckpointFormat, RejectsATensorCountOverTheBoundAtConstruction)
                       "4097", "4096");
 }
 
-TEST(Small_CheckpointFormatDeathTest, ReadingPastTheDeclaredCountIsAnError)
+TEST(Medium_CheckpointFormatDeathTest, ReadingPastTheDeclaredCountIsAnError)
 {
     std::istringstream in(sample_stream());
     SA_ASSERT_OK_AND_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
@@ -384,15 +397,6 @@ TEST(Small_CheckpointFormat, AVersionOneFileReadsAsModelStateAlone)
     EXPECT_EQ(bias_payload, K_BIAS);
 }
 
-/** @brief Tests that a version below the first one is refused with the versions read. */
-TEST(Small_CheckpointFormat, RejectsAVersionBelowTheFirst)
-{
-    std::string bytes = sample_stream();
-    patch_u32(bytes, K_OFFSET_VERSION, 0u);
-    SA_EXPECT_FAILURE(read_everything(bytes), StatusCode::InvalidFile, "version 0",
-                      "versions 1 to 2");
-}
-
 /** @brief Tests the bytes of the run-state section and its round trip. */
 TEST(Small_CheckpointFormat, RoundTripsARunStateSection)
 {
@@ -439,7 +443,12 @@ TEST(Small_CheckpointFormat, RoundTripsARunStateSection)
 /** @brief Tests that a reader of the model records alone leaves the run state unread. */
 TEST(Small_CheckpointFormat, AReaderOfModelStateLeavesTheRunStateUnread)
 {
-    SA_EXPECT_OK(read_everything(run_state_stream()));
+    // A section whose owner names nothing is malformed, and only a reader of it finds out.
+    std::string bytes = run_state_stream();
+    patch_u32(bytes, K_OFFSET_RUN_STATE_OWNER_LENGTH, 0u);
+
+    SA_EXPECT_OK(read_everything(bytes));
+    SA_EXPECT_FAILURE(read_run_state(bytes), StatusCode::InvalidFile, "names no owner");
 }
 
 /** @brief Tests that a run-state count above the bound is refused by reader and writer. */
@@ -455,29 +464,62 @@ TEST(Small_CheckpointFormat, RejectsARunStateCountOverTheBound)
                       StatusCode::InvalidDescription, "16385", "16384", "run-state");
 }
 
-/** @brief Tests that an owner that is empty, too long or cut short is refused. */
-TEST(Small_CheckpointFormat, RejectsAMalformedRunStateOwner)
+namespace
 {
-    const std::size_t owner_length = 50;
+/** @brief Holds one malformed owner, the call that meets it and the words of its refusal. */
+struct OwnerRow
+{
+    std::string name;                 /**< The row's name. */
+    std::function<Status()> meet;     /**< Reads or writes the malformed owner. */
+    StatusCode code;                  /**< The code of the refusal. */
+    std::string first;                /**< A text the message holds. */
+    std::string second;               /**< Another text the message holds. */
+    std::string third;                /**< A third text the message holds. */
+};
 
-    std::string empty = run_state_stream();
-    patch_u32(empty, owner_length, 0u);
-    SA_EXPECT_FAILURE(read_run_state(empty), StatusCode::InvalidFile, "names no owner");
+/** @brief Runs the owner refusal over each way an owner is malformed. */
+class Small_CheckpointFormatOwner : public ::testing::TestWithParam<OwnerRow>
+{
+};
 
-    std::string long_owner = run_state_stream();
-    patch_u32(long_owner, owner_length, 257u);
-    SA_EXPECT_FAILURE(read_run_state(long_owner), StatusCode::InvalidFile, "run-state section",
-                      "257", "256");
-
-    const std::string cut = run_state_stream().substr(0, owner_length + 5);
-    SA_EXPECT_FAILURE(read_run_state(cut), StatusCode::InvalidFile, "ended while reading",
-                      "run-state owner");
-
-    std::ostringstream out;
-    SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 0u, 1u));
-    SA_EXPECT_FAILURE(writer.begin_run_state(""), StatusCode::InvalidDescription, "owner",
-                      "0 bytes");
+/** @brief Returns the run-state stream with the owner length replaced by @p length. */
+std::string with_owner_length(std::uint32_t length)
+{
+    std::string bytes = run_state_stream();
+    patch_u32(bytes, K_OFFSET_RUN_STATE_OWNER_LENGTH, length);
+    return bytes;
 }
+} // namespace
+
+/** @brief Tests that an owner that is empty, too long or cut short is refused. */
+TEST_P(Small_CheckpointFormatOwner, AMalformedRunStateOwnerIsRefused)
+{
+    const OwnerRow& row = GetParam();
+    SA_EXPECT_FAILURE(row.meet(), row.code, row.first, row.second, row.third);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CheckpointFormatOwner,
+    ::testing::Values(
+        OwnerRow{"Empty", [] { return read_run_state(with_owner_length(0u)); },
+                 StatusCode::InvalidFile, "names no owner", "", ""},
+        OwnerRow{"TooLong", [] { return read_run_state(with_owner_length(257u)); },
+                 StatusCode::InvalidFile, "run-state section", "257", "256"},
+        OwnerRow{"CutShort",
+                 [] {
+                     return read_run_state(run_state_stream().substr(
+                         0, K_OFFSET_RUN_STATE_OWNER_LENGTH + 5));
+                 },
+                 StatusCode::InvalidFile, "ended while reading", "run-state owner", ""},
+        OwnerRow{"WriterEmpty",
+                 [] {
+                     std::ostringstream out;
+                     CheckpointWriter writer =
+                         SushiAI::Test::require_value(CheckpointWriter::create(out, 0u, 1u));
+                     return writer.begin_run_state("");
+                 },
+                 StatusCode::InvalidDescription, "owner", "0 bytes", ""}),
+    [](const ::testing::TestParamInfo<OwnerRow>& info) { return info.param.name; });
 
 /** @brief Tests that a run-state section cut short in a payload names the record. */
 TEST(Small_CheckpointFormat, RejectsATruncatedRunStatePayload)
@@ -488,7 +530,7 @@ TEST(Small_CheckpointFormat, RejectsATruncatedRunStatePayload)
 }
 
 /** @brief Tests that the run-state section opens only after every model record. */
-TEST(Small_CheckpointFormatDeathTest, TheRunStateOpensAfterTheModelRecords)
+TEST(Medium_CheckpointFormatDeathTest, TheRunStateOpensAfterTheModelRecords)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 1u, 1u));
@@ -500,7 +542,7 @@ TEST(Small_CheckpointFormatDeathTest, TheRunStateOpensAfterTheModelRecords)
 }
 
 /** @brief Tests that a file that declared no run state cannot open the section. */
-TEST(Small_CheckpointFormatDeathTest, ARunStateThatWasNotDeclaredCannotOpen)
+TEST(Medium_CheckpointFormatDeathTest, ARunStateThatWasNotDeclaredCannotOpen)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 0u));
@@ -518,7 +560,7 @@ TEST(Small_CheckpointFormatDeathTest, ARunStateThatWasNotDeclaredCannotOpen)
 }
 
 /** @brief Tests that the run-state section holds exactly the records declared. */
-TEST(Small_CheckpointFormatDeathTest, TheRunStateHoldsExactlyTheRecordsDeclared)
+TEST(Medium_CheckpointFormatDeathTest, TheRunStateHoldsExactlyTheRecordsDeclared)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 0u, 1u));

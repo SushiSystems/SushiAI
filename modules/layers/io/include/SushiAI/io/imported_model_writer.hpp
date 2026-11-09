@@ -34,8 +34,10 @@
 #include <filesystem>
 #include <string_view>
 #include <vector>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/imported_model.hpp>
 
 namespace SushiAI
@@ -75,6 +77,15 @@ namespace SushiAI
          *         InvalidDescription when the recipe is no object or states one of those keys.
          */
         [[nodiscard]] Result<Config::Value> compose_training_file(const ImportedModel& imported) noexcept;
+
+        /**
+         * @brief Checks that every tensor of @p tensors can be a record of one weight file.
+         * @return Success, or InvalidDescription naming the tensor: an empty or an overlong
+         *         name, a name stated twice, bytes that differ from its record, or more tensors
+         *         than a weight file holds. It touches no file.
+         */
+        [[nodiscard]] Status check_imported_tensors(
+            SushiRuntime::span<const ImportedTensor> tensors) noexcept;
 
         /**
          * @brief Writes the model, weight and training files of @p imported into @p directory.

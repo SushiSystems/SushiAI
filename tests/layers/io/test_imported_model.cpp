@@ -23,12 +23,12 @@
 
 /**
  * @file test_imported_model.cpp
- * @brief Tests the empty state of ImportedModel and the payload size of an ImportedTensor.
+ * @brief Tests the payload size a record of an imported tensor states.
  * @author Mustafa Garip
  */
 
 #include <cstddef>
-#include <vector>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -37,29 +37,35 @@
 
 using namespace SushiAI;
 
-/** @brief Tests that a default model states no weights, no training keys and no notes. */
-TEST(Small_ImportedModel, ADefaultModelStatesNothing)
+namespace
 {
-    const IO::ImportedModel imported;
+    /** @brief Holds an element type and the bytes a [4, 3] record of it states. */
+    struct PayloadRow
+    {
+        std::string name;        /**< The row's name. */
+        DType dtype;             /**< The element type of the record. */
+        std::size_t bytes;       /**< The payload bytes twelve elements of it take. */
+    };
 
-    EXPECT_TRUE(imported.weights.empty());
-    EXPECT_TRUE(imported.training.is_null());
-    EXPECT_TRUE(imported.notes.empty());
-    EXPECT_TRUE(imported.model.layers.empty());
-    EXPECT_TRUE(imported.model.task.is_null());
+    /** @brief Runs the payload size of a record over each element type. */
+    class Small_ImportedModel : public ::testing::TestWithParam<PayloadRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests that a record states its payload as its element count times its element size. */
+TEST_P(Small_ImportedModel, ATensorHoldsTheBytesItsRecordStates)
+{
+    IO::TensorRecord record;
+    record.name = "0.weight";
+    record.dtype = GetParam().dtype;
+    record.shape = Shape{4, 3};
+
+    EXPECT_EQ(record.payload_bytes(), GetParam().bytes);
 }
 
-/** @brief Tests that a tensor's payload holds the bytes its record states. */
-TEST(Small_ImportedModel, ATensorHoldsTheBytesItsRecordStates)
-{
-    IO::ImportedTensor tensor;
-    tensor.record.name = "0.weight";
-    tensor.record.dtype = DType::Float32;
-    tensor.record.shape = Shape{4, 3};
-    tensor.payload.resize(tensor.record.payload_bytes());
-
-    EXPECT_EQ(tensor.payload.size(), std::size_t{4 * 3 * sizeof(float)});
-
-    tensor.record.dtype = DType::Int64;
-    EXPECT_EQ(tensor.record.payload_bytes(), std::size_t{4 * 3 * 8});
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImportedModel,
+    ::testing::Values(PayloadRow{"Float32", DType::Float32, 4 * 3 * 4},
+                      PayloadRow{"Int64", DType::Int64, 4 * 3 * 8}),
+    [](const ::testing::TestParamInfo<PayloadRow>& info) { return info.param.name; });
