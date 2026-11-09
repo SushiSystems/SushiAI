@@ -40,9 +40,11 @@
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
+#include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/init.hpp>
@@ -183,6 +185,51 @@ namespace
             << what << ": the fused kernel and the separate operations disagree from byte "
             << SaTest::first_difference(fused, separate)
             << ". Find the expression that moved; do not widen this comparison.";
+    }
+
+    constexpr std::size_t K_RECORDED_PARAMETERS = 3;
+
+    /**
+     * @brief Records one update of three parameters into a step and counts the tasks it submits.
+     * @param tasks Receives the number of tasks the optimizer recorded.
+     * @see tests/layers/train/README.md
+     */
+    template<typename Make>
+    void count_recorded_tasks(Make make, UpdateKernel kernel, std::size_t& tasks)
+    {
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
+
+        std::vector<SushiBLAS::Tensor> owned;
+        owned.reserve(K_RECORDED_PARAMETERS * 2);
+        std::vector<Optim::ParameterSlot> slots;
+
+        for (std::size_t i = 0; i < K_RECORDED_PARAMETERS; ++i)
+        {
+            SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
+                                    allocate_tensor(engine, Shape{K_ELEMENTS}));
+            SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
+                                    allocate_tensor(engine, Shape{K_ELEMENTS}));
+            SaTest::write_tensor(parameter, initial_parameter());
+            SaTest::write_tensor(gradient, gradient_for(0));
+            owned.push_back(parameter);
+            owned.push_back(gradient);
+            slots.push_back(Optim::ParameterSlot{"p" + std::to_string(i), owned[2 * i],
+                                                 owned[2 * i + 1]});
+        }
+
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
+                                make(backend, slots, kernel));
+
+        // The recorded tasks must be drained; see tests/layers/train/README.md.
+        optimizer->before_replay();
+        SaTest::TestGraph recording(backend);
+        const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
+        SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, optimizer->record_into_step(step));
+        SA_EXPECT_OK(recording.run());
+        SaTest::TestEnvironment::runtime().wait().value();
+
+        tasks = recorded;
     }
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
@@ -338,6 +385,27 @@ TEST_P(Medium_FusedOptimizerAdamW, FusedKernelMatchesTheSeparateOperationsExactl
     expect_kernels_agree(adamw_factory(options), GetParam().name);
 }
 
+/**
+ * @brief Tests that the fused AdamW update submits fewer tasks than the separate one.
+ * @see tests/layers/train/README.md
+ */
+TEST_P(Medium_FusedOptimizerAdamW, TheFusedUpdateSubmitsFewerTasksThanTheSeparateOne)
+{
+    Optim::AdamWOptions options;
+    options.learning_rate = 0.02;
+    options.weight_decay = GetParam().weight_decay;
+
+    std::size_t fused = 0;
+    std::size_t separate = 0;
+    ASSERT_NO_FATAL_FAILURE(
+        count_recorded_tasks(adamw_factory(options), UpdateKernel::Fused, fused));
+    ASSERT_NO_FATAL_FAILURE(
+        count_recorded_tasks(adamw_factory(options), UpdateKernel::Separate, separate));
+
+    EXPECT_GT(fused, 0u);
+    EXPECT_LT(fused, separate) << GetParam().name << ": fusion exists to cut launches";
+}
+
 INSTANTIATE_TEST_SUITE_P(Decay, Medium_FusedOptimizerAdamW,
                          ::testing::Values(AdamWRow{"WithDecay", 0.01},
                                            AdamWRow{"WithoutDecay", 0.0}),
@@ -351,6 +419,23 @@ INSTANTIATE_TEST_SUITE_P(Decay, Medium_FusedOptimizerAdamW,
 TEST_P(Medium_FusedOptimizerSgd, FusedKernelMatchesTheSeparateOperationsExactly)
 {
     expect_kernels_agree(sgd_factory(GetParam().options), GetParam().name);
+}
+
+/**
+ * @brief Tests that the fused Sgd update submits fewer tasks than the separate one.
+ * @see tests/layers/train/README.md
+ */
+TEST_P(Medium_FusedOptimizerSgd, TheFusedUpdateSubmitsFewerTasksThanTheSeparateOne)
+{
+    std::size_t fused = 0;
+    std::size_t separate = 0;
+    ASSERT_NO_FATAL_FAILURE(
+        count_recorded_tasks(sgd_factory(GetParam().options), UpdateKernel::Fused, fused));
+    ASSERT_NO_FATAL_FAILURE(
+        count_recorded_tasks(sgd_factory(GetParam().options), UpdateKernel::Separate, separate));
+
+    EXPECT_GT(fused, 0u);
+    EXPECT_LT(fused, separate) << GetParam().name << ": fusion exists to cut launches";
 }
 
 INSTANTIATE_TEST_SUITE_P(Branches, Medium_FusedOptimizerSgd,

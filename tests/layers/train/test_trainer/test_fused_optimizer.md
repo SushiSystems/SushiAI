@@ -19,15 +19,18 @@ The tests make four claims, in file order:
    per AdamW decay and one row per SGD branch.
 2. Folding the update into the plan changes no number:
    TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt.
-3. An update that cannot be replayed is not downgraded:
+3. Fusion cuts launches: `TheFusedUpdateSubmitsFewerTasksThanTheSeparateOne`, one row per AdamW
+   decay and one row per SGD branch.
+4. An update that cannot be replayed is not downgraded:
    SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused and
    TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored.
 
 The compile count of a step with the optimizer inside it is `test_compile_once.cpp`'s. The refusal
 to compile a separate-kernel update into the plan is `test_training_step.cpp`'s
-(`InPlanRefusesAnOptimizerThatIsNotReplayInvariant`). The number of tasks the update records, one
-per parameter fused against twelve separate, describes how the plan is built and has no case;
-the byte-for-byte rows are the public promise it served.
+(`InPlanRefusesAnOptimizerThatIsNotReplayInvariant`). The tasks case asserts a relation, never an
+exact count: the fused update records fewer tasks than the separate one for the same three
+parameters (decision 50 and the orchestrator's ruling on it). The exact counts, one per parameter
+fused against twelve separate for AdamW, are how the plan is built and may change.
 
 The helpers from `K_BATCH` to `expect_runs_agree` belong to claim 2, which trains a whole model
 through the Trainer.
@@ -90,6 +93,13 @@ branch in each path and this test is what covers it.
 One row per branch of the SGD recipe: `Plain`, `CoupledDecayWithoutMomentum`, `Momentum`,
 `MomentumWithDampening`, `Nesterov` and `MomentumAndDecay`. Each one is a separate line of the fused
 functor and a separate chance to have written it differently.
+
+## TheFusedUpdateSubmitsFewerTasksThanTheSeparateOne
+
+The case records one update of three parameters into a step with each kernel and compares the
+counts `record_into_step` returns. The fused count is positive and below the separate one. A
+fused kernel that launched as often as the operations it replaced would pass the byte rows and
+lose the reason it exists.
 
 ## TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt
 
