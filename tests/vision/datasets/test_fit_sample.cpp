@@ -30,6 +30,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include "datasets_test_support.hpp"
 #include <SushiAI/failure/status.hpp>
@@ -78,17 +80,61 @@ namespace
         EXPECT_NEAR(box.x2, x2, K_PIXEL_TOLERANCE);
         EXPECT_NEAR(box.y2, y2, K_PIXEL_TOLERANCE);
     }
+    /** @brief Returns the bytes of an image, row by row. */
+    std::vector<std::uint8_t> bytes_of(const Image& image)
+    {
+        return std::vector<std::uint8_t>(image.data(), image.data() + image.byte_count());
+    }
+
+    /** @brief Returns a sample of one object of class 1 with a box. */
+    Sample sample_with_one_box(const NormalizedBox& box)
+    {
+        Sample sample;
+        sample.objects.add(1, box);
+        return sample;
+    }
+
+    /** @brief Holds a row of the letterboxed image and the level it holds. */
+    struct LetterboxRow
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the index of the row of the fitted image. */
+        std::int32_t row;
+
+        /** @brief Holds the level every pixel of the row has. */
+        std::uint8_t level;
+    };
+
+    /** @brief Holds one row of the letterboxed image per case. */
+    class Small_DatasetsFitSampleLetterboxRow : public ::testing::TestWithParam<LetterboxRow>
+    {
+    };
 } // namespace
 
-/** @brief Tests that a resize scales the image and each box coordinate with its axis. */
+/** @brief Tests that a resize scales each box coordinate with its axis. */
 TEST(Small_DatasetsFitSample, ResizeScalesTheLabelsWithEachAxis)
 {
     const Image source = Support::uniform_image(ImageSize{2, 4}, 1, 100);
+    const Sample sample = sample_with_one_box(NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f});
 
-    Sample sample;
+    FittedSample fitted;
+    SA_EXPECT_OK(fit_sample(sample, source.view(),
+                            options_of(ImageSize{4, 4}, SampleFit::Resize), fitted));
+
+    ASSERT_EQ(fitted.objects.size(), 1u);
+    EXPECT_EQ(fitted.objects.classes()[0], 1);
+    expect_box(fitted.objects.boxes()[0], 1.0f, 1.0f, 3.0f, 3.0f);
+}
+
+/** @brief Tests that a resize fills the image with the source level and carries file and class. */
+TEST(Small_DatasetsFitSample, ResizeFillsTheImageAndCarriesTheFileAndTheClass)
+{
+    const Image source = Support::uniform_image(ImageSize{2, 4}, 1, 100);
+    Sample sample = sample_with_one_box(NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f});
     sample.file = 6;
     sample.class_index = 3;
-    sample.objects.add(1, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f});
 
     FittedSample fitted;
     SA_EXPECT_OK(fit_sample(sample, source.view(),
@@ -96,38 +142,46 @@ TEST(Small_DatasetsFitSample, ResizeScalesTheLabelsWithEachAxis)
 
     EXPECT_EQ(fitted.image.size(), (ImageSize{4, 4}));
     EXPECT_EQ(fitted.image.channels(), 1);
-    for (std::size_t i = 0; i < fitted.image.byte_count(); ++i)
-        EXPECT_EQ(fitted.image.data()[i], 100) << "byte " << i;
-
+    EXPECT_EQ(bytes_of(fitted.image), std::vector<std::uint8_t>(16, 100));
     EXPECT_EQ(fitted.file, 6u);
     ASSERT_TRUE(fitted.class_index.has_value());
     EXPECT_EQ(*fitted.class_index, 3);
-
-    ASSERT_EQ(fitted.objects.size(), 1u);
-    EXPECT_EQ(fitted.objects.classes()[0], 1);
-    expect_box(fitted.objects.boxes()[0], 1.0f, 1.0f, 3.0f, 3.0f);
 }
 
-/** @brief Tests that a letterbox pads the short axis and moves the boxes by the padding. */
-TEST(Small_DatasetsFitSample, LetterboxPadsAndMovesTheLabels)
+/** @brief Tests that a letterbox pads the short axis and fills the rest with the source. */
+TEST_P(Small_DatasetsFitSampleLetterboxRow, LetterboxPadsTheShortAxis)
 {
+    const LetterboxRow& row = GetParam();
     const Image source = Support::uniform_image(ImageSize{2, 4}, 1, 200);
 
+    FittedSample fitted;
+    SA_EXPECT_OK(fit_sample(Sample{}, source.view(),
+                            options_of(ImageSize{4, 4}, SampleFit::Letterbox), fitted));
+
+    ASSERT_EQ(fitted.image.size(), (ImageSize{4, 4}));
+    const std::uint8_t* pixels = fitted.image.row(row.row);
+    EXPECT_EQ(std::vector<std::uint8_t>(pixels, pixels + 4),
+              std::vector<std::uint8_t>(4, row.level));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsFitSampleLetterboxRow,
+    ::testing::Values(LetterboxRow{"TopRowIsPadding", 0, K_PADDING},
+                      LetterboxRow{"SecondRowIsTheSource", 1, 200},
+                      LetterboxRow{"ThirdRowIsTheSource", 2, 200},
+                      LetterboxRow{"BottomRowIsPadding", 3, K_PADDING}),
+    [](const ::testing::TestParamInfo<LetterboxRow>& info) { return std::string(info.param.name); });
+
+/** @brief Tests that a letterbox moves the boxes by the padding and invents no class. */
+TEST(Small_DatasetsFitSample, LetterboxMovesTheLabelsByThePadding)
+{
+    const Image source = Support::uniform_image(ImageSize{2, 4}, 1, 200);
     Sample sample;
     sample.objects.add(0, NormalizedBox{0.5f, 0.5f, 0.5f, 1.0f});
 
     FittedSample fitted;
     SA_EXPECT_OK(fit_sample(sample, source.view(),
                             options_of(ImageSize{4, 4}, SampleFit::Letterbox), fitted));
-
-    ASSERT_EQ(fitted.image.size(), (ImageSize{4, 4}));
-    for (std::int32_t x = 0; x < 4; ++x)
-    {
-        EXPECT_EQ(fitted.image.row(0)[x], K_PADDING) << "column " << x;
-        EXPECT_EQ(fitted.image.row(1)[x], 200) << "column " << x;
-        EXPECT_EQ(fitted.image.row(2)[x], 200) << "column " << x;
-        EXPECT_EQ(fitted.image.row(3)[x], K_PADDING) << "column " << x;
-    }
 
     EXPECT_FALSE(fitted.class_index.has_value());
     ASSERT_EQ(fitted.objects.size(), 1u);

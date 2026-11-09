@@ -67,7 +67,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a sample with stored pixels is read from its offset in the file. */
-TEST(Small_DatasetsLoadSampleImage, StoredPixelsAreReadFromTheirOffset)
+TEST(Medium_DatasetsLoadSampleImage, StoredPixelsAreReadFromTheirOffset)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_stored");
     SampleList list = list_of(scratch.write("pixels.bin", Support::rising_bytes(10, 0)));
@@ -87,7 +87,7 @@ TEST(Small_DatasetsLoadSampleImage, StoredPixelsAreReadFromTheirOffset)
 }
 
 /** @brief Tests that a sample without stored pixels is decoded from its image file. */
-TEST(Small_DatasetsLoadSampleImage, AnImageFileIsDecoded)
+TEST(Medium_DatasetsLoadSampleImage, AnImageFileIsDecoded)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_file");
     const std::filesystem::path file = scratch.path() / "image.saim";
@@ -127,7 +127,7 @@ TEST(Small_DatasetsLoadSampleImage, AFileIndexOutsideTheListIsRefused)
 }
 
 /** @brief Tests that an absent image file is a failure that names the file. */
-TEST(Small_DatasetsLoadSampleImage, AnAbsentFileIsNamed)
+TEST(Medium_DatasetsLoadSampleImage, AnAbsentFileIsNamed)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_absent");
 

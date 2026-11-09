@@ -64,51 +64,103 @@ namespace
     /** @brief Holds the seed of every pipeline below. */
     constexpr std::uint64_t K_SEED = 20261011;
 
+    /** @brief Holds the name of each row of the table, one row of a test each. */
+    class Small_DatasetsPipelineTableName : public ::testing::TestWithParam<std::string_view>
+    {
+    };
+
+    /** @brief Holds an input the default row refuses and the text of the refusal. */
+    struct InputRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the size of the request. */
+        ImageSize size;
+
+        /** @brief Holds the channels of the request. */
+        std::int32_t channels;
+
+        /** @brief Holds a text the refusal carries. */
+        const char* message;
+
+        /** @brief Holds another text the refusal carries. */
+        const char* detail;
+    };
+
+    /** @brief Holds one refused input per row. */
+    class Small_DatasetsPipelineTableRefusal : public ::testing::TestWithParam<InputRefusal>
+    {
+    };
+
+    /** @brief Names a test after the name of its row. */
+    std::string table_row_name(const ::testing::TestParamInfo<std::string_view>& info)
+    {
+        return std::string(info.param);
+    }
 } // namespace
 
-/** @brief Tests that the table lists none, then default, and finds each by its name. */
+/** @brief Tests that the table lists none, then default. */
 TEST(Small_DatasetsPipelineTable, ItListsNoneThenDefault)
 {
     const SushiRuntime::span<const PipelineEntry> rows = pipeline_table();
+
     ASSERT_EQ(rows.size(), 2u);
     EXPECT_EQ(rows[0].name, "none");
     EXPECT_EQ(rows[1].name, "default");
+}
 
-    EXPECT_EQ(find_pipeline("none"), &rows[0]);
-    EXPECT_EQ(find_pipeline("default"), &rows[1]);
-    EXPECT_EQ(find_pipeline("mixup"), nullptr);
+/** @brief Tests that find_pipeline finds the row of a name in the table. */
+TEST_P(Small_DatasetsPipelineTableName, FindPipelineFindsEachNameInTheTable)
+{
+    const PipelineEntry* const found = find_pipeline(GetParam());
+
+    ASSERT_NE(found, nullptr);
+    EXPECT_EQ(found->name, GetParam());
 }
 
 /** @brief Tests that each row builds the pipeline of its name. */
-TEST(Small_DatasetsPipelineTable, ARowBuildsThePipelineOfItsName)
+TEST_P(Small_DatasetsPipelineTableName, ARowBuildsThePipelineOfItsName)
 {
+    const PipelineEntry* const row = find_pipeline(GetParam());
+    ASSERT_NE(row, nullptr);
     PipelineRequest request;
     request.fit.size = ImageSize{K_SIDE, K_SIDE};
     request.channels = 3;
     request.seed = K_SEED;
 
-    for (const PipelineEntry& row : pipeline_table())
-    {
-        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<const SamplePipeline> pipeline,
-                                row.make(request));
-        EXPECT_EQ(pipeline->name(), row.name);
-    }
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<const SamplePipeline> pipeline,
+                            row->make(request));
+
+    EXPECT_EQ(pipeline->name(), row->name);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsPipelineTableName,
+                         ::testing::Values(std::string_view("none"), std::string_view("default")),
+                         table_row_name);
+
+/** @brief Tests that find_pipeline gives no row for a name the table lacks. */
+TEST(Small_DatasetsPipelineTable, AnUnknownNameFindsNoRow)
+{
+    EXPECT_EQ(find_pipeline("mixup"), nullptr);
 }
 
 /** @brief Tests that default refuses an input that is not square or not of three channels. */
-TEST(Small_DatasetsPipelineTable, DefaultRefusesAnInputItDoesNotMake)
+TEST_P(Small_DatasetsPipelineTableRefusal, DefaultRefusesAnInputItDoesNotMake)
 {
+    const InputRefusal& refusal = GetParam();
     const PipelineEntry* const row = find_pipeline(K_PIPELINE_DEFAULT);
     ASSERT_NE(row, nullptr);
-
     PipelineRequest request;
-    request.fit.size = ImageSize{4, 6};
-    request.channels = 3;
-    SA_EXPECT_FAILURE(row->make(request), StatusCode::InvalidDescription, "'default'",
-                      "square", "4 by 6");
+    request.fit.size = refusal.size;
+    request.channels = refusal.channels;
 
-    request.fit.size = ImageSize{4, 4};
-    request.channels = 1;
     SA_EXPECT_FAILURE(row->make(request), StatusCode::InvalidDescription, "'default'",
-                      "3 channels", "has 1");
+                      refusal.message, refusal.detail);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsPipelineTableRefusal,
+    ::testing::Values(InputRefusal{"ANonSquareSize", ImageSize{4, 6}, 3, "square", "4 by 6"},
+                      InputRefusal{"OneChannel", ImageSize{4, 4}, 1, "3 channels", "has 1"}),
+    [](const ::testing::TestParamInfo<InputRefusal>& info) { return std::string(info.param.name); });

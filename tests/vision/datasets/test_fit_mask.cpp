@@ -30,6 +30,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include "datasets_test_support.hpp"
@@ -62,6 +64,51 @@ namespace
         options.size = size;
         return options;
     }
+
+    /** @brief Holds a mask, the size of its image and the text fit_mask refuses it with. */
+    struct MaskRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the channels of the mask. */
+        std::int32_t channels;
+
+        /** @brief Holds the size of the mask. */
+        ImageSize mask_size;
+
+        /** @brief Holds the size of the image the mask belongs to. */
+        ImageSize image_size;
+
+        /** @brief Holds the text the refusal carries. */
+        const char* message;
+    };
+
+    /** @brief Holds one refused mask per row. */
+    class Small_DatasetsFitMaskRefusal : public ::testing::TestWithParam<MaskRefusal>
+    {
+    };
+
+    /** @brief Holds the call a sample makes to load its mask and the text it is refused with. */
+    struct SampleRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the index of the sample asked for. */
+        std::size_t sample;
+
+        /** @brief Holds the mask index the one sample of the list names, or none. */
+        std::optional<std::uint32_t> mask;
+
+        /** @brief Holds the text the refusal carries. */
+        const char* message;
+    };
+
+    /** @brief Holds one refused sample per row. */
+    class Small_DatasetsLoadSampleMaskRefusal : public ::testing::TestWithParam<SampleRefusal>
+    {
+    };
 } // namespace
 
 /** @brief Tests that an enlarged mask repeats each class and blends none. */
@@ -123,66 +170,62 @@ TEST(Small_DatasetsFitMask, ALetterboxThatReducesSamplesTheNearestPixel)
 }
 
 /** @brief Tests that a mask of several channels or of another size than its image fails. */
-TEST(Small_DatasetsFitMask, AMaskMustMatchItsImage)
+TEST_P(Small_DatasetsFitMaskRefusal, AMaskMustMatchItsImage)
 {
-    const SampleFitOptions options = options_of(SampleFit::Resize, ImageSize{4, 4});
+    const MaskRefusal& row = GetParam();
+    const Image mask = Support::uniform_image(row.mask_size, row.channels, 1);
     Image fitted;
 
-    const Image coloured = Support::uniform_image(ImageSize{2, 2}, 3, 1);
-    SA_EXPECT_FAILURE(fit_mask(coloured.view(), coloured.size(), options, fitted),
-                      StatusCode::Incompatible, "fit_mask", "the mask has 3 channels");
+    SA_EXPECT_FAILURE(fit_mask(mask.view(), row.image_size,
+                               options_of(SampleFit::Resize, ImageSize{4, 4}), fitted),
+                      StatusCode::Incompatible, "fit_mask", row.message);
+}
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsFitMaskRefusal,
+    ::testing::Values(MaskRefusal{"ThreeChannels", 3, ImageSize{2, 2}, ImageSize{2, 2},
+                                  "the mask has 3 channels"},
+                      MaskRefusal{"AnotherSizeThanItsImage", 1, ImageSize{2, 2}, ImageSize{2, 4},
+                                  "the mask is 2 by 2 pixels; its image is 2 by 4"}),
+    [](const ::testing::TestParamInfo<MaskRefusal>& info) { return std::string(info.param.name); });
+
+/** @brief Tests that a target size of no pixel fails. */
+TEST(Small_DatasetsFitMask, ATargetSizeOfNoPixelIsRefused)
+{
     const Image mask = Support::uniform_image(ImageSize{2, 2}, 1, 1);
-    SA_EXPECT_FAILURE(fit_mask(mask.view(), ImageSize{2, 4}, options, fitted),
-                      StatusCode::Incompatible, "fit_mask",
-                      "the mask is 2 by 2 pixels; its image is 2 by 4");
+    Image fitted;
 
     SA_EXPECT_FAILURE(fit_mask(mask.view(), mask.size(),
                                options_of(SampleFit::Resize, ImageSize{0, 4}), fitted),
                       StatusCode::InvalidDescription, "fit_mask", "0 by 4 pixels");
 }
 
-/** @brief Tests that the mask file of a sample is decoded as the bytes it stores. */
-TEST(Small_DatasetsLoadSampleMask, TheMaskFileIsDecoded)
-{
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_load_mask");
-    const std::vector<std::uint8_t> classes = {0, 3, 255, 1, 2, 0};
-
-    SampleList list;
-    list.files.push_back(scratch.path() / "image.jpg");
-    list.files.push_back(Support::write_raw_image(
-        scratch, "mask.png", Support::gray_image(ImageSize{2, 3}, classes)));
-    list.samples.emplace_back();
-    list.samples[0].mask = 1;
-
-    Image mask;
-    SA_EXPECT_OK(load_sample_mask(list, 0, mask));
-
-    EXPECT_EQ(mask.size(), (ImageSize{2, 3}));
-    EXPECT_EQ(mask.channels(), 1);
-    EXPECT_EQ(bytes_of(mask), classes);
-}
-
 /** @brief Tests that a sample without a mask and indices outside the list are refused. */
-TEST(Small_DatasetsLoadSampleMask, ASampleMustNameAMaskOfTheList)
+TEST_P(Small_DatasetsLoadSampleMaskRefusal, ASampleMustNameAMaskOfTheList)
 {
+    const SampleRefusal& row = GetParam();
     SampleList list;
     list.files.push_back("image.jpg");
     list.samples.emplace_back();
-
+    list.samples[0].mask = row.mask;
     Image mask;
-    SA_EXPECT_FAILURE(load_sample_mask(list, 1, mask), StatusCode::InvalidDescription,
-                      "load_sample_mask", "sample 1 is outside a list of 1 samples");
-    SA_EXPECT_FAILURE(load_sample_mask(list, 0, mask), StatusCode::InvalidDescription,
-                      "load_sample_mask", "sample 0 has no mask");
 
-    list.samples[0].mask = 4;
-    SA_EXPECT_FAILURE(load_sample_mask(list, 0, mask), StatusCode::InvalidDescription,
-                      "sample 0 names the mask file 4 of a list of 1 files");
+    SA_EXPECT_FAILURE(load_sample_mask(list, row.sample, mask), StatusCode::InvalidDescription,
+                      row.message);
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsLoadSampleMaskRefusal,
+    ::testing::Values(SampleRefusal{"ASampleOutsideTheList", 1, std::nullopt,
+                                    "sample 1 is outside a list of 1 samples"},
+                      SampleRefusal{"ASampleWithoutAMask", 0, std::nullopt,
+                                    "sample 0 has no mask"},
+                      SampleRefusal{"AMaskFileOutsideTheList", 0, 4u,
+                                    "sample 0 names the mask file 4 of a list of 1 files"}),
+    [](const ::testing::TestParamInfo<SampleRefusal>& info) { return std::string(info.param.name); });
+
 /** @brief Tests that an absent mask file is reported with its path. */
-TEST(Small_DatasetsLoadSampleMask, AnAbsentMaskFileIsReported)
+TEST(Medium_DatasetsLoadSampleMask, AnAbsentMaskFileIsReported)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_mask_absent");
 

@@ -1,12 +1,14 @@
 # tests/vision/datasets/test_fit_mask.cpp
 
 
-Suites: `Small_DatasetsFitMask`, `Small_DatasetsLoadSampleMask`.
+Suites: `Small_DatasetsFitMask`, `Small_DatasetsFitMaskRefusal`,
+`Small_DatasetsLoadSampleMaskRefusal` and `Medium_DatasetsLoadSampleMask`.
 
 Tests `fit_mask` in `modules/vision/datasets/include/SushiAI/vision/datasets/fit_mask.hpp` and
 `load_sample_mask` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/load_sample_mask.hpp`. The
-`load_sample_mask` cases that read a file write it under the system's temporary directory.
+`load_sample_mask` case that reads a path is `Medium_`; the one-channel decode case of the
+earlier file is deleted, as `test_load_sample_mask.cpp` holds that promise.
 
 ## AResizeRepeatsTheNearestClass
 
@@ -29,24 +31,23 @@ A mask of 4 rows and 8 columns holding the bytes 0 to 31, letterboxed to 4 by 4,
 
 ## AMaskMustMatchItsImage
 
-`fit_mask` fails with `Incompatible` and "fit_mask" for a mask of three channels
-("the mask has 3 channels") and for a 2 by 2 mask whose image is 2 by 4
-("the mask is 2 by 2 pixels; its image is 2 by 4"). A target size of 0 by 4 fails with
-`InvalidDescription`, "fit_mask" and "0 by 4 pixels".
+`Small_DatasetsFitMaskRefusal`, one row each: `fit_mask` fails with `Incompatible` and
+"fit_mask" for a mask of three channels ("the mask has 3 channels") and for a 2 by 2 mask whose
+image is 2 by 4 ("the mask is 2 by 2 pixels; its image is 2 by 4").
 
-## TheMaskFileIsDecoded
+## ATargetSizeOfNoPixelIsRefused
 
-The sample names file 1 of the list as its mask, a raw image file of 2 rows and 3 columns.
-`load_sample_mask` gives an image of that size and one channel holding the bytes written: 0,
-3, 255, 1, 2, 0.
+A target size of 0 by 4 fails with `InvalidDescription`, "fit_mask" and "0 by 4 pixels".
 
 ## ASampleMustNameAMaskOfTheList
 
-Over a list of one file and one sample, `load_sample_mask` fails with `InvalidDescription`
-for sample 1 ("load_sample_mask", "sample 1 is outside a list of 1 samples"), for a sample
-without a mask ("sample 0 has no mask") and for the mask index 4
+`Small_DatasetsLoadSampleMaskRefusal`, one row each. Over a list of one file and one sample,
+`load_sample_mask` fails with `InvalidDescription` for sample 1
+("load_sample_mask", "sample 1 is outside a list of 1 samples"), for a sample without a mask
+("sample 0 has no mask") and for the mask index 4
 ("sample 0 names the mask file 4 of a list of 1 files").
 
 ## AnAbsentMaskFileIsReported
 
-A mask file that does not exist fails with `FileNotFound` and "absent.png".
+`Medium_DatasetsLoadSampleMask`, since it reaches a path on disk: a mask file that does not exist
+fails with `FileNotFound` and "absent.png".

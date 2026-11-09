@@ -133,51 +133,107 @@ namespace
         }
     }
 
+
+    /** @brief Holds the sample index of each row of a test over the four images. */
+    class Medium_DatasetsFitPipelineSample : public ::testing::TestWithParam<std::size_t>
+    {
+    };
+
+    /** @brief Names a test after the sample index of its row. */
+    std::string sample_row_name(const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return "Sample" + std::to_string(info.param);
+    }
+
+    /** @brief Names the scratch directory of one row of a test, so rows never share one. */
+    std::string row_directory(const char* test, std::size_t row)
+    {
+        return std::string("sushiai_test_datasets_pipeline_fit_") + test + "_"
+               + std::to_string(row);
+    }
+
+    /** @brief Returns the letterbox fit of the 8 by 8 input the tests use. */
+    SampleFitOptions letterbox_of_eight()
+    {
+        SampleFitOptions fit;
+        fit.size = ImageSize{8, 8};
+        fit.fit = SampleFit::Letterbox;
+        return fit;
+    }
 } // namespace
 
-/** @brief Tests that the fit gives the input size, the objects and the same result per epoch. */
-TEST(Small_DatasetsFitPipeline, FitsEachSampleTheSameInEveryEpoch)
+/** @brief Tests that a fitted sample has the input size and three channels. */
+TEST_P(Medium_DatasetsFitPipelineSample, AFittedSampleHasTheInputSizeAndThreeChannels)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_fit");
+    const std::size_t row = GetParam();
+    const Support::ScratchDirectory scratch(row_directory("shape", row).c_str());
     const SampleList list = four_images(scratch);
-
-    SampleFitOptions fit;
-    fit.size = ImageSize{8, 8};
-    fit.fit = SampleFit::Letterbox;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<FitPipeline> pipeline,
-                            FitPipeline::make(fit, 3));
+                            FitPipeline::make(letterbox_of_eight(), 3));
     EXPECT_EQ(pipeline->name(), "none");
 
-    const std::vector<FittedSample> first = produce(*pipeline, list, {3, 0}, 0);
-    const std::vector<FittedSample> later = produce(*pipeline, list, {3, 0}, 7);
+    const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 0);
 
-    ASSERT_EQ(first.size(), 2u);
-    for (std::size_t row = 0; row < 2; ++row)
-    {
-        EXPECT_EQ(first[row].image.size(), (ImageSize{8, 8}));
-        EXPECT_EQ(first[row].image.channels(), 3);
-        ASSERT_EQ(first[row].objects.size(), 1u);
-        expect_same(first[row], later[row]);
-    }
-    EXPECT_EQ(first[0].objects.classes()[0], 3);
-    EXPECT_EQ(first[1].objects.classes()[0], 0);
+    ASSERT_EQ(made.size(), 1u);
+    EXPECT_EQ(made[0].image.size(), (ImageSize{8, 8}));
+    EXPECT_EQ(made[0].image.channels(), 3);
 }
 
-/** @brief Tests that the fit refuses a size outside the bounds and counts that differ. */
-TEST(Small_DatasetsFitPipeline, RefusesWhatItCannotFit)
+/** @brief Tests that a fitted sample keeps the one object, of the class of its row. */
+TEST_P(Medium_DatasetsFitPipelineSample, AFittedSampleKeepsTheClassOfItsRow)
+{
+    const std::size_t row = GetParam();
+    const Support::ScratchDirectory scratch(row_directory("classes", row).c_str());
+    const SampleList list = four_images(scratch);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<FitPipeline> pipeline,
+                            FitPipeline::make(letterbox_of_eight(), 3));
+
+    const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 0);
+
+    ASSERT_EQ(made.size(), 1u);
+    ASSERT_EQ(made[0].objects.size(), 1u);
+    EXPECT_EQ(made[0].objects.classes()[0], static_cast<std::int32_t>(row));
+}
+
+/** @brief Tests that the fit of a sample is the same in every epoch. */
+TEST_P(Medium_DatasetsFitPipelineSample, TheFitIsTheSameInEveryEpoch)
+{
+    const std::size_t row = GetParam();
+    const Support::ScratchDirectory scratch(row_directory("replay", row).c_str());
+    const SampleList list = four_images(scratch);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<FitPipeline> pipeline,
+                            FitPipeline::make(letterbox_of_eight(), 3));
+
+    const std::vector<FittedSample> first = produce(*pipeline, list, {row}, 0);
+    const std::vector<FittedSample> later = produce(*pipeline, list, {row}, 7);
+
+    ASSERT_EQ(first.size(), 1u);
+    ASSERT_EQ(later.size(), 1u);
+    expect_same(first[0], later[0]);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_DatasetsFitPipelineSample,
+                         ::testing::Values<std::size_t>(3, 0), sample_row_name);
+
+/** @brief Tests that make refuses an input size of no pixel. */
+TEST(Small_DatasetsFitPipeline, MakeRefusesASizeOfNoPixel)
 {
     SampleFitOptions fit;
     fit.size = ImageSize{0, 8};
+
     SA_EXPECT_FAILURE(FitPipeline::make(fit, 3), StatusCode::InvalidDescription, "FitPipeline",
                       "0 by 8");
+}
 
-    fit.size = ImageSize{8, 8};
+/** @brief Tests that produce refuses a count of samples that differs from the fitted count. */
+TEST(Small_DatasetsFitPipeline, ProduceRefusesCountsThatDiffer)
+{
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<FitPipeline> pipeline,
-                            FitPipeline::make(fit, 3));
-
+                            FitPipeline::make(letterbox_of_eight(), 3));
     const SampleList list;
     const std::size_t samples[] = {0, 1};
     FittedSample fitted;
+
     SA_EXPECT_FAILURE(pipeline->produce(list, SushiRuntime::span<const std::size_t>(samples, 2),
                                         0, SushiRuntime::span<FittedSample>(&fitted, 1)),
                       StatusCode::InvalidDescription, "2 samples", "1 fitted");

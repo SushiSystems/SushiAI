@@ -213,12 +213,12 @@ namespace
     }
 
     /** @brief Holds the sample index of each row of a test over the four images. */
-    class Small_DatasetsAugmentPipelineSample : public ::testing::TestWithParam<std::size_t>
+    class Medium_DatasetsAugmentPipelineSample : public ::testing::TestWithParam<std::size_t>
     {
     };
 
     /** @brief Holds the epoch and the sample index of each row of a test over the four images. */
-    class Small_DatasetsAugmentPipelineEpochSample
+    class Medium_DatasetsAugmentPipelineEpochSample
         : public ::testing::TestWithParam<std::tuple<std::int64_t, std::size_t>>
     {
     };
@@ -255,7 +255,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a training sample has the training size and three channels. */
-TEST_P(Small_DatasetsAugmentPipelineSample, ASampleHasTheTrainingSizeAndThreeChannels)
+TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleHasTheTrainingSizeAndThreeChannels)
 {
     const std::size_t row = GetParam();
     const Support::ScratchDirectory scratch(row_directory("shape", row).c_str());
@@ -272,7 +272,7 @@ TEST_P(Small_DatasetsAugmentPipelineSample, ASampleHasTheTrainingSizeAndThreeCha
 }
 
 /** @brief Tests that the boxes of a training sample lie inside the training square. */
-TEST_P(Small_DatasetsAugmentPipelineSample, TheBoxesOfASampleLieInsideTheImage)
+TEST_P(Medium_DatasetsAugmentPipelineSample, TheBoxesOfASampleLieInsideTheImage)
 {
     const std::size_t row = GetParam();
     const Support::ScratchDirectory scratch(row_directory("boxes", row).c_str());
@@ -287,7 +287,7 @@ TEST_P(Small_DatasetsAugmentPipelineSample, TheBoxesOfASampleLieInsideTheImage)
 }
 
 /** @brief Tests that a sample of a list without masks comes out with an empty mask. */
-TEST_P(Small_DatasetsAugmentPipelineSample, ASampleWithoutAMaskHasAnEmptyMask)
+TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleWithoutAMaskHasAnEmptyMask)
 {
     const std::size_t row = GetParam();
     const Support::ScratchDirectory scratch(row_directory("nomask", row).c_str());
@@ -302,7 +302,7 @@ TEST_P(Small_DatasetsAugmentPipelineSample, ASampleWithoutAMaskHasAnEmptyMask)
 }
 
 /** @brief Tests that a sample is the same whether it is made again, alone or in a reversed batch. */
-TEST_P(Small_DatasetsAugmentPipelineSample, ASampleDependsOnItsIndexAndItsEpochAlone)
+TEST_P(Medium_DatasetsAugmentPipelineSample, ASampleDependsOnItsIndexAndItsEpochAlone)
 {
     const std::size_t row = GetParam();
     const Support::ScratchDirectory scratch(row_directory("replay", row).c_str());
@@ -321,7 +321,7 @@ TEST_P(Small_DatasetsAugmentPipelineSample, ASampleDependsOnItsIndexAndItsEpochA
 }
 
 /** @brief Tests that a mask comes out at the training size holding classes or the void byte. */
-TEST_P(Small_DatasetsAugmentPipelineSample, AMaskTakesTheSizeOfItsSample)
+TEST_P(Medium_DatasetsAugmentPipelineSample, AMaskTakesTheSizeOfItsSample)
 {
     const std::size_t row = GetParam();
     const Support::ScratchDirectory scratch(row_directory("masks", row).c_str());
@@ -338,11 +338,11 @@ TEST_P(Small_DatasetsAugmentPipelineSample, AMaskTakesTheSizeOfItsSample)
     EXPECT_TRUE(holds_classes_or_void(made[0].mask));
 }
 
-INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsAugmentPipelineSample,
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_DatasetsAugmentPipelineSample,
                          ::testing::Range<std::size_t>(0, 4), sample_row_name);
 
 /** @brief Tests that the next epoch changes at least one image of the four. */
-TEST(Small_DatasetsAugmentPipeline, ANewEpochChangesTheImages)
+TEST(Medium_DatasetsAugmentPipeline, ANewEpochChangesTheImages)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_epochs");
     const SampleList list = four_images(scratch);
@@ -356,7 +356,7 @@ TEST(Small_DatasetsAugmentPipeline, ANewEpochChangesTheImages)
 }
 
 /** @brief Tests that past the mosaic epochs a sample holds the objects of its own image. */
-TEST_P(Small_DatasetsAugmentPipelineEpochSample, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
+TEST_P(Medium_DatasetsAugmentPipelineEpochSample, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
 {
     const auto [epoch, row] = GetParam();
     const Support::ScratchDirectory scratch(
@@ -373,7 +373,7 @@ TEST_P(Small_DatasetsAugmentPipelineEpochSample, PastTheMosaicEpochsASampleHolds
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    Rows, Small_DatasetsAugmentPipelineEpochSample,
+    Rows, Medium_DatasetsAugmentPipelineEpochSample,
     ::testing::Combine(::testing::Range<std::int64_t>(0, 3), ::testing::Range<std::size_t>(0, 4)),
     [](const ::testing::TestParamInfo<std::tuple<std::int64_t, std::size_t>>& info)
     {

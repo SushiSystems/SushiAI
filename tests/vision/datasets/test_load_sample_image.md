@@ -1,11 +1,12 @@
 # tests/vision/datasets/test_load_sample_image.cpp
 
 
-Suites: `Small_DatasetsLoadSampleImage`.
+Suites: `Small_DatasetsLoadSampleImage` and `Medium_DatasetsLoadSampleImage`.
 
 Tests `load_sample_image` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/load_sample_image.hpp`. The cases
-that read a file write it under the system's temporary directory.
+that read a file are `Medium_` and write it under the system's temporary directory; the two
+refusals of an index decide before any file is opened and are `Small_`.
 
 ## StoredPixelsAreReadFromTheirOffset
 
