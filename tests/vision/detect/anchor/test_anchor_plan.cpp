@@ -32,9 +32,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <initializer_list>
 #include <limits>
 #include <random>
+#include <string>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
@@ -99,14 +99,33 @@ namespace
      */
     constexpr double K_SAME_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Holds the absolute tolerance between two plans of the same arguments: none. */
-    constexpr double K_IDENTICAL = 0.0;
-
     /**
      * @brief Holds the absolute tolerance of a threshold, a float32: 32 times the float unit
      *        roundoff, the smallest power of two not tighter than the earlier 1e-6.
      */
     constexpr double K_THRESHOLD_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
+
+    /** @brief Holds a call plan_anchors refuses, the status it answers with and its row name. */
+    struct RefusedPlan
+    {
+        std::string name;                                /**< The row's name. */
+        std::vector<AnchorSize> (*make_boxes)();         /**< Makes the boxes of the call. */
+        std::vector<std::int64_t> strides;               /**< The strides of the call. */
+        AnchorPlanOptions options;                       /**< The options of the call. */
+        StatusCode code;                                 /**< The status the call answers with. */
+    };
+
+    /** @brief Runs one call plan_anchors refuses. */
+    class Small_DetectAnchorPlanRefusal : public ::testing::TestWithParam<RefusedPlan>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string refusal_name(const ::testing::TestParamInfo<RefusedPlan>& info)
+    {
+        return info.param.name;
+    }
 
     /** @brief Returns the next draw of @p engine as a double in [0, 1), from its upper 53 bits. */
     double draw_unit(std::mt19937_64& engine)
@@ -220,6 +239,28 @@ namespace
         }
     }
 
+    /** @brief Expects every number of both plans to be equal, with no tolerance. */
+    void expect_identical_plan(const AnchorPlan& actual, const AnchorPlan& expected)
+    {
+        expect_same_layout(actual.layout, expected.layout);
+        EXPECT_EQ(actual.fit.boxes, expected.fit.boxes);
+        EXPECT_EQ(actual.fit.mean_best_iou, expected.fit.mean_best_iou);
+        EXPECT_EQ(actual.fit.best_possible_recall, expected.fit.best_possible_recall);
+        EXPECT_EQ(actual.fit.unowned_share, expected.fit.unowned_share);
+        EXPECT_EQ(actual.fit.best_iou_tenth_percentile, expected.fit.best_iou_tenth_percentile);
+        EXPECT_EQ(actual.fit.anchor_share, expected.fit.anchor_share);
+        EXPECT_EQ(actual.thresholds.match_threshold, expected.thresholds.match_threshold);
+        EXPECT_EQ(actual.thresholds.ignore_threshold, expected.thresholds.ignore_threshold);
+        ASSERT_EQ(actual.trials.size(), expected.trials.size());
+        for (std::size_t index = 0; index < actual.trials.size(); ++index)
+        {
+            EXPECT_EQ(actual.trials[index].per_head, expected.trials[index].per_head)
+                << "trial " << index;
+            EXPECT_EQ(actual.trials[index].mean_best_iou, expected.trials[index].mean_best_iou)
+                << "trial " << index;
+        }
+    }
+
     /** @brief Expects every part of @p actual to equal that of @p expected, to @p tolerance. */
     void expect_same_plan(const AnchorPlan& actual, const AnchorPlan& expected, double tolerance)
     {
@@ -227,6 +268,52 @@ namespace
         expect_same_fit(actual.fit, expected.fit, tolerance);
         expect_same_thresholds(actual.thresholds, expected.thresholds, tolerance);
         expect_same_trials(actual.trials, expected.trials, tolerance);
+    }
+
+    /** @brief Returns no box at all. */
+    std::vector<AnchorSize> make_no_boxes()
+    {
+        return {};
+    }
+
+    /** @brief Returns options that give the count per head, so no count is chosen. */
+    AnchorPlanOptions make_given_options(std::int64_t per_head)
+    {
+        AnchorPlanOptions options;
+        options.per_head = per_head;
+        return options;
+    }
+
+    /** @brief Returns options that choose the count and let the clustering run no iteration. */
+    AnchorPlanOptions make_chosen_options_without_iterations()
+    {
+        AnchorPlanOptions options;
+        options.count.clustering.max_iterations = 0;
+        return options;
+    }
+
+    /** @brief Returns options that give one anchor per head and let the clustering run none. */
+    AnchorPlanOptions make_given_options_without_iterations()
+    {
+        AnchorPlanOptions options = make_given_options(1);
+        options.count.clustering.max_iterations = 0;
+        return options;
+    }
+
+    /** @brief Returns options that choose the count from a minimum of zero per head. */
+    AnchorPlanOptions make_min_per_head_zero_options()
+    {
+        AnchorPlanOptions options;
+        options.count.min_per_head = 0;
+        return options;
+    }
+
+    /** @brief Returns options whose recall_iou is 2, past the largest IoU. */
+    AnchorPlanOptions make_recall_two_options()
+    {
+        AnchorPlanOptions options;
+        options.fit.recall_iou = 2.0f;
+        return options;
     }
 } // namespace
 
@@ -329,7 +416,7 @@ TEST(Small_DetectAnchorPlan, GivenCountIgnoresTheBoundsOfTheCountChoice)
 
     ASSERT_TRUE(outcome.has_value()) << outcome.status().message();
     ASSERT_TRUE(plain.has_value()) << plain.status().message();
-    expect_same_plan(outcome.value(), plain.value(), K_IDENTICAL);
+    expect_identical_plan(outcome.value(), plain.value());
 }
 
 /** @brief Tests that a head takes the anchors of its own stride wherever the stride stands. */
@@ -354,7 +441,7 @@ TEST(Small_DetectAnchorPlan, StridesInAnyOrderGiveEachHeadTheAnchorsOfItsStride)
     EXPECT_EQ(backward.value().layout.head_anchors[1], (std::vector<std::int64_t>{0, 1, 2}));
     AnchorPlan swapped = backward.value();
     std::swap(swapped.layout.head_anchors[0], swapped.layout.head_anchors[1]);
-    expect_same_plan(swapped, forward.value(), K_IDENTICAL);
+    expect_identical_plan(swapped, forward.value());
     ASSERT_EQ(three.value().layout.head_anchors.size(), 3u);
     EXPECT_EQ(three.value().layout.head_anchors[0], (std::vector<std::int64_t>{0, 1}));
     EXPECT_EQ(three.value().layout.head_anchors[1], (std::vector<std::int64_t>{4, 5}));
@@ -374,7 +461,7 @@ TEST(Small_DetectAnchorPlan, TwoCallsGiveTheSamePlan)
 
     ASSERT_TRUE(first.has_value()) << first.status().message();
     ASSERT_TRUE(second.has_value()) << second.status().message();
-    expect_same_plan(first.value(), second.value(), K_IDENTICAL);
+    expect_identical_plan(first.value(), second.value());
 }
 
 /** @brief Tests that one blob under three strides plans one anchor per head. */
@@ -395,68 +482,57 @@ TEST(Small_DetectAnchorPlan, BlobPlansOneAnchorPerHead)
     EXPECT_NEAR(plan.fit.best_possible_recall, 1.0, K_SAME_TOLERANCE);
 }
 
-/** @brief Tests that no stride and a stride of zero are InvalidDescription. */
-TEST(Small_DetectAnchorPlan, RefusesNoStrideAndAStrideOfZero)
+/** @brief Tests that a call plan_anchors refuses answers with the status of its row. */
+TEST_P(Small_DetectAnchorPlanRefusal, ARefusedCallAnswersWithItsStatus)
 {
-    const std::vector<AnchorSize> boxes = make_ladder();
-    const std::vector<std::int64_t> none;
-    const std::vector<std::int64_t> zero = {16, 0};
-    AnchorPlanOptions one_per_head;
-    one_per_head.per_head = 1;
+    const RefusedPlan& row = GetParam();
 
-    for (const AnchorPlanOptions& options : {AnchorPlanOptions{}, one_per_head})
-    {
-        const Result<AnchorPlan> without = plan_anchors(boxes, none, options);
-        const Result<AnchorPlan> with_zero = plan_anchors(boxes, zero, options);
+    const Result<AnchorPlan> outcome = plan_anchors(row.make_boxes(), row.strides, row.options);
 
-        ASSERT_FALSE(without.has_value());
-        EXPECT_EQ(without.status().code(), StatusCode::InvalidDescription);
-        ASSERT_FALSE(with_zero.has_value());
-        EXPECT_EQ(with_zero.status().code(), StatusCode::InvalidDescription);
-    }
+    ASSERT_FALSE(outcome.has_value());
+    EXPECT_EQ(outcome.status().code(), row.code);
 }
 
-/** @brief Tests that each option outside its range is InvalidDescription. */
-TEST(Small_DetectAnchorPlan, RefusesOptionsOutsideTheirRange)
-{
-    const std::vector<AnchorSize> boxes = make_ladder();
-    const std::vector<std::int64_t> strides = {16, 32};
-    std::vector<AnchorPlanOptions> refused(6);
-    refused[0].per_head = -1;
-    refused[1].per_head = std::numeric_limits<std::int64_t>::max();
-    refused[2].count.min_per_head = 0;
-    refused[3].count.clustering.max_iterations = 0;
-    refused[4].fit.recall_iou = 2.0f;
-    refused[5].per_head = 1;
-    refused[5].count.clustering.max_iterations = 0;
+INSTANTIATE_TEST_SUITE_P(
+    NoStride, Small_DetectAnchorPlanRefusal,
+    ::testing::Values(
+        RefusedPlan{"NoStrideWithAChosenCount", make_ladder, {}, AnchorPlanOptions{},
+                    StatusCode::InvalidDescription},
+        RefusedPlan{"AStrideOfZeroWithAChosenCount", make_ladder, {16, 0}, AnchorPlanOptions{},
+                    StatusCode::InvalidDescription},
+        RefusedPlan{"NoStrideWithAGivenCount", make_ladder, {}, make_given_options(1),
+                    StatusCode::InvalidDescription},
+        RefusedPlan{"AStrideOfZeroWithAGivenCount", make_ladder, {16, 0}, make_given_options(1),
+                    StatusCode::InvalidDescription}),
+    refusal_name);
 
-    for (std::size_t index = 0; index < refused.size(); ++index)
-    {
-        const Result<AnchorPlan> outcome = plan_anchors(boxes, strides, refused[index]);
+INSTANTIATE_TEST_SUITE_P(
+    Options, Small_DetectAnchorPlanRefusal,
+    ::testing::Values(
+        RefusedPlan{"ANegativePerHead", make_ladder, {16, 32}, make_given_options(-1),
+                    StatusCode::InvalidDescription},
+        RefusedPlan{"APerHeadWhoseProductOverflows", make_ladder, {16, 32},
+                    make_given_options(std::numeric_limits<std::int64_t>::max()),
+                    StatusCode::InvalidDescription},
+        RefusedPlan{"AMinPerHeadOfZero", make_ladder, {16, 32}, make_min_per_head_zero_options(),
+                    StatusCode::InvalidDescription},
+        RefusedPlan{"ZeroClusteringIterations", make_ladder, {16, 32},
+                    make_chosen_options_without_iterations(), StatusCode::InvalidDescription},
+        RefusedPlan{"ARecallIoUOfTwo", make_ladder, {16, 32}, make_recall_two_options(),
+                    StatusCode::InvalidDescription},
+        RefusedPlan{"ZeroClusteringIterationsWithAGivenCount", make_ladder, {16, 32},
+                    make_given_options_without_iterations(), StatusCode::InvalidDescription}),
+    refusal_name);
 
-        ASSERT_FALSE(outcome.has_value()) << "options " << index;
-        EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription) << "options " << index;
-    }
-}
-
-/** @brief Tests that no box and fewer distinct boxes than a count needs are Incompatible. */
-TEST(Small_DetectAnchorPlan, RefusesBoxesThatDisagreeWithTheCount)
-{
-    const std::vector<AnchorSize> empty;
-    const std::vector<AnchorSize> two_sizes = make_two_sizes();
-    const std::vector<std::int64_t> two_strides = {16, 32};
-    const std::vector<std::int64_t> three_strides = {8, 16, 32};
-    AnchorPlanOptions two_per_head;
-    two_per_head.per_head = 2;
-
-    const Result<AnchorPlan> no_box = plan_anchors(empty, two_strides, AnchorPlanOptions{});
-    const Result<AnchorPlan> no_box_given = plan_anchors(empty, two_strides, two_per_head);
-    const Result<AnchorPlan> chosen = plan_anchors(two_sizes, three_strides, AnchorPlanOptions{});
-    const Result<AnchorPlan> given = plan_anchors(two_sizes, two_strides, two_per_head);
-
-    for (const Result<AnchorPlan>* outcome : {&no_box, &no_box_given, &chosen, &given})
-    {
-        ASSERT_FALSE(outcome->has_value());
-        EXPECT_EQ(outcome->status().code(), StatusCode::Incompatible);
-    }
-}
+INSTANTIATE_TEST_SUITE_P(
+    Boxes, Small_DetectAnchorPlanRefusal,
+    ::testing::Values(
+        RefusedPlan{"NoBoxWithAChosenCount", make_no_boxes, {16, 32}, AnchorPlanOptions{},
+                    StatusCode::Incompatible},
+        RefusedPlan{"NoBoxWithAGivenCount", make_no_boxes, {16, 32}, make_given_options(2),
+                    StatusCode::Incompatible},
+        RefusedPlan{"TwoSizesUnderThreeStrides", make_two_sizes, {8, 16, 32}, AnchorPlanOptions{},
+                    StatusCode::Incompatible},
+        RefusedPlan{"TwoSizesForTwoPerHead", make_two_sizes, {16, 32}, make_given_options(2),
+                    StatusCode::Incompatible}),
+    refusal_name);

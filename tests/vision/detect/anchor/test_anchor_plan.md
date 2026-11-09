@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_plan.cpp
 
 
-Suites: `Small_DetectAnchorPlan`.
+Suites: `Small_DetectAnchorPlan` and `Small_DetectAnchorPlanRefusal`.
 
 Tests `plan_anchors`, which chooses or takes a count per head, clusters the boxes, assigns the
 anchors to the heads by stride, measures the fit and derives the assignment thresholds. The
@@ -18,7 +18,7 @@ trials, the last for 4 per head.
 
 ## ChosenCountEqualsTheStepsMadeByHand
 
-The plan equals, to 1e-9, a plan the case builds from `choose_anchor_count`,
+The plan equals, within 16777216 times the double unit roundoff, a plan the case builds from `choose_anchor_count`,
 `assign_anchors_to_heads`, `measure_anchor_fit` and `derive_assignment_thresholds` called in
 that order.
 
@@ -31,37 +31,29 @@ recall is 1.
 ## GivenCountIgnoresTheBoundsOfTheCountChoice
 
 With `per_head` 3, a plan made with a `min_per_head` of 0, a `max_per_head` of -1, a NaN
-`min_gain` and a clustering count of 17 is identical to one made with the default count
-options.
+`min_gain` and a clustering count of 17 equals one made with the default count options in every number, with no tolerance.
 
 ## StridesInAnyOrderGiveEachHeadTheAnchorsOfItsStride
 
 Under the strides 32 and 16 the masks are {3, 4, 5} and {0, 1, 2}, and with the two masks
-swapped the plan is identical to the plan for 16 and 32. Under 16, 64 and 32 with two per head,
+swapped the plan equals the plan for 16 and 32 in every number. Under 16, 64 and 32 with two per head,
 the masks are {0, 1}, {4, 5} and {2, 3}.
 
 ## TwoCallsGiveTheSamePlan
 
-Two calls with the seed 0x5EED and the same arguments return identical plans.
+Two calls with the seed 0x5EED and the same arguments return plans equal in every number, with no tolerance.
 
 ## BlobPlansOneAnchorPerHead
 
 The blob under the strides 8, 16 and 32 plans the masks {0}, {1} and {2}, with two trials and a
 best possible recall of 1.
 
-## RefusesNoStrideAndAStrideOfZero
+## ARefusedCallAnswersWithItsStatus
 
-An empty stride list and the strides 16 and 0 each fail with `InvalidDescription`, with a
-chosen count and with `per_head` 1.
-
-## RefusesOptionsOutsideTheirRange
-
-Six option sets each fail with `InvalidDescription`: a `per_head` of -1 and of the largest
+One row per refused call, in three groups. `NoStride`: an empty stride list and the strides 16
+and 0, each with a chosen count and with `per_head` 1, fail with `InvalidDescription`.
+`Options`: six option sets fail with `InvalidDescription`: a `per_head` of -1 and of the largest
 `int64_t`, a `min_per_head` of 0, a clustering `max_iterations` of 0 with and without a given
-`per_head`, and a `recall_iou` of 2.
-
-## RefusesBoxesThatDisagreeWithTheCount
-
-An empty box list, with a chosen and with a given count, fails with `Incompatible`. So do two
-sizes under three strides with a chosen count, and two sizes under two strides with two per
-head.
+`per_head`, and a `recall_iou` of 2. `Boxes`: an empty box list, with a chosen and with a given
+count, fails with `Incompatible`, as do two sizes under three strides with a chosen count and
+two sizes under two strides with two per head.
