@@ -13,12 +13,14 @@ Usage: python tools/layering/check_device_sources.py [repository root] [--report
 from __future__ import annotations
 
 import fnmatch
+import os
 import re
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
+from typing import Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -87,9 +89,85 @@ def _blank_comments(text: str, pattern: re.Pattern[str]) -> str:
     return pattern.sub(lambda match: re.sub(r"[^\n]", " ", match.group(0)), text)
 
 
-def _parse_call(build_file: Path, function: str) -> ModuleBuild | None:
-    """Returns the SOURCES and DEVICE_SOURCES of the module call in a build file, None without one."""
-    text = _blank_comments(build_file.read_text(encoding="utf-8"), K_CMAKE_COMMENT)
+def _normal(path: Path) -> Path:
+    """Returns the path with its dots and doubled separators folded, without asking the disk."""
+    return Path(os.path.normpath(path))
+
+
+class TreeFiles(Protocol):
+    """Gives the unit tree the files of a repository without saying where they live."""
+
+    def read(self, path: Path) -> str | None:
+        """Returns the text of a file, None when the path names no readable file."""
+
+    def glob(self, pattern: str) -> list[Path]:
+        """Returns the files and folders a root-relative pattern names, one segment to each star."""
+
+    def find(self, folder: Path, name: str) -> list[Path]:
+        """Returns the files below a folder, at any depth, whose name matches the pattern."""
+
+
+class DiskFiles:
+    """Reads the files of a repository from a folder on disk."""
+
+    def __init__(self, root: Path) -> None:
+        """Remembers the root the patterns are relative to."""
+        self.root = root
+
+    def read(self, path: Path) -> str | None:
+        """Returns the text of a file, None when the path names no readable file."""
+        try:
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+
+    def glob(self, pattern: str) -> list[Path]:
+        """Returns the files and folders a root-relative pattern names, one segment to each star."""
+        return sorted(self.root.glob(pattern))
+
+    def find(self, folder: Path, name: str) -> list[Path]:
+        """Returns the files below a folder, at any depth, whose name matches the pattern."""
+        if not folder.is_dir():
+            return []
+        return sorted(path for path in folder.rglob(name) if path.is_file())
+
+
+class MemoryFiles:
+    """Holds the files of a repository as a mapping of root-relative path to text."""
+
+    def __init__(self, root: Path, files: Mapping[str, str]) -> None:
+        """Remembers the root the paths hang from and the text of each file."""
+        self.root = _normal(root)
+        self.files = {_normal(root / name): text for name, text in files.items()}
+
+    def read(self, path: Path) -> str | None:
+        """Returns the text of a file, None when the memory holds none at the path."""
+        return self.files.get(_normal(path))
+
+    def glob(self, pattern: str) -> list[Path]:
+        """Returns the files and the folders above them that a root-relative pattern names."""
+        names: set[Path] = set()
+        for path in self.files:
+            parts = path.relative_to(self.root).parts
+            names.update(self.root.joinpath(*parts[:size]) for size in range(1, len(parts) + 1))
+        depth = len(pattern.split("/"))
+        return sorted(
+            path for path in names
+            if len(path.relative_to(self.root).parts) == depth
+            and fnmatch.fnmatchcase(path.relative_to(self.root).as_posix(), pattern)
+        )
+
+    def find(self, folder: Path, name: str) -> list[Path]:
+        """Returns the files below a folder, at any depth, whose name matches the pattern."""
+        return sorted(
+            path for path in self.files
+            if path.is_relative_to(_normal(folder)) and fnmatch.fnmatchcase(path.name, name)
+        )
+
+
+def _parse_call(build_file: Path, text: str, function: str) -> ModuleBuild | None:
+    """Returns the SOURCES and DEVICE_SOURCES of the module call in a build file text, None without one."""
+    text = _blank_comments(text, K_CMAKE_COMMENT)
     call = re.search(rf"\b{re.escape(function)}\s*\(([^)]*)\)", text)
     if call is None:
         return None
@@ -108,38 +186,51 @@ def _parse_call(build_file: Path, function: str) -> ModuleBuild | None:
 class UnitTree:
     """Holds one repository's modules, include roots and the include graph of its C++ files."""
 
-    def __init__(self, root: Path, function: str = K_MODULE_FUNCTION) -> None:
-        """Remembers the root and the name of the module-declaring call."""
+    def __init__(
+        self, root: Path, function: str = K_MODULE_FUNCTION, files: TreeFiles | None = None
+    ) -> None:
+        """Remembers the root, the name of the module-declaring call and where the files live."""
         self.root = root
         self.function = function
+        self.files: TreeFiles = DiskFiles(root) if files is None else files
+        self._texts: dict[Path, str | None] = {}
         self._lines: dict[Path, list[str]] = {}
+
+    def _builds_of(self, paths: list[Path], function: str) -> list[ModuleBuild]:
+        """Returns the declaring call of each build file that holds one."""
+        found = (_parse_call(path, self._text(path) or "", function) for path in paths)
+        return [build for build in found if build is not None]
+
+    def _text(self, path: Path) -> str | None:
+        """Returns the text of a file, read once, None when the tree holds none at the path."""
+        if path not in self._texts:
+            self._texts[path] = self.files.read(path)
+        return self._texts[path]
+
+    def has(self, path: Path) -> bool:
+        """Returns whether the tree holds a file at the path."""
+        return self._text(path) is not None
 
     @cached_property
     def builds(self) -> list[ModuleBuild]:
         """Returns the declaring call of every modules/<tier>/<module>/CMakeLists.txt that has one."""
-        found = (_parse_call(path, self.function)
-                 for path in sorted((self.root / K_MODULES).glob("*/*/CMakeLists.txt")))
-        return [build for build in found if build is not None]
+        return self._builds_of(self.files.glob(f"{K_MODULES}/*/*/CMakeLists.txt"), self.function)
 
     @cached_property
     def test_builds(self) -> list[ModuleBuild]:
         """Returns the test program call of every CMakeLists.txt below tests/ that has one."""
-        found = (_parse_call(path, K_TEST_FUNCTION)
-                 for path in sorted((self.root / K_OUTSIDE_FOLDERS[0]).rglob("CMakeLists.txt")))
-        return [build for build in found if build is not None]
+        paths = self.files.find(self.root / K_OUTSIDE_FOLDERS[0], "CMakeLists.txt")
+        return self._builds_of(paths, K_TEST_FUNCTION)
 
     @cached_property
     def include_roots(self) -> list[Path]:
         """Returns every modules/<tier>/<module>/include folder."""
-        return sorted(path for path in (self.root / K_MODULES).glob(f"*/*/{K_PUBLIC_FOLDER}") if path.is_dir())
+        return self.files.glob(f"{K_MODULES}/*/*/{K_PUBLIC_FOLDER}")
 
     def lines_of(self, path: Path) -> list[str]:
         """Returns the lines of a C++ file with its comments blanked, empty when it is unreadable."""
         if path not in self._lines:
-            try:
-                text = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                text = ""
+            text = self._text(path) or ""
             text = _blank_comments(_blank_comments(text, K_BLOCK_COMMENT), K_LINE_COMMENT)
             self._lines[path] = text.splitlines()
         return self._lines[path]
@@ -153,7 +244,7 @@ class UnitTree:
                 candidates.append(source_folder / target)
         if quoted or target.startswith(K_PROJECT_PREFIX):
             candidates += [root / target for root in self.include_roots]
-        return next((path for path in candidates if path.is_file()), None)
+        return next((path for path in candidates if self.has(path)), None)
 
     def reach(self, unit: Path, source_folder: Path | None) -> Reach | None:
         """Returns where a unit first leads to a kernel, directly or through SushiAI headers it includes."""
@@ -182,11 +273,9 @@ class UnitTree:
     def outside_units(self) -> Iterator[Path]:
         """Yields every .cpp below tests/ and applications/."""
         for folder in K_OUTSIDE_FOLDERS:
-            base = self.root / folder
-            if base.is_dir():
-                yield from sorted(path for path in base.rglob("*.cpp") if path.is_file()
-                                  and not any(path.is_relative_to(self.root / package)
-                                              for package in K_PACKAGE_FOLDERS))
+            yield from (path for path in self.files.find(self.root / folder, "*.cpp")
+                        if not any(path.is_relative_to(self.root / package)
+                                   for package in K_PACKAGE_FOLDERS))
 
 
 def collect(paths: list[Path]) -> Iterable[UnitTree]:
@@ -199,7 +288,7 @@ def rule_device_source_missing(tree: UnitTree) -> Iterator[Issue]:
     for build in tree.builds:
         listed = {entry.path for entry in build.device_sources}
         for entry in build.sources:
-            if entry.path in listed or not entry.path.is_file():
+            if entry.path in listed or not tree.has(entry.path):
                 continue
             reach = tree.reach(entry.path, build.folder / K_SOURCE_FOLDER)
             if reach is not None:
@@ -211,16 +300,16 @@ def rule_device_source_unneeded(tree: UnitTree) -> Iterator[Issue]:
     """Yields an issue for each DEVICE_SOURCES entry, of a module or a test program, that reaches no kernel."""
     for build in tree.builds + tree.test_builds:
         for entry in build.device_sources:
-            if entry.path.is_file() and tree.reach(entry.path, build.folder / K_SOURCE_FOLDER) is None:
+            if tree.has(entry.path) and tree.reach(entry.path, build.folder / K_SOURCE_FOLDER) is None:
                 yield Issue(entry.build_file, entry.line, f"{entry.path.name} is in DEVICE_SOURCES "
                                                           "and reaches no kernel; list it in SOURCES only")
 
 
 def rule_device_source_outside_module(tree: UnitTree) -> Iterator[Issue]:
     """Yields an issue for each test or application source that reaches a kernel and no test program lists."""
-    listed = {entry.path.resolve() for build in tree.test_builds for entry in build.device_sources}
+    listed = {_normal(entry.path) for build in tree.test_builds for entry in build.device_sources}
     for unit in tree.outside_units():
-        if unit.resolve() in listed:
+        if _normal(unit) in listed:
             continue
         reach = tree.reach(unit, None)
         if reach is not None:
