@@ -69,6 +69,13 @@ Over the same two outputs, the factory fails with `InvalidDescription` for an em
 `"output": ""` ("'output'", "is empty") and `"output": "balance"` ("[2, 3, V] logits",
 "'balance'", "[1, 1]"). Rows.
 
+## ABatchWithNoLabelsRoleIsRefused
+
+`feed` is given a default batch, which holds no target, and a pool over an
+`InMemoryTensorSource`. It fails with `InvalidDescription` and the message contains "holds no
+'labels' role". The source received no request, so the refusal came before any tensor was asked
+for. Small.
+
 ## TheLossAndItsGradientEqualTheHostComputation
 
 The model is an `Embedding` of five rows and width five, so the logits of a position are the
@@ -103,3 +110,10 @@ with 20 warm-up iterations; the parameters start from Xavier values. Over 400 up
 is finite, the first is within 0.5 of ln(64), the last is below 0.1 of the first, and its
 perplexity is below the first's. The step reports one compile and the optimizer 400 steps. The
 state names and the decay flags are not asserted.
+
+## OutputsOtherThanTheDeclaredShapeStopTheProcess
+
+An objective made for `[2, 3, 5]` logits builds a training graph over a bigram model fed `[2, 4]`
+ids, so the logits are `[2, 4, 5]`. `loss` stops the process; the report contains "The model
+produced" and "the next-token objective was made for". It is a death test, so it is `Medium_`
+(`Medium_NextTokenObjectiveDeathTest`).

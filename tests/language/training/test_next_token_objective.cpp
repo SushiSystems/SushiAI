@@ -60,6 +60,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/graph/tensor_source.hpp>
 #include <SushiAI/language/blocks/causal_self_attention.hpp>
 #include <SushiAI/language/blocks/language_head.hpp>
 #include <SushiAI/language/blocks/position_embedding.hpp>
@@ -395,6 +396,26 @@ TEST(Small_LanguageTrainingNextTokenObjective, MeasureReportsThePerplexityOfTheL
     EXPECT_FALSE(metrics.all()[0].is_fraction);
     EXPECT_TRUE(TestSupport::is_within(
         TestSupport::measure_relative_error<double>(metrics.all()[0].value, 8.0, K_OPERATIONS)));
+}
+
+/** @brief Tests that a batch with no labels role is refused, naming the role. */
+TEST(Small_LanguageTrainingNextTokenObjective, ABatchWithNoLabelsRoleIsRefused)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
+                            NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    Train::ObjectiveLeaves leaves;
+    objective->declare(builder, leaves);
+
+    // The refusal is decided on the roles of the batch, before the pool is asked for a tensor.
+    Graph::InMemoryTensorSource source;
+    Graph::TensorPool pool(source);
+    const Data::Batch batch{};
+
+    SA_EXPECT_FAILURE(objective->feed(batch, leaves, pool), StatusCode::InvalidDescription,
+                      "holds no 'labels' role");
+    EXPECT_TRUE(source.requests().empty());
 }
 
 /** @brief Tests that "output" names the logits of a model that publishes several values. */
@@ -1068,4 +1089,25 @@ TYPED_TEST(Medium_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
               Language::Training::perplexity(result.first_loss));
     EXPECT_EQ(result.compile_count, 1u);
     EXPECT_EQ(result.optimizer_steps, static_cast<std::uint64_t>(K_STEPS));
+}
+
+namespace
+{
+    /** @brief Names the suite of the cases that expect the process to stop. */
+    class Medium_NextTokenObjectiveDeathTest : public ::testing::Test {};
+}
+
+/** @brief Tests that logits other than the declared [N, T, V] stop the process, naming both. */
+TEST_F(Medium_NextTokenObjectiveDeathTest, OutputsOtherThanTheDeclaredShapeStopTheProcess)
+{
+    NN::Embedding model = make_bigram_model();
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
+                            NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
+    Train::GraphOptions options;
+    options.dtype = DType::Int32;
+
+    // One position more than the objective was made for: the logits are [2, 4, 5], not [2, 3, 5].
+    SA_EXPECT_FATAL(
+        (void)Train::build_training_graph(model, *objective, Shape{K_BATCH, K_LENGTH + 1}, options),
+        "The model produced", "the next-token objective was made for");
 }
