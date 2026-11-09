@@ -16,10 +16,12 @@ import argparse
 import re
 import sys
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from functools import cached_property
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -174,81 +176,203 @@ def find_removed_names(text: str) -> list[tuple[int, str]]:
     ]
 
 
+def _is_source(name: str) -> bool:
+    """Returns whether a relative path names a C++ source or header file."""
+    return PurePosixPath(name).suffix in K_SOURCE_SUFFIXES
+
+
+def _folder_of(name: str, patterns: tuple[str, ...]) -> bool:
+    """Returns whether a relative path lies at any depth under a folder one pattern names."""
+    parts = name.split("/")
+    return any(
+        len(parts) > len(pattern.split("/"))
+        and fnmatch("/".join(parts[:len(pattern.split("/"))]), pattern)
+        for pattern in patterns
+    )
+
+
+class SourceTree(Protocol):
+    """Gives a repository its source texts and its class table without saying where they live."""
+
+    def texts(self, patterns: tuple[str, ...]) -> dict[str, str]:
+        """Returns the text of each source file under the folders, by relative path."""
+
+    def table_text(self) -> str | None:
+        """Returns the text of the class table, or None when the tree holds none."""
+
+
+class DiskTree:
+    """Reads the sources and the class table from a folder on disk."""
+
+    def __init__(self, root: Path) -> None:
+        """Remembers the root of the tree."""
+        self.root = root
+
+    def texts(self, patterns: tuple[str, ...]) -> dict[str, str]:
+        """Returns the text of each source file under the folders, by relative path."""
+        found: dict[str, str] = {}
+        for pattern in patterns:
+            for folder in sorted(self.root.glob(pattern)):
+                for path in sorted(folder.rglob("*")):
+                    if path.is_file() and path.suffix in K_SOURCE_SUFFIXES:
+                        found[path.relative_to(self.root).as_posix()] = path.read_text(
+                            encoding="utf-8"
+                        )
+        return found
+
+    def table_text(self) -> str | None:
+        """Returns the text of the class table, or None when the file is absent."""
+        table = self.root / K_SITE_TABLE
+        return table.read_text(encoding="utf-8") if table.is_file() else None
+
+
+class MemoryTree:
+    """Holds the files of a tree as a mapping of relative path to text."""
+
+    def __init__(self, files: Mapping[str, str]) -> None:
+        """Remembers the files, the class table among them under its own path."""
+        self.files = dict(files)
+
+    def texts(self, patterns: tuple[str, ...]) -> dict[str, str]:
+        """Returns the text of each source file under the folders, by relative path."""
+        return {
+            name: text
+            for name, text in sorted(self.files.items())
+            if _is_source(name) and _folder_of(name, patterns)
+        }
+
+    def table_text(self) -> str | None:
+        """Returns the text of the class table, or None when the tree holds none."""
+        return self.files.get(K_SITE_TABLE.as_posix())
+
+
+def removed_uses_of(sources: Mapping[str, str]) -> dict[str, list[tuple[int, str]]]:
+    """Returns the uses of a removed name in each source text that has any."""
+    found = {name: find_removed_names(text) for name, text in sources.items()}
+    return {name: uses for name, uses in found.items() if uses}
+
+
+def sites_of(sources: Mapping[str, str]) -> dict[str, list[Site]]:
+    """Returns the failure sites of each source text that has any."""
+    found = {file: find_sites(file, text) for file, text in sources.items()}
+    return {file: sites for file, sites in found.items() if sites}
+
+
+def rows_of(lines: list[str]) -> dict[str, list[Row]]:
+    """Returns the well-formed rows of the class table lines, by file."""
+    found: dict[str, list[Row]] = defaultdict(list)
+    for number, line in enumerate(lines[1:], start=2):
+        cells = line.split("\t")
+        if len(cells) == len(K_COLUMNS) and cells[1].isdigit():
+            found[cells[0]].append(Row(number, cells[0], int(cells[1]), *cells[2:]))
+    return dict(found)
+
+
+def unmatched_of(
+    sites: Mapping[str, list[Site]], rows: Mapping[str, list[Row]]
+) -> tuple[list[Site], list[Row]]:
+    """Returns the sites with no row and the rows with no site.
+
+    A site and a row match on file, kind and message head; equal heads pair in line order.
+    """
+    lone_sites: list[Site] = []
+    lone_rows: list[Row] = []
+    for file in sorted(set(sites) | set(rows)):
+        waiting: dict[tuple[str, str], list[Row]] = defaultdict(list)
+        for row in sorted(rows.get(file, []), key=lambda row: row.line):
+            waiting[(row.kind, row.head)].append(row)
+        for site in sites.get(file, []):
+            if waiting[(site.kind, site.head)]:
+                waiting[(site.kind, site.head)].pop(0)
+            else:
+                lone_sites.append(site)
+        lone_rows.extend(row for held in waiting.values() for row in held)
+    return lone_sites, sorted(lone_rows, key=lambda row: row.number)
+
+
+def table_problems(lines: list[str]) -> list[tuple[int, str]]:
+    """Returns the line number and the message of each fault in the class table lines."""
+    if not lines:
+        return [(1, f"{K_SITE_TABLE.as_posix()} is missing or empty")]
+    problems: list[tuple[int, str]] = []
+    if tuple(lines[0].split("\t")) != K_COLUMNS:
+        problems.append((1, "the header must read " + " ".join(K_COLUMNS)))
+    previous = ("", 0)
+    for number, line in enumerate(lines[1:], start=2):
+        cells = line.split("\t")
+        if len(cells) != len(K_COLUMNS) or not cells[1].isdigit():
+            problems.append((number, f"a row has {len(K_COLUMNS)} cells and a numeric line"))
+            continue
+        if cells[3] not in K_KINDS or cells[5] not in K_CAUSES or cells[6] not in K_MECHANISMS:
+            problems.append((number, "unknown kind, cause or mechanism"))
+        if not K_QUESTION_KEYS.fullmatch(cells[7]):
+            problems.append((number, "open_question holds snake_case keys joined by ;"))
+        if (cells[0], int(cells[1])) < previous:
+            problems.append((number, "rows are sorted by file, then by line"))
+        previous = (cells[0], int(cells[1]))
+    return problems
+
+
+def unclassified_notes(rows: Mapping[str, list[Row]]) -> list[tuple[int, str]]:
+    """Returns the table line and the note of each row whose cause or mechanism is unclassified."""
+    return [
+        (row.number, f"{row.file}:{row.line} has no class yet")
+        for held in rows.values()
+        for row in held
+        if "unclassified" in (row.cause, row.mechanism)
+    ]
+
+
+def open_question_notes(rows: Mapping[str, list[Row]]) -> list[tuple[int, str]]:
+    """Returns one note per open question, at its first row, with the number of rows it holds."""
+    first: dict[str, int] = {}
+    counts: Counter[str] = Counter()
+    for held in rows.values():
+        for row in held:
+            for key in filter(None, row.question.split(";")):
+                first[key] = min(first.get(key, row.number), row.number)
+                counts[key] += 1
+    return [(first[key], f"{key}: {counts[key]} rows wait for an answer") for key in sorted(counts)]
+
+
 class Repository:
     """Holds one repository's failure sites and the rows of its class table."""
 
-    def __init__(self, root: Path) -> None:
-        """Remembers the root; the tree is read when a rule first asks."""
+    def __init__(self, root: Path, tree: SourceTree | None = None) -> None:
+        """Remembers the root and the tree; the tree is read when a rule first asks."""
         self.root = root
         self.table = root / K_SITE_TABLE
+        self.tree: SourceTree = DiskTree(root) if tree is None else tree
 
     @cached_property
     def sources(self) -> dict[str, str]:
         """Returns the text of every source file under the site folders, by relative path."""
-        found: dict[str, str] = {}
-        for pattern in K_SITE_FOLDERS:
-            for folder in sorted(self.root.glob(pattern)):
-                for path in sorted(folder.rglob("*")):
-                    if path.is_file() and path.suffix in K_SOURCE_SUFFIXES:
-                        name = path.relative_to(self.root).as_posix()
-                        found[name] = path.read_text(encoding="utf-8")
-        return found
+        return self.tree.texts(K_SITE_FOLDERS)
 
     @cached_property
     def removed_uses(self) -> dict[str, list[tuple[int, str]]]:
         """Returns the uses of a removed name in each file of the library, programs and tests."""
-        found: dict[str, list[tuple[int, str]]] = {}
-        for pattern in K_REMOVED_FOLDERS:
-            for folder in sorted(self.root.glob(pattern)):
-                for path in sorted(folder.rglob("*")):
-                    if path.is_file() and path.suffix in K_SOURCE_SUFFIXES:
-                        uses = find_removed_names(path.read_text(encoding="utf-8"))
-                        if uses:
-                            found[path.relative_to(self.root).as_posix()] = uses
-        return found
+        return removed_uses_of(self.tree.texts(K_REMOVED_FOLDERS))
 
     @cached_property
     def sites(self) -> dict[str, list[Site]]:
         """Returns the sites of each file that has any."""
-        found = {file: find_sites(file, text) for file, text in self.sources.items()}
-        return {file: sites for file, sites in found.items() if sites}
+        return sites_of(self.sources)
 
     @cached_property
     def table_lines(self) -> list[str]:
-        """Returns the lines of the class table, empty when the file is absent."""
-        if not self.table.is_file():
-            return []
-        return self.table.read_text(encoding="utf-8").splitlines()
+        """Returns the lines of the class table, empty when the table is absent."""
+        return (self.tree.table_text() or "").splitlines()
 
     @cached_property
     def rows(self) -> dict[str, list[Row]]:
         """Returns the well-formed rows of the class table, by file."""
-        found: dict[str, list[Row]] = defaultdict(list)
-        for number, line in enumerate(self.table_lines[1:], start=2):
-            cells = line.split("\t")
-            if len(cells) == len(K_COLUMNS) and cells[1].isdigit():
-                found[cells[0]].append(Row(number, cells[0], int(cells[1]), *cells[2:]))
-        return dict(found)
+        return rows_of(self.table_lines)
 
     @cached_property
     def unmatched(self) -> tuple[list[Site], list[Row]]:
-        """Returns the sites with no row and the rows with no site.
-
-        A site and a row match on file, kind and message head; equal heads pair in line order.
-        """
-        lone_sites: list[Site] = []
-        lone_rows: list[Row] = []
-        for file in sorted(set(self.sites) | set(self.rows)):
-            waiting: dict[tuple[str, str], list[Row]] = defaultdict(list)
-            for row in sorted(self.rows.get(file, []), key=lambda row: row.line):
-                waiting[(row.kind, row.head)].append(row)
-            for site in self.sites.get(file, []):
-                if waiting[(site.kind, site.head)]:
-                    waiting[(site.kind, site.head)].pop(0)
-                else:
-                    lone_sites.append(site)
-            lone_rows.extend(row for rows in waiting.values() for row in rows)
-        return lone_sites, sorted(lone_rows, key=lambda row: row.number)
+        """Returns the sites with no row and the rows with no site."""
+        return unmatched_of(self.sites, self.rows)
 
 
 def collect(paths: list[Path]) -> Iterable[Repository]:
@@ -258,26 +382,8 @@ def collect(paths: list[Path]) -> Iterable[Repository]:
 
 def rule_table_shape(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for a missing table, a wrong header, a malformed or misplaced row."""
-    if not repository.table_lines:
-        yield Issue(repository.table, 1, f"{K_SITE_TABLE.as_posix()} is missing or empty")
-        return
-    if tuple(repository.table_lines[0].split("\t")) != K_COLUMNS:
-        yield Issue(repository.table, 1, "the header must read " + " ".join(K_COLUMNS))
-    previous = ("", 0)
-    for number, line in enumerate(repository.table_lines[1:], start=2):
-        cells = line.split("\t")
-        if len(cells) != len(K_COLUMNS) or not cells[1].isdigit():
-            yield Issue(
-                repository.table, number, f"a row has {len(K_COLUMNS)} cells and a numeric line"
-            )
-            continue
-        if cells[3] not in K_KINDS or cells[5] not in K_CAUSES or cells[6] not in K_MECHANISMS:
-            yield Issue(repository.table, number, "unknown kind, cause or mechanism")
-        if not K_QUESTION_KEYS.fullmatch(cells[7]):
-            yield Issue(repository.table, number, "open_question holds snake_case keys joined by ;")
-        if (cells[0], int(cells[1])) < previous:
-            yield Issue(repository.table, number, "rows are sorted by file, then by line")
-        previous = (cells[0], int(cells[1]))
+    for line, message in table_problems(repository.table_lines):
+        yield Issue(repository.table, line, message)
 
 
 def rule_removed_surface(repository: Repository) -> Iterator[Issue]:
@@ -302,23 +408,14 @@ def rule_stale_row(repository: Repository) -> Iterator[Issue]:
 
 def note_unclassified(repository: Repository) -> Iterator[Issue]:
     """Yields a note for each row whose cause or mechanism is unclassified."""
-    for rows in repository.rows.values():
-        for row in rows:
-            if "unclassified" in (row.cause, row.mechanism):
-                yield Issue(repository.table, row.number, f"{row.file}:{row.line} has no class yet")
+    for line, message in unclassified_notes(repository.rows):
+        yield Issue(repository.table, line, message)
 
 
 def note_open_question(repository: Repository) -> Iterator[Issue]:
     """Yields one note per open question, at its first row, with the number of rows it holds."""
-    first: dict[str, int] = {}
-    counts: Counter[str] = Counter()
-    for rows in repository.rows.values():
-        for row in rows:
-            for key in filter(None, row.question.split(";")):
-                first[key] = min(first.get(key, row.number), row.number)
-                counts[key] += 1
-    for key in sorted(counts):
-        yield Issue(repository.table, first[key], f"{key}: {counts[key]} rows wait for an answer")
+    for line, message in open_question_notes(repository.rows):
+        yield Issue(repository.table, line, message)
 
 
 K_CHECKER = Checker(
@@ -347,17 +444,25 @@ def _roots(argv: list[str]) -> list[Path]:
     return parser.parse_known_args(argv)[0].paths or [Path.cwd()]
 
 
+def render_notes(repository: Repository) -> list[str]:
+    """Returns the printed line of each note a repository raises."""
+    lines: list[str] = []
+    for name, note in K_NOTES.items():
+        for issue in note(repository):
+            try:
+                shown = issue.path.resolve().relative_to(repository.root.resolve()).as_posix()
+            except ValueError:
+                shown = issue.path.as_posix()
+            lines.append(f"note: {shown}:{issue.line}: {name}: {issue.message}")
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
     """Prints the notes, which never fail, then runs the rules and returns their exit code."""
     arguments = sys.argv[1:] if argv is None else argv
     for repository in collect([path for path in _roots(arguments) if path.exists()]):
-        for name, note in K_NOTES.items():
-            for issue in note(repository):
-                try:
-                    shown = issue.path.resolve().relative_to(repository.root.resolve()).as_posix()
-                except ValueError:
-                    shown = issue.path.as_posix()
-                print(f"note: {shown}:{issue.line}: {name}: {issue.message}")
+        for line in render_notes(repository):
+            print(line)
     return run(K_CHECKER, arguments)
 
 

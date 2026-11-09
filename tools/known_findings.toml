@@ -1,13 +1,6 @@
 [[finding]]
 checker = "testing/check_test_sizes.py"
 rule = "rule_unsized_python_test"
-path = "tools/tests/test_check_contract.py"
-count = 6
-backlog = "RW-149"
-
-[[finding]]
-checker = "testing/check_test_sizes.py"
-rule = "rule_unsized_python_test"
 path = "tools/tests/test_check_device_sources.py"
 count = 2
 backlog = "RW-149"
