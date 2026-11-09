@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_anchor_count.cpp
  * @brief Tests the number of anchors per head chosen from seeded label boxes.
@@ -32,9 +31,9 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <limits>
 #include <random>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/result.hpp>
@@ -55,6 +54,7 @@ namespace
     using SushiAI::Vision::Detect::Anchor::cluster_anchors;
     using SushiAI::Vision::Detect::Anchor::ClusteringOptions;
     using SushiAI::Vision::Detect::Anchor::CountOptions;
+    using SushiAI::Vision::Detect::Anchor::CountTrial;
     using SushiAI::Vision::Detect::Anchor::shape_iou;
 
     /** @brief Holds the seed of the jitter the ladder is generated with. */
@@ -89,6 +89,52 @@ namespace
      *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6.
      */
     constexpr double K_FLOAT_MEAN_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
+
+    /** @brief Holds one options set the count choice refuses and the name of its row. */
+    struct RefusedCountOptions
+    {
+        std::string name;     /**< The row's name. */
+        CountOptions options; /**< The options outside their range. */
+    };
+
+    /** @brief Holds one head count the count choice refuses and the name of its row. */
+    struct RefusedHeadCount
+    {
+        std::string name;    /**< The row's name. */
+        std::int64_t heads;  /**< The head count outside its range. */
+    };
+
+    /** @brief Runs one options set the count choice refuses. */
+    class Small_DetectAnchorCountOptions : public ::testing::TestWithParam<RefusedCountOptions>
+    {
+
+    };
+
+    /** @brief Runs one head count the count choice refuses. */
+    class Small_DetectAnchorCountHeads : public ::testing::TestWithParam<RefusedHeadCount>
+    {
+
+    };
+
+    /** @brief Names an options row by its name field. */
+    std::string options_name(const ::testing::TestParamInfo<RefusedCountOptions>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a head-count row by its name field. */
+    std::string heads_name(const ::testing::TestParamInfo<RefusedHeadCount>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Returns the options set @p edit changes, for the rows of refused options. */
+    CountOptions make_options_with(void (*edit)(CountOptions&))
+    {
+        CountOptions options;
+        edit(options);
+        return options;
+    }
 
     /** @brief Returns the next draw of @p engine as a double in [0, 1), from its upper 53 bits. */
     double draw_unit(std::mt19937_64& engine)
@@ -140,6 +186,29 @@ namespace
         return boxes;
     }
 
+    /** @brief Returns the per-head count of every trial of @p trials, in order. */
+    std::vector<std::int64_t> list_per_head(const std::vector<CountTrial>& trials)
+    {
+        std::vector<std::int64_t> counts;
+        counts.reserve(trials.size());
+        for (const CountTrial& trial : trials)
+            counts.push_back(trial.per_head);
+        return counts;
+    }
+
+    /** @brief Expects @p trial to hold the fit of a direct clustering to its count over @p heads. */
+    void expect_trial_equals_direct_fit(const std::vector<AnchorSize>& boxes, std::int64_t heads,
+                                        const CountTrial& trial)
+    {
+        ClusteringOptions direct;
+        direct.count = trial.per_head * heads;
+        const Result<AnchorClustering> clustering = cluster_anchors(boxes, direct);
+
+        ASSERT_TRUE(clustering.has_value()) << clustering.status().message();
+        EXPECT_NEAR(trial.mean_best_iou, clustering.value().mean_best_iou, K_MEAN_TOLERANCE)
+            << "per head " << trial.per_head;
+    }
+
     /** @brief Returns the mean over @p boxes of the best shape_iou with any of @p anchors. */
     double measure_mean_best_iou(const std::vector<AnchorSize>& boxes,
                                  const std::vector<AnchorSize>& anchors)
@@ -169,8 +238,7 @@ TEST(Small_DetectAnchorCount, LadderWithTwoHeadsChoosesThreePerHead)
     EXPECT_EQ(choice.per_head, 3);
     EXPECT_EQ(choice.clustering.anchors.size(), 6u);
     ASSERT_EQ(choice.trials.size(), 4u);
-    for (std::size_t trial = 0; trial < choice.trials.size(); ++trial)
-        EXPECT_EQ(choice.trials[trial].per_head, static_cast<std::int64_t>(trial) + 1);
+    EXPECT_EQ(list_per_head(choice.trials), (std::vector<std::int64_t>{1, 2, 3, 4}));
     EXPECT_GE(choice.trials[1].mean_best_iou - choice.trials[0].mean_best_iou, options.min_gain);
     EXPECT_GE(choice.trials[2].mean_best_iou - choice.trials[1].mean_best_iou, options.min_gain);
     EXPECT_LT(choice.trials[3].mean_best_iou - choice.trials[2].mean_best_iou, options.min_gain);
@@ -186,16 +254,11 @@ TEST(Small_DetectAnchorCount, TrialsHoldTheFitOfEachCountClusteredDirectly)
 
     ASSERT_TRUE(outcome.has_value()) << outcome.status().message();
     const AnchorCountChoice& choice = outcome.value();
-    for (const auto& trial : choice.trials)
-    {
-        ClusteringOptions direct;
-        direct.count = trial.per_head * heads;
-        const Result<AnchorClustering> clustering = cluster_anchors(boxes, direct);
-
-        ASSERT_TRUE(clustering.has_value()) << clustering.status().message();
-        EXPECT_NEAR(trial.mean_best_iou, clustering.value().mean_best_iou, K_MEAN_TOLERANCE)
-            << "per head " << trial.per_head;
-    }
+    ASSERT_EQ(choice.trials.size(), 4u);
+    expect_trial_equals_direct_fit(boxes, heads, choice.trials[0]);
+    expect_trial_equals_direct_fit(boxes, heads, choice.trials[1]);
+    expect_trial_equals_direct_fit(boxes, heads, choice.trials[2]);
+    expect_trial_equals_direct_fit(boxes, heads, choice.trials[3]);
     EXPECT_NEAR(choice.clustering.mean_best_iou,
                 measure_mean_best_iou(boxes, choice.clustering.anchors), K_MEAN_TOLERANCE);
     EXPECT_NEAR(choice.clustering.mean_best_iou,
@@ -324,39 +387,51 @@ TEST(Small_DetectAnchorCount, RefusesAMinPerHeadAboveMaxPerHead)
     EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that each option outside its range is InvalidDescription. */
-TEST(Small_DetectAnchorCount, RefusesOptionsOutsideTheirRange)
-{
-    const std::vector<AnchorSize> boxes = make_two_sizes();
-    std::vector<CountOptions> refused(4);
-    refused[0].min_per_head = 0;
-    refused[1].min_gain = -0.01;
-    refused[2].min_gain = std::numeric_limits<double>::quiet_NaN();
-    refused[3].clustering.max_iterations = 0;
-
-    for (const CountOptions& options : refused)
-    {
-        const Result<AnchorCountChoice> outcome = choose_anchor_count(boxes, 1, options);
-
-        ASSERT_FALSE(outcome.has_value());
-        EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
-    }
-}
-
-/** @brief Tests that no head and a head count whose product overflows are InvalidDescription. */
-TEST(Small_DetectAnchorCount, RefusesAHeadCountOutsideItsRange)
+/** @brief Tests that an option outside its range is InvalidDescription. */
+TEST_P(Small_DetectAnchorCountOptions, AnOptionOutsideItsRangeIsRefused)
 {
     const std::vector<AnchorSize> boxes = make_two_sizes();
 
-    for (const std::int64_t heads : {std::int64_t{0}, std::int64_t{-1},
-                                     std::numeric_limits<std::int64_t>::max()})
-    {
-        const Result<AnchorCountChoice> outcome = choose_anchor_count(boxes, heads, CountOptions{});
+    const Result<AnchorCountChoice> outcome = choose_anchor_count(boxes, 1, GetParam().options);
 
-        ASSERT_FALSE(outcome.has_value());
-        EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
-    }
+    ASSERT_FALSE(outcome.has_value());
+    EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorCountOptions,
+    ::testing::Values(
+        RefusedCountOptions{"AMinPerHeadOfZero",
+                            make_options_with([](CountOptions& o) { o.min_per_head = 0; })},
+        RefusedCountOptions{"ANegativeMinGain",
+                            make_options_with([](CountOptions& o) { o.min_gain = -0.01; })},
+        RefusedCountOptions{"ANaNMinGain",
+                            make_options_with([](CountOptions& o) {
+                                o.min_gain = std::numeric_limits<double>::quiet_NaN();
+                            })},
+        RefusedCountOptions{"ZeroClusteringIterations",
+                            make_options_with(
+                                [](CountOptions& o) { o.clustering.max_iterations = 0; })}),
+    options_name);
+
+/** @brief Tests that a head count outside its range is InvalidDescription. */
+TEST_P(Small_DetectAnchorCountHeads, AHeadCountOutsideItsRangeIsRefused)
+{
+    const std::vector<AnchorSize> boxes = make_two_sizes();
+
+    const Result<AnchorCountChoice> outcome =
+        choose_anchor_count(boxes, GetParam().heads, CountOptions{});
+
+    ASSERT_FALSE(outcome.has_value());
+    EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorCountHeads,
+    ::testing::Values(RefusedHeadCount{"NoHead", 0}, RefusedHeadCount{"ANegativeHeadCount", -1},
+                      RefusedHeadCount{"AHeadCountWhoseProductOverflows",
+                                       std::numeric_limits<std::int64_t>::max()}),
+    heads_name);
 
 /** @brief Tests that fewer distinct boxes than the first count tried are Incompatible. */
 TEST(Small_DetectAnchorCount, RefusesFewerDistinctBoxesThanTheFirstCount)

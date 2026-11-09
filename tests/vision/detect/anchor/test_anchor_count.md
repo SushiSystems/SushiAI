@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_count.cpp
 
 
-Suites: `Small_DetectAnchorCount`.
+Suites: `Small_DetectAnchorCount`, `Small_DetectAnchorCountOptions` and `Small_DetectAnchorCountHeads`.
 
 Tests `choose_anchor_count`, which clusters to one more anchor per head until the gain in mean
 best IoU falls below `min_gain`. The file uses three box sets: a ladder of six sizes with 400
@@ -15,7 +15,7 @@ the gain of the fourth is below it.
 
 ## TrialsHoldTheFitOfEachCountClusteredDirectly
 
-Each trial's mean best IoU equals, to 1e-9, that of `cluster_anchors` called with the trial's
+Each of the four trials' mean best IoU equals, within 16777216 times the double unit roundoff, that of `cluster_anchors` called with the trial's
 count. The chosen clustering's mean equals `measure_mean_best_iou` over its anchors and the
 mean of the chosen trial.
 
@@ -52,14 +52,14 @@ With `clustering.count` set to 17, the two sizes still give two per head and two
 
 `min_per_head` 3 with `max_per_head` 2 fails with `InvalidDescription`.
 
-## RefusesOptionsOutsideTheirRange
+## AnOptionOutsideItsRangeIsRefused
 
-A `min_per_head` of 0, a `min_gain` of -0.01, a NaN `min_gain` and a clustering
-`max_iterations` of 0 each fail with `InvalidDescription`.
+One row per option: a `min_per_head` of 0, a `min_gain` of -0.01, a NaN `min_gain` and a
+clustering `max_iterations` of 0. Each fails with `InvalidDescription`.
 
-## RefusesAHeadCountOutsideItsRange
+## AHeadCountOutsideItsRangeIsRefused
 
-A head count of 0, of -1 and of the largest `int64_t` each fail with `InvalidDescription`.
+One row per head count: 0, -1 and the largest `int64_t`, whose product with the count overflows. Each fails with `InvalidDescription`.
 
 ## RefusesFewerDistinctBoxesThanTheFirstCount
 
