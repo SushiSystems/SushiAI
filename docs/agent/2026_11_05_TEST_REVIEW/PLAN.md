@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M37, M40, M46 to M48 and M51 are left
+**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M37, M46 to M48 and M51 are left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -58,7 +58,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M37 | the tests of `layers/train` (39 files): 107 rewrite, 28 resize, 36 split, 20 merge, 20 delete | T1, T2, T3, T4, T5, T6, T7, T8 | in progress (2026-11-09): 9 of 39 files applied (batch_role, binary_confusion, decision_threshold, binary_cross_entropy_objective, mean_squared_error_objective, multi_label_objective, buffer_update_recorder, dense_losses, dense_targets; the objective page `test_binary_cross_entropy_objective.md` also covers the other two); left, in order: evaluation_step (its .md must also take the `Medium_EvaluationStep` sections now sitting in `test_buffer_update_recorder.md`'s tail), feed, host_values, input_match, metrics, objective, objective_context, objective_registry, one_hot, parameter_groups, role_match, step_view, steps, sum_objective, training_graph, training_step, the 14 files of test_trainer/, and the adds of REPORT.md; not yet built or run |
 | M38 | the tests of `layers/umbrella` (2 files): 2 rewrite, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M39 | the tests of `package` (2 files): 1 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
-| M40 | the tests of `tools` (6 files): 7 rewrite, 85 resize, 14 split, 12 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M40 | the tests of `tools` (6 files): 7 rewrite, 85 resize, 14 split, 12 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, decision 46; not run) |
 | M41 | the tests of `vision/blocks` (12 files): 73 rewrite, 7 resize, 20 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, decisions 41 and 42; not yet built or run) |
 | M42 | the tests of `vision/codecs` (5 files): 21 rewrite, 6 resize, 2 split, 3 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M43 | the tests of `vision/darknet_forward_cases` (1 file): 4 rewrite, 3 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |

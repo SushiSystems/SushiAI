@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-11-09 — test_tree: Apply the tools records (M40).
+- 2026-11-09 — tools: Added ports with a disk and a memory adapter to the contract, device-source and naming checkers, so their rules run on values (`check_contract.py`, `check_device_sources.py`, `apply_rename.py`).
+- 2026-11-09 — general: Clear the known findings of the shared checkers (RW-149, `a25c0517`).
 - 2026-11-09 — test_tree: Apply the layers/nn records (M35).
 - 2026-11-09 — nn: Added check_depthwise_channels, the refusal `DepthwiseConv2d::same_padded` stops on as a value function (`depthwise_conv2d.hpp`).
 - 2026-11-09 — test_tree: Apply the vision/umbrella records (M52).
