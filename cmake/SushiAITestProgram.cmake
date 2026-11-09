@@ -9,8 +9,6 @@
 # program: a program repeats the device link of the library it links, so one program per tier
 # pays it once. An application keeps a program of its own.
 
-include(GoogleTest)
-
 if(NOT DEFINED SUSHIAI_TIER_ORDER)
     include(SushiAILayers)
 endif()
@@ -43,37 +41,166 @@ function(sushiai_check_suite_sizes)
     endforeach()
 endfunction()
 
-# Registers the cases of `program` in one block per size, each with its label and timeout. A
-# GoogleTest filter after '-' excludes, so the quarantined cases of a size register apart.
-function(sushiai_discover_sized_tests program)
-    set(groups "Small_|small|60" "Medium_|medium|300" "Large_|large|900")
-    foreach(group IN LISTS groups)
+# The cases one CTest test runs, per size. A process pays its start-up (the runtime, the device
+# discovery, the logger) once, so a case run alone is mostly start-up: a small case averaged
+# 55 ms alone in the measured run of 2026-11-10, most of it start-up. A shard runs its share of a
+# program's cases in one process, and the share is sized to the cost of a case of its size. A
+# small case is a few milliseconds of work, so 300 of them are a few seconds and the run still
+# spreads over every core; a medium case reaches a device or a thread and takes up to 5 s, so 25
+# of them keep a shard well under a minute; a large case takes up to 120 s and runs alone.
+set(SUSHIAI_SHARD_CASES_SMALL 300)
+set(SUSHIAI_SHARD_CASES_MEDIUM 25)
+set(SUSHIAI_SHARD_CASES_LARGE 1)
+
+# One group per size: suite prefix, CTest label, timeout in seconds per case, cases per shard.
+set(SUSHIAI_SIZE_GROUPS
+    "Small_|small|60|${SUSHIAI_SHARD_CASES_SMALL}"
+    "Medium_|medium|300|${SUSHIAI_SHARD_CASES_MEDIUM}"
+    "Large_|large|900|${SUSHIAI_SHARD_CASES_LARGE}")
+
+# Where each shard writes its per-case GoogleTest XML; the time reader reads the folder, so the
+# per-case limits of the testing skill still apply to a case run inside a shard.
+set(SUSHIAI_GTEST_RESULTS_DIR "${CMAKE_BINARY_DIR}/test_results/gtest")
+
+# Counts the cases of the sources after `program` per size and lists their suites, and keeps both
+# for `program`. A TEST_P or TYPED_TEST counts once however many instances it gets, so the count is
+# a floor.
+function(sushiai_record_cases program)
+    foreach(group IN LISTS SUSHIAI_SIZE_GROUPS)
         string(REPLACE "|" ";" parts "${group}")
         list(GET parts 0 prefix)
-        list(GET parts 1 label)
-        list(GET parts 2 timeout)
-
-        set(quarantined "")
-        foreach(name IN LISTS SUSHIAI_QUARANTINED_TESTS)
-            if(name MATCHES "^${prefix}")
-                list(APPEND quarantined "${name}" "*/${name}")
+        set(count_${prefix} 0)
+    endforeach()
+    set(suites "")
+    foreach(source IN LISTS ARGN)
+        if(IS_ABSOLUTE "${source}")
+            set(path "${source}")
+        else()
+            set(path "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
+        endif()
+        file(READ "${path}" text)
+        string(REGEX MATCHALL "(TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P)\\([ \t\r\n]*[A-Za-z0-9_]+"
+            declarations "${text}")
+        foreach(declaration IN LISTS declarations)
+            string(REGEX REPLACE "^[A-Z_]+\\([ \t\r\n]*" "" suite "${declaration}")
+            list(APPEND suites "${suite}")
+            if(suite MATCHES "^(Small_|Medium_|Large_)")
+                math(EXPR count_${CMAKE_MATCH_1} "${count_${CMAKE_MATCH_1}} + 1")
             endif()
         endforeach()
-        list(JOIN quarantined ":" quarantined_filter)
+    endforeach()
+    foreach(group IN LISTS SUSHIAI_SIZE_GROUPS)
+        string(REPLACE "|" ";" parts "${group}")
+        list(GET parts 0 prefix)
+        set_property(GLOBAL PROPERTY SUSHIAI_CASES_${program}_${prefix} ${count_${prefix}})
+    endforeach()
+    set_property(GLOBAL PROPERTY SUSHIAI_SUITES_${program} ${suites})
+endfunction()
 
-        # An instantiated suite is named <prefix>/<suite>, so its pattern carries the slash.
-        set(filter "${prefix}*:*/${prefix}*")
-        if(quarantined_filter)
-            string(APPEND filter "-${quarantined_filter}")
-            gtest_discover_tests(${program}
-                DISCOVERY_MODE PRE_TEST
-                TEST_FILTER "${quarantined_filter}"
-                PROPERTIES LABELS "${label}\;quarantined" TIMEOUT ${timeout})
+# Gives `program` the cases and suites of the object libraries named after it.
+function(sushiai_sum_cases program)
+    set(suites "")
+    foreach(group IN LISTS SUSHIAI_SIZE_GROUPS)
+        string(REPLACE "|" ";" parts "${group}")
+        list(GET parts 0 prefix)
+        set(total 0)
+        foreach(object IN LISTS ARGN)
+            get_property(count GLOBAL PROPERTY SUSHIAI_CASES_${object}_${prefix})
+            math(EXPR total "${total} + ${count}")
+        endforeach()
+        set_property(GLOBAL PROPERTY SUSHIAI_CASES_${program}_${prefix} ${total})
+    endforeach()
+    foreach(object IN LISTS ARGN)
+        get_property(object_suites GLOBAL PROPERTY SUSHIAI_SUITES_${object})
+        list(APPEND suites ${object_suites})
+    endforeach()
+    set_property(GLOBAL PROPERTY SUSHIAI_SUITES_${program} ${suites})
+endfunction()
+
+# Sets `result` to the number of shards that hold `cases` cases at `per_shard` cases each, at
+# least one.
+function(sushiai_shard_count cases per_shard result)
+    math(EXPR shards "(${cases} + ${per_shard} - 1) / ${per_shard}")
+    if(shards LESS 1)
+        set(shards 1)
+    endif()
+    set(${result} ${shards} PARENT_SCOPE)
+endfunction()
+
+# Sets `result` to the GoogleTest patterns of the quarantined cases of `program` that carry
+# `prefix`; a name whose suite the program does not hold is left out.
+function(sushiai_quarantined_patterns program prefix result)
+    get_property(suites GLOBAL PROPERTY SUSHIAI_SUITES_${program})
+    set(patterns "")
+    foreach(name IN LISTS SUSHIAI_QUARANTINED_TESTS)
+        string(REGEX REPLACE "\\..*$" "" suite "${name}")
+        if(name MATCHES "^${prefix}" AND suite IN_LIST suites)
+            # An instantiated suite is named <prefix>/<suite>, so its pattern carries the slash.
+            list(APPEND patterns "${name}" "*/${name}")
         endif()
-        gtest_discover_tests(${program}
-            DISCOVERY_MODE PRE_TEST
-            TEST_FILTER "${filter}"
-            PROPERTIES LABELS "${label}" TIMEOUT ${timeout})
+    endforeach()
+    set(${result} "${patterns}" PARENT_SCOPE)
+endfunction()
+
+# Registers one CTest test that runs `program` with `filter`, as shard `index` of `shards`
+# (GoogleTest splits the filtered cases round-robin by GTEST_TOTAL_SHARDS and GTEST_SHARD_INDEX).
+# It writes its per-case XML under SUSHIAI_GTEST_RESULTS_DIR. The shuffle and its seed reach it
+# through GTEST_SHUFFLE and GTEST_RANDOM_SEED of the caller's environment, and a death test starts
+# its child outside the sharding, so both keep working inside a shard.
+function(sushiai_add_shard_test program name filter labels timeout index shards)
+    add_test(NAME ${name}
+        COMMAND ${program} --gtest_filter=${filter}
+            --gtest_output=xml:${SUSHIAI_GTEST_RESULTS_DIR}/${name}.xml)
+    set_tests_properties(${name} PROPERTIES
+        LABELS "${labels}"
+        TIMEOUT ${timeout}
+        ENVIRONMENT "GTEST_TOTAL_SHARDS=${shards};GTEST_SHARD_INDEX=${index}")
+endfunction()
+
+# Registers the cases of `program` of one size group in shards, with the group's label and a
+# timeout of the case timeout times the cases of a shard. The quarantined cases of the size run
+# apart in one test labelled quarantined, and a GoogleTest filter after '-' leaves them out of
+# the shards.
+function(sushiai_register_size_group program group)
+    string(REPLACE "|" ";" parts "${group}")
+    list(GET parts 0 prefix)
+    list(GET parts 1 label)
+    list(GET parts 2 case_timeout)
+    list(GET parts 3 per_shard)
+
+    get_property(cases GLOBAL PROPERTY SUSHIAI_CASES_${program}_${prefix})
+    sushiai_quarantined_patterns(${program} ${prefix} quarantined)
+
+    # An instantiated suite is named <prefix>/<suite>, so its pattern carries the slash.
+    set(filter "${prefix}*:*/${prefix}*")
+    if(quarantined)
+        list(LENGTH quarantined quarantined_entries)
+        math(EXPR quarantined_cases "${quarantined_entries} / 2")
+        list(JOIN quarantined ":" quarantined_filter)
+        string(APPEND filter "-${quarantined_filter}")
+        math(EXPR quarantined_timeout "${case_timeout} * ${quarantined_cases}")
+        sushiai_add_shard_test(${program} ${program}.${label}_quarantined "${quarantined_filter}"
+            "${label};quarantined" ${quarantined_timeout} 0 1)
+        math(EXPR cases "${cases} - ${quarantined_cases}")
+    endif()
+    if(cases LESS 1)
+        return()
+    endif()
+
+    sushiai_shard_count(${cases} ${per_shard} shards)
+    math(EXPR shard_cases "(${cases} + ${shards} - 1) / ${shards}")
+    math(EXPR timeout "${case_timeout} * ${shard_cases}")
+    math(EXPR last "${shards} - 1")
+    foreach(index RANGE ${last})
+        sushiai_add_shard_test(${program} ${program}.${label}_shard_${index}of${shards}
+            "${filter}" "${label}" ${timeout} ${index} ${shards})
+    endforeach()
+endfunction()
+
+# Registers the cases of `program` in shards, one block per size.
+function(sushiai_register_sized_tests program)
+    foreach(group IN LISTS SUSHIAI_SIZE_GROUPS)
+        sushiai_register_size_group(${program} "${group}")
     endforeach()
 endfunction()
 
@@ -88,8 +215,8 @@ endfunction()
 # application's build the program sushiai_<name>_tests. Each links the library of the
 # owner's tier, GTest, the internal module engine_fixture, which holds main(),
 # and every module DEPENDS names.
-# Every case carries the size its suite-name prefix gives; CTest labels it with that size and
-# enforces the size's timeout. SA_TEST_FIXTURE_DIR names the
+# Every case carries the size its suite-name prefix gives. The cases of a program run in shards,
+# CTest tests labelled with that size and timed out at the size's timeout per case they hold. SA_TEST_FIXTURE_DIR names the
 # fixtures/ folder beside its CMakeLists.txt, and SA_REPOSITORY_ROOT names the
 # root of the repository. DEVICE_SOURCES names the SOURCES that instantiate a
 # device kernel; only those compile for the device (cmake/SushiAISyclTarget.cmake).
@@ -129,6 +256,8 @@ function(sushiai_add_test_program)
         set(program "sushiai_${ARG_APPLICATION}_tests")
         add_executable(${program} ${ARG_SOURCES})
     endif()
+
+    sushiai_record_cases(${program} ${ARG_SOURCES})
 
     if(ARG_DEVICE_SOURCES)
         sushiai_check_device_sources(${program} "${ARG_SOURCES}" "${ARG_DEVICE_SOURCES}")
@@ -170,12 +299,12 @@ function(sushiai_add_test_program)
     endif()
 endfunction()
 
-# Registers the tests of `program` by size and copies the runtime, log and GTest DLLs beside it,
+# Registers the tests of `program` in shards by size and copies the runtime, log and GTest DLLs beside it,
 # with the Release DLLs of the modules that name one in SUSHIAI_RELEASE_RUNTIME_DLLS.
 # gtest.dll comes from the configuration the program links: a Debug tree links GTest's Release
 # build, and vcpkg's own copy, which runs before this one, puts the Debug DLL there.
 function(sushiai_finish_test_program program)
-    sushiai_discover_sized_tests(${program})
+    sushiai_register_sized_tests(${program})
     get_property(release_runtime_dlls GLOBAL PROPERTY SUSHIAI_RELEASE_RUNTIME_DLLS)
 
     if(WIN32)
@@ -220,6 +349,7 @@ function(sushiai_add_tier_test_programs)
         endforeach()
         list(REMOVE_DUPLICATES linked_objects)
         target_link_libraries(${program} PRIVATE ${linked_objects})
+        sushiai_sum_cases(${program} ${objects})
         sushiai_apply_sycl(${program})
         sushiai_apply_build_policy(${program})
         sushiai_finish_test_program(${program})

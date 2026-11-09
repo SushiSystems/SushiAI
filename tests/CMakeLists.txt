@@ -19,10 +19,9 @@
 # This whole directory is behind SA_BUILD_TESTS (root CMakeLists.txt).
 # ============================================================================
 
-cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)
+cmake_minimum_required(VERSION 3.22)
 
 # GTest::gtest is found in modules/CMakeLists.txt, which the internal modules need first.
-include(GoogleTest)
 include(SushiAITestProgram)
 
 # The tests of each module, under tests/<tier>/<module>/; one program per tier.
