@@ -33,7 +33,7 @@ Consumers include each header by the path in the first column.
 | `<SushiAI/vision/blocks/c3k2.hpp>` | `C3k2`, `C3k2InnerEntry`, `K_C3K2_INNER`, `make_c3k2_of_bottleneck`, `make_c3k2_of_c3k`, `make_c3k2_of_bottleneck_psa`, `make_c3k2_node` |
 | `<SushiAI/vision/blocks/c2f.hpp>` | `C2f`, `make_c2f_node` |
 | `<SushiAI/vision/blocks/sppf.hpp>` | `SPPF`, `make_sppf_node` |
-| `<SushiAI/vision/blocks/attention.hpp>` | `Attention` |
+| `<SushiAI/vision/blocks/attention.hpp>` | `Attention`, `check_attention_heads`, `default_attention_heads`, `K_CHANNELS_PER_DEFAULT_HEAD` |
 | `<SushiAI/vision/blocks/psa_block.hpp>` | `PSABlock` |
 | `<SushiAI/vision/blocks/c2psa.hpp>` | `C2PSA`, `make_c2psa_node` |
 | `<SushiAI/vision/blocks/detect_head.hpp>` | `BoxBranch`, `ClassStage`, `ClassBranch`, `DetectHead`, `make_detect_node` |
@@ -139,9 +139,11 @@ its result head by head into queries, keys and values. `head_dim` is `channels /
 `key_dim` is `head_dim / 2`. Each head scales its queries by `1 / sqrt(key_dim)`, multiplies them
 with its keys transposed, takes the softmax over the last axis and multiplies the result with its
 values. The heads are joined, `pe`, a 3x3 `DWConvLinear` over the values of all heads, is added,
-and `proj`, a `ConvLinear`, is traced over the sum. The constructor stops the process on a
-width the head count does not divide, or on fewer than two channels per head; a width read from
-a document is checked before the call. It has no factory of its own.
+and `proj`, a `ConvLinear`, is traced over the sum. `check_attention_heads` answers
+`InvalidDescription` for a width the head count does not divide, or for fewer than two channels
+per head, and the constructor stops the process on the same refusal; a width read from a document
+is checked before the call. `default_attention_heads(hidden)` is `max(hidden / 64, 1)`, the head
+count of a row that states none. `Attention` has no factory of its own.
 
 ### psa_block.hpp
 
