@@ -19,7 +19,22 @@ Without the member the task reads `BestShape`, and the written section leaves th
 A section with a `ratio_limit` of 3.5 and a `neighbour_offset` of 0.25 reads both values and is
 written back with the same JSON text.
 
-## RefusesBadMembersNamingTheKey
+## RefusesAnUnknownRule
 
-An unknown rule, an unknown key `g`, a `ratio_limit` of 0.5, a `neighbour_offset` of 1 and a
-`ratio_limit` stated under `best_shape` are each refused naming the key.
+The rule "nearest" is refused naming `'rule'`, `'nearest'` and `'shape_ratio'`.
+
+## RefusesAnUnknownKey
+
+The key `g` under `shape_ratio` is refused naming it.
+
+## RefusesARatioLimitOutOfRange
+
+A `ratio_limit` of 0.5 is refused naming the key.
+
+## RefusesANeighbourOffsetOutOfRange
+
+A `neighbour_offset` of 1 is refused naming the key.
+
+## RefusesAShapeRatioKeyUnderBestShape
+
+A `ratio_limit` stated under `best_shape` is refused naming the key and the rule.

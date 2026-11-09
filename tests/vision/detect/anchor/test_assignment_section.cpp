@@ -96,19 +96,39 @@ TEST(Small_DetectAnchorAssignmentSection, AShapeRatioSectionRoundTrips)
     EXPECT_EQ(written_text, section_text);
 }
 
-/** @brief Tests that an unknown rule, an unknown key and bad values are refused by name. */
-TEST(Small_DetectAnchorAssignmentSection, RefusesBadMembersNamingTheKey)
+/** @brief Tests that an unknown rule is refused naming the key and the known rule. */
+TEST(Small_DetectAnchorAssignmentSection, RefusesAnUnknownRule)
 {
     SA_EXPECT_FAILURE(read_anchor_task(section_with(R"({"rule": "nearest"})")),
                       StatusCode::InvalidDescription, "'rule'", "'nearest'", "'shape_ratio'");
+}
+
+/** @brief Tests that an unknown key of the member is refused by name. */
+TEST(Small_DetectAnchorAssignmentSection, RefusesAnUnknownKey)
+{
     SA_EXPECT_FAILURE(read_anchor_task(section_with(R"({"rule": "shape_ratio", "g": 0.5})")),
                       StatusCode::InvalidDescription, "'g'");
+}
+
+/** @brief Tests that a ratio_limit below its range is refused by name. */
+TEST(Small_DetectAnchorAssignmentSection, RefusesARatioLimitOutOfRange)
+{
     SA_EXPECT_FAILURE(
         read_anchor_task(section_with(R"({"rule": "shape_ratio", "ratio_limit": 0.5})")),
         StatusCode::InvalidDescription, "'ratio_limit'");
+}
+
+/** @brief Tests that a neighbour_offset out of range is refused by name. */
+TEST(Small_DetectAnchorAssignmentSection, RefusesANeighbourOffsetOutOfRange)
+{
     SA_EXPECT_FAILURE(
         read_anchor_task(section_with(R"({"rule": "shape_ratio", "neighbour_offset": 1.0})")),
         StatusCode::InvalidDescription, "'neighbour_offset'");
+}
+
+/** @brief Tests that a shape-ratio key under the best-shape rule is refused by name. */
+TEST(Small_DetectAnchorAssignmentSection, RefusesAShapeRatioKeyUnderBestShape)
+{
     SA_EXPECT_FAILURE(
         read_anchor_task(section_with(R"({"rule": "best_shape", "ratio_limit": 4.0})")),
         StatusCode::InvalidDescription, "'ratio_limit'", "'best_shape'");
