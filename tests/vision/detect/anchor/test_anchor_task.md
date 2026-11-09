@@ -1,7 +1,9 @@
 # tests/vision/detect/anchor/test_anchor_task.cpp
 
 
-Suites: `Small_DetectAnchorTask`.
+Suites: `Small_DetectAnchorTask` and its row suites `Small_DetectAnchorTaskRoundTrip`,
+`Small_DetectAnchorSectionRoundTrip`, `Small_DetectAnchorTaskCoding`,
+`Small_DetectAnchorTaskCriterion` and `Small_DetectAnchorTaskMissing`.
 
 Tests `read_anchor_task` and `write_anchor_task` in
 `modules/vision/detect/include/SushiAI/vision/detect/anchor/anchor_task.hpp`. A task is
@@ -9,26 +11,18 @@ compared field by field, every float bit for bit. A section is compared by the J
 `write_json` gives it. The refusal cases start from a valid section of three classes, four
 anchors, two heads of two anchors each and the criterion "iou", and replace one member.
 
-## AThreeHeadTaskRoundTripsThroughItsSection
+## ATaskRoundTripsThroughItsSection
 
-A task of 80 classes, nine anchors and three heads, with `DistanceIoU` and an exponent of
-0.6f, comes back unchanged after `write_anchor_task`, `write_json`, `parse_json` and
-`read_anchor_task`.
+One row per task. `ThreeHeadsOverNineAnchors`, 80 classes, nine anchors and three heads under
+`DistanceIoU` with an exponent of 0.6f, and `TwoHeadsOverSixAnchors`, 3 classes, six anchors and
+two heads under the plain IoU criterion, each come back unchanged after `write_anchor_task`,
+`write_json`, `parse_json` and `read_anchor_task`.
 
-## ATwoHeadTaskRoundTripsThroughItsSection
+## ASectionRoundTripsThroughItsTask
 
-A task of 3 classes, six anchors and two heads under the plain IoU criterion comes back
-unchanged after the same four steps.
-
-## AThreeHeadSectionRoundTripsThroughItsTask
-
-A section of three heads over nine anchors with the criterion "distance_iou" is written back
+One row per section. `ThreeHeads`, three heads over nine anchors with the criterion
+"distance_iou", and `TwoHeads`, two heads over six anchors with "iou", are each written back
 with the same JSON text after `read_anchor_task` and `write_anchor_task`.
-
-## ATwoHeadSectionRoundTripsThroughItsTask
-
-A section of two heads over six anchors with the criterion "iou" is written back with the
-same JSON text.
 
 ## ReadsEveryFieldOfASection
 
@@ -36,35 +30,61 @@ The three-head section reads as 80 classes, its nine anchors, the masks {6, 7, 8
 {0, 1, 2}, and the heads head_0 and head_1 with `Logit` and the scales 1.25 and 1.125 and
 head_2 with `Activated` and 2.0. The criterion is `DistanceIoU` with the exponent 0.5.
 
-## WritesTheTypeTheKeysInOrderAndEachFloatAsItsDouble
+## WritesTheTypeAndTheClassCount
+
+The written section states the type `K_ANCHOR_TASK_TYPE` and 3 classes.
+
+## WritesTheKeysInOrder
 
 The written section has the keys `type`, `classes`, `anchors`, `heads`, `suppression` in that
-order, the type `K_ANCHOR_TASK_TYPE` and 3 classes. A head has the keys `output`, `anchors`,
-`coding`, `scale_xy`. The second head's scale equals `double(1.05f)` and the third anchor's
-sides equal `double(0.09f)` and `double(0.14f)`.
+order, and a head has the keys `output`, `anchors`, `coding`, `scale_xy`.
 
-## ReadsAndWritesTheSizeFormOfALogitHead
+## WritesEachFloatAsItsDouble
+
+The second head's scale equals `double(1.05f)` and the third anchor's sides equal
+`double(0.09f)` and `double(0.14f)`.
+
+## ReadsAndWritesSquaredSigmoidAsTheSizeOfALogitHead
 
 "size": "squared_sigmoid" on a logit head reads as `SizeForm::SquaredSigmoid` and is written
-back. A head without "size" reads as `SizeForm::Exponential` and is written without the key.
-"size" on an activated head fails naming "'size'" and "logit head"; an unknown form "cubic"
-fails naming it and the known forms.
+back as the same string.
 
-## ReadsAndWritesEachCodingString
+## AnExponentialSizeIsAnAbsentMember
 
-"logit" reads as `HeadCoding::Logit` and "activated" as `HeadCoding::Activated`, and each is
-written back as the same string.
+A head without "size" reads as `SizeForm::Exponential` and is written without the key.
 
-## ReadsAndWritesEachCriterionString
+## ASizeOnAnActivatedHeadIsRefused
 
-"iou" reads as `SuppressionCriterion::IoU` and "distance_iou", with an exponent of 0.75, as
-`SuppressionCriterion::DistanceIoU`. Each is written back as the same string.
+"size" on an activated head fails naming "'size'" and "logit head".
 
-## TheExponentBelongsToTheCriterionThatReadsIt
+## AnUnknownSizeIsRefused
+
+The form "cubic" fails naming it and the known forms.
+
+## AStringOfCodingIsReadAndWrittenAsItsEnumerator
+
+One row per string. "logit" reads as `HeadCoding::Logit` and "activated" as
+`HeadCoding::Activated`, and each is written back as the same string.
+
+## AStringOfCriterionIsReadAndWrittenAsItsEnumerator
+
+One row per string. "iou" reads as `SuppressionCriterion::IoU` and "distance_iou", with an
+exponent of 0.75, as `SuppressionCriterion::DistanceIoU`. Each is written back as the same
+string.
+
+## TheExponentIsNotWrittenUnderIoU
 
 A task under IoU with the exponent 0.25 writes a `suppression` object with the one key
-`criterion`, and that section reads back with `K_DEFAULT_DISTANCE_EXPONENT`. Under
-`DistanceIoU` the object has the keys `criterion`, `distance_exponent` and the exponent 0.25.
+`criterion`.
+
+## AnExponentTheSectionLeavesOutReadsAsTheDefault
+
+The section of that task reads back with `K_DEFAULT_DISTANCE_EXPONENT`.
+
+## TheExponentIsWrittenUnderDistanceIoU
+
+Under `DistanceIoU` the object has the keys `criterion`, `distance_exponent` and the exponent
+0.25.
 
 ## ReadsAWholeNumberAsAScale
 
@@ -85,16 +105,29 @@ The read fails with `InvalidDescription` for the type "anchor_free_detection" ("
 "'anchor_free_detection'", "'anchor_detection'"), for the type 3 ("'type'",
 "a whole number") and for a section without a type ("task has no 'type'").
 
-## RefusesAnUnknownKeyAtEachLevel
+## RefusesAnUnknownKeyOfTheSection
 
 The read fails with `InvalidDescription` for the key `clases` in the section ("'clases'",
-"'classes'"), the key `scale` in a head ("'heads' entry 0", "'scale'", "'scale_xy'") and the
-key `threshold` in `suppression` ("'suppression'", "'threshold'").
+"'classes'").
 
-## RefusesASectionWithoutOneOfItsMembers
+## RefusesAnUnknownKeyOfAHead
 
-A section with all five members reads. Without `classes`, `anchors`, `heads` or `suppression`
-it fails with `InvalidDescription` and "task has no" followed by the quoted key.
+The read fails with `InvalidDescription` for the key `scale` in a head ("'heads' entry 0",
+"'scale'", "'scale_xy'").
+
+## RefusesAnUnknownKeyOfTheSuppression
+
+The read fails with `InvalidDescription` for the key `threshold` in `suppression`
+("'suppression'", "'threshold'").
+
+## AcceptsASectionOfAllFiveMembers
+
+A section with all five members reads.
+
+## ASectionWithoutAMemberIsRefused
+
+One row per member: without `type`, `classes`, `anchors`, `heads` or `suppression` the read
+fails with `InvalidDescription` and "task has no" followed by the quoted key.
 
 ## RefusesAClassCountBelowOneOrOfAnotherKind
 
@@ -112,14 +145,22 @@ string ("'anchors' entry 0 height", "a string").
 
 The read fails with `InvalidDescription` for a width of 0.0 ("'anchors' entry 2",
 "above zero"), a height of -0.5 ("'anchors' entry 1", "above zero"), a width of 1e-60
-("'anchors' entry 0", "above zero"), a height of 1e60 ("'anchors' entry 3 height", "float32")
-and an empty list ("'anchors'", "no anchor").
+("'anchors' entry 0", "above zero") and a height of 1e60 ("'anchors' entry 3 height",
+"float32").
 
-## RefusesNoHeadAndAHeadThatIsNotAnObject
+## RefusesAListOfNoAnchor
 
-The read fails with `InvalidDescription` for an empty `heads` ("'heads'", "no head"), for
-`heads` given as an object ("'heads'", "an object") and for a second head given as the number
-7 ("'heads' entry 1", "a whole number").
+An empty `anchors` list fails with `InvalidDescription`, "'anchors'" and "no anchor".
+
+## RefusesNoHead
+
+An empty `heads` fails with `InvalidDescription`, "'heads'" and "no head".
+
+## RefusesAHeadThatIsNotAnObject
+
+The read fails with `InvalidDescription` for `heads` given as an object ("'heads'",
+"an object") and for a second head given as the number 7 ("'heads' entry 1",
+"a whole number").
 
 ## RefusesAMaskIndexThatNamesNoAnchor
 
@@ -129,35 +170,65 @@ Over four anchors the read fails with `InvalidDescription` for the index 4
 ("'heads' entry 0 'anchors' entry 1", "a whole number") and an empty mask
 ("'heads' entry 0 'anchors'", "no anchor").
 
-## RefusesAHeadWithABadOutputCodingOrScale
+## RefusesAHeadWithoutAnOutputName
 
 The read fails with `InvalidDescription` for an empty `output` ("'heads' entry 0 'output'",
-"empty string"), a head without `output` ("'heads' entry 0", "no 'output'"), the coding
-"linear" ("'heads' entry 1 'coding'", "'linear'", "'logit', 'activated'"), a `scale_xy` of 0.0
-("'heads' entry 0 'scale_xy'", "above zero") and a `scale_xy` given as a string
-("'heads' entry 0 'scale_xy'", "a string").
+"empty string") and for a head without `output` ("'heads' entry 0", "no 'output'").
 
-## RefusesABadCriterionOrExponent
+## RefusesAnUnknownCoding
 
-The read fails with `InvalidDescription` for the criterion "giou"
-("'suppression' 'criterion'", "'giou'", "'iou', 'distance_iou'"), an exponent stated under
-"iou" ("'suppression' 'distance_exponent'", "'iou'", "does not read"), "distance_iou" without
-an exponent ("'suppression'", "no 'distance_exponent'") and `suppression` given as an array
-("'suppression'", "an array").
+The coding "linear" fails ("'heads' entry 1 'coding'", "'linear'", "'logit', 'activated'").
+
+## RefusesAScaleThatIsNotAPositiveNumber
+
+A `scale_xy` of 0.0 ("'heads' entry 0 'scale_xy'", "above zero") and a `scale_xy` given as a
+string ("'heads' entry 0 'scale_xy'", "a string") each fail with `InvalidDescription`.
+
+## RefusesABadCriterion
+
+The read fails with `InvalidDescription` for the criterion "giou" ("'suppression' 'criterion'",
+"'giou'", "'iou', 'distance_iou'") and for `suppression` given as an array ("'suppression'",
+"an array").
+
+## RefusesAnExponentUnderTheWrongCriterion
+
+The read fails with `InvalidDescription` for an exponent stated under "iou"
+("'suppression' 'distance_exponent'", "'iou'", "does not read") and for "distance_iou" without
+an exponent ("'suppression'", "no 'distance_exponent'").
 
 ## WriterRefusesAHeadOfAnotherClassCount
 
 A task of 3 classes whose second head has 4 fails in `write_anchor_task` with
 `InvalidDescription`, "'heads' entry 1", "4 classes", "'classes'" and "3".
 
-## WriterRefusesTheValuesTheReaderRefuses
+## WriterRefusesAClassCountBelowOne
 
-`write_anchor_task` fails with `InvalidDescription` for 0 classes ("'classes'",
-"at least 1"), an anchor height of NaN ("'anchors' entry 4", "above zero"), a mask index of 6
-over six anchors ("'heads' entry 0 'anchors' entry 1", "anchor 6", "6 anchors"), no head
-("'heads'", "no head"), one head for two masks ("'heads'", "1 heads", "2 masks"), an empty
-output ("'heads' entry 0 'output'", "empty string") and an infinite scale
-("'heads' entry 1 'scale_xy'", "finite").
+0 classes fail with `InvalidDescription`, "'classes'" and "at least 1".
+
+## WriterRefusesAnAnchorSideThatIsNotANumber
+
+An anchor height of NaN fails ("'anchors' entry 4", "above zero").
+
+## WriterRefusesAMaskIndexPastTheAnchors
+
+A mask index of 6 over six anchors fails ("'heads' entry 0 'anchors' entry 1", "anchor 6",
+"6 anchors").
+
+## WriterRefusesATaskWithoutAHead
+
+No head fails ("'heads'", "no head").
+
+## WriterRefusesFewerHeadsThanMasks
+
+One head for two masks fails ("'heads'", "1 heads", "2 masks").
+
+## WriterRefusesAHeadWithoutAnOutputName
+
+An empty output fails ("'heads' entry 0 'output'", "empty string").
+
+## WriterRefusesAScaleThatIsNotFinite
+
+An infinite scale fails ("'heads' entry 1 'scale_xy'", "finite").
 
 ## WriterRefusesAnEnumeratorWithoutAString
 
@@ -165,7 +236,11 @@ output ("'heads' entry 0 'output'", "empty string") and an infinite scale
 ("'heads' entry 1 'coding'", "7", "'logit', 'activated'") and for a `SuppressionCriterion` of
 9 ("'suppression' 'criterion'", "9", "'iou', 'distance_iou'").
 
+## WriterAcceptsAnExponentThatIsNotFiniteUnderIoU
+
+With an infinite exponent the task writes under IoU.
+
 ## WriterRefusesAnExponentThatIsNotFiniteUnderDistanceIoU
 
-With an infinite exponent the task writes under IoU. Under `DistanceIoU` the write fails with
-`InvalidDescription`, "'suppression' 'distance_exponent'" and "finite".
+Under `DistanceIoU` the same task fails with `InvalidDescription`,
+"'suppression' 'distance_exponent'" and "finite".

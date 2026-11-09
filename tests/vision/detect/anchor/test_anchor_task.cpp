@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_anchor_task.cpp
  * @brief Tests that an anchor task and its task section convert both ways without loss.
@@ -31,7 +30,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <initializer_list>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -260,31 +258,153 @@ namespace
 
         expect_same_section(written, section);
     }
+
+    /** @brief Holds a task a round trip starts from and the name of its row. */
+    struct TaskRow
+    {
+        std::string name;       /**< The row's name. */
+        AnchorTask (*make)();   /**< Makes the task. */
+    };
+
+    /** @brief Holds a section a round trip starts from and the name of its row. */
+    struct SectionRow
+    {
+        std::string name;        /**< The row's name. */
+        std::string_view text;   /**< The section as JSON text. */
+    };
+
+    /** @brief Holds a string of "coding" and the enumerator it reads as. */
+    struct CodingRow
+    {
+        std::string name;    /**< The string a section states, capitalised for the row name. */
+        std::string text;    /**< The string a section states. */
+        HeadCoding coding;   /**< The enumerator it reads as. */
+    };
+
+    /** @brief Holds a string of "criterion" with the "suppression" object that states it. */
+    struct CriterionRow
+    {
+        std::string name;               /**< The row's name. */
+        std::string text;               /**< The string a section states. */
+        std::string suppression;        /**< A "suppression" object that states it. */
+        SuppressionCriterion criterion; /**< The enumerator it reads as. */
+    };
+
+    /** @brief Holds a section that lacks one member and the message that names it. */
+    struct MissingMemberRow
+    {
+        std::string name;    /**< The row's name. */
+        std::string text;    /**< The section without the member. */
+        std::string member;  /**< The message fragment that names the member. */
+    };
+
+    /** @brief Runs the round trip of a task through its section. */
+    class Small_DetectAnchorTaskRoundTrip : public ::testing::TestWithParam<TaskRow>
+    {
+
+    };
+
+    /** @brief Runs the round trip of a section through its task. */
+    class Small_DetectAnchorSectionRoundTrip : public ::testing::TestWithParam<SectionRow>
+    {
+
+    };
+
+    /** @brief Runs the read and write of one string of "coding". */
+    class Small_DetectAnchorTaskCoding : public ::testing::TestWithParam<CodingRow>
+    {
+
+    };
+
+    /** @brief Runs the read and write of one string of "criterion". */
+    class Small_DetectAnchorTaskCriterion : public ::testing::TestWithParam<CriterionRow>
+    {
+
+    };
+
+    /** @brief Runs the refusal of a section that lacks one member. */
+    class Small_DetectAnchorTaskMissing : public ::testing::TestWithParam<MissingMemberRow>
+    {
+
+    };
+
+    /** @brief Names a task row by its name field. */
+    std::string task_row_name(const ::testing::TestParamInfo<TaskRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a section row by its name field. */
+    std::string section_row_name(const ::testing::TestParamInfo<SectionRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a coding row by its name field. */
+    std::string coding_row_name(const ::testing::TestParamInfo<CodingRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a criterion row by its name field. */
+    std::string criterion_row_name(const ::testing::TestParamInfo<CriterionRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a missing-member row by its name field. */
+    std::string missing_row_name(const ::testing::TestParamInfo<MissingMemberRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Holds the "type" member of a valid section. */
+    constexpr std::string_view K_TYPE_MEMBER = R"("type": "anchor_detection")";
+
+    /** @brief Holds the "classes" member of a valid section. */
+    constexpr std::string_view K_CLASSES_MEMBER = R"("classes": 3)";
+
+    /** @brief Holds the "anchors" member of a valid section. */
+    constexpr std::string_view K_ANCHORS_MEMBER = R"("anchors": [[0.5, 0.5]])";
+
+    /** @brief Holds the "heads" member of a valid section. */
+    constexpr std::string_view K_HEADS_MEMBER =
+        R"("heads": [{"output": "a", "anchors": [0], "coding": "logit", "scale_xy": 1.0}])";
+
+    /** @brief Holds the "suppression" member of a valid section. */
+    constexpr std::string_view K_SUPPRESSION_MEMBER = R"("suppression": {"criterion": "iou"})";
+
+    /** @brief Returns a section of the four members given, joined in the order given. */
+    std::string join_members(std::string_view first, std::string_view second,
+                             std::string_view third, std::string_view fourth)
+    {
+        return "{" + std::string(first) + ", " + std::string(second) + ", " + std::string(third)
+             + ", " + std::string(fourth) + "}";
+    }
 } // namespace
 
-/** @brief Tests that three heads over nine anchors read back from their section unchanged. */
-TEST(Small_DetectAnchorTask, AThreeHeadTaskRoundTripsThroughItsSection)
+/** @brief Tests that a task reads back from its section unchanged. */
+TEST_P(Small_DetectAnchorTaskRoundTrip, ATaskRoundTripsThroughItsSection)
 {
-    expect_task_round_trip(make_three_head_task());
+    expect_task_round_trip(GetParam().make());
 }
 
-/** @brief Tests that two heads over six anchors read back from their section unchanged. */
-TEST(Small_DetectAnchorTask, ATwoHeadTaskRoundTripsThroughItsSection)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorTaskRoundTrip,
+                         ::testing::Values(TaskRow{"ThreeHeadsOverNineAnchors",
+                                                   make_three_head_task},
+                                           TaskRow{"TwoHeadsOverSixAnchors", make_two_head_task}),
+                         task_row_name);
+
+/** @brief Tests that a section is written back as it was read. */
+TEST_P(Small_DetectAnchorSectionRoundTrip, ASectionRoundTripsThroughItsTask)
 {
-    expect_task_round_trip(make_two_head_task());
+    expect_section_round_trip(GetParam().text);
 }
 
-/** @brief Tests that a section of three heads is written back as it was read. */
-TEST(Small_DetectAnchorTask, AThreeHeadSectionRoundTripsThroughItsTask)
-{
-    expect_section_round_trip(K_THREE_HEAD_SECTION);
-}
-
-/** @brief Tests that a section of two heads is written back as it was read. */
-TEST(Small_DetectAnchorTask, ATwoHeadSectionRoundTripsThroughItsTask)
-{
-    expect_section_round_trip(K_TWO_HEAD_SECTION);
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorSectionRoundTrip,
+                         ::testing::Values(SectionRow{"ThreeHeads", K_THREE_HEAD_SECTION},
+                                           SectionRow{"TwoHeads", K_TWO_HEAD_SECTION}),
+                         section_row_name);
 
 /** @brief Tests that the reader fills every field of the task from the section. */
 TEST(Small_DetectAnchorTask, ReadsEveryFieldOfASection)
@@ -307,22 +427,36 @@ TEST(Small_DetectAnchorTask, ReadsEveryFieldOfASection)
     expect_same_task(task, wanted);
 }
 
-/** @brief Tests that the writer states the type, the keys in order and each float as a double. */
-TEST(Small_DetectAnchorTask, WritesTheTypeTheKeysInOrderAndEachFloatAsItsDouble)
+/** @brief Tests that the writer states the type and the class count. */
+TEST(Small_DetectAnchorTask, WritesTheTypeAndTheClassCount)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value section, write_anchor_task(make_two_head_task()));
+
+    EXPECT_EQ(require_value(require_value(section.at("type", "task")).as_string("type")),
+              K_ANCHOR_TASK_TYPE);
+    EXPECT_EQ(require_value(require_value(section.at("classes", "task")).as_int("classes")), 3);
+}
+
+/** @brief Tests that the writer orders the keys of the section and of a head. */
+TEST(Small_DetectAnchorTask, WritesTheKeysInOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value section, write_anchor_task(make_two_head_task()));
 
     EXPECT_EQ(section.keys(),
               (std::vector<std::string>{"type", "classes", "anchors", "heads", "suppression"}));
-    EXPECT_EQ(require_value(require_value(section.at("type", "task")).as_string("type")),
-              K_ANCHOR_TASK_TYPE);
-    EXPECT_EQ(require_value(require_value(section.at("classes", "task")).as_int("classes")), 3);
-
     const Value& head =
         require_value(require_value(section.at("heads", "task")).as_array("heads"))[1];
     EXPECT_EQ(head.keys(),
               (std::vector<std::string>{"output", "anchors", "coding", "scale_xy"}));
+}
 
+/** @brief Tests that the writer states each float as the double it widens to. */
+TEST(Small_DetectAnchorTask, WritesEachFloatAsItsDouble)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value section, write_anchor_task(make_two_head_task()));
+
+    const Value& head =
+        require_value(require_value(section.at("heads", "task")).as_array("heads"))[1];
     // The tolerance is zero: a float widens to exactly one double.
     EXPECT_EQ(require_value(require_value(head.at("scale_xy", "head")).as_real("scale_xy")),
               static_cast<double>(1.05f));
@@ -333,38 +467,35 @@ TEST(Small_DetectAnchorTask, WritesTheTypeTheKeysInOrderAndEachFloatAsItsDouble)
     EXPECT_EQ(require_value(sizes[1].as_real("height")), static_cast<double>(0.14f));
 }
 
-/** @brief Tests that both strings of "coding" are read and written as their enumerators. */
-TEST(Small_DetectAnchorTask, ReadsAndWritesEachCodingString)
+/** @brief Tests that a string of "coding" is read and written as its enumerator. */
+TEST_P(Small_DetectAnchorTaskCoding, AStringOfCodingIsReadAndWrittenAsItsEnumerator)
 {
-    /** @brief Pairs a string of "coding" with its enumerator. */
-    struct Case
-    {
-        std::string_view name; /**< The string a section states. */
-        HeadCoding coding;     /**< The enumerator it reads as. */
-    };
+    const CodingRow& row = GetParam();
+    SectionText text;
+    text.heads = "[" + head_text("\"" + row.text + "\"", "1.0") + "]";
 
-    for (const Case& entry : {Case{"logit", HeadCoding::Logit},
-                              Case{"activated", HeadCoding::Activated}})
-    {
-        SectionText text;
-        text.heads = "[" + head_text("\"" + std::string(entry.name) + "\"", "1.0") + "]";
-        SA_ASSERT_OK_AND_ASSIGN(const AnchorTask read, read_anchor_task(section_from(text)));
-        EXPECT_EQ(read.heads[0].options.coding, entry.coding) << entry.name;
-
-        SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
-        const Value& head =
-            require_value(require_value(written.at("heads", "task")).as_array("heads"))[0];
-        EXPECT_EQ(require_value(require_value(head.at("coding", "head")).as_string("coding")),
-                  entry.name);
-    }
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorTask read, read_anchor_task(section_from(text)));
+    EXPECT_EQ(read.heads[0].options.coding, row.coding);
+    SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
+    const Value& head =
+        require_value(require_value(written.at("heads", "task")).as_array("heads"))[0];
+    EXPECT_EQ(require_value(require_value(head.at("coding", "head")).as_string("coding")),
+              row.text);
 }
 
-/** @brief Tests that "size" reads, writes only when not exponential, and binds to logits. */
-TEST(Small_DetectAnchorTask, ReadsAndWritesTheSizeFormOfALogitHead)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorTaskCoding,
+                         ::testing::Values(CodingRow{"Logit", "logit", HeadCoding::Logit},
+                                           CodingRow{"Activated", "activated",
+                                                     HeadCoding::Activated}),
+                         coding_row_name);
+
+/** @brief Tests that "size" squared_sigmoid is read and written back. */
+TEST(Small_DetectAnchorTask, ReadsAndWritesSquaredSigmoidAsTheSizeOfALogitHead)
 {
     SectionText squared;
     squared.heads = R"([{"output": "a", "anchors": [0, 1], "coding": "logit", "scale_xy": 2.0,
                          "size": "squared_sigmoid"}])";
+
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask read, read_anchor_task(section_from(squared)));
     EXPECT_EQ(read.heads[0].options.size, SizeForm::SquaredSigmoid);
     SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
@@ -372,76 +503,101 @@ TEST(Small_DetectAnchorTask, ReadsAndWritesTheSizeFormOfALogitHead)
         require_value(require_value(written.at("heads", "task")).as_array("heads"))[0];
     EXPECT_EQ(require_value(require_value(head.at("size", "head")).as_string("size")),
               "squared_sigmoid");
+}
 
+/** @brief Tests that an exponential size reads from an absent member and is not written. */
+TEST(Small_DetectAnchorTask, AnExponentialSizeIsAnAbsentMember)
+{
     SectionText plain;
     plain.heads = "[" + head_text("\"logit\"", "1.0") + "]";
+
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask exponential, read_anchor_task(section_from(plain)));
     EXPECT_EQ(exponential.heads[0].options.size, SizeForm::Exponential);
     SA_ASSERT_OK_AND_ASSIGN(const Value bare, write_anchor_task(exponential));
     EXPECT_FALSE(require_value(require_value(bare.at("heads",
                                                      "task")).as_array("heads"))[0].has("size"));
+}
 
+/** @brief Tests that a size on an activated head is refused. */
+TEST(Small_DetectAnchorTask, ASizeOnAnActivatedHeadIsRefused)
+{
     SectionText activated;
     activated.heads = R"([{"output": "a", "anchors": [0, 1], "coding": "activated",
                            "scale_xy": 2.0, "size": "squared_sigmoid"}])";
+
     SA_EXPECT_FAILURE(read_anchor_task(section_from(activated)),
                       StatusCode::InvalidDescription, "'size'", "logit head");
+}
 
+/** @brief Tests that an unknown size value is refused. */
+TEST(Small_DetectAnchorTask, AnUnknownSizeIsRefused)
+{
     SectionText unknown;
     unknown.heads = R"([{"output": "a", "anchors": [0, 1], "coding": "logit", "scale_xy": 2.0,
                          "size": "cubic"}])";
+
     SA_EXPECT_FAILURE(read_anchor_task(section_from(unknown)), StatusCode::InvalidDescription,
                       "'cubic'", "squared_sigmoid");
 }
 
-/** @brief Tests that both strings of "criterion" are read and written as their enumerators. */
-TEST(Small_DetectAnchorTask, ReadsAndWritesEachCriterionString)
+/** @brief Tests that a string of "criterion" is read and written as its enumerator. */
+TEST_P(Small_DetectAnchorTaskCriterion, AStringOfCriterionIsReadAndWrittenAsItsEnumerator)
 {
-    /** @brief Pairs a string of "criterion" with its enumerator and a section stating it. */
-    struct Case
-    {
-        std::string_view name;          /**< The string a section states. */
-        std::string_view suppression;   /**< A "suppression" object that states it. */
-        SuppressionCriterion criterion; /**< The enumerator it reads as. */
-    };
+    const CriterionRow& row = GetParam();
+    SectionText text;
+    text.suppression = row.suppression;
 
-    for (const Case& entry :
-         {Case{"iou", R"({"criterion": "iou"})", SuppressionCriterion::IoU},
-          Case{"distance_iou", R"({"criterion": "distance_iou", "distance_exponent": 0.75})",
-               SuppressionCriterion::DistanceIoU}})
-    {
-        SectionText text;
-        text.suppression = std::string(entry.suppression);
-        SA_ASSERT_OK_AND_ASSIGN(const AnchorTask read, read_anchor_task(section_from(text)));
-        EXPECT_EQ(read.criterion, entry.criterion) << entry.name;
-
-        SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
-        const Value& suppression = require_value(written.at("suppression", "task"));
-        EXPECT_EQ(require_value(require_value(suppression.at("criterion",
-                                                             "suppression")).as_string("criterion")),
-                  
-                  entry.name);
-    }
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorTask read, read_anchor_task(section_from(text)));
+    EXPECT_EQ(read.criterion, row.criterion);
+    SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
+    const Value& suppression = require_value(written.at("suppression", "task"));
+    EXPECT_EQ(require_value(
+                  require_value(suppression.at("criterion", "suppression")).as_string("criterion")),
+              row.text);
 }
 
-/** @brief Tests that the exponent is written and read under DistanceIoU and only there. */
-TEST(Small_DetectAnchorTask, TheExponentBelongsToTheCriterionThatReadsIt)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorTaskCriterion,
+    ::testing::Values(CriterionRow{"IoU", "iou", R"({"criterion": "iou"})",
+                                   SuppressionCriterion::IoU},
+                      CriterionRow{"DistanceIoU", "distance_iou",
+                                   R"({"criterion": "distance_iou", "distance_exponent": 0.75})",
+                                   SuppressionCriterion::DistanceIoU}),
+    criterion_row_name);
+
+/** @brief Tests that the writer leaves the exponent out under the plain IoU criterion. */
+TEST(Small_DetectAnchorTask, TheExponentIsNotWrittenUnderIoU)
 {
     AnchorTask plain = make_two_head_task();
     plain.distance_exponent = 0.25f;
-    SA_ASSERT_OK_AND_ASSIGN(const Value plain_section, write_anchor_task(plain));
-    EXPECT_EQ(require_value(plain_section.at("suppression", "task")).keys(),
+
+    SA_ASSERT_OK_AND_ASSIGN(const Value section, write_anchor_task(plain));
+
+    EXPECT_EQ(require_value(section.at("suppression", "task")).keys(),
               (std::vector<std::string>{"criterion"}));
+}
 
-    // The tolerance is zero: an exponent the section leaves out reads as the default.
-    SA_ASSERT_OK_AND_ASSIGN(const AnchorTask plain_read, read_anchor_task(plain_section));
-    EXPECT_TRUE(same_bits(plain_read.distance_exponent, K_DEFAULT_DISTANCE_EXPONENT));
+/** @brief Tests that an exponent the section leaves out reads as the default. */
+TEST(Small_DetectAnchorTask, AnExponentTheSectionLeavesOutReadsAsTheDefault)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value section, write_anchor_task(make_two_head_task()));
 
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorTask read, read_anchor_task(section));
+
+    // The tolerance is zero: the default is a float stored as it is.
+    EXPECT_TRUE(same_bits(read.distance_exponent, K_DEFAULT_DISTANCE_EXPONENT));
+}
+
+/** @brief Tests that the writer states the exponent under DistanceIoU. */
+TEST(Small_DetectAnchorTask, TheExponentIsWrittenUnderDistanceIoU)
+{
     AnchorTask distance = make_two_head_task();
     distance.criterion = SuppressionCriterion::DistanceIoU;
     distance.distance_exponent = 0.25f;
-    SA_ASSERT_OK_AND_ASSIGN(const Value distance_section, write_anchor_task(distance));
-    const Value& suppression = require_value(distance_section.at("suppression", "task"));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Value section, write_anchor_task(distance));
+
+    const Value& suppression = require_value(section.at("suppression", "task"));
     EXPECT_EQ(suppression.keys(),
               (std::vector<std::string>{"criterion", "distance_exponent"}));
     EXPECT_EQ(require_value(require_value(suppression.at("distance_exponent",
@@ -498,53 +654,74 @@ TEST(Small_DetectAnchorTask, RefusesAnotherTypeOrNone)
                       StatusCode::InvalidDescription, "task has no 'type'");
 }
 
-/** @brief Tests that a key the section does not have is refused at each level. */
-TEST(Small_DetectAnchorTask, RefusesAnUnknownKeyAtEachLevel)
+/** @brief Tests that an unknown key of the section is refused. */
+TEST(Small_DetectAnchorTask, RefusesAnUnknownKeyOfTheSection)
 {
     SA_EXPECT_FAILURE(read_anchor_task(section_from(R"({"type": "anchor_detection",
                                                         "clases": 3})")),
                       StatusCode::InvalidDescription, "'clases'", "'classes'");
+}
 
+/** @brief Tests that an unknown key of a head is refused. */
+TEST(Small_DetectAnchorTask, RefusesAnUnknownKeyOfAHead)
+{
     SectionText head;
     head.heads = R"([{"output": "a", "anchors": [0], "coding": "logit", "scale_xy": 1.0,
                       "scale": 2.0}])";
+
     SA_EXPECT_FAILURE(read_anchor_task(section_from(head)), StatusCode::InvalidDescription,
                       "'heads' entry 0", "'scale'", "'scale_xy'");
+}
 
+/** @brief Tests that an unknown key of the suppression object is refused. */
+TEST(Small_DetectAnchorTask, RefusesAnUnknownKeyOfTheSuppression)
+{
     SectionText suppression;
     suppression.suppression = R"({"criterion": "iou", "threshold": 0.5})";
+
     SA_EXPECT_FAILURE(read_anchor_task(section_from(suppression)),
                       StatusCode::InvalidDescription, "'suppression'", "'threshold'");
 }
 
-/** @brief Tests that each of the five members is required. */
-TEST(Small_DetectAnchorTask, RefusesASectionWithoutOneOfItsMembers)
+/** @brief Tests that a section of all five members is accepted. */
+TEST(Small_DetectAnchorTask, AcceptsASectionOfAllFiveMembers)
 {
-    const std::string type = R"("type": "anchor_detection")";
-    const std::string classes = R"("classes": 3)";
-    const std::string anchors = R"("anchors": [[0.5, 0.5]])";
-    const std::string heads =
-        R"("heads": [{"output": "a", "anchors": [0], "coding": "logit", "scale_xy": 1.0}])";
-    const std::string suppression = R"("suppression": {"criterion": "iou"})";
-
-    const auto joined = [](std::initializer_list<std::string> members)
-    {
-        std::string text;
-        for (const std::string& member : members)
-            text += (text.empty() ? "{" : ", ") + member;
-        return section_from(text + "}");
-    };
-
-    SA_EXPECT_OK(read_anchor_task(joined({type, classes, anchors, heads, suppression})));
-    SA_EXPECT_FAILURE(read_anchor_task(joined({type, anchors, heads, suppression})),
-                      StatusCode::InvalidDescription, "task has no 'classes'");
-    SA_EXPECT_FAILURE(read_anchor_task(joined({type, classes, heads, suppression})),
-                      StatusCode::InvalidDescription, "task has no 'anchors'");
-    SA_EXPECT_FAILURE(read_anchor_task(joined({type, classes, anchors, suppression})),
-                      StatusCode::InvalidDescription, "task has no 'heads'");
-    SA_EXPECT_FAILURE(read_anchor_task(joined({type, classes, anchors, heads})),
-                      StatusCode::InvalidDescription, "task has no 'suppression'");
+    SA_EXPECT_OK(read_anchor_task(section_from(SectionText{})));
 }
+
+/** @brief Tests that a section without one of its members is refused naming the member. */
+TEST_P(Small_DetectAnchorTaskMissing, ASectionWithoutAMemberIsRefused)
+{
+    const MissingMemberRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(read_anchor_task(section_from(row.text)), StatusCode::InvalidDescription,
+                      row.member);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorTaskMissing,
+    ::testing::Values(
+        MissingMemberRow{"WithoutType",
+                         join_members(K_CLASSES_MEMBER, K_ANCHORS_MEMBER, K_HEADS_MEMBER,
+                                      K_SUPPRESSION_MEMBER),
+                         "task has no 'type'"},
+        MissingMemberRow{"WithoutClasses",
+                         join_members(K_TYPE_MEMBER, K_ANCHORS_MEMBER, K_HEADS_MEMBER,
+                                      K_SUPPRESSION_MEMBER),
+                         "task has no 'classes'"},
+        MissingMemberRow{"WithoutAnchors",
+                         join_members(K_TYPE_MEMBER, K_CLASSES_MEMBER, K_HEADS_MEMBER,
+                                      K_SUPPRESSION_MEMBER),
+                         "task has no 'anchors'"},
+        MissingMemberRow{"WithoutHeads",
+                         join_members(K_TYPE_MEMBER, K_CLASSES_MEMBER, K_ANCHORS_MEMBER,
+                                      K_SUPPRESSION_MEMBER),
+                         "task has no 'heads'"},
+        MissingMemberRow{"WithoutSuppression",
+                         join_members(K_TYPE_MEMBER, K_CLASSES_MEMBER, K_ANCHORS_MEMBER,
+                                      K_HEADS_MEMBER),
+                         "task has no 'suppression'"}),
+    missing_row_name);
 
 /** @brief Tests that a class count that is not a whole number of at least 1 is refused. */
 TEST(Small_DetectAnchorTask, RefusesAClassCountBelowOneOrOfAnotherKind)
@@ -607,21 +784,30 @@ TEST(Small_DetectAnchorTask, RefusesAnAnchorSideThatIsNotPositiveAndFinite)
     vast.anchors = "[[0.125, 0.25], [0.25, 0.5], [0.5, 0.25], [0.75, 1e60]]";
     SA_EXPECT_FAILURE(read_anchor_task(section_from(vast)), StatusCode::InvalidDescription,
                       "'anchors' entry 3 height", "float32");
+}
 
+/** @brief Tests that a list of no anchor is refused. */
+TEST(Small_DetectAnchorTask, RefusesAListOfNoAnchor)
+{
     SectionText none;
     none.anchors = "[]";
     SA_EXPECT_FAILURE(read_anchor_task(section_from(none)), StatusCode::InvalidDescription,
                       "'anchors'", "no anchor");
 }
 
-/** @brief Tests that a section without a head, or with a head that is no object, is refused. */
-TEST(Small_DetectAnchorTask, RefusesNoHeadAndAHeadThatIsNotAnObject)
+/** @brief Tests that a section without a head is refused. */
+TEST(Small_DetectAnchorTask, RefusesNoHead)
 {
     SectionText none;
     none.heads = "[]";
+
     SA_EXPECT_FAILURE(read_anchor_task(section_from(none)), StatusCode::InvalidDescription,
                       "'heads'", "no head");
+}
 
+/** @brief Tests that a head that is no object is refused. */
+TEST(Small_DetectAnchorTask, RefusesAHeadThatIsNotAnObject)
+{
     SectionText listed;
     listed.heads = R"({"output": "a"})";
     SA_EXPECT_FAILURE(read_anchor_task(section_from(listed)), StatusCode::InvalidDescription,
@@ -661,8 +847,8 @@ TEST(Small_DetectAnchorTask, RefusesAMaskIndexThatNamesNoAnchor)
                       "'heads' entry 0 'anchors'", "no anchor");
 }
 
-/** @brief Tests that a head's output, coding and scale are each checked by key. */
-TEST(Small_DetectAnchorTask, RefusesAHeadWithABadOutputCodingOrScale)
+/** @brief Tests that a head without a usable output name is refused by key. */
+TEST(Small_DetectAnchorTask, RefusesAHeadWithoutAnOutputName)
 {
     SectionText unnamed;
     unnamed.heads = R"([{"output": "", "anchors": [0], "coding": "logit", "scale_xy": 1.0}])";
@@ -673,13 +859,22 @@ TEST(Small_DetectAnchorTask, RefusesAHeadWithABadOutputCodingOrScale)
     silent.heads = R"([{"anchors": [0], "coding": "logit", "scale_xy": 1.0}])";
     SA_EXPECT_FAILURE(read_anchor_task(section_from(silent)), StatusCode::InvalidDescription,
                       "'heads' entry 0", "no 'output'");
+}
 
+/** @brief Tests that a coding the table does not list is refused by key. */
+TEST(Small_DetectAnchorTask, RefusesAnUnknownCoding)
+{
     SectionText coded;
     coded.heads = "[" + head_text(R"("logit")", "1.0") + ", " + head_text(R"("linear")", "1.0")
                 + "]";
+
     SA_EXPECT_FAILURE(read_anchor_task(section_from(coded)), StatusCode::InvalidDescription,
                       "'heads' entry 1 'coding'", "'linear'", "'logit', 'activated'");
+}
 
+/** @brief Tests that a scale_xy that is not above zero or not a number is refused by key. */
+TEST(Small_DetectAnchorTask, RefusesAScaleThatIsNotAPositiveNumber)
+{
     SectionText flat;
     flat.heads = "[" + head_text(R"("logit")", "0.0") + "]";
     SA_EXPECT_FAILURE(read_anchor_task(section_from(flat)), StatusCode::InvalidDescription,
@@ -691,14 +886,23 @@ TEST(Small_DetectAnchorTask, RefusesAHeadWithABadOutputCodingOrScale)
                       "'heads' entry 0 'scale_xy'", "a string");
 }
 
-/** @brief Tests that a criterion and its exponent are checked by key. */
-TEST(Small_DetectAnchorTask, RefusesABadCriterionOrExponent)
+/** @brief Tests that an unlisted criterion and a suppression that is no object are refused. */
+TEST(Small_DetectAnchorTask, RefusesABadCriterion)
 {
     SectionText unknown;
     unknown.suppression = R"({"criterion": "giou"})";
     SA_EXPECT_FAILURE(read_anchor_task(section_from(unknown)), StatusCode::InvalidDescription,
                       "'suppression' 'criterion'", "'giou'", "'iou', 'distance_iou'");
 
+    SectionText listed;
+    listed.suppression = R"(["iou"])";
+    SA_EXPECT_FAILURE(read_anchor_task(section_from(listed)), StatusCode::InvalidDescription,
+                      "'suppression'", "an array");
+}
+
+/** @brief Tests that the exponent is read only under distance_iou, and is required there. */
+TEST(Small_DetectAnchorTask, RefusesAnExponentUnderTheWrongCriterion)
+{
     SectionText unread;
     unread.suppression = R"({"criterion": "iou", "distance_exponent": 0.5})";
     SA_EXPECT_FAILURE(read_anchor_task(section_from(unread)), StatusCode::InvalidDescription,
@@ -708,11 +912,6 @@ TEST(Small_DetectAnchorTask, RefusesABadCriterionOrExponent)
     absent.suppression = R"({"criterion": "distance_iou"})";
     SA_EXPECT_FAILURE(read_anchor_task(section_from(absent)), StatusCode::InvalidDescription,
                       "'suppression'", "no 'distance_exponent'");
-
-    SectionText listed;
-    listed.suppression = R"(["iou"])";
-    SA_EXPECT_FAILURE(read_anchor_task(section_from(listed)), StatusCode::InvalidDescription,
-                      "'suppression'", "an array");
 }
 
 /** @brief Tests that the writer refuses a head whose class count is not the task's. */
@@ -725,41 +924,72 @@ TEST(Small_DetectAnchorTask, WriterRefusesAHeadOfAnotherClassCount)
                       "'heads' entry 1", "4 classes", "'classes'", "3");
 }
 
-/** @brief Tests that the writer refuses what the reader refuses in a task's values. */
-TEST(Small_DetectAnchorTask, WriterRefusesTheValuesTheReaderRefuses)
+/** @brief Tests that the writer refuses a class count below one. */
+TEST(Small_DetectAnchorTask, WriterRefusesAClassCountBelowOne)
 {
     AnchorTask classless = make_two_head_task();
     classless.num_classes = 0;
+
     SA_EXPECT_FAILURE(write_anchor_task(classless), StatusCode::InvalidDescription,
                       "'classes'", "at least 1");
+}
 
+/** @brief Tests that the writer refuses an anchor side that is not a number. */
+TEST(Small_DetectAnchorTask, WriterRefusesAnAnchorSideThatIsNotANumber)
+{
     AnchorTask flat = make_two_head_task();
     flat.layout.anchors[4].height = std::numeric_limits<float>::quiet_NaN();
+
     SA_EXPECT_FAILURE(write_anchor_task(flat), StatusCode::InvalidDescription,
                       "'anchors' entry 4", "above zero");
+}
 
+/** @brief Tests that the writer refuses a mask index past the anchors. */
+TEST(Small_DetectAnchorTask, WriterRefusesAMaskIndexPastTheAnchors)
+{
     AnchorTask past = make_two_head_task();
     past.layout.head_anchors[0][1] = 6;
+
     SA_EXPECT_FAILURE(write_anchor_task(past), StatusCode::InvalidDescription,
                       "'heads' entry 0 'anchors' entry 1", "anchor 6", "6 anchors");
+}
 
+/** @brief Tests that the writer refuses a task without a head. */
+TEST(Small_DetectAnchorTask, WriterRefusesATaskWithoutAHead)
+{
     AnchorTask headless = make_two_head_task();
     headless.heads.clear();
+
     SA_EXPECT_FAILURE(write_anchor_task(headless), StatusCode::InvalidDescription,
                       "'heads'", "no head");
+}
 
+/** @brief Tests that the writer refuses fewer heads than masks. */
+TEST(Small_DetectAnchorTask, WriterRefusesFewerHeadsThanMasks)
+{
     AnchorTask uneven = make_two_head_task();
     uneven.heads.pop_back();
+
     SA_EXPECT_FAILURE(write_anchor_task(uneven), StatusCode::InvalidDescription,
                       "'heads'", "1 heads", "2 masks");
+}
 
+/** @brief Tests that the writer refuses a head without an output name. */
+TEST(Small_DetectAnchorTask, WriterRefusesAHeadWithoutAnOutputName)
+{
     AnchorTask unnamed = make_two_head_task();
     unnamed.heads[0].output.clear();
+
     SA_EXPECT_FAILURE(write_anchor_task(unnamed), StatusCode::InvalidDescription,
                       "'heads' entry 0 'output'", "empty string");
+}
 
+/** @brief Tests that the writer refuses a scale_xy that is not finite. */
+TEST(Small_DetectAnchorTask, WriterRefusesAScaleThatIsNotFinite)
+{
     AnchorTask stretched = make_two_head_task();
     stretched.heads[1].options.scale_xy = std::numeric_limits<float>::infinity();
+
     SA_EXPECT_FAILURE(write_anchor_task(stretched), StatusCode::InvalidDescription,
                       "'heads' entry 1 'scale_xy'", "finite");
 }
@@ -778,14 +1008,22 @@ TEST(Small_DetectAnchorTask, WriterRefusesAnEnumeratorWithoutAString)
                       "'suppression' 'criterion'", "9", "'iou', 'distance_iou'");
 }
 
-/** @brief Tests that the writer refuses an exponent that is not finite where it is read. */
+/** @brief Tests that the writer accepts an exponent that is not finite under the IoU criterion. */
+TEST(Small_DetectAnchorTask, WriterAcceptsAnExponentThatIsNotFiniteUnderIoU)
+{
+    AnchorTask task = make_two_head_task();
+    task.distance_exponent = std::numeric_limits<float>::infinity();
+
+    SA_EXPECT_OK(write_anchor_task(task));
+}
+
+/** @brief Tests that the writer refuses an exponent that is not finite under DistanceIoU. */
 TEST(Small_DetectAnchorTask, WriterRefusesAnExponentThatIsNotFiniteUnderDistanceIoU)
 {
     AnchorTask task = make_two_head_task();
     task.distance_exponent = std::numeric_limits<float>::infinity();
-    SA_EXPECT_OK(write_anchor_task(task));
-
     task.criterion = SuppressionCriterion::DistanceIoU;
+
     SA_EXPECT_FAILURE(write_anchor_task(task), StatusCode::InvalidDescription,
                       "'suppression' 'distance_exponent'", "finite");
 }
