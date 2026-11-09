@@ -63,10 +63,14 @@ is 1.
 One 0.3 x 0.45 anchor decodes to that size on a 13x13 grid and to the identical floats on a
 19x19 grid. The last cell's x is 12.5 / 13 on the first grid and 18.5 / 19 on the second.
 
-## CountsChannelsAndRowsFromTheHeadsOwnAnchors
+## CountsChannelsFromTheHeadsOwnAnchors
 
-With 80 classes, a head of three anchors has 255 channels and a head of two has 170. A batch of
-4 on a 13x13 grid with three anchors has 507 rows, and on a 26x26 grid with two anchors 1352.
+With 80 classes, a head of three anchors has 255 channels and a head of two has 170.
+
+## CountsRowsFromTheHeadsOwnAnchors
+
+A batch of 4 on a 13x13 grid with three anchors has 507 rows, and on a 26x26 grid with two
+anchors 1352.
 
 ## ValidatesAHeadTheLayoutHolds
 

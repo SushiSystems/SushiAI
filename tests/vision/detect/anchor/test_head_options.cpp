@@ -77,8 +77,8 @@ namespace
 
 } // namespace
 
-/** @brief Tests that the channel and row counts use the slots of the head asked for. */
-TEST(Small_DetectAnchorDecode, CountsChannelsAndRowsFromTheHeadsOwnAnchors)
+/** @brief Tests that the channel count uses the slots of the head asked for. */
+TEST(Small_DetectAnchorDecode, CountsChannelsFromTheHeadsOwnAnchors)
 {
     AnchorLayout layout;
     layout.anchors = {{0.1f, 0.1f}, {0.2f, 0.2f}, {0.3f, 0.3f}, {0.4f, 0.4f}, {0.5f, 0.5f}};
@@ -87,6 +87,15 @@ TEST(Small_DetectAnchorDecode, CountsChannelsAndRowsFromTheHeadsOwnAnchors)
 
     EXPECT_EQ(count_head_channels(options, layout, 0), 255);
     EXPECT_EQ(count_head_channels(options, layout, 1), 170);
+}
+
+/** @brief Tests that the row count uses the slots of the head asked for. */
+TEST(Small_DetectAnchorDecode, CountsRowsFromTheHeadsOwnAnchors)
+{
+    AnchorLayout layout;
+    layout.anchors = {{0.1f, 0.1f}, {0.2f, 0.2f}, {0.3f, 0.3f}, {0.4f, 0.4f}, {0.5f, 0.5f}};
+    layout.head_anchors = {{2, 3, 4}, {0, 1}};
+
     EXPECT_EQ(count_head_rows({4, 13, 13}, layout, 0), 507);
     EXPECT_EQ(count_head_rows({4, 26, 26}, layout, 1), 1352);
 }
