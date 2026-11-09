@@ -27,30 +27,24 @@
  * @author Mustafa Garip
  */
 
-#include <cmath>
-#include <cstddef>
-#include <cstdint>
-#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
-#include <SushiAI/vision/detect/free/anchors.hpp>
-#include <SushiAI/vision/detect/free/box_coding.hpp>
-#include <SushiAI/vision/detect/free/level_rows.hpp>
-#include <SushiAI/vision/detect/iou.hpp>
 
 namespace
 {
-    using SushiAI::Test::near_reference;
-
-    /** @brief Holds the tolerance of hand cases whose values float32 represents exactly. */
-    constexpr float K_EXACT = 0.0f;
+    using SushiAI::Test::equal_reference;
 
 } // namespace
 
-/** @brief Tests that corners convert to centre and size and back to the same corners. */
-TEST(Medium_DetectBoxes, ConvertsBetweenCornersAndCentreSize)
+/**
+ * @brief Tests that corners convert to centre and size and back to the same corners.
+ *
+ * The corners (1, 2, 5, 8) have the centre (3, 5) and the size 4 by 6; every value is exact in
+ * float32, so the results are compared for equality.
+ */
+TEST(Small_DetectBoxes, ConvertsBetweenCornersAndCentreSize)
 {
     const std::vector<float> corners{1.0f, 2.0f, 5.0f, 8.0f};
     std::vector<float> centred(4);
@@ -58,8 +52,6 @@ TEST(Medium_DetectBoxes, ConvertsBetweenCornersAndCentreSize)
     SushiAI::Vision::Detect::xyxy_to_xywh(corners, centred);
     SushiAI::Vision::Detect::xywh_to_xyxy(centred, back);
 
-    const std::vector<float> expected{(1.0f + 5.0f) / 2.0f, (2.0f + 8.0f) / 2.0f, 5.0f - 1.0f,
-                                      8.0f - 2.0f};
-    EXPECT_TRUE(near_reference(centred, expected, K_EXACT));
-    EXPECT_TRUE(near_reference(back, corners, K_EXACT));
+    EXPECT_TRUE(equal_reference(centred, std::vector<float>{3.0f, 5.0f, 4.0f, 6.0f}));
+    EXPECT_TRUE(equal_reference(back, corners));
 }
