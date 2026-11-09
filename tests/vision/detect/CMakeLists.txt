@@ -43,15 +43,15 @@ sushiai_add_test_program(OWNER vision/detect
         free/test_target_leaves.cpp
         test_average_precision.cpp
         test_batch_average_precision.cpp
+        compile_detection_row.cpp
+        compile_prediction_shape.cpp
         test_box_format.cpp
-        test_detection_row.cpp
         test_detections_nms.cpp
         test_detections_topk.cpp
         test_float_order.cpp
         test_ground_truth.cpp
         test_iou.cpp
         test_iou_gradient.cpp
-        test_prediction_shape.cpp
         test_suppression_criterion.cpp
         test_top_k.cpp
     DEPENDS

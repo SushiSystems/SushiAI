@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_prediction_shape.cpp                                              */
+/* compile_detection_row.cpp                                              */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,35 +22,21 @@
 /**************************************************************************/
 
 /**
- * @file test_prediction_shape.cpp
- * @brief Tests the default extents of a prediction and the order its fields take.
+ * @file compile_detection_row.cpp
+ * @brief Checks at compile time the column layout of a detection row.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
-#include <SushiAI/vision/detect/prediction_shape.hpp>
+#include <SushiAI/vision/detect/detection_row.hpp>
+
+using namespace SushiAI::Vision::Detect;
 
 namespace
 {
-    using SushiAI::Vision::Detect::PredictionShape;
+    static_assert(K_DETECTION_SCORE + 1 == K_DETECTION_CLASS,
+                  "the class column follows the score column");
+    static_assert(K_DETECTION_CLASS + 1 == K_DETECTION_VALUES,
+                  "the class column is the last of a row");
+    static_assert(K_DETECTION_SCORE > 3,
+                  "the four corner columns come before the score");
 } // namespace
-
-/** @brief Tests that a default shape has no images, no anchors and no classes. */
-TEST(Small_DetectPredictionShape, ADefaultShapeHasNoExtents)
-{
-    const PredictionShape shape;
-
-    EXPECT_EQ(shape.batch, 0);
-    EXPECT_EQ(shape.anchors, 0);
-    EXPECT_EQ(shape.num_classes, 0);
-}
-
-/** @brief Tests that a braced shape names the images, then the anchors, then the classes. */
-TEST(Small_DetectPredictionShape, ABracedShapeNamesImagesThenAnchorsThenClasses)
-{
-    const PredictionShape shape{2, 8400, 80};
-
-    EXPECT_EQ(shape.batch, 2);
-    EXPECT_EQ(shape.anchors, 8400);
-    EXPECT_EQ(shape.num_classes, 80);
-}

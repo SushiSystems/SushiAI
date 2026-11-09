@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_detection_row.cpp                                                 */
+/* compile_prediction_shape.cpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,36 +22,25 @@
 /**************************************************************************/
 
 /**
- * @file test_detection_row.cpp
- * @brief Tests the columns of a detection row and the reference's limits on an image's rows.
+ * @file compile_prediction_shape.cpp
+ * @brief Checks at compile time the type and order of the prediction extents.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
-#include <SushiAI/vision/detect/detection_row.hpp>
+#include <cstdint>
+#include <type_traits>
+#include <SushiAI/vision/detect/prediction_shape.hpp>
+
+using SushiAI::Vision::Detect::PredictionShape;
 
 namespace
 {
-    using SushiAI::Vision::Detect::K_DETECTION_CLASS;
-    using SushiAI::Vision::Detect::K_DETECTION_SCORE;
-    using SushiAI::Vision::Detect::K_DETECTION_VALUES;
-    using SushiAI::Vision::Detect::K_MAX_DETECTIONS;
-    using SushiAI::Vision::Detect::K_VALIDATION_CONFIDENCE;
-
+    static_assert(std::is_aggregate_v<PredictionShape>,
+                  "a head fills a prediction shape by braces");
+    static_assert(std::is_same_v<decltype(PredictionShape::batch), std::int64_t>,
+                  "the image count is a 64-bit extent");
+    static_assert(std::is_same_v<decltype(PredictionShape::anchors), std::int64_t>,
+                  "the anchor count is a 64-bit extent");
+    static_assert(std::is_same_v<decltype(PredictionShape::num_classes), std::int64_t>,
+                  "the class count is a 64-bit extent");
 } // namespace
-
-/** @brief Tests that a row holds four corners, then the score, then the class. */
-TEST(Small_DetectDetectionRow, ARowHoldsFourCornersThenTheScoreThenTheClass)
-{
-    EXPECT_EQ(K_DETECTION_VALUES, 6u);
-    EXPECT_EQ(K_DETECTION_SCORE, 4u);
-    EXPECT_EQ(K_DETECTION_CLASS, 5u);
-    EXPECT_LT(K_DETECTION_CLASS, K_DETECTION_VALUES);
-}
-
-/** @brief Tests that the limits are the reference's 300 rows and its 0.001 score floor. */
-TEST(Small_DetectDetectionRow, TheLimitsAreTheReferenceValues)
-{
-    EXPECT_EQ(K_MAX_DETECTIONS, 300);
-    EXPECT_EQ(K_VALIDATION_CONFIDENCE, 0.001f);
-}
