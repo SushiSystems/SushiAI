@@ -15,6 +15,7 @@ endif()
 
 sushiai_add_test_program(OWNER train
     SOURCES
+        compile_training_graph.cpp
         test_batch_role.cpp
         test_binary_confusion.cpp
         test_binary_cross_entropy_objective.cpp
@@ -52,7 +53,6 @@ sushiai_add_test_program(OWNER train
         test_trainer/test_resilience.cpp
         test_trainer/test_static_memory.cpp
         test_trainer/test_token_feed.cpp
-        test_training_graph.cpp
         test_training_step.cpp
         ${SUSHIAI_TRAIN_TEST_PROFILED}
     DEPENDS
