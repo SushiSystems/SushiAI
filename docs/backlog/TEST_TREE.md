@@ -12,6 +12,7 @@
 | RW-152 | P3 | open | Explain why yolov4-tiny's second mask differs by one anchor | DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor names the source of the difference or the anchor is fixed |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-159 | P2 | open | Build the CLI seams the M3 resizes need and move the colour-name test to a checker | the CLI tests named in REPORT.md decision 16 run small and the raw rich colour rule is a checker under tools/ |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 | RW-165 | P3 | open | Test fill_pixel_targets against an INT32 pixel count overflow | A test proves fill_pixel_targets refuses a pixel count past INT32_MAX without allocating it |  | `tests/vision/training` | 2026-11-09 |
+| RW-166 | P2 | open | Bring the gating run inside its time budget | sa test -l gating on the debug build runs under 750 s and no small or medium test exceeds its size limit |  | `docs/agent/2026_11_05_TEST_REVIEW/PLAN.md` | 2026-11-10 |
 
 ## Known issues
 
