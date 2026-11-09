@@ -51,15 +51,28 @@ namespace
 
 } // namespace
 
-/** @brief Tests that the pick is the largest score of each pixel, the lowest class on a tie. */
-TEST(Small_SegmentMetrics, ArgmaxPicksTheLargestScoreAndTheLowestClassOnATie)
+/** @brief Tests that the pick is the class of the largest score of each pixel. */
+TEST(Small_SegmentMetrics, ArgmaxPicksTheLargestScore)
 {
-    const std::vector<float> scores{0.1f, 0.9f, 0.0f, 2.0f, -1.0f, 2.0f, -3.0f, -2.0f, -1.0f};
-    Classes picked(3, -1);
+    const std::vector<float> scores{0.1f, 0.9f, 0.0f, -3.0f, -2.0f, -1.0f};
+    Classes picked(2, -1);
 
     Vision::Segment::argmax_classes(
         SushiRuntime::span<const float>(scores.data(), scores.size()), 3,
         SushiRuntime::span<std::int32_t>(picked.data(), picked.size()));
 
-    EXPECT_EQ(picked, (Classes{1, 0, 2}));
+    EXPECT_EQ(picked, (Classes{1, 2}));
+}
+
+/** @brief Tests that equal scores give the lowest class. */
+TEST(Small_SegmentMetrics, ArgmaxGivesTheLowestClassOnATie)
+{
+    const std::vector<float> scores{2.0f, -1.0f, 2.0f};
+    Classes picked(1, -1);
+
+    Vision::Segment::argmax_classes(
+        SushiRuntime::span<const float>(scores.data(), scores.size()), 3,
+        SushiRuntime::span<std::int32_t>(picked.data(), picked.size()));
+
+    EXPECT_EQ(picked, (Classes{0}));
 }

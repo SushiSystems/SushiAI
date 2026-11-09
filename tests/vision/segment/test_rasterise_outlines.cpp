@@ -96,20 +96,32 @@ TEST(Small_SegmentRasterise, TheLaterOutlineWinsAnOverlap)
     EXPECT_EQ(bytes_of(mask), (Bytes{1, 1, 2, 2, 9}));
 }
 
-/** @brief Tests that rasterise_outlines refuses a bad size and names the outline that failed. */
-TEST(Small_SegmentRasterise, RasteriseRefusesABadSizeAndNamesTheOutline)
+/** @brief Tests that rasterise_outlines refuses a size outside the image bounds. */
+TEST(Small_SegmentRasterise, RasteriseRefusesASizeOutsideTheImageBounds)
+{
+    const Parts good{rectangle(0.0f, 0.0f, 1.0f, 1.0f)};
+    const std::vector<ClassOutline> outlines{ClassOutline{1, view(good)}};
+    Image mask;
+
+    SA_EXPECT_FAILURE(
+        Vision::Segment::rasterise_outlines(
+            SushiRuntime::span<const ClassOutline>(outlines.data(), outlines.size()),
+            ImageSize{0, 4}, K_BACKGROUND, mask),
+        StatusCode::InvalidDescription, "rasterise_outlines", "0 by 4");
+}
+
+/** @brief Tests that rasterise_outlines names the outline, part and vertex of a failed fill. */
+TEST(Small_SegmentRasterise, RasteriseNamesTheOutlinePartAndVertexOfAFailedFill)
 {
     const Parts good{rectangle(0.0f, 0.0f, 1.0f, 1.0f)};
     const Parts bad{Polygon{{std::numeric_limits<float>::infinity(), 0.0f}}};
     const std::vector<ClassOutline> outlines{ClassOutline{1, view(good)},
                                              ClassOutline{2, view(bad)}};
-    const SushiRuntime::span<const ClassOutline> span(outlines.data(), outlines.size());
     Image mask;
 
     SA_EXPECT_FAILURE(
-        Vision::Segment::rasterise_outlines(span, ImageSize{0, 4}, K_BACKGROUND, mask),
-        StatusCode::InvalidDescription, "rasterise_outlines", "0 by 4");
-    SA_EXPECT_FAILURE(
-        Vision::Segment::rasterise_outlines(span, ImageSize{2, 2}, K_BACKGROUND, mask),
+        Vision::Segment::rasterise_outlines(
+            SushiRuntime::span<const ClassOutline>(outlines.data(), outlines.size()),
+            ImageSize{2, 2}, K_BACKGROUND, mask),
         StatusCode::InvalidDescription, "outline 1", "vertex 0 of part 0");
 }

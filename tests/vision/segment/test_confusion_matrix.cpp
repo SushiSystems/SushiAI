@@ -29,12 +29,15 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Segment::ConfusionMatrix;
@@ -51,6 +54,56 @@ namespace
     SushiRuntime::span<const std::int32_t> view(const Classes& classes)
     {
         return SushiRuntime::span<const std::int32_t>(classes.data(), classes.size());
+    }
+
+    /** @brief Names a class count make refuses and what its refusal holds. */
+    struct RefusedClassCount
+    {
+        std::int32_t classes;     /**< The class count given to make. */
+        std::string_view first;   /**< A text the refusal holds. */
+        std::string_view second;  /**< Another text the refusal holds. */
+    };
+
+    /** @brief Gives each class count outside the bounds to a test. */
+    class Small_SegmentConfusionMatrixClassCount
+        : public ::testing::TestWithParam<RefusedClassCount>
+    {
+    };
+
+    /** @brief Gives each class count at the edge of the bounds to a test. */
+    class Small_SegmentConfusionMatrixEdge : public ::testing::TestWithParam<std::int32_t> {};
+
+    /** @brief Names a batch add cannot count, and what its refusal holds. */
+    struct RefusedBatch
+    {
+        std::string_view name;    /**< The name of the row. */
+        Classes predicted;        /**< The predicted class of each pixel. */
+        Classes truth;            /**< The true class of each pixel. */
+        std::string_view first;   /**< A text the refusal holds. */
+        std::string_view second;  /**< Another text the refusal holds. */
+        std::string_view third;   /**< Another text the refusal holds, or empty. */
+        std::string_view fourth;  /**< Another text the refusal holds, or empty. */
+    };
+
+    /** @brief Gives each batch add refuses to a test. */
+    class Small_SegmentConfusionMatrixBatch : public ::testing::TestWithParam<RefusedBatch> {};
+
+    /** @brief Names a class count row in the name of its test. */
+    std::string count_name(const ::testing::TestParamInfo<RefusedClassCount>& info)
+    {
+        return "classes_" + std::to_string(info.param.classes);
+    }
+
+    /** @brief Names an edge class count in the name of its test. */
+    std::string edge_name(const ::testing::TestParamInfo<std::int32_t>& info)
+    {
+        return "classes_" + std::to_string(info.param);
+    }
+
+    /** @brief Names a refused batch in the name of its test. */
+    std::string batch_name(const ::testing::TestParamInfo<RefusedBatch>& info)
+    {
+        return Test::parameter_name(info.param.name);
     }
 } // namespace
 
@@ -114,8 +167,8 @@ TEST(Small_SegmentConfusionMatrix, CountsAccumulateOverBatches)
     EXPECT_EQ(matrix.pixel_count(), 6);
 }
 
-/** @brief Tests that merge adds another matrix count by count and clear empties one. */
-TEST(Small_SegmentConfusionMatrix, MergeAddsAndClearEmpties)
+/** @brief Tests that merge adds another matrix count by count. */
+TEST(Small_SegmentConfusionMatrix, MergeAddsAnotherMatrixCountByCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix first, ConfusionMatrix::make(2));
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix second, ConfusionMatrix::make(2));
@@ -125,42 +178,76 @@ TEST(Small_SegmentConfusionMatrix, MergeAddsAndClearEmpties)
     SA_EXPECT_OK(second.add(view(predicted), view(truth), K_IGNORE));
 
     SA_EXPECT_OK(first.merge(second));
-    second.clear();
 
     EXPECT_EQ(first.count(0, 1), 2);
     EXPECT_EQ(first.count(1, 1), 2);
-    EXPECT_EQ(second.pixel_count(), 0);
+}
+
+/** @brief Tests that clear sets every count to zero. */
+TEST(Small_SegmentConfusionMatrix, ClearSetsEveryCountToZero)
+{
+    SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(2));
+    const Classes predicted{1, 1};
+    const Classes truth{0, 1};
+    SA_EXPECT_OK(matrix.add(view(predicted), view(truth), K_IGNORE));
+
+    matrix.clear();
+
+    EXPECT_EQ(matrix.count(0, 1), 0);
+    EXPECT_EQ(matrix.count(1, 1), 0);
+    EXPECT_EQ(matrix.pixel_count(), 0);
 }
 
 /** @brief Tests that make refuses a class count outside [1, K_MAX_CONFUSION_CLASSES]. */
-TEST(Small_SegmentConfusionMatrix, MakeRefusesAClassCountOutsideItsBounds)
+TEST_P(Small_SegmentConfusionMatrixClassCount, MakeRefusesAClassCountOutsideItsBounds)
 {
-    SA_EXPECT_FAILURE(ConfusionMatrix::make(0), StatusCode::InvalidDescription,
-                      "ConfusionMatrix", "0 classes");
-    SA_EXPECT_FAILURE(ConfusionMatrix::make(Vision::Segment::K_MAX_CONFUSION_CLASSES + 1),
-                      StatusCode::InvalidDescription, "4097 classes", "4096");
+    const RefusedClassCount& row = GetParam();
+
+    SA_EXPECT_FAILURE(ConfusionMatrix::make(row.classes), StatusCode::InvalidDescription,
+                      row.first, row.second);
 }
 
-/** @brief Tests that add refuses unequal spans and a class out of bounds, changing nothing. */
-TEST(Small_SegmentConfusionMatrix, AddRefusesWithoutCounting)
-{
-    SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(2));
-    const Classes two{0, 1};
-    const Classes three{0, 1, 1};
-    const Classes bad_truth{0, 2};
-    const Classes bad_prediction{0, -1};
+INSTANTIATE_TEST_SUITE_P(
+    Counts, Small_SegmentConfusionMatrixClassCount,
+    ::testing::Values(RefusedClassCount{0, "ConfusionMatrix", "0 classes"},
+                      RefusedClassCount{Vision::Segment::K_MAX_CONFUSION_CLASSES + 1,
+                                        "4097 classes", "4096"}),
+    count_name);
 
-    SA_EXPECT_FAILURE(matrix.add(view(two), view(three), K_IGNORE), StatusCode::Incompatible,
-                      "2 predicted", "3 true");
-    SA_EXPECT_FAILURE(matrix.add(view(two), view(bad_truth), K_IGNORE),
-                      StatusCode::Incompatible, "true class of pixel 1", "is 2", "below 2",
-                      "255");
-    SA_EXPECT_FAILURE(matrix.add(view(bad_prediction), view(two), K_IGNORE),
-                      StatusCode::Incompatible, "predicted class of pixel 1", "is -1");
+/** @brief Tests that make accepts a class count at either edge of its bounds. */
+TEST_P(Small_SegmentConfusionMatrixEdge, MakeAcceptsAClassCountAtTheEdgeOfItsBounds)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix, ConfusionMatrix::make(GetParam()));
+
+    EXPECT_EQ(matrix.class_count(), GetParam());
+}
+
+INSTANTIATE_TEST_SUITE_P(Counts, Small_SegmentConfusionMatrixEdge,
+                         ::testing::Values(1, Vision::Segment::K_MAX_CONFUSION_CLASSES),
+                         edge_name);
+
+/** @brief Tests that add refuses a batch it cannot count and changes no count. */
+TEST_P(Small_SegmentConfusionMatrixBatch, AddRefusesWithoutCounting)
+{
+    const RefusedBatch& row = GetParam();
+    SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(2));
+
+    SA_EXPECT_FAILURE(matrix.add(view(row.predicted), view(row.truth), K_IGNORE),
+                      StatusCode::Incompatible, row.first, row.second, row.third, row.fourth);
 
     // The first pixel of each refused batch was valid and must not have been counted.
     EXPECT_EQ(matrix.pixel_count(), 0);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Batches, Small_SegmentConfusionMatrixBatch,
+    ::testing::Values(
+        RefusedBatch{"UnequalSpans", {0, 1}, {0, 1, 1}, "2 predicted", "3 true", "", ""},
+        RefusedBatch{"TruthOutOfBounds", {0, 1}, {0, 2}, "true class of pixel 1", "is 2",
+                     "below 2", "255"},
+        RefusedBatch{"PredictionOutOfBounds", {0, -1}, {0, 1}, "predicted class of pixel 1",
+                     "is -1", "", ""}),
+    batch_name);
 
 /** @brief Tests that merge refuses a matrix of another class count. */
 TEST(Small_SegmentConfusionMatrix, MergeRefusesAnotherClassCount)
@@ -169,4 +256,22 @@ TEST(Small_SegmentConfusionMatrix, MergeRefusesAnotherClassCount)
     SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix three, ConfusionMatrix::make(3));
 
     SA_EXPECT_FAILURE(two.merge(three), StatusCode::Incompatible, "2 classes", "of 3");
+}
+
+/** @brief Tests that a refused merge leaves every count of the receiving matrix as it was. */
+TEST(Small_SegmentConfusionMatrix, ARefusedMergeChangesNoCount)
+{
+    SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix two, ConfusionMatrix::make(2));
+    SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix three, ConfusionMatrix::make(3));
+    const Classes predicted{0, 1, 1};
+    const Classes truth{0, 0, 1};
+    SA_EXPECT_OK(two.add(view(predicted), view(truth), K_IGNORE));
+
+    EXPECT_FALSE(two.merge(three).is_ok());
+
+    EXPECT_EQ(two.count(0, 0), 1);
+    EXPECT_EQ(two.count(0, 1), 1);
+    EXPECT_EQ(two.count(1, 1), 1);
+    EXPECT_EQ(two.count(1, 0), 0);
+    EXPECT_EQ(two.pixel_count(), 3);
 }

@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -53,12 +54,8 @@ namespace
     /** @brief Holds the index the tests mark a pixel of no class with. */
     constexpr std::int32_t K_IGNORE = 255;
 
-    /**
-     * @brief Holds the Bounds the absolute error of a ratio of two counts below ten, in double: 16
-     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-15.
-     */
-    constexpr double K_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
+    /** @brief Holds the rounded operations of one ratio of two whole counts: one division. */
+    constexpr std::size_t K_RATIO_OPERATIONS = 1;
 
     /** @brief Returns a matrix of @p classes classes that counted the two lists. */
     Result<ConfusionMatrix> counted(std::int32_t classes, const Classes& predicted,
@@ -80,5 +77,6 @@ TEST(Small_SegmentMetrics, PixelAccuracyIsTheDiagonalOverTheCountedPixels)
     SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix,
                             counted(3, {0, 1, 1, 2, 2, 2, 0}, {0, 0, 1, 2, 1, 2, K_IGNORE}));
 
-    EXPECT_NEAR(Vision::Segment::pixel_accuracy(matrix), 4.0 / 6.0, K_TOLERANCE);
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        Vision::Segment::pixel_accuracy(matrix), 4.0 / 6.0, K_RATIO_OPERATIONS)));
 }
