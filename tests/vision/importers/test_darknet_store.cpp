@@ -25,7 +25,7 @@
 /**
  * @file test_darknet_store.cpp
  * @brief Tests the kernel-last permutation, the empty-name rule and the refusals of the Darknet
- *        store against a ModelState.
+ *        store against a ModelState on the host engine.
  * @author Mustafa Garip
  */
 
@@ -39,8 +39,8 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -49,7 +49,6 @@
 #include <SushiAI/vision/importers/darknet_weights.hpp>
 
 using namespace SushiAI;
-namespace SaTest = SushiAI::Test;
 
 namespace
 {
@@ -60,7 +59,13 @@ namespace
     using Vision::Importers::fold_darknet_normalisation;
     using Vision::Importers::store_darknet_weights;
 
-    class Medium_DarknetStore : public SaTest::EngineTest {};
+    /** @brief Builds the model state of a store on the host engine. */
+    class Small_DarknetStore : public ::testing::Test
+    {
+        protected:
+            /** @brief Holds the host engine the state is built on. */
+            HostExecutionBackend backend;
+    };
 
     /** @brief Holds the value the test writes into every entry before a store runs. */
     constexpr float K_SENTINEL = -7.0f;
@@ -79,9 +84,10 @@ namespace
      * @brief Returns the entries of a model with one plain and one normalised convolution.
      *
      * Layer 0 has filters 2, channels 3 and kernel side 2; layer 1 has filters 2, channels 1
-     * and kernel side 1, and carries batch norm in its own entries.
+     * and kernel side 1, and carries batch norm in its own entries. The rolling variance has the
+     * extents @p running_var_shape, which a test sets to a wrong one to provoke a refusal.
      */
-    std::vector<NN::StateEntry> model_entries()
+    std::vector<NN::StateEntry> model_entries(Shape running_var_shape = Shape{2})
     {
         return {
             make_entry("0.conv.weight", 1, Shape{2, 2, 2, 3}),
@@ -91,7 +97,7 @@ namespace
             make_entry("1.bn.weight", 5, Shape{2}),
             make_entry("1.bn.bias", 6, Shape{2}),
             make_entry("1.bn.running_mean", 7, Shape{2}),
-            make_entry("1.bn.running_var", 8, Shape{2}),
+            make_entry("1.bn.running_var", 8, running_var_shape),
         };
     }
 
@@ -148,30 +154,30 @@ namespace
 } // namespace
 
 /**
- * @brief Tests that weights reach their entry kernel last and every other vector lands in order.
+ * @brief Tests that weights reach their entry kernel last.
  *
- * The expected weights are built by walking the destination order and reading the source as
- * [out, in, kh, kw], which the test states on its own, not by the store's index formula.
+ * The source reads as [out, in, kh, kw] and holds the values 0 to 23 in file order; the
+ * destination reads as [out, kh, kw, in], so its element (o, y, x, i) is the source value
+ * ((o * 3 + i) * 2 + y) * 2 + x, written out below.
  */
-TEST_F(Medium_DarknetStore, WeightsMoveToKernelLastAndEveryVectorLands)
+TEST_F(Small_DarknetStore, WeightsMoveToKernelLast)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, model_entries()));
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
     SA_EXPECT_OK(store_darknet_weights(make_weights(), K_SHAPES, K_TARGETS, state));
 
-    std::vector<float> expected_weights;
-    for (std::size_t o = 0; o < 2; ++o)
-    {
-        for (std::size_t y = 0; y < 2; ++y)
-        {
-            for (std::size_t x = 0; x < 2; ++x)
-            {
-                for (std::size_t i = 0; i < 3; ++i)
-                    expected_weights.push_back(static_cast<float>(((o * 3 + i) * 2 + y) * 2 + x));
-            }
-        }
-    }
-    EXPECT_EQ(values_of(state, "0.conv.weight"), expected_weights);
+    EXPECT_EQ(values_of(state, "0.conv.weight"),
+              (std::vector<float>{0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11,
+                                  12, 16, 20, 13, 17, 21, 14, 18, 22, 15, 19, 23}));
+}
+
+/** @brief Tests that the biases, scales, means and variances land in their entries in order. */
+TEST_F(Small_DarknetStore, EveryOtherVectorLandsUnderItsTarget)
+{
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
+    SA_EXPECT_OK(store_darknet_weights(make_weights(), K_SHAPES, K_TARGETS, state));
+
     EXPECT_EQ(values_of(state, "0.conv.bias"), (std::vector<float>{0.5f, -0.5f}));
     EXPECT_EQ(values_of(state, "1.conv.weight"), (std::vector<float>{10.0f, 20.0f}));
     EXPECT_EQ(values_of(state, "1.bn.weight"), (std::vector<float>{2.0f, 3.0f}));
@@ -184,10 +190,10 @@ TEST_F(Medium_DarknetStore, WeightsMoveToKernelLastAndEveryVectorLands)
  * @brief Tests that a folded convolution stores its weight and bias and leaves the batch-norm
  *        entries it does not name.
  */
-TEST_F(Medium_DarknetStore, AFoldedConvolutionLeavesItsNormalisationEntriesAlone)
+TEST_F(Small_DarknetStore, AFoldedConvolutionLeavesItsNormalisationEntriesAlone)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, model_entries()));
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
     fill(state, "1.bn.weight", K_SENTINEL);
     fill(state, "1.bn.bias", K_SENTINEL);
     fill(state, "1.bn.running_mean", K_SENTINEL);
@@ -214,10 +220,10 @@ TEST_F(Medium_DarknetStore, AFoldedConvolutionLeavesItsNormalisationEntriesAlone
 /**
  * @brief Tests that a target naming an entry the state lacks is refused, and the layer is named.
  */
-TEST_F(Medium_DarknetStore, AMissingEntryIsRefusedAndNamesTheLayer)
+TEST_F(Small_DarknetStore, AMissingEntryIsRefusedAndNamesTheLayer)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, model_entries()));
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
     const DarknetWeightTarget targets[] = {
         {"0.conv.weight", "0.conv.bias", "", "", ""},
         {"1.conv.weight", "", "1.bn.missing", "", ""},
@@ -229,16 +235,11 @@ TEST_F(Medium_DarknetStore, AMissingEntryIsRefusedAndNamesTheLayer)
 /**
  * @brief Tests that a shape that differs is refused, and that no earlier write reaches the state.
  */
-TEST_F(Medium_DarknetStore, AShapeMismatchIsRefusedAndNothingIsWritten)
+TEST_F(Small_DarknetStore, AShapeMismatchIsRefusedAndNothingIsWritten)
 {
-    std::vector<NN::StateEntry> entries = model_entries();
-    for (NN::StateEntry& entry : entries)
-    {
-        if (entry.name == "1.bn.running_var")
-            entry.shape = Shape{3};
-    }
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, std::move(entries)));
+    SA_ASSERT_OK_AND_ASSIGN(
+        NN::ModelState state,
+        NN::ModelState::from_entries(backend.engine(), model_entries(Shape{3})));
     fill(state, "0.conv.weight", K_SENTINEL);
 
     SA_EXPECT_FAILURE(store_darknet_weights(make_weights(), K_SHAPES, K_TARGETS, state),
@@ -250,10 +251,10 @@ TEST_F(Medium_DarknetStore, AShapeMismatchIsRefusedAndNothingIsWritten)
 /**
  * @brief Tests that a vector of the wrong length is refused, as a folded scale would be.
  */
-TEST_F(Medium_DarknetStore, AVectorOfTheWrongLengthIsRefused)
+TEST_F(Small_DarknetStore, AVectorOfTheWrongLengthIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, model_entries()));
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
     DarknetWeights weights = make_weights();
     fold_darknet_normalisation(weights.convolutions[1]);
 
@@ -264,10 +265,10 @@ TEST_F(Medium_DarknetStore, AVectorOfTheWrongLengthIsRefused)
 /**
  * @brief Tests that two targets naming one entry are refused, so no entry is filled twice.
  */
-TEST_F(Medium_DarknetStore, AnEntryNamedTwiceIsRefused)
+TEST_F(Small_DarknetStore, AnEntryNamedTwiceIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, model_entries()));
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
     const DarknetWeightTarget targets[] = {
         {"0.conv.weight", "0.conv.bias", "", "", ""},
         {"1.conv.weight", "0.conv.bias", "", "", ""},
@@ -280,10 +281,10 @@ TEST_F(Medium_DarknetStore, AnEntryNamedTwiceIsRefused)
  * @brief Tests that a weights file, a shape list and a target list of different lengths are
  *        refused before any entry is touched.
  */
-TEST_F(Medium_DarknetStore, MismatchedCountsAreRefused)
+TEST_F(Small_DarknetStore, MismatchedCountsAreRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, model_entries()));
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
     const DarknetConvolutionShape one_shape[] = {{0, 2, 3, 2, false}};
     SA_EXPECT_FAILURE(store_darknet_weights(make_weights(), one_shape, K_TARGETS, state),
                       StatusCode::Incompatible, "the weights hold 2 convolutions");

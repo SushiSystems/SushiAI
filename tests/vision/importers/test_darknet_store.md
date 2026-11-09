@@ -1,18 +1,22 @@
 # tests/vision/importers/test_darknet_store.cpp
 
 
-Suites: `Medium_DarknetStore`, in `sushiai_vision_tests`.
+Suites: `Small_DarknetStore`.
 
-The file needs an engine and no reference data. The state is built with `ModelState::from_entries`
+The file needs the host engine and no reference data; its fixture holds a `HostExecutionBackend`. The state is built with `ModelState::from_entries`
 for a model of two convolutions: layer 0 with 2 filters, 3 channels and a kernel side of 2, and
 layer 1 with 2 filters, 1 channel, a kernel side of 1 and batch norm in its own entries. The weights
 are written by hand, and `store_darknet_weights` moves them into the state.
 
-## WeightsMoveToKernelLastAndEveryVectorLands
+## WeightsMoveToKernelLast
 
-The weight of layer 0 lands in `0.conv.weight` kernel last: the expected values are built by walking
-the destination order and reading the source as `[out, in, kh, kw]`. The biases, the scales, the
-rolling mean and the rolling variance land in their entries unchanged.
+The weight of layer 0 lands in `0.conv.weight` kernel last: the source reads as `[out, in, kh, kw]`
+with the values 0 to 23, and the 24 destination values are written out in `[out, kh, kw, in]` order.
+
+## EveryOtherVectorLandsUnderItsTarget
+
+The biases of layer 0, the weight of layer 1, and the scales, biases, rolling mean and rolling
+variance of layer 1 land in their entries unchanged.
 
 ## AFoldedConvolutionLeavesItsNormalisationEntriesAlone
 
