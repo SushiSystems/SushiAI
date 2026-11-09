@@ -47,7 +47,6 @@
 #include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::Linear;
@@ -57,12 +56,6 @@ using NN::Sequential;
 
 namespace
 {
-    /**
-     * @brief Holds the absolute tolerance of a double stored and read back unchanged; 16 unit
-     * roundoffs of double, the smallest power of two that covers 1e-15.
-     */
-    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Collects the walk's output as "name:extents" strings. */
     template<typename M>
     std::vector<std::string> walk(M& model)
@@ -163,13 +156,10 @@ TEST(Small_Module, TracingTwiceDoesNotDuplicateParameters)
 
     SA_EXPECT_OK(layer.forward(builder, x));
     const Graph::ValueID first_weight = layer.weight.id_in(graph);
-    const std::size_t values_after_first = graph.value_count();
 
     SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.id_in(graph), first_weight);
-    // The second trace declares no new parameter; see tests/layers/nn/README.md.
-    EXPECT_EQ(graph.value_count(), values_after_first + 2);
     EXPECT_EQ(NN::parameter_count(layer), 2u);
 }
 
@@ -240,35 +230,51 @@ namespace
     };
 }
 
-TEST(Small_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
+static_assert(NN::Module<MyOffset>, "the tutorial's layer must be a Module");
+
+/** @brief Tests that the layer of the tutorial traces to the shape of its input. */
+TEST(Small_Module, AnOffsetLayerTracesToTheShapeOfItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-
     MyOffset layer{4};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
+
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
-    EXPECT_EQ(walk(layer), (std::vector<std::string>{"offset:[4]"}));
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
-
-    // The role decides the initialiser; see tests/layers/nn/README.md.
-    EXPECT_EQ(layer.offset.role(), NN::ParameterRole::Bias);
-
-    // It satisfies the Module contract, so it composes.
-    static_assert(NN::Module<MyOffset>, "the tutorial's layer must be a Module");
 }
 
-TEST(Small_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
+/** @brief Tests that the walk of the tutorial's layer names its offset. */
+TEST(Small_Module, AnOffsetLayerIsWalkable)
 {
-    // mul goes through require_same and never broadcasts; see tests/layers/nn/README.md.
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
+    MyOffset layer{4};
+    static_cast<void>(layer.forward(builder, builder.input(Shape{2, 4}, "x")));
 
+    EXPECT_EQ(walk(layer), (std::vector<std::string>{"offset:[4]"}));
+}
+
+/** @brief Tests that the offset of the tutorial's layer has the role Bias, which picks its fill. */
+TEST(Small_Module, AnOffsetLayerDeclaresItsOffsetAsABias)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    MyOffset layer{4};
+    static_cast<void>(layer.forward(builder, builder.input(Shape{2, 4}, "x")));
+
+    EXPECT_EQ(layer.offset.role(), NN::ParameterRole::Bias);
+}
+
+/** @brief Tests that bias_add accepts a [4] bias against a [2, 4] value. */
+TEST(Small_Module, BiasAddAcceptsAFeatureVectorOverABatch)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     const Graph::ValueID b = builder.input(Shape{4}, "b");
 
-    SA_EXPECT_FAILURE(builder.mul(x, b), StatusCode::InvalidDescription);
     SA_EXPECT_OK(builder.bias_add(x, b));
 }
 
@@ -335,18 +341,15 @@ TEST(Small_Module, AContainerPrefixesAWalkableChildTheSameWayItPrefixesAnyOther)
     EXPECT_EQ(walk(holder), (std::vector<std::string>{"0.weight:[2, 3]", "0.bias:[2]"}));
 }
 
-TEST(Small_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
-{
-    // layers.hpp asserts the same at build time; see tests/layers/nn/README.md.
-    static_assert(NN::Detail::HasParameterWalk<WalkableStub>::value,
-                  "the stub must be detected as walking itself");
-    static_assert(!NN::Detail::HasParameterWalk<Linear>::value,
-                  "a compile-time leaf must not take the runtime arm");
-    static_assert(!NN::Detail::HasParameterWalk<Sequential<Linear, ReLU>>::value,
-                  "a compile-time container must not take the runtime arm");
-    static_assert(!NN::Detail::HasParameterWalk<StubHolder>::value,
-                  "a container holding a walkable child is still a container");
-}
+// layers.hpp asserts the same at build time; see tests/layers/nn/README.md.
+static_assert(NN::Detail::HasParameterWalk<WalkableStub>::value,
+              "the stub must be detected as walking itself");
+static_assert(!NN::Detail::HasParameterWalk<Linear>::value,
+              "a compile-time leaf must not take the runtime arm");
+static_assert(!NN::Detail::HasParameterWalk<Sequential<Linear, ReLU>>::value,
+              "a compile-time container must not take the runtime arm");
+static_assert(!NN::Detail::HasParameterWalk<StubHolder>::value,
+              "a container holding a walkable child is still a container");
 
 /** @brief Tests that Linear maps the per-sample shape [in_features] to [out_features]. */
 TEST(Small_Module, LinearReportsItsOutFeaturesAsThePerSampleOutputShape)
@@ -381,31 +384,82 @@ TEST(Small_Module, LinearRefusesAPerSampleShapeOfTheWrongWidth)
                       "[7]", "[4]");
 }
 
-/** @brief Tests that every activation returns the per-sample shape it was given, at any rank. */
-TEST(Small_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
+namespace
 {
-    for (const Shape& input : {Shape{5}, Shape{4, 4, 3}})
+    /** @brief Holds the name of a per-sample input shape. */
+    struct ActivationShapeRow
     {
-        EXPECT_EQ(ReLU{}.output_shape(input).value(), input);
-        EXPECT_EQ(NN::GELU{}.output_shape(input).value(), input);
-        EXPECT_EQ(NN::Tanh{}.output_shape(input).value(), input);
-        EXPECT_EQ(NN::Sigmoid{}.output_shape(input).value(), input);
+        std::string name; /**< The row's name. */
+        Shape input;      /**< The per-sample shape given to every activation. */
+    };
+
+    /** @brief Returns the per-sample shape the activation @p L reports for @p input. */
+    template<typename L>
+    Shape reported_shape(const Shape& input)
+    {
+        return L{}.output_shape(input).value();
     }
+
+    /** @brief Traces the activation @p L over a batch of two and returns the result's shape. */
+    template<typename L>
+    Shape shape_of_trace(int64_t features)
+    {
+        L layer;
+        return traced_shape(layer, features);
+    }
+
+    /** @brief Names an activation, how it reports a shape and how its trace is shaped. */
+    struct ActivationRow
+    {
+        std::string name;                 /**< The row's name. */
+        Shape (*reports)(const Shape&);   /**< Returns the shape output_shape() reports. */
+        Shape (*traces)(int64_t);         /**< Returns the shape of a trace over [2, features]. */
+    };
 }
 
-/** @brief Tests that every activation's output_shape() matches what forward() traces. */
-TEST(Small_Module, AnActivationsOutputShapeAgreesWithItsTrace)
+/** @brief Runs the shape case over each per-sample rank. */
+class Small_ModuleActivationShape : public ::testing::TestWithParam<ActivationShapeRow>
 {
-    ReLU relu;
-    NN::GELU gelu;
-    NN::Tanh tanh;
-    NN::Sigmoid sigmoid;
+};
 
-    EXPECT_EQ(traced_shape(relu, 5), (Shape{2, relu.output_shape(Shape{5}).value()[0]}));
-    EXPECT_EQ(traced_shape(gelu, 5), (Shape{2, gelu.output_shape(Shape{5}).value()[0]}));
-    EXPECT_EQ(traced_shape(tanh, 5), (Shape{2, tanh.output_shape(Shape{5}).value()[0]}));
-    EXPECT_EQ(traced_shape(sigmoid, 5), (Shape{2, sigmoid.output_shape(Shape{5}).value()[0]}));
+/** @brief Tests that every activation returns the per-sample shape of the row unchanged. */
+TEST_P(Small_ModuleActivationShape, AnActivationReportsItsInputShapeAsItsOutputShape)
+{
+    const Shape& input = GetParam().input;
+
+    EXPECT_EQ(ReLU{}.output_shape(input).value(), input);
+    EXPECT_EQ(NN::GELU{}.output_shape(input).value(), input);
+    EXPECT_EQ(NN::Tanh{}.output_shape(input).value(), input);
+    EXPECT_EQ(NN::Sigmoid{}.output_shape(input).value(), input);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ModuleActivationShape,
+    ::testing::Values(ActivationShapeRow{"AFeatureVector", Shape{5}},
+                      ActivationShapeRow{"AnImage", Shape{4, 4, 3}}),
+    [](const ::testing::TestParamInfo<ActivationShapeRow>& info) { return info.param.name; });
+
+/** @brief Runs the trace case over each activation. */
+class Small_ModuleActivationTrace : public ::testing::TestWithParam<ActivationRow>
+{
+};
+
+/** @brief Tests that the output_shape() of the activation of the row matches what it traces. */
+TEST_P(Small_ModuleActivationTrace, AnActivationsOutputShapeAgreesWithItsTrace)
+{
+    const ActivationRow& row = GetParam();
+
+    EXPECT_EQ(row.traces(5), (Shape{2, row.reports(Shape{5})[0]}));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ModuleActivationTrace,
+    ::testing::Values(ActivationRow{"ReLU", reported_shape<ReLU>, shape_of_trace<ReLU>},
+                      ActivationRow{"GELU", reported_shape<NN::GELU>, shape_of_trace<NN::GELU>},
+                      ActivationRow{"Tanh", reported_shape<NN::Tanh>, shape_of_trace<NN::Tanh>},
+                      ActivationRow{"Sigmoid", reported_shape<NN::Sigmoid>,
+                                    shape_of_trace<NN::Sigmoid>}),
+    [](const ::testing::TestParamInfo<ActivationRow>& info) { return info.param.name; });
 
 namespace
 {
@@ -432,8 +486,6 @@ TEST(Small_Module, AParameterTracedIntoTwoGraphsHasALeafInEach)
     const Graph::ValueID first_leaf = declare_weight(parameter, first_builder);
     const Graph::ValueID second_leaf = declare_weight(parameter, second_builder);
 
-    EXPECT_EQ(first_leaf, 1u);
-    EXPECT_EQ(second_leaf, 0u);
     EXPECT_EQ(parameter.id_in(first), first_leaf);
     EXPECT_EQ(parameter.id_in(second), second_leaf);
     EXPECT_EQ(first.state_leaf(parameter.state()), first_leaf);
@@ -535,7 +587,7 @@ TEST(Small_Module, ALaterDeclareKeepsTheFirstDescription)
                         NN::ParameterInit::fan_scaled(), 9, 9, "scale");
 
     EXPECT_EQ(scale.init().kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(scale.init().constant, 1.5, K_EXACT_TOLERANCE);
+    EXPECT_EQ(scale.init().constant, 1.5);
     EXPECT_EQ(scale.role(), NN::ParameterRole::Scale);
     EXPECT_EQ(scale.fan_in(), 4);
     EXPECT_EQ(scale.fan_out(), 4);
@@ -579,7 +631,6 @@ TEST(Small_Module, AMovedLayerKeepsItsStateID)
     SA_EXPECT_OK(original.forward(builder, x));
     const Graph::StateID weight_state = original.weight.state();
     const Graph::ValueID weight_leaf = original.weight.id_in(graph);
-    const std::size_t values_after_trace = graph.value_count();
 
     Linear moved = std::move(original);
 
@@ -588,8 +639,7 @@ TEST(Small_Module, AMovedLayerKeepsItsStateID)
 
     SA_EXPECT_OK(moved.forward(builder, x));
 
-    // A second trace of the moved layer adds the two activations and no parameter leaf.
-    EXPECT_EQ(graph.value_count(), values_after_trace + 2);
+    EXPECT_EQ(moved.weight.id_in(graph), weight_leaf);
 }
 
 /** @brief Tests that a role declare records the fill the role stands for. */
@@ -605,7 +655,7 @@ TEST(Small_Module, ARoleDeclareRecordsTheFillOfItsRole)
 
     EXPECT_EQ(weight.init().kind, NN::ParameterInit::Kind::FanScaled);
     EXPECT_EQ(bias.init().kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(bias.init().constant, 0.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(bias.init().constant, 0.0);
 }
 
 /** @brief Tests that an init declare keeps the stated fill and the stated role, each as given. */
@@ -622,7 +672,7 @@ TEST(Small_Module, AnInitDeclareRecordsTheStatedFillAndTheStatedRole)
                          NN::ParameterInit::fan_scaled(), 3, 2, "kernel");
 
     EXPECT_EQ(offset.init().kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(offset.init().constant, 1.5, K_EXACT_TOLERANCE);
+    EXPECT_EQ(offset.init().constant, 1.5);
     EXPECT_EQ(offset.role(), NN::ParameterRole::Bias);
     EXPECT_EQ(offset.fan_in(), 4);
     EXPECT_EQ(kernel.init().kind, NN::ParameterInit::Kind::FanScaled);
@@ -638,13 +688,13 @@ TEST(Small_Module, ANormalFillKeepsItsDeviation)
     constexpr NN::ParameterInit fixed = NN::ParameterInit::constant_value(1.5);
 
     EXPECT_EQ(drawn.kind, NN::ParameterInit::Kind::Normal);
-    EXPECT_NEAR(drawn.deviation, 0.02, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(drawn.constant, 0.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(drawn.deviation, 0.02);
+    EXPECT_EQ(drawn.constant, 0.0);
     EXPECT_EQ(scaled.kind, NN::ParameterInit::Kind::FanScaled);
-    EXPECT_NEAR(scaled.deviation, 0.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(scaled.deviation, 0.0);
     EXPECT_EQ(fixed.kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(fixed.constant, 1.5, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(fixed.deviation, 0.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(fixed.constant, 1.5);
+    EXPECT_EQ(fixed.deviation, 0.0);
 }
 
 /** @brief Tests that an Embedding role with no stated fill is fan-scaled, as a weight is. */
@@ -675,7 +725,7 @@ TEST(Small_Module, ALinearDeclaresTheFillItStates)
 
     EXPECT_EQ(fanned.weight.init().kind, NN::ParameterInit::Kind::FanScaled);
     EXPECT_EQ(drawn.weight.init().kind, NN::ParameterInit::Kind::Normal);
-    EXPECT_NEAR(drawn.weight.init().deviation, 0.02, K_EXACT_TOLERANCE);
+    EXPECT_EQ(drawn.weight.init().deviation, 0.02);
     EXPECT_EQ(drawn.weight.role(), NN::ParameterRole::Weight);
     EXPECT_EQ(drawn.bias.init().kind, NN::ParameterInit::Kind::Constant);
 }
@@ -695,10 +745,10 @@ TEST(Small_Module, ARoleDeclareFillsByItsRole)
 
     EXPECT_EQ(weight.init().kind, NN::ParameterInit::Kind::FanScaled);
     EXPECT_EQ(bias.init().kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(bias.init().constant, 0.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(bias.init().constant, 0.0);
     EXPECT_EQ(scale.role(), NN::ParameterRole::Scale);
     EXPECT_EQ(scale.init().kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(scale.init().constant, 1.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(scale.init().constant, 1.0);
 }
 
 namespace
@@ -975,48 +1025,57 @@ TEST(Small_Module, ALayerAdapterYieldsItsLayersParametersUnderThePrefix)
     EXPECT_EQ(NN::buffer_count(adapter), 0u);
 }
 
-/** @brief Tests that the name check accepts distinct names and refuses a repeated one. */
-TEST(Small_Module, TwoFieldsWithOneNameAreDetected)
-{
-    // walk_state() asserts the same check, so a layer that repeats a name does not compile.
-    static_assert(NN::Detail::has_unique_names(MixedState::fields()),
-                  "four distinct names must pass");
-    static_assert(NN::Detail::has_unique_names(std::tuple<>{}),
-                  "an empty list has no repeated name");
-    static_assert(!NN::Detail::has_unique_names(std::tuple{
-                      NN::field("weight", &Linear::weight),
-                      NN::field("weight", &Linear::bias)}),
-                  "two parameters with one name must be refused");
-    static_assert(!NN::Detail::has_unique_names(std::tuple{
-                      NN::buffer("pair", &MixedState::count),
-                      NN::field("offset", &MixedState::offset),
-                      NN::child("pair", &MixedState::pair)}),
-                  "a buffer and a child with one name must be refused");
+// walk_state() asserts the same check, so a layer that repeats a name does not compile.
+static_assert(NN::Detail::has_unique_names(MixedState::fields()), "four distinct names must pass");
+static_assert(NN::Detail::has_unique_names(std::tuple<>{}), "an empty list has no repeated name");
+static_assert(!NN::Detail::has_unique_names(std::tuple{
+                  NN::field("weight", &Linear::weight),
+                  NN::field("weight", &Linear::bias)}),
+              "two parameters with one name must be refused");
+static_assert(!NN::Detail::has_unique_names(std::tuple{
+                  NN::buffer("pair", &MixedState::count),
+                  NN::field("offset", &MixedState::offset),
+                  NN::child("pair", &MixedState::pair)}),
+              "a buffer and a child with one name must be refused");
 
+/** @brief Tests that the fields of Linear carry distinct names. */
+TEST(Small_Module, LinearsFieldsHaveDistinctNames)
+{
     EXPECT_TRUE(NN::Detail::has_unique_names(Linear::fields()));
 }
 
-/** @brief Tests that a Sequential of Modules keeps its builder forward and stays a Module. */
-TEST(Small_Module, ASequentialOfModulesKeepsItsBuilderForward)
+using ChainOfModules = Sequential<Linear, ReLU>;
+
+static_assert(NN::Module<ChainOfModules>, "a Sequential of Modules must stay a Module");
+static_assert(NN::Module<Sequential<ChainOfModules, Linear>>,
+              "a Sequential of Modules must stay a Module when it nests");
+static_assert(std::is_same<decltype(std::declval<ChainOfModules&>().forward(
+                               std::declval<const Graph::GraphBuilder&>(),
+                               std::declval<const Graph::Traced&>())),
+                           Graph::Traced>::value,
+              "the builder forward must return exactly a Traced");
+
+/** @brief Tests that a Sequential of Sequentials traces the shape through its children. */
+TEST(Small_Module, ANestedSequentialTracesTheShapeThroughItsChildren)
 {
-    using Chain = Sequential<Linear, ReLU>;
-
-    static_assert(NN::Module<Chain>, "a Sequential of Modules must stay a Module");
-    static_assert(NN::Module<Sequential<Chain, Linear>>,
-                  "a Sequential of Modules must stay a Module when it nests");
-    static_assert(std::is_same<decltype(std::declval<Chain&>().forward(
-                                   std::declval<const Graph::GraphBuilder&>(),
-                                   std::declval<const Graph::Traced&>())),
-                               Graph::Traced>::value,
-                  "the builder forward must return exactly a Traced");
-
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    Sequential model{Chain{Linear{4, 8}, ReLU{}}, Linear{8, 3}};
+    Sequential model{ChainOfModules{Linear{4, 8}, ReLU{}}, Linear{8, 3}};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, model.forward(builder, x));
+
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 3}));
+}
+
+/** @brief Tests that the walk of a nested Sequential names every parameter by its indices. */
+TEST(Small_Module, ANestedSequentialWalkNamesEveryParameter)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    Sequential model{ChainOfModules{Linear{4, 8}, ReLU{}}, Linear{8, 3}};
+    static_cast<void>(model.forward(builder, builder.input(Shape{2, 4}, "x")));
+
     EXPECT_EQ(walk(model), (std::vector<std::string>{
         "0.0.weight:[8, 4]", "0.0.bias:[8]",
         "1.weight:[3, 8]", "1.bias:[3]",

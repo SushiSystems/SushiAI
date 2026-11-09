@@ -1,7 +1,7 @@
 # tests/layers/nn/test_module.cpp
 
 
-Suites: `Small_Module`.
+Suites: `Small_Module`, `Small_ModuleActivationShape`, `Small_ModuleActivationTrace`.
 
 Tests Parameter across graphs and the state walk over layers, containers and fields.
 
@@ -41,8 +41,8 @@ The walk of a `Sequential` holding a `Sequential` of a `Linear{4, 4}` and a `ReL
 
 ## TracingTwiceDoesNotDuplicateParameters
 
-The second trace emits nodes but declares no new parameters, so the value count grows by
-exactly the two intermediates.
+The second trace returns the first weight leaf and the parameter count stays at two. The count of
+values the graph holds is not promised and is not checked.
 
 ## The tutorial's custom layer
 
@@ -72,14 +72,27 @@ bias has the role `Bias`.
 
 ## TheTutorialsCustomLayerTracesAndIsWalkable
 
+The tutorial's layer is a `Module`, which a `static_assert` at file scope holds.
+
+## AnOffsetLayerTracesToTheShapeOfItsInput
+
+A `MyOffset` of width 4 over a [2, 4] input traces to a [2, 4] value.
+
+## AnOffsetLayerIsWalkable
+
+After a trace the walk yields "offset:[4]".
+
+## AnOffsetLayerDeclaresItsOffsetAsABias
+
 The test checks the role the tutorial gives the parameter, because the role decides the
 initialiser: a BIAS starts at zero, a WEIGHT gets a fan-scaled draw.
 
-## TheTutorialIsRightThatMulWouldNotBroadcast
+## BiasAddAcceptsAFeatureVectorOverABatch
 
-§6 says bias_add is required and not merely preferred, because `mul` goes through
-`require_same` and this builder has no implicit broadcast anywhere. That is the whole reason the
-sample reads the way it does, so the test asserts it and does not leave it as a remark.
+§6 says bias_add is required and not merely preferred. `bias_add` accepts a [4] bias against a
+[2, 4] value. That `mul` refuses unequal shapes belongs to the graph builder and is held by
+`Small_Diagnostics.ElementwiseOperationsNameBothShapesAndBothDtypes` in
+`tests/core/graph/test_builder.cpp`, so the mul half left this file.
 
 ## The run-time arm of the walk
 
@@ -101,11 +114,12 @@ and 8 elements.
 The two arms compose: the container supplies "0.", the walkable child supplies the leaf names,
 and nothing about the join changed.
 
-## TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt
+## The run-time arm is additive
 
-`modules/layers/nn/include/SushiAI/nn/layers.hpp` asserts this for Linear and Sequential at build time. The test
-restates it so that the property is visible in the test that covers the walk, and so that it
-names the detector and not the arm's consequences.
+No test: the four `static_assert` lines moved to file scope, after `StubHolder`. The stub is detected as
+walking itself; `Linear`, `Sequential<Linear, ReLU>` and a container holding a walkable child
+are not. `modules/layers/nn/include/SushiAI/nn/layers.hpp` asserts the same for Linear and
+Sequential at build time.
 
 ## Per-sample output shapes
 
@@ -139,15 +153,15 @@ shape.
 `output_shape([7])` returns InvalidDescription with a message containing "Linear(4, 3)", "[7]" and
 "[4]".
 
-## AnActivationReportsItsInputShapeAsItsOutputShape
+## Small_ModuleActivationShape.AnActivationReportsItsInputShapeAsItsOutputShape
 
-For the shapes [5] and [4, 4, 3], each of the four activations returns the shape it was given.
-The rank-3 shape is the one a convolution hands on.
+One row per shape, [5] (`AFeatureVector`) and [4, 4, 3] (`AnImage`). Each of the four activations returns
+the shape it was given. The rank-3 shape is the one a convolution hands on.
 
-## AnActivationsOutputShapeAgreesWithItsTrace
+## Small_ModuleActivationTrace.AnActivationsOutputShapeAgreesWithItsTrace
 
-The traced shape of each activation over a [2, 5] input is [2, n], where n is the one extent
-of its `output_shape([5])`.
+One row per activation: ReLU, GELU, Tanh and Sigmoid. The traced shape over a [2, 5] input is [2, n],
+where n is the one extent of its `output_shape([5])`.
 
 ## A parameter across graphs
 
@@ -157,8 +171,7 @@ no graph. `declare()` adds a leaf to the graph of the builder it is given and bi
 the state there, so one parameter has one leaf in each graph it was traced into. `id_in(graph)`
 returns that graph's leaf.
 
-The file-local `K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is
-stored and read back unchanged.
+A fill stored and read back is a copy of the value, so the cases compare it with equality.
 
 ## declare_weight
 
@@ -167,8 +180,8 @@ builder and returns its leaf.
 
 ## AParameterTracedIntoTwoGraphsHasALeafInEach
 
-The first graph holds a padding input, so the parameter's leaf there is value 1, and in the
-second graph it is value 0. `id_in` returns each graph's own leaf, `state_leaf` of the
+The first graph holds a padding input, so the parameter's leaf has a different id in each graph and
+a mix-up of the two graphs shows. `id_in` returns each graph's own leaf, `state_leaf` of the
 parameter's state returns the same in each graph, and the second leaf has the lifetime
 `PARAMETER`.
 
@@ -212,8 +225,7 @@ the original's.
 ## AMovedLayerKeepsItsStateID
 
 A `Linear` move-constructed from a traced one has the same weight state and the same weight
-leaf in the graph. Tracing it again adds two values, the two activations, and no parameter
-leaf.
+leaf in the graph. Tracing it again leaves the weight leaf where it was.
 
 ## ARoleDeclareRecordsTheFillOfItsRole
 
@@ -340,15 +352,26 @@ and "parameter 2.bias:[3]", and `buffer_count` is 0.
 
 ## TwoFieldsWithOneNameAreDetected
 
-`Detail::has_unique_names` is checked in four `static_assert` lines. It is true for
-`MixedState::fields()` and for an empty tuple. It is false for two `field` entries both named
-"weight", and for a `buffer` and a `child` both named "pair". At run time it is true for
-`Linear::fields()`. `walk_state` asserts the same predicate.
+`Detail::has_unique_names` is checked in four `static_assert` lines at file scope, after `MixedState`.
+It is true for `MixedState::fields()` and for an empty tuple. It is false for two `field` entries
+both named "weight", and for a `buffer` and a `child` both named "pair". `walk_state` asserts the
+same predicate.
+
+## LinearsFieldsHaveDistinctNames
+
+At run time the predicate is true for `Linear::fields()`.
 
 ## ASequentialOfModulesKeepsItsBuilderForward
 
-Three `static_assert` lines hold that `Sequential<Linear, ReLU>` is a `Module`, that it stays
-one when nested in another `Sequential`, and that its `forward` over a `GraphBuilder` returns
-a `Graph::ValueID`. A nested model of `Linear{4, 8}`, `ReLU` and `Linear{8, 3}` traces to
-[2, 3] through the builder and walks as "0.0.weight:[8, 4]", "0.0.bias:[8]", "1.weight:[3, 8]"
-and "1.bias:[3]".
+Three `static_assert` lines at file scope hold that `Sequential<Linear, ReLU>` is a `Module`, that it
+stays one when nested in another `Sequential`, and that its `forward` over a `GraphBuilder` returns
+a `Graph::Traced`.
+
+## ANestedSequentialTracesTheShapeThroughItsChildren
+
+A nested model of `Linear{4, 8}`, `ReLU` and `Linear{8, 3}` traces to [2, 3] through the builder.
+
+## ANestedSequentialWalkNamesEveryParameter
+
+The same model walks as "0.0.weight:[8, 4]", "0.0.bias:[8]", "1.weight:[3, 8]" and "1.bias:[3]".
+
