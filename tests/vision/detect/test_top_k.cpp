@@ -28,20 +28,12 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <limits>
-#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
-#include <SushiAI/vision/detect/detection_row.hpp>
-#include <SushiAI/vision/detect/detections_nms.hpp>
-#include <SushiAI/vision/detect/detections_topk.hpp>
-#include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
 namespace
@@ -58,6 +50,14 @@ TEST(Small_DetectTopK, OrdersByValueThenIndex)
     SushiAI::Vision::Detect::select_top_k(values, 4, indices);
 
     EXPECT_TRUE(equal_reference(indices, std::vector<std::int64_t>{1, 4, 0, 2}));
+}
+
+/** @brief Tests that a k above the number of values stops the process naming both. */
+TEST(Medium_DetectTopKDeathTest, RefusesAKAboveTheValueCount)
+{
+    const std::vector<float> values{0.5f, 0.9f, 0.5f, 0.1f, 0.9f};
+    std::vector<std::int64_t> indices;
+
     SA_EXPECT_FATAL(SushiAI::Vision::Detect::select_top_k(values, 6, indices), "6", "5 values");
 }
 
