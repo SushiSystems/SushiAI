@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
@@ -67,12 +68,6 @@ static_assert(!NN::ModuleContainer<MaxPool2d>, "MaxPool2d must not look like a c
 
 namespace
 {
-    /**
-     * @brief Bounds the absolute error of a float result; 32 unit roundoffs of float, the smallest
-     * power of two that covers 1e-6.
-     */
-    constexpr double K_FLOAT_TIGHT_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
-
     /** @brief Builds a layer whose window has the given taps, steps and leading pads. */
     MaxPool2d make_pool(int64_t kernel_h, int64_t kernel_w, int64_t stride_h, int64_t stride_w,
                         int64_t pad_top = 0, int64_t pad_left = 0)
@@ -107,7 +102,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a 2x2 stride-2 pool halves both spatial extents and keeps N and C. */
-TEST(Medium_MaxPool2d, ForwardHalvesTheSpatialExtentsOfAnEvenInput)
+TEST(Small_MaxPool2d, ForwardHalvesTheSpatialExtentsOfAnEvenInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -120,7 +115,7 @@ TEST(Medium_MaxPool2d, ForwardHalvesTheSpatialExtentsOfAnEvenInput)
 }
 
 /** @brief Tests that the traced rank-4 result carries the NHWC layout tag. */
-TEST(Medium_MaxPool2d, ForwardTagsItsResultNHWC)
+TEST(Small_MaxPool2d, ForwardTagsItsResultNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -134,7 +129,7 @@ TEST(Medium_MaxPool2d, ForwardTagsItsResultNHWC)
 }
 
 /** @brief Tests that forward() returns the pooled value and not the INT64 argmax beside it. */
-TEST(Medium_MaxPool2d, ForwardReturnsThePooledValueNotTheArgmax)
+TEST(Small_MaxPool2d, ForwardReturnsThePooledValueNotTheArgmax)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -148,342 +143,222 @@ TEST(Medium_MaxPool2d, ForwardReturnsThePooledValueNotTheArgmax)
 }
 
 /** @brief Tests that output_shape() returns [out_h, out_w, C] for an unpadded square window. */
-TEST(Medium_MaxPool2d, OutputShapeOfAnUnpaddedSquareWindow)
+TEST(Small_MaxPool2d, OutputShapeOfAnUnpaddedSquareWindow)
 {
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
 
     EXPECT_EQ(layer.output_shape(Shape{8, 6, 3}).value(), (Shape{4, 3, 3}));
 }
 
-/** @brief Tests that output_shape() matches the traced shape for an unpadded square window. */
-TEST(Medium_MaxPool2d, OutputShapeAgreesWithForwardForASquareWindow)
+namespace
 {
-    const MaxPool2d layer = make_pool(2, 2, 2, 2);
-    const Shape sample{8, 6, 3};
+    /** @brief Holds a layer, a batch, a per-sample input and the per-sample shape it must give. */
+    struct ExtentRow
+    {
+        std::string name;  /**< The row's name. */
+        MaxPool2d layer;   /**< The layer under test. */
+        int64_t batch;     /**< The batch extent the trace runs over. */
+        Shape sample;      /**< The per-sample [H, W, C] input. */
+        Shape expected;    /**< The per-sample shape output_shape() must return. */
+    };
 
-    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample).value()));
+    /** @brief Returns @p layer with a trailing pad of @p height rows and @p width columns. */
+    MaxPool2d with_trailing(MaxPool2d layer, int64_t height, int64_t width)
+    {
+        layer.trailing_pad_h = height;
+        layer.trailing_pad_w = width;
+        return layer;
+    }
+
+    /** @brief Returns @p layer with the dilation @p height by @p width. */
+    MaxPool2d with_dilation(MaxPool2d layer, int64_t height, int64_t width)
+    {
+        layer.geometry.dilation_h = height;
+        layer.geometry.dilation_w = width;
+        return layer;
+    }
 }
 
-/** @brief Tests that output_shape() matches the traced shape for a padded anisotropic window. */
-TEST(Medium_MaxPool2d, OutputShapeAgreesWithForwardForAPaddedAnisotropicWindow)
+/** @brief Runs the extent case over each window geometry. */
+class Small_MaxPool2dExtent : public ::testing::TestWithParam<ExtentRow>
 {
-    const MaxPool2d layer = make_pool(3, 2, 2, 1, 1, 0);
-    const Shape sample{5, 7, 4};
+};
 
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{3, 6, 4}));
-    EXPECT_EQ(traced_shape(layer, 3, sample), with_batch(3, layer.output_shape(sample).value()));
+/** @brief Tests that output_shape() gives the extent of the row and agrees with the traced shape. */
+TEST_P(Small_MaxPool2dExtent, OutputShapeAgreesWithForward)
+{
+    const ExtentRow& row = GetParam();
+
+    EXPECT_EQ(row.layer.output_shape(row.sample).value(), row.expected);
+    EXPECT_EQ(traced_shape(row.layer, row.batch, row.sample), with_batch(row.batch, row.expected));
 }
 
-/** @brief Tests that output_shape() matches the traced shape when the stride drops a remainder. */
-TEST(Medium_MaxPool2d, OutputShapeAgreesWithForwardWhenTheStrideLeavesARemainder)
-{
-    const MaxPool2d layer = make_pool(3, 3, 2, 2);
-    const Shape sample{8, 10, 1};
-
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{3, 4, 1}));
-    EXPECT_EQ(traced_shape(layer, 1, sample), with_batch(1, layer.output_shape(sample).value()));
-}
-
-/** @brief Tests that output_shape() matches the traced shape for unequal dilations per axis. */
-TEST(Medium_MaxPool2d, OutputShapeAgreesWithForwardForADilatedAnisotropicWindow)
-{
-    MaxPool2d layer = make_pool(2, 2, 1, 1);
-    layer.geometry.dilation_h = 2;
-    layer.geometry.dilation_w = 3;
-    const Shape sample{7, 9, 2};
-
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{5, 6, 2}));
-    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample).value()));
-}
-
-/** @brief Tests that forward() throws on a rank-2 input. */
-TEST(Medium_MaxPool2d, ForwardRejectsAnInputThatIsNotRankFour)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const MaxPool2d layer = make_pool(2, 2, 2, 2);
-    const Graph::ValueID x = builder.input(Shape{2, 16}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that forward() throws when the window is larger than the padded input. */
-TEST(Medium_MaxPool2d, ForwardRejectsAWindowThatDoesNotFit)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const MaxPool2d layer = make_pool(5, 5, 1, 1);
-    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that forward() throws on a rank-4 input tagged NCHW. */
-TEST(Medium_MaxPool2d, ForwardRejectsAnNCHWInput)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const MaxPool2d layer = make_pool(2, 2, 2, 2);
-    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-
-    SA_EXPECT_FAILURE(layer.forward(builder, nchw), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that forward() names the layout, not the window, for a narrow NCHW input. */
-TEST(Medium_MaxPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{1, 8, 8, 2}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-
-    const MaxPool2d layer = make_pool(3, 3, 1, 1);
-
-    SA_EXPECT_FAILURE(layer.forward(builder, nchw), StatusCode::InvalidDescription, "NHWC");
-}
-
-/** @brief Tests that forward() refuses a zero vertical stride in the layer's own message. */
-TEST(Medium_MaxPool2d, ForwardRejectsAZeroStride)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const MaxPool2d layer = make_pool(2, 2, 0, 2);
-    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "MaxPool2d",
-                      "stride 0,2");
-}
-
-/** @brief Tests that forward() refuses a negative padding in the layer's own message. */
-TEST(Medium_MaxPool2d, ForwardRejectsANegativePadding)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const MaxPool2d layer = make_pool(2, 2, 2, 2, 0, -1);
-    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "MaxPool2d",
-                      "padding 0,-1");
-}
-
-/** @brief Tests that output_shape() fails when the vertical stride is zero. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsAZeroStride)
-{
-    const MaxPool2d layer = make_pool(2, 2, 0, 2);
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() names the stride it refuses, not the window's fit. */
-TEST(Medium_MaxPool2d, OutputShapeNamesAZeroStride)
-{
-    const MaxPool2d layer = make_pool(2, 2, 0, 2);
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
-                      "MaxPool2d", "stride 0,2");
-}
-
-/** @brief Tests that output_shape() refuses a negative padding and names it. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsANegativePadding)
-{
-    const MaxPool2d layer = make_pool(2, 2, 2, 2, 0, -1);
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
-                      "MaxPool2d", "padding 0,-1");
-}
-
-/** @brief Tests that output_shape() fails on a per-sample feature vector. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsAFeatureVector)
-{
-    const MaxPool2d layer = make_pool(2, 2, 2, 2);
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{16}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() fails on a shape that still carries the batch axis. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsABatchedShape)
-{
-    const MaxPool2d layer = make_pool(2, 2, 2, 2);
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{2, 8, 8, 3}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() fails when the window is taller than the padded input. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsAWindowTallerThanTheInput)
-{
-    const MaxPool2d layer = make_pool(5, 2, 1, 1);
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 8, 3}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() fails when the window is wider than the padded input. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsAWindowWiderThanTheInput)
-{
-    const MaxPool2d layer = make_pool(2, 5, 1, 1);
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 4, 3}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that a trailing row keeps 13x13 at stride one; without it the result is 12x12. */
-TEST(Medium_MaxPool2d, TrailingRowKeepsTheExtentOfAStrideOnePool)
-{
-    MaxPool2d layer = make_pool(2, 2, 1, 1);
-    const Shape sample{13, 13, 4};
-
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{12, 12, 4}));
-
-    layer.trailing_pad_h = 1;
-    layer.trailing_pad_w = 1;
-
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{13, 13, 4}));
-    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample).value()));
-}
-
-/** @brief Tests that a trailing pad at stride two gives 7x7 over 13x13, as (13 + 1 - 2) / 2 + 1. */
-TEST(Medium_MaxPool2d, TrailingPadAtStrideTwoGivesSevenFromThirteen)
-{
-    MaxPool2d layer = make_pool(2, 2, 2, 2);
-    layer.trailing_pad_h = 1;
-    layer.trailing_pad_w = 1;
-
-    EXPECT_EQ(layer.output_shape(Shape{13, 13, 4}).value(), (Shape{7, 7, 4}));
-    EXPECT_EQ(traced_shape(layer, 1, Shape{13, 13, 4}), (Shape{1, 7, 7, 4}));
-}
-
-/** @brief Tests that a 2/2 pool over 416 with one trailing row and column gives 208. */
-TEST(Medium_MaxPool2d, TrailingPadGivesTwoHundredEightFromFourHundredSixteen)
-{
-    MaxPool2d layer = make_pool(2, 2, 2, 2);
-    layer.trailing_pad_h = 1;
-    layer.trailing_pad_w = 1;
-
-    EXPECT_EQ(layer.output_shape(Shape{416, 416, 16}).value(), (Shape{208, 208, 16}));
-}
-
-/** @brief Tests that the trailing pad is set per axis: one row alone gives 3x2 over 3x3 at 2/1. */
-TEST(Medium_MaxPool2d, TrailingPadAppliesToOneAxisOnly)
-{
-    MaxPool2d layer = make_pool(2, 2, 1, 1);
-    layer.trailing_pad_h = 1;
-
-    EXPECT_EQ(layer.output_shape(Shape{3, 3, 2}).value(), (Shape{3, 2, 2}));
-}
-
-/** @brief Tests that a trailing pad lets a 2-row window fit a 1-row input it would overrun. */
-TEST(Medium_MaxPool2d, TrailingPadLetsAWindowFitAShortInput)
-{
-    MaxPool2d layer = make_pool(2, 2, 1, 1);
-    const Shape sample{1, 4, 3};
-
-    SA_EXPECT_FAILURE(layer.output_shape(sample), StatusCode::InvalidDescription);
-
-    layer.trailing_pad_h = 1;
-    layer.trailing_pad_w = 1;
-
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{1, 4, 3}));
-    EXPECT_EQ(traced_shape(layer, 1, sample), (Shape{1, 1, 4, 3}));
-}
-
-/** @brief Tests that output_shape() refuses a negative trailing pad and names the value. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsANegativeTrailingPad)
-{
-    MaxPool2d layer = make_pool(2, 2, 1, 1);
-    layer.trailing_pad_w = -1;
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
-                      "MaxPool2d", "non-negative trailing padding", "0,-1");
-}
-
-/** @brief Tests that forward() refuses a negative trailing pad before it emits a node. */
-TEST(Medium_MaxPool2d, ForwardRejectsANegativeTrailingPad)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    MaxPool2d layer = make_pool(2, 2, 1, 1);
-    layer.trailing_pad_h = -2;
-    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
-    const std::size_t nodes_before = graph.node_count();
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "MaxPool2d",
-                      "non-negative trailing padding", "-2,0");
-    EXPECT_EQ(graph.node_count(), nodes_before);
-}
-
-/** @brief Tests that a trailing pad too large for 64 bits is refused rather than wrapping. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsATrailingPadThatOverflows)
-{
-    MaxPool2d layer = make_pool(2, 2, 1, 1);
-    layer.trailing_pad_h = std::numeric_limits<int64_t>::max();
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
-                      "MaxPool2d", "within 64 bits");
-}
-
-/** @brief Tests that a trailing pad as tall as the window is refused: its last row is padding. */
-TEST(Medium_MaxPool2d, OutputShapeRejectsATrailingPadThatLeavesAWindowNoTap)
-{
-    MaxPool2d layer = make_pool(2, 2, 1, 1);
-    layer.trailing_pad_h = 2;
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{3, 3, 2}), StatusCode::InvalidDescription,
-                      "MaxPool2d", "every window a tap inside the input", "2,0");
-}
-
-/** @brief Tests that forward() refuses an all-padding trailing window before it emits a node. */
-TEST(Medium_MaxPool2d, ForwardRejectsATrailingPadThatLeavesAWindowNoTap)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    MaxPool2d layer = make_pool(2, 2, 2, 2);
-    layer.trailing_pad_w = 3;
-    const Graph::ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
-    const std::size_t nodes_before = graph.node_count();
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "MaxPool2d",
-                      "every window a tap inside the input", "0,3");
-    EXPECT_EQ(graph.node_count(), nodes_before);
-}
-
-/** @brief Tests that the parameter walk visits nothing, before and after a trace. */
-TEST(Medium_MaxPool2d, TheParameterWalkVisitsNothing)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    MaxPool2d layer = make_pool(2, 2, 2, 2);
-    EXPECT_EQ(NN::parameter_count(layer), 0u);
-
-    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
-    SA_EXPECT_OK(layer.forward(builder, x));
-
-    EXPECT_EQ(NN::parameter_count(layer), 0u);
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_MaxPool2dExtent,
+    ::testing::Values(
+        ExtentRow{"ASquareWindow", make_pool(2, 2, 2, 2), 2, Shape{8, 6, 3}, Shape{4, 3, 3}},
+        ExtentRow{"APaddedAnisotropicWindow", make_pool(3, 2, 2, 1, 1, 0), 3, Shape{5, 7, 4},
+                  Shape{3, 6, 4}},
+        ExtentRow{"AStrideThatLeavesARemainder", make_pool(3, 3, 2, 2), 1, Shape{8, 10, 1},
+                  Shape{3, 4, 1}},
+        ExtentRow{"ADilatedAnisotropicWindow", with_dilation(make_pool(2, 2, 1, 1), 2, 3), 2,
+                  Shape{7, 9, 2}, Shape{5, 6, 2}},
+        ExtentRow{"WithoutATrailingRowAtStrideOne", make_pool(2, 2, 1, 1), 2, Shape{13, 13, 4},
+                  Shape{12, 12, 4}},
+        ExtentRow{"ATrailingRowKeepsTheExtentAtStrideOne",
+                  with_trailing(make_pool(2, 2, 1, 1), 1, 1), 2, Shape{13, 13, 4},
+                  Shape{13, 13, 4}},
+        ExtentRow{"ATrailingPadAtStrideTwoGivesSevenFromThirteen",
+                  with_trailing(make_pool(2, 2, 2, 2), 1, 1), 1, Shape{13, 13, 4},
+                  Shape{7, 7, 4}},
+        ExtentRow{"ATrailingPadGivesTwoHundredEightFromFourHundredSixteen",
+                  with_trailing(make_pool(2, 2, 2, 2), 1, 1), 1, Shape{416, 416, 16},
+                  Shape{208, 208, 16}},
+        ExtentRow{"ATrailingPadOnOneAxisOnly", with_trailing(make_pool(2, 2, 1, 1), 1, 0), 1,
+                  Shape{3, 3, 2}, Shape{3, 2, 2}},
+        ExtentRow{"ATrailingPadLetsAWindowFitAShortInput",
+                  with_trailing(make_pool(2, 2, 1, 1), 1, 1), 1, Shape{1, 4, 3},
+                  Shape{1, 4, 3}}),
+    [](const ::testing::TestParamInfo<ExtentRow>& info) { return info.param.name; });
 
 namespace
 {
-    class Medium_MaxPoolTrailing : public SaTest::EngineTest {};
+    /** @brief Holds a layer, an input shape forward() refuses and the words its message names. */
+    struct ForwardRefusalRow
+    {
+        std::string name;   /**< The row's name. */
+        MaxPool2d layer;    /**< The layer under test. */
+        Shape input;        /**< The shape of the batched input. */
+        bool nchw;          /**< Whether the input is converted to NCHW first. */
+        std::string first;  /**< The first substring the message names; empty names none. */
+        std::string second; /**< The second substring the message names. */
+        std::string third;  /**< The third substring the message names. */
+    };
+}
+
+/** @brief Runs the forward refusal over each input and geometry the layer does not take. */
+class Small_MaxPool2dForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
+{
+};
+
+/** @brief Tests that forward() refuses the row, names the reason and emits no node. */
+TEST_P(Small_MaxPool2dForwardRefusal, ForwardRefuses)
+{
+    const ForwardRefusalRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    Graph::ValueID x = builder.input(row.input, "x");
+    if (row.nchw)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID converted,
+                                builder.layout_convert(x, Graph::TensorLayout::NCHW));
+        x = converted;
+    }
+    const std::size_t nodes_before = graph.node_count();
+
+    SA_EXPECT_FAILURE(row.layer.forward(builder, x), StatusCode::InvalidDescription, row.first,
+                      row.second, row.third);
+    EXPECT_EQ(graph.node_count(), nodes_before);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_MaxPool2dForwardRefusal,
+    ::testing::Values(
+        ForwardRefusalRow{"AnInputThatIsNotRankFour", make_pool(2, 2, 2, 2), Shape{2, 16}, false,
+                          "", "", ""},
+        ForwardRefusalRow{"AWindowThatDoesNotFit", make_pool(5, 5, 1, 1), Shape{2, 4, 4, 3}, false,
+                          "", "", ""},
+        ForwardRefusalRow{"AnNCHWInput", make_pool(2, 2, 2, 2), Shape{2, 8, 8, 3}, true, "", "",
+                          ""},
+        ForwardRefusalRow{"AnNCHWInputNarrowerThanTheWindowNamesTheLayout", make_pool(3, 3, 1, 1),
+                          Shape{1, 8, 8, 2}, true, "NHWC", "", ""},
+        ForwardRefusalRow{"AZeroStride", make_pool(2, 2, 0, 2), Shape{2, 8, 8, 3}, false,
+                          "MaxPool2d", "stride 0,2", ""},
+        ForwardRefusalRow{"ANegativePadding", make_pool(2, 2, 2, 2, 0, -1), Shape{2, 8, 8, 3},
+                          false, "MaxPool2d", "padding 0,-1", ""},
+        ForwardRefusalRow{"ANegativeTrailingPad", with_trailing(make_pool(2, 2, 1, 1), -2, 0),
+                          Shape{2, 8, 8, 3}, false, "MaxPool2d", "non-negative trailing padding",
+                          "-2,0"},
+        ForwardRefusalRow{"ATrailingPadThatLeavesAWindowNoTap",
+                          with_trailing(make_pool(2, 2, 2, 2), 0, 3), Shape{1, 4, 4, 2}, false,
+                          "MaxPool2d", "every window a tap inside the input", "0,3"}),
+    [](const ::testing::TestParamInfo<ForwardRefusalRow>& info) { return info.param.name; });
+
+namespace
+{
+    /** @brief Holds a layer, a per-sample input output_shape() refuses and the words it names. */
+    struct ShapeRefusalRow
+    {
+        std::string name;   /**< The row's name. */
+        MaxPool2d layer;    /**< The layer under test. */
+        Shape sample;       /**< The per-sample input. */
+        std::string first;  /**< The first substring the message names; empty names none. */
+        std::string second; /**< The second substring the message names. */
+        std::string third;  /**< The third substring the message names. */
+    };
+}
+
+/** @brief Runs the output_shape refusal over each geometry and shape the layer does not take. */
+class Small_MaxPool2dShapeRefusal : public ::testing::TestWithParam<ShapeRefusalRow>
+{
+};
+
+/** @brief Tests that output_shape() refuses the row and names the reason. */
+TEST_P(Small_MaxPool2dShapeRefusal, OutputShapeRefuses)
+{
+    const ShapeRefusalRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(row.layer.output_shape(row.sample), StatusCode::InvalidDescription,
+                      row.first, row.second, row.third);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_MaxPool2dShapeRefusal,
+    ::testing::Values(
+        ShapeRefusalRow{"AZeroStride", make_pool(2, 2, 0, 2), Shape{8, 8, 3}, "MaxPool2d",
+                        "stride 0,2", ""},
+        ShapeRefusalRow{"ANegativePadding", make_pool(2, 2, 2, 2, 0, -1), Shape{8, 8, 3},
+                        "MaxPool2d", "padding 0,-1", ""},
+        ShapeRefusalRow{"AFeatureVector", make_pool(2, 2, 2, 2), Shape{16}, "", "", ""},
+        ShapeRefusalRow{"ABatchedShape", make_pool(2, 2, 2, 2), Shape{2, 8, 8, 3}, "", "", ""},
+        ShapeRefusalRow{"AWindowTallerThanTheInput", make_pool(5, 2, 1, 1), Shape{4, 8, 3}, "", "",
+                        ""},
+        ShapeRefusalRow{"AWindowWiderThanTheInput", make_pool(2, 5, 1, 1), Shape{8, 4, 3}, "", "",
+                        ""},
+        ShapeRefusalRow{"AShortInputWithoutATrailingPad", make_pool(2, 2, 1, 1), Shape{1, 4, 3},
+                        "", "", ""},
+        ShapeRefusalRow{"ANegativeTrailingPad", with_trailing(make_pool(2, 2, 1, 1), 0, -1),
+                        Shape{8, 8, 3}, "MaxPool2d", "non-negative trailing padding", "0,-1"},
+        ShapeRefusalRow{"ATrailingPadThatOverflows",
+                        with_trailing(make_pool(2, 2, 1, 1), std::numeric_limits<int64_t>::max(),
+                                      0),
+                        Shape{8, 8, 3}, "MaxPool2d", "within 64 bits", ""},
+        ShapeRefusalRow{"ATrailingPadThatLeavesAWindowNoTap",
+                        with_trailing(make_pool(2, 2, 1, 1), 2, 0), Shape{3, 3, 2}, "MaxPool2d",
+                        "every window a tap inside the input", "2,0"}),
+    [](const ::testing::TestParamInfo<ShapeRefusalRow>& info) { return info.param.name; });
+
+namespace
+{
+    /** @brief Holds the input of the pooled 3x3 value, one element of its result and that value. */
+    struct TrailingElementRow
+    {
+        std::string name;            /**< The row's name. */
+        std::vector<double> input;   /**< The 9 input values, row-major. */
+        std::size_t element;         /**< The index of the pooled element compared. */
+        double expected;             /**< The maximum of the truncated window at that element. */
+    };
+
+    /** @brief Provides the Engine every trailing-window case records on. */
+    class Medium_MaxPoolTrailing : public SaTest::EngineTest,
+                                   public ::testing::WithParamInterface<TrailingElementRow>
+    {
+    };
 
     /** @brief Builds a 2x2 window at stride one with one trailing row and one trailing column. */
     NN::MaxPool2d trailing_window()
     {
-        NN::MaxPool2d layer;
-        layer.geometry.kernel_h = 2;
-        layer.geometry.kernel_w = 2;
-        layer.geometry.stride_h = 1;
-        layer.geometry.stride_w = 1;
-        layer.trailing_pad_h = 1;
-        layer.trailing_pad_w = 1;
-        return layer;
+        return with_trailing(make_pool(2, 2, 1, 1), 1, 1);
     }
 
     /**
@@ -510,32 +385,57 @@ namespace
 
         pooled = read_tensor(pool.tensor(y));
     }
+
+    /**
+     * @brief Lists one row per element of the pooled result of @p input.
+     * @param prefix The name every row starts with.
+     * @param input The 9 input values, row-major.
+     * @param expected The 9 maxima of the truncated windows, row-major.
+     */
+    std::vector<TrailingElementRow> element_rows(const std::string& prefix,
+                                                 const std::vector<double>& input,
+                                                 const std::vector<double>& expected)
+    {
+        std::vector<TrailingElementRow> rows;
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            rows.push_back({prefix + std::to_string(i), input, i, expected[i]});
+
+        return rows;
+    }
+
+    /** @brief Lists the rows of both inputs: mixed signs, then all negative. */
+    std::vector<TrailingElementRow> trailing_rows()
+    {
+        // Input [[5, -1, 2], [-3, 8, 0], [4, -7, 6]]; expected [[8, 8, 2], [8, 8, 6], [4, 6, 6]].
+        std::vector<TrailingElementRow> rows =
+            element_rows("TheMixedInputAtElement", {5, -1, 2, -3, 8, 0, 4, -7, 6},
+                         {8, 8, 2, 8, 8, 6, 4, 6, 6});
+        // Input runs from -18 to -10; a pad that took part in the maximum as zero would show as 0.
+        const std::vector<TrailingElementRow> negative =
+            element_rows("TheNegativeInputAtElement", {-18, -17, -16, -15, -14, -13, -12, -11, -10},
+                         {-14, -13, -13, -11, -10, -10, -11, -10, -10});
+        rows.insert(rows.end(), negative.begin(), negative.end());
+
+        return rows;
+    }
 } // namespace
 
-TEST_F(Medium_MaxPoolTrailing, TrailingWindowsTakeTheMaximaOfTheirTruncatedTaps)
+/**
+ * @brief Tests that the pooled element of the row is the true maximum of its truncated window.
+ *
+ * A maximum selects an input value, so the result is exact and the bound is zero.
+ */
+TEST_P(Medium_MaxPoolTrailing, TheElementIsTheMaximumOfItsTruncatedTaps)
 {
-    // Input [[5, -1, 2], [-3, 8, 0], [4, -7, 6]]; expected [[8, 8, 2], [8, 8, 6], [4, 6, 6]].
-    const std::vector<double> input = {5, -1, 2, -3, 8, 0, 4, -7, 6};
-    const std::vector<double> expected = {8, 8, 2, 8, 8, 6, 4, 6, 6};
-
+    const TrailingElementRow& row = GetParam();
     std::vector<double> pooled;
-    ASSERT_NO_FATAL_FAILURE(pool_three_by_three(backend(), input, pooled));
+    ASSERT_NO_FATAL_FAILURE(pool_three_by_three(backend(), row.input, pooled));
+    ASSERT_EQ(pooled.size(), row.input.size());
 
-    ASSERT_EQ(pooled.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(pooled[i], expected[i], K_FLOAT_TIGHT_TOLERANCE) << "at " << i;
+    EXPECT_TRUE(TestSupport::is_within(
+        TestSupport::measure_error(pooled[row.element], row.expected, 0.0)));
 }
 
-TEST_F(Medium_MaxPoolTrailing, AllNegativeTrailingWindowsKeepTheirTrueMaximum)
-{
-    // Input [[-18, -17, -16], [-15, -14, -13], [-12, -11, -10]]; a zero pad would show as 0.
-    const std::vector<double> input = {-18, -17, -16, -15, -14, -13, -12, -11, -10};
-    const std::vector<double> expected = {-14, -13, -13, -11, -10, -10, -11, -10, -10};
-
-    std::vector<double> pooled;
-    ASSERT_NO_FATAL_FAILURE(pool_three_by_three(backend(), input, pooled));
-
-    ASSERT_EQ(pooled.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(pooled[i], expected[i], K_FLOAT_TIGHT_TOLERANCE) << "at " << i;
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_MaxPoolTrailing, ::testing::ValuesIn(trailing_rows()),
+    [](const ::testing::TestParamInfo<TrailingElementRow>& info) { return info.param.name; });

@@ -1,16 +1,21 @@
 # tests/layers/nn/test_max_pool2d.cpp
 
 
-Suites: `Medium_MaxPool2d`.
+Suites: `Small_MaxPool2d`, `Small_MaxPool2dExtent`, `Small_MaxPool2dForwardRefusal`,
+`Small_MaxPool2dShapeRefusal`, `Medium_MaxPoolTrailing`.
 
 Tests the 2-D max pooling layer's trace, shape inference and rejections.
 
-This file needs no device. `NN::MaxPool2d` in `modules/layers/nn/include/SushiAI/nn/max_pool2d.hpp` holds a
+The small cases need no device; the trailing-window cases run on an engine. `NN::MaxPool2d` in `modules/layers/nn/include/SushiAI/nn/max_pool2d.hpp` holds a
 `Graph::ConvGeometry` and no parameter. `GraphBuilder::maxpool2d` returns the pooled value and
 an INT64 argmax together; the layer returns the first.
 
 Two `static_assert` lines at file scope require `MaxPool2d` to be a `Module` and not a
 `ModuleContainer`.
+
+## with_trailing and with_dilation
+
+Each returns a copy of a layer with a trailing pad of rows and columns, or a dilation per axis.
 
 ## make_pool
 
@@ -43,135 +48,49 @@ the second result of the node would hand the next layer the index buffer.
 
 `output_shape([8, 6, 3])` of a 2x2 stride-2 pool is [4, 3, 3].
 
-## OutputShapeAgreesWithForwardForASquareWindow
+## Small_MaxPool2dExtent.OutputShapeAgreesWithForward
 
-For the same pool and sample, the traced shape of a batch of two equals `output_shape()` with
-the batch extent in front.
+One row per window geometry. `output_shape(sample)` returns the extent of the row, and the shape of
+a trace over a batch of that sample is the extent with the batch in front. Ten rows:
 
-## OutputShapeAgreesWithForwardForAPaddedAnisotropicWindow
+| Row | Window | Sample | Extent |
+| --- | --- | --- | --- |
+| ASquareWindow | 2x2, stride 2 | [8, 6, 3] | [4, 3, 3] |
+| APaddedAnisotropicWindow | 3x2, stride 2 by 1, top pad 1 | [5, 7, 4] | [3, 6, 4] |
+| AStrideThatLeavesARemainder | 3x3, stride 2 | [8, 10, 1] | [3, 4, 1] |
+| ADilatedAnisotropicWindow | 2x2, stride 1, dilation 2 by 3 | [7, 9, 2] | [5, 6, 2] |
+| WithoutATrailingRowAtStrideOne | 2x2, stride 1 | [13, 13, 4] | [12, 12, 4] |
+| ATrailingRowKeepsTheExtentAtStrideOne | 2x2, stride 1, one trailing row and column | [13, 13, 4] | [13, 13, 4] |
+| ATrailingPadAtStrideTwoGivesSevenFromThirteen | 2x2, stride 2, one trailing row and column | [13, 13, 4] | [7, 7, 4] |
+| ATrailingPadGivesTwoHundredEightFromFourHundredSixteen | 2x2, stride 2, one trailing row and column | [416, 416, 16] | [208, 208, 16] |
+| ATrailingPadOnOneAxisOnly | 2x2, stride 1, one trailing row | [3, 3, 2] | [3, 2, 2] |
+| ATrailingPadLetsAWindowFitAShortInput | 2x2, stride 1, one trailing row and column | [1, 4, 3] | [1, 4, 3] |
 
-A 3x2 window with stride 2 by 1 and a top padding of 1 maps [5, 7, 4] to [3, 6, 4], and the
-traced shape agrees.
+## Small_MaxPool2dForwardRefusal.ForwardRefuses
 
-## OutputShapeAgreesWithForwardWhenTheStrideLeavesARemainder
+One row per input or geometry `forward()` refuses with `InvalidDescription`. Every row also checks
+that the graph gains no node. Eight rows: a rank-2 input, a window of 5x5 over 4x4, an NCHW input, an
+NCHW input narrower than the window (the message names "NHWC"), a zero vertical stride ("MaxPool2d",
+"stride 0,2"), a negative padding ("padding 0,-1"), a negative trailing pad ("non-negative trailing
+padding", "-2,0") and a trailing pad of 3 columns on a 2x2 window ("every window a tap inside the
+input", "0,3").
 
-A 3x3 stride-2 window maps [8, 10, 1] to [3, 4, 1], and the traced shape agrees. Neither
-extent divides evenly, so the case covers the rounding down.
+## Small_MaxPool2dShapeRefusal.OutputShapeRefuses
 
-## OutputShapeAgreesWithForwardForADilatedAnisotropicWindow
+One row per shape or geometry `output_shape()` refuses with `InvalidDescription`. Ten rows: a zero
+vertical stride ("MaxPool2d", "stride 0,2"), a negative padding ("padding 0,-1"), a feature vector, a
+shape that still carries the batch axis, a window taller than the input, a window wider than the
+input, a [1, 4, 3] input without a trailing pad, a negative trailing pad ("non-negative trailing
+padding", "0,-1"), a trailing pad of `INT64_MAX` rows ("within 64 bits") and a trailing pad as tall as
+the window ("every window a tap inside the input", "2,0").
 
-A 2x2 unit-stride window with dilations 2 by 3 maps [7, 9, 2] to [5, 6, 2], and the traced
-shape agrees.
+## Medium_MaxPoolTrailing.TheElementIsTheMaximumOfItsTruncatedTaps
 
-## ForwardRejectsAnInputThatIsNotRankFour
+A `MaxPool2d` with a 2x2 window, a stride of one and one trailing row and column pools a
+`[1, 3, 3, 1]` input into nine values on the engine. One row per element of two inputs, 18 rows. A
+maximum selects an input value, so the bound is zero: the pooled element must equal the maximum of its
+truncated window exactly.
 
-`forward()` returns InvalidDescription on a [2, 16] input.
-
-## ForwardRejectsAWindowThatDoesNotFit
-
-`forward()` returns InvalidDescription for a 5x5 window over a [2, 4, 4, 3] input.
-
-## ForwardRejectsAnNCHWInput
-
-A [2, 8, 8, 3] input is converted to NCHW, and `forward()` returns InvalidDescription for the converted value.
-
-## ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow
-
-A [1, 8, 8, 2] input converted to NCHW has 2 on the axis an NHWC reader takes for the height,
-which a 3x3 window does not fit. The message contains "NHWC", so the layout check runs before
-the window is fitted.
-
-## ForwardRejectsAZeroStride
-
-`forward()` with a vertical stride of 0 returns InvalidDescription with a message containing "MaxPool2d" and
-"stride 0,2".
-
-## ForwardRejectsANegativePadding
-
-`forward()` with a left padding of -1 returns InvalidDescription with a message containing "MaxPool2d" and
-"padding 0,-1".
-
-## OutputShapeRejectsAZeroStride
-
-`output_shape()` fails when the vertical stride is 0.
-
-## OutputShapeNamesAZeroStride
-
-The message for the same layer contains "MaxPool2d" and "stride 0,2", so it reports the stride and
-not a window that does not fit.
-
-## OutputShapeRejectsANegativePadding
-
-`output_shape()` with a left padding of -1 returns InvalidDescription with a message containing
-"MaxPool2d" and "padding 0,-1".
-
-## OutputShapeRejectsAFeatureVector
-
-`output_shape([16])` returns InvalidDescription.
-
-## OutputShapeRejectsABatchedShape
-
-`output_shape([2, 8, 8, 3])` returns InvalidDescription.
-
-## OutputShapeRejectsAWindowTallerThanTheInput
-
-A 5x2 window over [4, 8, 3] returns InvalidDescription. The window fits the width, so the height
-check refuses.
-
-## OutputShapeRejectsAWindowWiderThanTheInput
-
-A 2x5 window over [8, 4, 3] returns InvalidDescription. The window fits the height, so the width
-check refuses.
-
-## TrailingRowKeepsTheExtentOfAStrideOnePool
-
-A 2x2 pool of stride 1 over [13, 13, 4] reports [12, 12, 4]. With a trailing pad of 1 on both
-axes it reports [13, 13, 4], and a trace over a batch of 2 has that shape behind the batch.
-
-## TrailingPadAtStrideTwoGivesSevenFromThirteen
-
-A 2x2 pool of stride 2 with a trailing pad of 1 on both axes reports [7, 7, 4] over
-[13, 13, 4], and its trace over a batch of 1 is [1, 7, 7, 4].
-
-## TrailingPadGivesTwoHundredEightFromFourHundredSixteen
-
-The same pool reports [208, 208, 16] over [416, 416, 16].
-
-## TrailingPadAppliesToOneAxisOnly
-
-A 2x2 pool of stride 1 with `trailing_pad_h` 1 alone reports [3, 2, 2] over [3, 3, 2].
-
-## TrailingPadLetsAWindowFitAShortInput
-
-A 2x2 pool of stride 1 fails from `output_shape` over [1, 4, 3]. With a trailing pad of 1 on both
-axes it reports [1, 4, 3] and traces to [1, 1, 4, 3].
-
-## OutputShapeRejectsANegativeTrailingPad
-
-With `trailing_pad_w` -1, `output_shape` returns InvalidDescription holding "MaxPool2d",
-"non-negative trailing padding" and "0,-1".
-
-## ForwardRejectsANegativeTrailingPad
-
-With `trailing_pad_h` -2, `forward` returns `InvalidDescription` with a message holding "MaxPool2d",
-"non-negative trailing padding" and "-2,0", and the graph's node count does not change.
-
-## OutputShapeRejectsATrailingPadThatOverflows
-
-With `trailing_pad_h` at the largest `int64_t`, `output_shape` returns InvalidDescription holding
-"MaxPool2d" and "within 64 bits".
-
-## OutputShapeRejectsATrailingPadThatLeavesAWindowNoTap
-
-A 2x2 pool with `trailing_pad_h` 2 makes `output_shape` return InvalidDescription holding
-"MaxPool2d", "every window a tap inside the input" and "2,0".
-
-## ForwardRejectsATrailingPadThatLeavesAWindowNoTap
-
-A 2x2 pool of stride 2 with `trailing_pad_w` 3 raises from `forward` an error holding
-"MaxPool2d", "every window a tap inside the input" and "0,3", and the graph's node count does
-not change.
-
-## TheParameterWalkVisitsNothing
-
-`parameter_count` is 0 before and after a trace.
+- The input `[[5, -1, 2], [-3, 8, 0], [4, -7, 6]]` pools to `[[8, 8, 2], [8, 8, 6], [4, 6, 6]]`.
+- The input runs from -18 to -10. The result is `[[-14, -13, -13], [-11, -10, -10], [-11, -10, -10]]`;
+  a pad that took part in the maximum as zero would show as 0.
