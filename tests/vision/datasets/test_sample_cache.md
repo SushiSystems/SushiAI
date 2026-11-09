@@ -1,12 +1,14 @@
 # tests/vision/datasets/test_sample_cache.cpp
 
 
-Suites: `Small_DatasetsSampleCache`.
+Suites: `Medium_DatasetsSampleCache` and `Small_DatasetsSampleCacheRefusal`.
 
 Tests `write_sample_cache`, `use_sample_cache` and `sample_cache_path` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/sample_cache.hpp`. The source images
 are raw image files the cases write under the system's temporary directory, and the cache is
-the folder `cache` beside them.
+the folder `cache` beside them. Those cases are `Medium_`: they write files, and the cache name
+holds the modification time the platform clock gives. The refusals decide on the options before
+any file is examined, so they are `Small_` and name files that never exist.
 
 ## TheFirstPassWritesAndTheSecondReuses
 
@@ -53,6 +55,7 @@ the old name would be written again.
 
 ## RefusesOptionsItCannotServe
 
-`write_sample_cache` fails with `InvalidDescription` for options without a directory
-("no directory"), for `longest_side` -1 ("a longest side of -1") and for `longest_side` 1 over
-a list whose sample has a mask ("a longest side of 1", "masks").
+`Small_DatasetsSampleCacheRefusal`, one row each: `write_sample_cache` fails with
+`InvalidDescription` for options without a directory ("no directory"), for `longest_side` -1
+("a longest side of -1") and for `longest_side` 1 over a list whose sample has a mask
+("a longest side of 1", "masks").

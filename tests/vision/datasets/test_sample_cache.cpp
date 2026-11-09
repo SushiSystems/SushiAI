@@ -90,10 +90,59 @@ namespace
         return Vision::Imaging::K_RAW_IMAGE_HEADER_BYTES +
                static_cast<std::uint64_t>(size.height) * size.width * 3;
     }
+    /** @brief Returns the bytes of an image, row by row. */
+    std::vector<std::uint8_t> bytes_of(const Image& image)
+    {
+        return std::vector<std::uint8_t>(image.data(), image.data() + image.byte_count());
+    }
+
+    /** @brief Returns the sixteen hexadecimal digits of the 64-bit FNV-1a hash of a text. */
+    std::string fnv1a_digits(const std::string& text)
+    {
+        std::uint64_t hash = 14695981039346656037ull;
+        for (const char character : text)
+        {
+            hash ^= static_cast<std::uint8_t>(character);
+            hash *= 1099511628211ull;
+        }
+
+        std::string digits(16, '0');
+        for (std::size_t i = digits.size(); i-- > 0; hash >>= 4)
+            digits[i] = "0123456789abcdef"[hash & 0xF];
+
+        return digits;
+    }
+
+    /** @brief Holds the options and the list of a write_sample_cache the module refuses. */
+    struct CacheRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the directory of the cache, or none. */
+        const char* directory;
+
+        /** @brief Holds the longest side. */
+        std::int32_t longest_side;
+
+        /** @brief Tells whether the one sample names a mask. */
+        bool with_mask;
+
+        /** @brief Holds a text the refusal carries. */
+        const char* message;
+
+        /** @brief Holds another text the refusal carries, or none. */
+        const char* detail;
+    };
+
+    /** @brief Holds one refused write per row. */
+    class Small_DatasetsSampleCacheRefusal : public ::testing::TestWithParam<CacheRefusal>
+    {
+    };
 } // namespace
 
 /** @brief Tests that the first pass writes every image and the second writes none. */
-TEST(Small_DatasetsSampleCache, TheFirstPassWritesAndTheSecondReuses)
+TEST(Medium_DatasetsSampleCache, TheFirstPassWritesAndTheSecondReuses)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_passes");
     const SampleList list = list_of({
@@ -114,7 +163,7 @@ TEST(Small_DatasetsSampleCache, TheFirstPassWritesAndTheSecondReuses)
 }
 
 /** @brief Tests that a list pointed at the cache loads the pixels of its images from it. */
-TEST(Small_DatasetsSampleCache, AListPointedAtTheCacheLoadsTheSamePixels)
+TEST(Medium_DatasetsSampleCache, AListPointedAtTheCacheLoadsTheSamePixels)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_use");
     const Image original = rising_image(ImageSize{2, 3}, 40);
@@ -134,12 +183,11 @@ TEST(Small_DatasetsSampleCache, AListPointedAtTheCacheLoadsTheSamePixels)
     SA_EXPECT_OK(load_sample_image(cached, 0, Vision::Codecs::DecodeOptions{}, loaded));
     ASSERT_EQ(loaded.size(), original.size());
     ASSERT_EQ(loaded.channels(), 3);
-    for (std::size_t i = 0; i < original.byte_count(); ++i)
-        EXPECT_EQ(loaded.data()[i], original.data()[i]) << "byte " << i;
+    EXPECT_EQ(bytes_of(loaded), bytes_of(original));
 }
 
 /** @brief Tests that a longest side reduces a larger image and keeps a smaller one. */
-TEST(Small_DatasetsSampleCache, ALongestSideReducesOnlyWhatExceedsIt)
+TEST(Medium_DatasetsSampleCache, ALongestSideReducesOnlyWhatExceedsIt)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_side");
     const SampleList list = list_of({
@@ -167,7 +215,7 @@ TEST(Small_DatasetsSampleCache, ALongestSideReducesOnlyWhatExceedsIt)
 }
 
 /** @brief Tests that an image that changed has no cache file until it is cached again. */
-TEST(Small_DatasetsSampleCache, AnImageThatChangedIsStale)
+TEST(Medium_DatasetsSampleCache, AnImageThatChangedIsStale)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_stale");
     const SampleList list = list_of({Support::write_raw_image(
@@ -194,7 +242,7 @@ TEST(Small_DatasetsSampleCache, AnImageThatChangedIsStale)
 }
 
 /** @brief Tests that a file of stored pixels and a mask keep their paths and are not cached. */
-TEST(Small_DatasetsSampleCache, StoredPixelsAndMasksAreLeftAlone)
+TEST(Medium_DatasetsSampleCache, StoredPixelsAndMasksAreLeftAlone)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_alone");
 
@@ -226,7 +274,7 @@ TEST(Small_DatasetsSampleCache, StoredPixelsAndMasksAreLeftAlone)
 }
 
 /** @brief Tests that the name of a cache file follows the source and the options alone. */
-TEST(Small_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
+TEST(Medium_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_names");
     const std::filesystem::path source = Support::write_raw_image(
@@ -259,23 +307,8 @@ TEST(Small_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
  * hash out here from the offset basis and prime and checks that spelling against a value
  * computed in Python over "images/a.jpg|1234|5678|320|0".
  */
-TEST(Small_DatasetsSampleCache, TheNameIsTheFNV1aHashOfTheKeyText)
+TEST(Medium_DatasetsSampleCache, TheNameIsTheFNV1aHashOfTheKeyText)
 {
-    const auto fnv1a_digits = [](const std::string& text)
-    {
-        std::uint64_t hash = 14695981039346656037ull;
-        for (const char character : text)
-        {
-            hash ^= static_cast<std::uint8_t>(character);
-            hash *= 1099511628211ull;
-        }
-
-        std::string digits(16, '0');
-        for (std::size_t i = digits.size(); i-- > 0; hash >>= 4)
-            digits[i] = "0123456789abcdef"[hash & 0xF];
-
-        return digits;
-    };
     ASSERT_EQ(fnv1a_digits("images/a.jpg|1234|5678|320|0"), "a6ebcd0f306993fd");
 
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_key");
@@ -293,26 +326,28 @@ TEST(Small_DatasetsSampleCache, TheNameIsTheFNV1aHashOfTheKeyText)
     EXPECT_EQ(path.filename().string(), "a-" + fnv1a_digits(key) + ".saim");
 }
 
-/** @brief Tests each refusal: no directory, a side out of range, and a side over masks. */
-TEST(Small_DatasetsSampleCache, RefusesOptionsItCannotServe)
+/** @brief Tests that a write refuses a cache with no directory, a side out of range or over masks. */
+TEST_P(Small_DatasetsSampleCacheRefusal, RefusesOptionsItCannotServe)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_refusals");
-    SampleList list = list_of({Support::write_raw_image(
-        scratch, "images/a.jpg", Support::uniform_image(ImageSize{2, 2}, 3, 1))});
+    const CacheRefusal& row = GetParam();
+    SampleList list = list_of({"images/a.jpg", "masks/a.png"});
+    list.samples.resize(1);
+    if (row.with_mask)
+        list.samples[0].mask = 1;
 
     SampleCacheOptions options;
-    SA_EXPECT_FAILURE(write_sample_cache(list, options), StatusCode::InvalidDescription,
-                      "no directory");
+    options.directory = row.directory;
+    options.longest_side = row.longest_side;
 
-    options = options_of(scratch);
-    options.longest_side = -1;
     SA_EXPECT_FAILURE(write_sample_cache(list, options), StatusCode::InvalidDescription,
-                      "a longest side of -1");
-
-    list.files.push_back(Support::write_raw_image(
-        scratch, "masks/a.png", Support::uniform_image(ImageSize{2, 2}, 1, 0)));
-    list.samples[0].mask = 1;
-    options.longest_side = 1;
-    SA_EXPECT_FAILURE(write_sample_cache(list, options), StatusCode::InvalidDescription,
-                      "a longest side of 1", "masks");
+                      row.message, row.detail);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsSampleCacheRefusal,
+    ::testing::Values(CacheRefusal{"NoDirectory", "", 0, false, "no directory", ""},
+                      CacheRefusal{"ANegativeLongestSide", "cache", -1, false,
+                                   "a longest side of -1", ""},
+                      CacheRefusal{"ALongestSideOverMasks", "cache", 1, true,
+                                   "a longest side of 1", "masks"}),
+    [](const ::testing::TestParamInfo<CacheRefusal>& info) { return std::string(info.param.name); });
