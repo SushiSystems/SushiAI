@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-09 — test_tree: Apply the vision/darknet_training_cases records (M45).
 - 2026-11-09 — test_tree: Apply the vision/darknet_import_cases records (M44).
 - 2026-11-09 — darknet_import_cases: Added `check_tensors_against_entries`, the strict name, dtype, shape and payload check of `fill_imported_state` over the entries of a state, which now calls it before it copies (`darknet_import.hpp`).
 - 2026-11-09 — test_tree: Apply the vision/darknet_forward_cases records (M43).

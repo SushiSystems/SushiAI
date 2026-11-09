@@ -1,7 +1,8 @@
 # tests/vision/darknet_training_cases/test_darknet_training.cpp
 
 
-Suites: `Small_DarknetTrainingCases`.
+Suites: `Small_DarknetTrainingCases`, `Small_DarknetTrainingCasesSizes` and
+`Medium_DarknetTrainingCasesFiles`.
 
 Tests the parts of
 `modules/vision/darknet_training_cases/include/SushiAI/vision/darknet_training_cases/darknet_training.hpp`
@@ -29,13 +30,22 @@ A box entry of 101 against 100 is within 0.1 plus 1, and one of 101.5 is not.
 An objectness of 0.505 against 0.5 is within 0.01. A class of 0.3 against 0.25 is not, since the
 relative bound of the box entries does not apply to it.
 
+## short_slot
+
+`short_slot` returns the reference slot without its last entry.
+
 ## SizesThatHoldNoWholeSlotFail
 
-Five values against six, five values against five in slots of six, and a slot length of 0 all
-fail.
+Three rows fail: five values against six, five values against five in slots of six, and a slot
+length of 0.
 
-## TheLoadersOfAnAbsentRunAreNotFound
+## TheMapsOfAnAbsentRunAreNotFound
 
-`load_darknet_maps` of a run no reference data directory holds fails with FileNotFound naming
-the file. `load_darknet_head_dump` of [yolo] layer 16 of that run fails the same way, naming the
-input of layer 15 it reads first. Both hold whether `SA_REFERENCE_DATA_DIR` is set or not.
+`Medium_`, since the loader looks for the file. `load_darknet_maps` of a run no reference data
+directory holds fails with FileNotFound naming the file. It holds whether `SA_REFERENCE_DATA_DIR`
+is set or not.
+
+## TheHeadDumpOfAnAbsentRunIsNotFound
+
+`Medium_`, for the same reason. `load_darknet_head_dump` of [yolo] layer 16 of that run fails with
+FileNotFound, naming the input of layer 15 it reads first.

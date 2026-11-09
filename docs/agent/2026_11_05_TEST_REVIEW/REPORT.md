@@ -106,6 +106,8 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 
 35. M44 (2026-11-09, the worker): the `darknet_import_cases` records are applied. The seam of the two refusals is `check_tensors_against_entries(tensors, entries)`, a value function over the `NN::StateEntry` list that holds every check `fill_imported_state` made (unknown name, a name twice, dtype, shape, payload size, an entry no tensor supplies); `fill_imported_state` runs it first and copies after, so a refusal leaves the state untouched where it used to leave it half filled. The two resizes and the two halves of `ARepeatedOrMisshapenTensorIsRefused` run `Small_DarknetImportEntries` with no engine. `AStemWithoutFilesIsNotFound` is `Medium_DarknetImportFiles`, as its record says: the import looks for files. `EveryTensorLandsInTheEntryOfItsName` stays `Medium_` because it copies into engine storage.
 
+36. M45 (2026-11-09, the worker): the `darknet_training_cases` records are applied with no seam. `SizesThatHoldNoWholeSlotFail` runs three named rows, and `TheLoadersOfAnAbsentRunAreNotFound` splits into one case per loader, both `Medium_DarknetTrainingCasesFiles` since each looks for a file.
+
 ## Seams the M jobs wait on
 
 RW-155 asks the owner to rule on these. Each changes a module's surface, so the test named stays as it is until then.
