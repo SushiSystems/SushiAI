@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-09 — reference_files: Added a ReferenceFile constructor that takes the opener of the file, so an absent file is reported without the disk (`reference_file.hpp`).
+- 2026-11-09 — test_tree: Apply the layers/reference_files records (M36).
 - 2026-11-09 — test_tree: Apply the layers/layer_traces records (M34).
 - 2026-11-09 — test_tree: Apply the layers/layer_rows records (M33).
 - 2026-11-09 — io: Added check_imported_tensors, the checks of a weight file's tensors as a value function (`imported_model_writer.hpp`).

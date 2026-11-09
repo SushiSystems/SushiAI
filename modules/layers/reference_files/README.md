@@ -5,7 +5,7 @@ An internal module: only the test programs link it, its headers are never instal
 ## Owns
 
 The reader of the YOLO26 reference set: the `.sacp` files, which use the checkpoint format,
-and `MANIFEST.json`. `ReferenceFile` opens one file below the fixture directory it is given and indexes its records by tensor name.
+and `MANIFEST.json`. `ReferenceFile` opens one file below the fixture directory it is given and indexes its records by tensor name; a second constructor takes the opener of the file, so a caller can supply the stream or report the file absent without the disk.
 `SA_OPEN_REFERENCE_OR_SKIP` opens a file or skips the test naming the missing file, and
 `SA_READ_REFERENCE_OR_FAIL` reads one named tensor or fails the test. `near_reference` compares
 float results within a tolerance and `equal_reference` compares integer results element by

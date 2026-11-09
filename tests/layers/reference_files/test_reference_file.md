@@ -1,12 +1,13 @@
 # tests/layers/reference_files/test_reference_file.cpp
 
 
-Suites: `Small_ReferenceFile`.
+Suites: `Small_ReferenceFile`, `Medium_ReferenceFileDeathTest`.
 
 Tests `modules/layers/reference_files/include/SushiAI/reference_files/reference_file.hpp`: the
 absent-file path of `ReferenceFile`, the element access of `ReferenceTensor`, and the comparisons
 `near_reference` and `equal_reference`. The reading of a present file is exercised by the YOLO26
-cases that open the exported references. No case reads a file.
+cases that open the exported references. No case reads a file: the absent file is reported through an
+opener that finds nothing.
 
 ## float_tensor
 
@@ -16,20 +17,36 @@ Returns a found float32 tensor whose payload holds the given values.
 
 Views a vector of floats as a span.
 
+## K_TOLERANCE_UNDER_TEST
+
+The tolerance `near_reference` is called with. It is an input of the function under test, not a
+claim about an accuracy.
+
+## K_EXACT
+
+The tolerance that demands equal values.
+
 ## AnAbsentFileIsReportedWithItsPath
 
-A file that is not there, in the directory `SA_TEST_FIXTURE_DIR` names, is not present, its
-reason names "missing" and the file, and a read returns a tensor that is not found and carries
-the same reason.
+A file the opener does not find, below the directory "fixtures", is not present, its reason names
+"missing" and "fixtures/no_such_reference.sacp", and a read returns a tensor that is not found and
+carries the same reason.
 
-## ATensorIsReadOnlyAsItsOwnType
+## ATensorIsReadAsItsOwnType
 
-A float32 tensor yields its three values exactly. Reading it as int32 stops the process naming "float32" and
-"int32", and reading a tensor that was not found stops it naming "not found" and its reason.
+A float32 tensor yields its three values exactly.
+
+## ATensorReadAsAnotherTypeStopsTheProcess
+
+Reading a float32 tensor as int32 stops the process naming "float32" and "int32".
+
+## ATensorThatWasNotFoundStopsTheProcessWhenRead
+
+Reading a tensor that was not found stops the process naming "not found" and its reason.
 
 ## NearReferenceNamesTheFirstAndTheWorstMiss
 
-Values within 0.1 pass, and equal values pass at a tolerance of 0. Two misses out of four fail
+Values within the tolerance pass, and equal values pass at the exact tolerance. Two misses out of four fail
 with a message naming "2 of 4" and "worst at 3". Arrays of different lengths fail.
 
 ## EqualReferenceComparesAcrossIntegerTypes

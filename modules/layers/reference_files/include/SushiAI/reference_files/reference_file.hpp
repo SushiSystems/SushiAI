@@ -34,6 +34,9 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <functional>
+#include <istream>
+#include <memory>
 #include <map>
 #include <string>
 #include <string_view>
@@ -103,12 +106,27 @@ namespace SushiAI
         class ReferenceFile final
         {
             public:
+                /** @brief Opens the file at a path and returns its stream, or null when it is absent. */
+                using FileOpener = std::function<std::unique_ptr<std::istream>(const std::string&)>;
+
                 /**
                  * @brief Opens @p file_name, a path below @p directory, and indexes its records.
                  * @param directory The fixture directory; empty names none, and the file is reported missing.
                  * @param file_name The file's path below the directory.
                  */
                 explicit ReferenceFile(std::string_view directory, std::string_view file_name) noexcept
+                    : ReferenceFile(directory, file_name, &open_from_disk)
+                {
+                }
+
+                /**
+                 * @brief Opens @p file_name below @p directory through @p open, and indexes its records.
+                 * @param directory The fixture directory; empty names none, and the file is reported missing.
+                 * @param file_name The file's path below the directory.
+                 * @param open Returns the stream of the file at a path, or null when there is none.
+                 */
+                ReferenceFile(std::string_view directory, std::string_view file_name,
+                              const FileOpener& open) noexcept
                 {
                     if (directory.empty())
                     {
@@ -119,8 +137,8 @@ namespace SushiAI
 
                     path_ = std::string(directory) + "/";
                     path_ += file_name;
-                    stream_.open(path_, std::ios::binary);
-                    if (!stream_.is_open())
+                    stream_ = open(path_);
+                    if (!stream_)
                     {
                         reason_ = "the reference file is missing: " + path_;
                         return;
@@ -171,11 +189,11 @@ namespace SushiAI
                     tensor.dtype = record.dtype;
                     tensor.shape = record.shape;
                     tensor.payload.resize(record.payload_bytes());
-                    stream_.clear();
-                    stream_.seekg(entry->second.offset);
-                    stream_.read(reinterpret_cast<char*>(tensor.payload.data()),
-                                 static_cast<std::streamsize>(tensor.payload.size()));
-                    if (!stream_)
+                    stream_->clear();
+                    stream_->seekg(entry->second.offset);
+                    stream_->read(reinterpret_cast<char*>(tensor.payload.data()),
+                                  static_cast<std::streamsize>(tensor.payload.size()));
+                    if (!*stream_)
                     {
                         tensor.payload.clear();
                         tensor.reason = path_ + " ended inside the payload of '" + record.name + "'";
@@ -188,6 +206,17 @@ namespace SushiAI
                 }
 
             private:
+                /** @brief Opens the file at @p path on disk; null when it cannot be opened. */
+                static std::unique_ptr<std::istream> open_from_disk(const std::string& path)
+                {
+                    std::unique_ptr<std::ifstream> in =
+                        std::make_unique<std::ifstream>(path, std::ios::binary);
+                    if (!in->is_open())
+                        return nullptr;
+
+                    return in;
+                }
+
                 /** @brief Holds one record's header and where its payload starts. */
                 struct Entry
                 {
@@ -202,13 +231,13 @@ namespace SushiAI
                  */
                 [[nodiscard]] Status index_records()
                 {
-                    SA_TRY_ASSIGN(IO::CheckpointReader reader, IO::CheckpointReader::open(stream_));
+                    SA_TRY_ASSIGN(IO::CheckpointReader reader, IO::CheckpointReader::open(*stream_));
                     while (reader.read_count() < reader.count())
                     {
                         SA_TRY_ASSIGN(IO::TensorRecord record, reader.next());
-                        const std::streampos offset = stream_.tellg();
-                        stream_.seekg(static_cast<std::streamoff>(record.payload_bytes()),
-                                      std::ios::cur);
+                        const std::streampos offset = stream_->tellg();
+                        stream_->seekg(static_cast<std::streamoff>(record.payload_bytes()),
+                                       std::ios::cur);
                         std::string name = record.name;
                         entries_.emplace(std::move(name), Entry{std::move(record), offset});
                     }
@@ -222,7 +251,7 @@ namespace SushiAI
                 std::string reason_;
 
                 /// @brief Holds the open file.
-                std::ifstream stream_;
+                std::unique_ptr<std::istream> stream_;
 
                 /// @brief Holds the records of the file by tensor name.
                 std::map<std::string, Entry, std::less<>> entries_;
