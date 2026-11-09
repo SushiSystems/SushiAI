@@ -28,8 +28,10 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -108,20 +110,52 @@ namespace
 
         return nullptr;
     }
+
+    /** @brief Returns the names of @p tensors, sorted, so the order of the listing is free. */
+    std::vector<std::string> sorted_names_of(const std::vector<ImportedTensor>& tensors)
+    {
+        std::vector<std::string> names;
+        names.reserve(tensors.size());
+        std::transform(tensors.begin(), tensors.end(), std::back_inserter(names),
+                       [](const ImportedTensor& tensor) { return tensor.record.name; });
+        std::sort(names.begin(), names.end());
+        return names;
+    }
 } // namespace
 
-/** @brief Tests that one float32 tensor is listed per target name, with the bytes of its shape. */
+/** @brief Tests that one tensor is listed per target name. */
 TEST(Small_DarknetTensors, ListsOneTensorPerNamedTarget)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<ImportedTensor> tensors,
                             list_darknet_tensors(make_weights(), K_SHAPES, K_TARGETS));
 
-    ASSERT_EQ(tensors.size(), 7u);
-    for (const ImportedTensor& tensor : tensors)
+    EXPECT_EQ(sorted_names_of(tensors),
+              (std::vector<std::string>{"0.bias", "0.weight", "1.weight", "2.bias",
+                                        "2.running_mean", "2.running_var", "2.weight"}));
+}
+
+/** @brief Tests that every listed tensor is float32. */
+TEST(Small_DarknetTensors, EveryTensorIsFloat32)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ImportedTensor> tensors,
+                            list_darknet_tensors(make_weights(), K_SHAPES, K_TARGETS));
+
+    EXPECT_TRUE(std::all_of(tensors.begin(), tensors.end(), [](const ImportedTensor& tensor)
     {
-        EXPECT_EQ(tensor.record.dtype, DType::Float32) << tensor.record.name;
-        EXPECT_EQ(tensor.payload.size(), tensor.record.payload_bytes()) << tensor.record.name;
-    }
+        return tensor.record.dtype == DType::Float32;
+    }));
+}
+
+/** @brief Tests that the payload of every tensor has the byte count its record states. */
+TEST(Small_DarknetTensors, EveryPayloadHasTheBytesOfItsRecord)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ImportedTensor> tensors,
+                            list_darknet_tensors(make_weights(), K_SHAPES, K_TARGETS));
+
+    EXPECT_TRUE(std::all_of(tensors.begin(), tensors.end(), [](const ImportedTensor& tensor)
+    {
+        return tensor.payload.size() == tensor.record.payload_bytes();
+    }));
 }
 
 /** @brief Tests that the weights move from [out, in, kh, kw] to [out, kh, kw, in]. */

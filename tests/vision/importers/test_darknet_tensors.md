@@ -12,8 +12,16 @@ targets name `0.weight` and `0.bias` for the first, and `1.weight`, `2.bias`, `2
 
 ## ListsOneTensorPerNamedTarget
 
-Seven tensors are listed. Each is `Float32` and its payload has the byte count its record
-states.
+The sorted names of the listing are `0.bias`, `0.weight`, `1.weight`, `2.bias`, `2.running_mean`,
+`2.running_var` and `2.weight`: seven tensors, one per target name.
+
+## EveryTensorIsFloat32
+
+Each listed tensor has the dtype `Float32`.
+
+## EveryPayloadHasTheBytesOfItsRecord
+
+Each listed tensor's payload has the byte count its record states.
 
 ## WeightsMoveToKernelLast
 
