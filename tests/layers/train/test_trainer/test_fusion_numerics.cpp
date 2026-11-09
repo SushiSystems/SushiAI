@@ -28,6 +28,8 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -82,20 +84,39 @@ using Graph::TensorPool;
 
 namespace
 {
-    /**
-     * @brief Bounds the absolute error of a float result; 256 unit roundoffs of float, the smallest
-     * power of two that covers 1e-5.
-     */
-    constexpr double K_FLOAT_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
-
-    class Medium_Fusion : public ::testing::Test {};
-
     constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
     constexpr int64_t K_HIDDEN = 12;
     constexpr int64_t K_CLASSES = 4;
     constexpr int64_t K_BATCHES = 4;
     constexpr int64_t K_EPOCHS = 3;
+
+    /** @brief Holds the rows of the spill probe. */
+    constexpr int64_t K_ROWS = 4;
+
+    /** @brief Holds the inputs of a row of the spill probe. */
+    constexpr int64_t K_IN_DIM = 3;
+
+    /** @brief Holds the outputs of a row of the spill probe. */
+    constexpr int64_t K_OUT_DIM = 5;
+
+    /**
+     * @brief Holds the pre-activation below which gelu(x) and x are told apart. At -0.5 they differ
+     *        by 0.35, so any element under the cut separates them by more than K_SEPARATION.
+     */
+    constexpr double K_NEGATIVE_CUT = -0.5;
+
+    /** @brief Holds the distance two tensors must exceed to count as different at the cut. */
+    constexpr double K_SEPARATION = 0.1;
+
+    /** @brief The activations a row of the training comparisons builds its model with. */
+    enum class Activation
+    {
+        ReLU,
+        Tanh,
+        Sigmoid,
+        GELU
+    };
 
     /** @brief The synthetic problem every comparison below trains on. */
     Data::SyntheticOptions data_options()
@@ -119,10 +140,8 @@ namespace
         std::vector<std::string> names;
         std::vector<double> losses;
         std::vector<double> accuracies;
-        std::size_t compiles = 0;
         std::size_t operations_per_step = 0;
         std::size_t fused_subtrees = 0;
-        std::size_t declined = 0;
         std::size_t selector_refusals = 0;
     };
 
@@ -166,7 +185,6 @@ namespace
                                 Data::SyntheticClassification::make(backend, data_options()));
 
         run.fused_subtrees = built.fusion.fused().size();
-        run.declined = built.fusion.declined().size();
 
         for (const Graph::FusionSelection& selection : trainer->step().selections())
             if (selection.chosen != selection.matched) ++run.selector_refusals;
@@ -190,8 +208,37 @@ namespace
             run.names.push_back(slot.name);
             run.parameters.push_back(SaTest::read_tensor_bytes(slot.parameter));
         }
+    }
 
-        run.compiles = trainer->compile_count();
+    /** @brief Trains the two-layer model with @p Act between its layers, see train(). */
+    template<typename Act>
+    void train_stack(FusionOptions fusion, TrainedRun& run, const Graph::FusionSelector* selector)
+    {
+        using MLP = NN::Sequential<NN::Linear, Act, NN::Linear>;
+
+        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, Act{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        train(model, fusion, run, selector);
+    }
+
+    /** @brief Trains the two-layer model of @p activation, see train(). */
+    void train_with(Activation activation, FusionOptions fusion, TrainedRun& run,
+                    const Graph::FusionSelector* selector = nullptr)
+    {
+        switch (activation)
+        {
+            case Activation::ReLU:
+                train_stack<NN::ReLU>(fusion, run, selector);
+                break;
+            case Activation::Tanh:
+                train_stack<NN::Tanh>(fusion, run, selector);
+                break;
+            case Activation::Sigmoid:
+                train_stack<NN::Sigmoid>(fusion, run, selector);
+                break;
+            case Activation::GELU:
+                train_stack<NN::GELU>(fusion, run, selector);
+                break;
+        }
     }
 
     /** @brief Asserts two runs agree byte for byte, naming where they do not. */
@@ -225,6 +272,17 @@ namespace
         return options;
     }
 
+    /** @brief A selector that declines every matched form. */
+    class RefuseEverything final : public Graph::FusionSelector
+    {
+        public:
+            /** @brief Answers no form, with a reason. */
+            Graph::FusionChoice choose(const Graph::FusionQuery&) const override
+            {
+                return Graph::FusionChoice{FusedForm::None, "this device wants none of it"};
+            }
+    };
+
     /**
      * @brief Returns a device profile that is not this machine's.
      * @see tests/layers/train/README.md
@@ -241,23 +299,198 @@ namespace
         profile.compute_units = 10;
         return profile;
     }
+
+    /** @brief Holds what the spill probe computed on the device and on the host. */
+    struct SpillRun
+    {
+        std::vector<double> expected;    /**< @brief Holds b + x w, worked on the host. */
+        std::vector<double> magnitude;   /**< @brief Holds |b| + the sum of |x w| per element. */
+        std::vector<double> spilled;     /**< @brief Holds the spill buffer after the run. */
+        std::vector<double> activated;   /**< @brief Holds the activation after the run. */
+        std::size_t emitted = 0;         /**< @brief Holds the operations the lowering emitted. */
+    };
+
+    /** @brief Works b + x w for the probe's inputs on the host, with the magnitude of each sum. */
+    void work_pre_activation(const std::vector<double>& x, const std::vector<double>& w,
+                             const std::vector<double>& b, SpillRun& run)
+    {
+        for (int64_t row = 0; row < K_ROWS; ++row)
+            for (int64_t col = 0; col < K_OUT_DIM; ++col)
+            {
+                double value = b[static_cast<std::size_t>(col)];
+                double magnitude = std::abs(value);
+                for (int64_t k = 0; k < K_IN_DIM; ++k)
+                {
+                    const double product = x[static_cast<std::size_t>(row * K_IN_DIM + k)]
+                                         * w[static_cast<std::size_t>(col * K_IN_DIM + k)];
+                    value += product;
+                    magnitude += std::abs(product);
+                }
+
+                run.expected.push_back(value);
+                run.magnitude.push_back(magnitude);
+            }
+    }
+
+    /**
+     * @brief Lowers a fused bias-add and GELU with @p selector and reads the spill.
+     * @param selector Null selects this machine's own device.
+     */
+    void run_spill(const Graph::FusionSelector* selector, SpillRun& run)
+    {
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
+
+        Graph::Graph graph;
+        const Graph::GraphBuilder builder(graph);
+
+        const Graph::ValueID x = builder.input(Shape{K_ROWS, K_IN_DIM}, "x");
+        const Graph::ValueID w = builder.parameter(Shape{K_OUT_DIM, K_IN_DIM}, "w");
+        const Graph::ValueID b = builder.parameter(Shape{K_OUT_DIM}, "b");
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID pre,
+                                builder.bias_add(builder.matmul(x, w, false, true), b));
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID out, builder.gelu(pre));
+
+        // `pre` is unobserved; the fold rests on the spill; see tests/layers/train/README.md.
+        const std::vector<Graph::ValueID> observed{out};
+        FusionOptions options;
+        options.observed =
+            SushiRuntime::span<const Graph::ValueID>(observed.data(), observed.size());
+
+        const Graph::FusionReport report = Graph::fuse(graph, options);
+        ASSERT_EQ(report.count(FusedForm::GEMMBiasGELU), 1u) << report.to_string();
+
+        TensorPool pool(engine);
+        ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
+
+        SaTest::HostNoise noise(0xC0FFEEu);
+        std::vector<double> x_values(static_cast<std::size_t>(K_ROWS * K_IN_DIM));
+        std::vector<double> w_values(static_cast<std::size_t>(K_OUT_DIM * K_IN_DIM));
+        std::vector<double> b_values(static_cast<std::size_t>(K_OUT_DIM));
+        noise.fill(SushiRuntime::span<double>(x_values.data(), x_values.size()), 2.0);
+        noise.fill(SushiRuntime::span<double>(w_values.data(), w_values.size()), 2.0);
+        noise.fill(SushiRuntime::span<double>(b_values.data(), b_values.size()), 2.0);
+
+        SaTest::write_tensor(pool.tensor(x), x_values);
+        SaTest::write_tensor(pool.tensor(w), w_values);
+        SaTest::write_tensor(pool.tensor(b), b_values);
+
+        const Graph::DeviceFusionSelector own = Graph::DeviceFusionSelector::for_backend(backend);
+        SaTest::TestGraph recording(backend);
+        Graph::Lowering lowering(recording.recorder(), engine.rng(), pool,
+                                 selector == nullptr ? own : *selector);
+        ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
+        run.emitted = lowering.emitted_operations();
+
+        SA_EXPECT_OK(recording.run());
+        SaTest::TestEnvironment::runtime().wait().value();
+
+        run.spilled = SaTest::read_tensor(pool.tensor(pre));
+        run.activated = SaTest::read_tensor(pool.tensor(out));
+        work_pre_activation(x_values, w_values, b_values, run);
+    }
+
+    /** @brief Returns how many elements of @p run's spill lie outside the bound of their sum. */
+    std::size_t spill_errors(const SpillRun& run)
+    {
+        std::size_t outside = 0;
+        for (std::size_t index = 0; index < run.expected.size(); ++index)
+            outside += TestSupport::measure_sum_error<float>(
+                           run.spilled[index], run.expected[index], run.magnitude[index],
+                           static_cast<std::size_t>(K_IN_DIM) + 1).is_within() ? 0u : 1u;
+
+        return outside;
+    }
+
+    /** @brief Returns how many elements of @p run's pre-activation lie under K_NEGATIVE_CUT. */
+    std::size_t negative_count(const SpillRun& run)
+    {
+        return static_cast<std::size_t>(std::count_if(
+            run.expected.begin(), run.expected.end(),
+            [](double value) { return value < K_NEGATIVE_CUT; }));
+    }
+
+    /** @brief Returns how many elements under K_NEGATIVE_CUT hold a spill apart from the activation. */
+    std::size_t separated_count(const SpillRun& run)
+    {
+        std::size_t separated = 0;
+        for (std::size_t index = 0; index < run.expected.size(); ++index)
+            separated += run.expected[index] < K_NEGATIVE_CUT &&
+                std::abs(run.spilled[index] - run.activated[index]) > K_SEPARATION ? 1u : 0u;
+
+        return separated;
+    }
+
+    /** @brief Expects the spill to hold the pre-activation and to differ from the activation. */
+    void expect_spill_is_the_pre_activation(const SpillRun& run)
+    {
+        ASSERT_EQ(run.spilled.size(), static_cast<std::size_t>(K_ROWS * K_OUT_DIM));
+
+        EXPECT_EQ(spill_errors(run), 0u) << "the spill is not the pre-activation";
+
+        // Only a negative element separates them; see tests/layers/train/README.md.
+        EXPECT_GT(negative_count(run), 0u)
+            << "no element was negative enough for gelu(x) and x to differ";
+        EXPECT_EQ(separated_count(run), negative_count(run))
+            << "a negative element's spill holds the activated value";
+    }
+
+    /** @brief One activation row of the training comparisons. */
+    struct ActivationRow
+    {
+        Activation activation;   /**< @brief Holds the activation of the model. */
+        const char* name;        /**< @brief Names the row in the test name. */
+    };
+
+    /** @brief One row of the disabled-form comparison. */
+    struct DisabledRow
+    {
+        Activation activation;   /**< @brief Holds the activation of the model. */
+        FusedForm form;          /**< @brief Holds the catalog form the run switches off. */
+        const char* name;        /**< @brief Names the row in the test name. */
+    };
+
+    /** @brief Names a row of the activation table. */
+    std::string activation_name(const ::testing::TestParamInfo<ActivationRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a row of the disabled-form table. */
+    std::string disabled_name(const ::testing::TestParamInfo<DisabledRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Trains each activation fused and unfused and compares them. */
+    class Medium_FusionTraining : public ::testing::TestWithParam<ActivationRow> {};
+
+    /** @brief Trains each activation with and without a selector that refuses every form. */
+    class Medium_FusionRefusal : public ::testing::TestWithParam<ActivationRow> {};
+
+    /** @brief Trains each activation with and without its catalog form. */
+    class Medium_FusionDisabled : public ::testing::TestWithParam<DisabledRow> {};
+
+    /** @brief Provides the cases that train, record or read a spill on an engine of their own. */
+    class Medium_Fusion : public ::testing::Test {};
+
+    /** @brief Provides the fusion report of a graph, read without a device. */
+    class Small_FusionReport : public ::testing::Test {};
+
+    /** @brief Provides the decisions of the selector over a described device. */
+    class Small_FusionSelector : public ::testing::Test {};
 }
 
 /**
- * @brief Tests that a ReLU MLP trains to identical bytes with fusion on and off.
+ * @brief Tests that a model trains to identical bytes with fusion on and off, for each activation.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Fusion, AReLUMLPTrainsIdenticallyFusedAndUnfused)
+TEST_P(Medium_FusionTraining, TrainsIdenticallyFusedAndUnfused)
 {
-    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
-
-    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
     TrainedRun fused;
-    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
+    ASSERT_NO_FATAL_FAILURE(train_with(GetParam().activation, FusionOptions{}, fused));
     TrainedRun plain;
-    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
+    ASSERT_NO_FATAL_FAILURE(train_with(GetParam().activation, off(), plain));
 
     ASSERT_GT(fused.fused_subtrees, 0u);
     ASSERT_EQ(plain.fused_subtrees, 0u);
@@ -265,72 +498,25 @@ TEST_F(Medium_Fusion, AReLUMLPTrainsIdenticallyFusedAndUnfused)
     expect_runs_agree(fused, plain, "fusing the forward and backward graph");
 }
 
-/**
- * @brief Tests that a tanh MLP trains to identical bytes with fusion on and off.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_Fusion, ATanhMLPTrainsIdenticallyFusedAndUnfused)
+INSTANTIATE_TEST_SUITE_P(Activations, Medium_FusionTraining,
+                         ::testing::Values(ActivationRow{Activation::ReLU, "ReLU"},
+                                           ActivationRow{Activation::Tanh, "Tanh"},
+                                           ActivationRow{Activation::Sigmoid, "Sigmoid"},
+                                           ActivationRow{Activation::GELU, "GELU"}),
+                         activation_name);
+
+/** @brief Tests that the GELU model trains, so agreeing with the control proves something. */
+TEST_F(Medium_Fusion, TheGELUModelLowersItsLoss)
 {
-    using MLP = NN::Sequential<NN::Linear, NN::Tanh, NN::Linear>;
-
-    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
     TrainedRun fused;
-    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
-    TrainedRun plain;
-    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
+    ASSERT_NO_FATAL_FAILURE(train_with(Activation::GELU, FusionOptions{}, fused));
 
-    ASSERT_GT(fused.fused_subtrees, 0u);
-    expect_runs_agree(fused, plain, "a fused tanh epilogue");
-}
-
-TEST_F(Medium_Fusion, ASigmoidMLPTrainsIdenticallyFusedAndUnfused)
-{
-    using MLP = NN::Sequential<NN::Linear, NN::Sigmoid, NN::Linear>;
-
-    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
-    TrainedRun fused;
-    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
-    TrainedRun plain;
-    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
-
-    ASSERT_GT(fused.fused_subtrees, 0u);
-    expect_runs_agree(fused, plain, "a fused sigmoid epilogue");
-}
-
-/**
- * @brief Tests that a GELU MLP trains to identical bytes with fusion on and off.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_Fusion, AGELUMLPTrainsIdenticallyFusedAndUnfused)
-{
-    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
-
-    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
-    TrainedRun fused;
-    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
-    TrainedRun plain;
-    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
-
-    // Two layers and the gradient tail fuse; see tests/layers/train/README.md.
-    EXPECT_EQ(fused.fused_subtrees, 3u)
-        << "expected gemm+bias+gelu, gemm+bias and the cross-entropy gradient tail";
-    ASSERT_EQ(plain.fused_subtrees, 0u);
-
-    expect_runs_agree(fused, plain, "a GELU epilogue spilling its pre-activation");
-
-    // The loss fell, so both runs really trained; see tests/layers/train/README.md.
     ASSERT_GE(fused.losses.size(), 2u);
-    EXPECT_LT(fused.losses.back(), fused.losses.front())
-        << "the GELU model did not train at all, so agreeing with the control proves nothing";
+    EXPECT_LT(fused.losses.back(), fused.losses.front());
 }
 
-TEST_F(Medium_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
+/** @brief Tests that the GELU model fuses its two layers and the gradient tail. */
+TEST_F(Small_FusionReport, TheGELUModelFusesTwoLayersAndTheGradientTail)
 {
     using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
@@ -338,30 +524,55 @@ TEST_F(Medium_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
     SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
-    ASSERT_EQ(built.fusion.count(FusedForm::GEMMBiasGELU), 1u) << built.fusion.to_string();
+    // gemm+bias+gelu, gemm+bias and the cross-entropy gradient tail.
+    EXPECT_EQ(built.fusion.fused().size(), 3u) << built.fusion.to_string();
+}
 
-    for (const Graph::DeclinedFusion& decline : built.fusion.declined())
-        EXPECT_NE(decline.reason, Graph::FusionDecline::GradientNeedsPreActivation)
-            << built.fusion.to_string();
+/** @brief Tests that the GELU fold is reported as one fold, with no refusal for its gradient. */
+TEST_F(Small_FusionReport, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
+{
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
+
+    EXPECT_EQ(built.fusion.count(FusedForm::GEMMBiasGELU), 1u) << built.fusion.to_string();
+
+    const auto& declined = built.fusion.declined();
+    EXPECT_TRUE(std::none_of(declined.begin(), declined.end(),
+                             [](const Graph::DeclinedFusion& decline)
+                             { return decline.reason ==
+                                      Graph::FusionDecline::GradientNeedsPreActivation; }))
+        << built.fusion.to_string();
+}
+
+/** @brief Tests that gelu_backward reads the value the fused GELU spills. */
+TEST_F(Small_FusionReport, TheGELUBackwardReadsTheSpilledValue)
+{
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
     // gelu_backward must read the spilled value; see tests/layers/train/README.md.
-    const Graph::FusedSubtree* gelu = nullptr;
-    for (const Graph::FusedSubtree& subtree : built.fusion.fused())
-        if (subtree.form == FusedForm::GEMMBiasGELU) gelu = &subtree;
-
-    ASSERT_NE(gelu, nullptr);
+    const auto& fused = built.fusion.fused();
+    const auto gelu = std::find_if(fused.begin(), fused.end(),
+                                   [](const Graph::FusedSubtree& subtree)
+                                   { return subtree.form == FusedForm::GEMMBiasGELU; });
+    ASSERT_NE(gelu, fused.end());
     ASSERT_NE(gelu->spilled, Graph::K_NO_VALUE);
 
     const Graph::NodeID producer = built.graph.value(gelu->spilled).producer;
     ASSERT_NE(producer, Graph::K_NO_NODE) << "nothing writes the spill";
     EXPECT_EQ(built.graph.node(producer).op, Ops::K_GEMM_BIAS_GELU.id);
 
-    bool read_by_the_gradient = false;
-    for (const Graph::Node& node : built.graph.nodes())
-        if (node.op == Ops::K_GELU_BACKWARD.id && node.inputs.at(1) == gelu->spilled)
-            read_by_the_gradient = true;
-
-    EXPECT_TRUE(read_by_the_gradient)
+    const auto& nodes = built.graph.nodes();
+    EXPECT_TRUE(std::any_of(nodes.begin(), nodes.end(),
+                            [&](const Graph::Node& node)
+                            { return node.op == Ops::K_GELU_BACKWARD.id &&
+                                     node.inputs.at(1) == gelu->spilled; }))
         << "gelu_backward does not read the spilled pre-activation, so the spill is "
            "buying nothing and the fold is the silently wrong one";
 }
@@ -372,147 +583,68 @@ TEST_F(Medium_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
  */
 TEST_F(Medium_Fusion, TheSpillHoldsThePreActivationItself)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
+    SpillRun run;
+    ASSERT_NO_FATAL_FAILURE(run_spill(nullptr, run));
 
-    constexpr int64_t K_ROWS = 4;
-    constexpr int64_t K_IN_DIM = 3;
-    constexpr int64_t K_OUT_DIM = 5;
-
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const Graph::ValueID x = builder.input(Shape{K_ROWS, K_IN_DIM}, "x");
-    const Graph::ValueID w = builder.parameter(Shape{K_OUT_DIM, K_IN_DIM}, "w");
-    const Graph::ValueID b = builder.parameter(Shape{K_OUT_DIM}, "b");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID pre,
-                            builder.bias_add(builder.matmul(x, w, false, true), b));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID out, builder.gelu(pre));
-
-    // `pre` is unobserved; the fold rests on the spill; see tests/layers/train/README.md.
-    const std::vector<Graph::ValueID> observed{out};
-    FusionOptions options;
-    options.observed = SushiRuntime::span<const Graph::ValueID>(observed.data(), observed.size());
-
-    const Graph::FusionReport report = Graph::fuse(graph, options);
-    ASSERT_EQ(report.count(FusedForm::GEMMBiasGELU), 1u) << report.to_string();
-
-    TensorPool pool(engine);
-    ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
-
-    SaTest::HostNoise noise(0xC0FFEEu);
-    std::vector<double> x_values(static_cast<std::size_t>(K_ROWS * K_IN_DIM));
-    std::vector<double> w_values(static_cast<std::size_t>(K_OUT_DIM * K_IN_DIM));
-    std::vector<double> b_values(static_cast<std::size_t>(K_OUT_DIM));
-    noise.fill(SushiRuntime::span<double>(x_values.data(), x_values.size()), 2.0);
-    noise.fill(SushiRuntime::span<double>(w_values.data(), w_values.size()), 2.0);
-    noise.fill(SushiRuntime::span<double>(b_values.data(), b_values.size()), 2.0);
-
-    SaTest::write_tensor(pool.tensor(x),
-                         SushiRuntime::span<const double>(x_values.data(), x_values.size()));
-    SaTest::write_tensor(pool.tensor(w),
-                         SushiRuntime::span<const double>(w_values.data(), w_values.size()));
-    SaTest::write_tensor(pool.tensor(b),
-                         SushiRuntime::span<const double>(b_values.data(), b_values.size()));
-
-    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_backend(backend);
-    SaTest::TestGraph recording(backend);
-    Graph::Lowering lowering(recording.recorder(), engine.rng(), pool, selector);
-    ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
-    ASSERT_EQ(1u, lowering.emitted_operations())
+    ASSERT_EQ(1u, run.emitted)
         << "this machine's device declined the fused form, so the epilogue never ran and "
            "this test is not exercising what it claims to";
+    expect_spill_is_the_pre_activation(run);
+}
 
-    SA_EXPECT_OK(recording.run());
-    SaTest::TestEnvironment::runtime().wait().value();
+/** @brief Tests that a refused GELU epilogue still fills the spill with the pre-activation. */
+TEST_F(Medium_Fusion, ADeclinedEpilogueStillFillsTheSpillWithThePreActivation)
+{
+    const RefuseEverything refuse;
+    SpillRun run;
+    ASSERT_NO_FATAL_FAILURE(run_spill(&refuse, run));
 
-    const std::vector<double> spilled = SaTest::read_tensor(pool.tensor(pre));
-    const std::vector<double> activated = SaTest::read_tensor(pool.tensor(out));
-
-    ASSERT_EQ(spilled.size(), static_cast<std::size_t>(K_ROWS * K_OUT_DIM));
-
-    // The reference is computed on the host; see tests/layers/train/README.md.
-    std::size_t separated = 0;
-
-    for (int64_t row = 0; row < K_ROWS; ++row)
-        for (int64_t col = 0; col < K_OUT_DIM; ++col)
-        {
-            double expected = b_values[static_cast<std::size_t>(col)];
-            for (int64_t k = 0; k < K_IN_DIM; ++k)
-                expected += x_values[static_cast<std::size_t>(row * K_IN_DIM + k)]
-                          * w_values[static_cast<std::size_t>(col * K_IN_DIM + k)];
-
-            const std::size_t index = static_cast<std::size_t>(row * K_OUT_DIM + col);
-            EXPECT_NEAR(spilled[index], expected, K_FLOAT_TOLERANCE)
-                << "the spill at (" << row << ", " << col << ") is not the pre-activation";
-
-            // Only a negative element separates them; see tests/layers/train/README.md.
-            if (expected < -0.5)
-            {
-                ++separated;
-                EXPECT_GT(std::abs(spilled[index] - activated[index]), 0.1)
-                    << "the spill at (" << row << ", " << col << ") holds the activated "
-                    << "value, not the pre-activation";
-            }
-        }
-
-    EXPECT_GT(separated, 0u)
-        << "no element was negative enough for gelu(x) and x to differ, so the check "
-           "above never distinguished the spill from the result";
+    expect_spill_is_the_pre_activation(run);
 }
 
 /**
- * @brief Tests that a refused GELU epilogue still fills the spill and trains to identical bytes.
+ * @brief Tests that a selector refusing every form trains to the bytes of the taken form.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
+TEST_P(Medium_FusionRefusal, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
 {
-    class RefuseEverything final : public Graph::FusionSelector
-    {
-        public:
-            Graph::FusionChoice choose(const Graph::FusionQuery&) const override
-            {
-                return Graph::FusionChoice{FusedForm::None, "this device wants none of it"};
-            }
-    };
-
-    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
-
-    MLP taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
     const RefuseEverything refuse;
     TrainedRun taken;
-    ASSERT_NO_FATAL_FAILURE(train(taken_model, FusionOptions{}, taken));
+    ASSERT_NO_FATAL_FAILURE(train_with(GetParam().activation, FusionOptions{}, taken));
     TrainedRun refused;
-    ASSERT_NO_FATAL_FAILURE(train(refused_model, FusionOptions{}, refused, &refuse));
+    ASSERT_NO_FATAL_FAILURE(
+        train_with(GetParam().activation, FusionOptions{}, refused, &refuse));
 
+    // The graph fused identically; only the spelling differs.
     EXPECT_EQ(taken.fused_subtrees, refused.fused_subtrees);
     EXPECT_EQ(refused.selector_refusals, refused.fused_subtrees);
+    EXPECT_EQ(taken.selector_refusals, 0u)
+        << "this machine's own device declined a form; the measurement notes assume it did not";
+
     EXPECT_GT(refused.operations_per_step, taken.operations_per_step);
 
-    expect_runs_agree(taken, refused, "a declined GELU epilogue that still spills");
+    expect_runs_agree(taken, refused, "a selector that refuses every form");
 }
 
+INSTANTIATE_TEST_SUITE_P(Forms, Medium_FusionRefusal,
+                         ::testing::Values(ActivationRow{Activation::ReLU, "ReLU"},
+                                           ActivationRow{Activation::GELU, "GELU"}),
+                         activation_name);
+
 /**
- * @brief Tests that disabling the GELU form trains to the same bytes as folding it.
+ * @brief Tests that switching one catalog form off falls back to the rest and moves no byte.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
+TEST_P(Medium_FusionDisabled, TrainsToTheSamePlaceAsFoldingIt)
 {
-    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
-
-    MLP folded_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP separate_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
-    const std::vector<FusedForm> without{FusedForm::GEMMBiasGELU};
+    const std::vector<FusedForm> without{GetParam().form};
     FusionOptions narrowed;
     narrowed.disabled = SushiRuntime::span<const FusedForm>(without.data(), without.size());
 
     TrainedRun folded;
-    ASSERT_NO_FATAL_FAILURE(train(folded_model, FusionOptions{}, folded));
+    ASSERT_NO_FATAL_FAILURE(train_with(GetParam().activation, FusionOptions{}, folded));
     TrainedRun separate;
-    ASSERT_NO_FATAL_FAILURE(train(separate_model, narrowed, separate));
+    ASSERT_NO_FATAL_FAILURE(train_with(GetParam().activation, narrowed, separate));
 
     EXPECT_EQ(folded.fused_subtrees, separate.fused_subtrees)
         << "switching the three-node form off must fall back to gemm+bias, not to nothing";
@@ -520,8 +652,15 @@ TEST_F(Medium_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
     // Disabling the form costs exactly two kernels; see tests/layers/train/README.md.
     EXPECT_EQ(separate.operations_per_step, folded.operations_per_step + 2u);
 
-    expect_runs_agree(folded, separate, "switching the fused GELU epilogue off");
+    expect_runs_agree(folded, separate, "switching the fused epilogue off");
 }
+
+INSTANTIATE_TEST_SUITE_P(Forms, Medium_FusionDisabled,
+                         ::testing::Values(DisabledRow{Activation::ReLU, FusedForm::GEMMBiasReLU,
+                                                       "ReLU"},
+                                           DisabledRow{Activation::GELU, FusedForm::GEMMBiasGELU,
+                                                       "GELU"}),
+                         disabled_name);
 
 /**
  * @brief Tests that the fused ReLU MLP step issues ten fewer operations than the unfused one.
@@ -529,21 +668,12 @@ TEST_F(Medium_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
  */
 TEST_F(Medium_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 {
-    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
-
-    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
     TrainedRun fused;
-    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
+    ASSERT_NO_FATAL_FAILURE(train_with(Activation::ReLU, FusionOptions{}, fused));
     TrainedRun plain;
-    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
+    ASSERT_NO_FATAL_FAILURE(train_with(Activation::ReLU, off(), plain));
 
     EXPECT_EQ(plain.operations_per_step, fused.operations_per_step + 10u);
-
-    // Fusing adds no ordering node and no compile; see tests/layers/train/README.md.
-    EXPECT_EQ(fused.compiles, 1u);
-    EXPECT_EQ(plain.compiles, 1u);
 }
 
 /**
@@ -649,69 +779,8 @@ TEST_F(Medium_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
            "all - while the run still trains and still reports success.";
 }
 
-/**
- * @brief Tests that disabling GEMM_BIAS_RELU falls back to GEMM_BIAS and moves no byte.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
-{
-    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
-
-    MLP whole_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP narrowed_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
-    const std::vector<FusedForm> without{FusedForm::GEMMBiasReLU};
-    FusionOptions narrowed;
-    narrowed.disabled = SushiRuntime::span<const FusedForm>(without.data(), without.size());
-
-    TrainedRun whole;
-    ASSERT_NO_FATAL_FAILURE(train(whole_model, FusionOptions{}, whole));
-    TrainedRun some;
-    ASSERT_NO_FATAL_FAILURE(train(narrowed_model, narrowed, some));
-
-    // A catalog refusal costs two kernels, not one; see tests/layers/train/README.md.
-    EXPECT_EQ(some.operations_per_step, whole.operations_per_step + 2u);
-    expect_runs_agree(whole, some, "switching the fused ReLU epilogue off");
-}
-
-/**
- * @brief Tests that a selector refusing every form yields an unfused plan with identical bytes.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
-{
-    class RefuseEverything final : public Graph::FusionSelector
-    {
-        public:
-            Graph::FusionChoice choose(const Graph::FusionQuery&) const override
-            {
-                return Graph::FusionChoice{FusedForm::None, "this device wants none of it"};
-            }
-    };
-
-    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
-
-    MLP taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    MLP refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-
-    const RefuseEverything refuse;
-    TrainedRun taken;
-    ASSERT_NO_FATAL_FAILURE(train(taken_model, FusionOptions{}, taken));
-    TrainedRun refused;
-    ASSERT_NO_FATAL_FAILURE(train(refused_model, FusionOptions{}, refused, &refuse));
-
-    // The graph fused identically; only the spelling differs.
-    EXPECT_EQ(taken.fused_subtrees, refused.fused_subtrees);
-    EXPECT_EQ(refused.selector_refusals, refused.fused_subtrees);
-    EXPECT_EQ(taken.selector_refusals, 0u)
-        << "this machine's own device declined a form; the measurement notes assume it did not";
-
-    EXPECT_GT(refused.operations_per_step, taken.operations_per_step);
-
-    expect_runs_agree(taken, refused, "a selector that refuses every form");
-}
-
-TEST_F(Medium_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKernel)
+/** @brief Tests that a described device without fp64 is refused a fused double kernel. */
+TEST_F(Small_FusionSelector, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKernel)
 {
     const Graph::DeviceFusionSelector without(pretend_device(false),
                                               SushiBLAS::ExecutionMode::Auto);
@@ -733,32 +802,30 @@ TEST_F(Medium_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKernel
 }
 
 /**
- * @brief Tests that host-executing modes are refused a GEMM epilogue and keep the zip form.
+ * @brief Tests that the host-executing mode is refused a GEMM epilogue and keeps the zip form.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory)
+TEST_F(Small_FusionSelector, AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory)
 {
+    const Graph::DeviceFusionSelector selector(pretend_device(true),
+                                               SushiBLAS::ExecutionMode::ForceReference);
+
     Graph::FusionQuery gemm;
     gemm.matched = FusedForm::GEMMBias;
     gemm.rows = 32;
     gemm.columns = 128;
+    EXPECT_EQ(selector.choose(gemm).form, FusedForm::None);
 
-    for (SushiBLAS::ExecutionMode mode : {SushiBLAS::ExecutionMode::ForceReference})
-    {
-        const Graph::DeviceFusionSelector selector(pretend_device(true), mode);
-        EXPECT_EQ(selector.choose(gemm).form, FusedForm::None)
-            << "mode " << static_cast<int>(mode);
-
-        // The zip form runs no host arm; see tests/layers/train/README.md.
-        Graph::FusionQuery zip;
-        zip.matched = FusedForm::ExpSubScale;
-        zip.rows = 32;
-        zip.columns = 128;
-        EXPECT_EQ(selector.choose(zip).form, FusedForm::ExpSubScale);
-    }
+    // The zip form runs no host arm; see tests/layers/train/README.md.
+    Graph::FusionQuery zip;
+    zip.matched = FusedForm::ExpSubScale;
+    zip.rows = 32;
+    zip.columns = 128;
+    EXPECT_EQ(selector.choose(zip).form, FusedForm::ExpSubScale);
 }
 
-TEST_F(Medium_Fusion, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirectly)
+/** @brief Tests that a bias that is not contiguous gets no epilogue that indexes it directly. */
+TEST_F(Small_FusionSelector, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirectly)
 {
     const Graph::DeviceFusionSelector selector(pretend_device(true),
                                                SushiBLAS::ExecutionMode::Auto);
@@ -776,7 +843,7 @@ TEST_F(Medium_Fusion, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirectly)
  * @brief Tests that every selector choice carries a non-empty reason.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Fusion, EveryChoiceCarriesAReasonSomebodyCanRead)
+TEST_F(Small_FusionSelector, EveryChoiceCarriesAReasonSomebodyCanRead)
 {
     const Graph::DeviceFusionSelector selector(pretend_device(true),
                                                SushiBLAS::ExecutionMode::Auto);

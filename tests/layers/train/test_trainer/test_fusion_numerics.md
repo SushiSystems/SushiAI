@@ -1,7 +1,8 @@
 # tests/layers/train/test_trainer/test_fusion_numerics.cpp
 
 
-Suites: `Medium_Fusion`.
+Suites: `Medium_Fusion`, `Medium_FusionTraining`, `Medium_FusionRefusal`, `Medium_FusionDisabled`,
+`Small_FusionReport` and `Small_FusionSelector`.
 
 This file is the gate on collapsing the forward and backward graph into fewer kernels.
 
@@ -18,15 +19,16 @@ validates, and every way it can be wrong is silent:
 So the fused graph is not tested against a tolerance. It is tested against the unfused graph it
 replaced, byte for byte, from identical state.
 
-The tests fall into four groups, in file order. The first claims that fusing changes no number:
-AReLUMLPTrainsIdenticallyFusedAndUnfused, ATanhMLPTrainsIdenticallyFusedAndUnfused and
-ASigmoidMLPTrainsIdenticallyFusedAndUnfused. The second is the five GELU tests, from
-AGELUMLPTrainsIdenticallyFusedAndUnfused to DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt,
-which the section on the spilled activation describes. The third counts what fusion cost:
-TheFusedStepIssuesTenFewerKernelsPerStep, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias,
-WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt and
-DisablingOneCatalogEntryLeavesTheRestAlone. The fourth covers the dynamic selector, from
-ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove to EveryChoiceCarriesAReasonSomebodyCanRead.
+The tests fall into four groups, in file order. The first claims that fusing changes no number,
+with one row per activation: `Medium_FusionTraining`. The second is the GELU group, which the
+section on the spilled activation describes: `TheGELUModelLowersItsLoss`, the three
+`Small_FusionReport` cases, `TheSpillHoldsThePreActivationItself`,
+`ADeclinedEpilogueStillFillsTheSpillWithThePreActivation`, and the rows of `Medium_FusionRefusal`
+and `Medium_FusionDisabled` over GELU. The third counts what fusion cost and orders it:
+`TheFusedStepIssuesTenFewerKernelsPerStep`, `AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias` and
+`WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt`. The fourth covers the dynamic selector on
+a described device, in `Small_FusionSelector`. That each step compiles once is
+`test_compile_once.cpp`'s.
 
 ## Why byte for byte is the right bar
 
@@ -52,59 +54,71 @@ reaches byte-identical parameters after 24 optimizer steps. That is a statement 
 gradients, since nothing else moves a weight. It is taken three ways, against three different
 fillings of the same buffer:
 
-- AGELUMLPTrainsIdenticallyFusedAndUnfused compares against the graph with no fusion pass at all.
-- DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt compares against the same graph with only
-  this catalog row switched off, so the difference is the entry and nothing else.
-- ASelectorRefusalStillFillsTheSpillAndMovesNoBit compares against a selector that declines the
-  fused arm, so the aux buffer is filled by a separate copy in the lowering and not from inside
-  the epilogue.
+- The GELU row of `Medium_FusionTraining` compares against the graph with no fusion pass at all.
+- The GELU row of `Medium_FusionDisabled` compares against the same graph with only this catalog
+  row switched off, so the difference is the entry and nothing else.
+- The GELU row of `Medium_FusionRefusal` compares against a selector that declines the fused arm,
+  so the aux buffer is filled by a separate copy in the lowering and not from inside the epilogue.
 
-TheSpillHoldsThePreActivationItself then reads the buffer directly and compares it with a
+`TheSpillHoldsThePreActivationItself` then reads the buffer directly and compares it with a
 host-computed pre-activation, because three spellings can agree while all three hold the wrong
-tensor.
+tensor. `ADeclinedEpilogueStillFillsTheSpillWithThePreActivation` reads the same buffer when the
+selector declined.
 
 ## train
 
 The helper builds a fresh Engine, because reproducibility is a property of one engine; dataset.hpp
 explains the RNG offset counter behind that. It trains with AdamW and not plain SGD because AdamW's
 division by an accumulated square root is where a one-ULP difference stops being one ULP.
+`train_with` builds the two-layer model of the row's activation (ReLU, tanh, sigmoid or GELU).
 
 ## pretend_device
 
 The one device on the test machine is an OpenCL CPU with no dedicated scratchpad, and it supports
 doubles. A selector rule that can only be exercised on hardware nobody owns is a rule nobody has
-run, so the declining branches are driven from a described device.
+run, so the declining branches are driven from a described device. These cases run on a profile
+passed in and touch no device, so they are `Small_`.
 
-## AReLUMLPTrainsIdenticallyFusedAndUnfused
+## TrainsIdenticallyFusedAndUnfused
 
-This is the demo's own model. Both linear layers fuse, the first with its ReLU and the second
-without one, and so does the cross-entropy gradient's elementwise tail. One run therefore covers
-three separate collapses that reach the same arithmetic.
+One row per activation. Each row trains the model fused and with the fusion pass off, asserts that
+the fused graph holds at least one fused subtree and the control none, and compares the runs byte
+for byte.
 
-## ATanhMLPTrainsIdenticallyFusedAndUnfused
+The ReLU row is the demo's own model. Both linear layers fuse, the first with its ReLU and the
+second without one, and so does the cross-entropy gradient's elementwise tail. One run therefore
+covers three separate collapses that reach the same arithmetic.
 
-tanh's gradient reads its own output, so the pre-activation is dead and the whole layer folds. The
-tanh epilogue is a different template instantiation from ReLU's, which is why it has its own
-comparison.
+The tanh row: tanh's gradient reads its own output, so the pre-activation is dead and the whole
+layer folds. The tanh epilogue is a different template instantiation from ReLU's, which is why it
+has its own row. The sigmoid row is the third instantiation.
 
-## AGELUMLPTrainsIdenticallyFusedAndUnfused
+The GELU row runs the GELU hazard end to end, and its claim is about the gradients and not the
+forward pass. A K_GEMM_BIAS_GELU that computed the right activation and spilled nothing would match
+the unfused forward exactly and still differentiate at the wrong tensor. Nothing would throw, no
+value would go non-finite, and the loss would still fall. What such a kernel could not do is land
+the parameters on the same bits after 24 AdamW steps, because a weight only moves by its gradient.
 
-This test runs the GELU hazard end to end, and its claim is about the gradients and not the forward
-pass. A K_GEMM_BIAS_GELU that computed the right activation and spilled nothing would match the
-unfused forward exactly and still differentiate at the wrong tensor. Nothing would throw, no value
-would go non-finite, and the loss would still fall. What such a kernel could not do is land the
-parameters on the same bits after 24 AdamW steps, because a weight only moves by its gradient.
+## TheGELUModelLowersItsLoss
 
-The fused graph holds two fused linear layers, the first folding its GELU and the second with no
-activation to fold, and the fused cross-entropy gradient tail.
+Without this case, "identical" could describe two runs broken in the same way. The fused GELU
+model's last loss is below its first.
 
-The test also asserts that the loss fell. Without that assertion, "identical" could describe two
-runs broken in the same way.
+## TheGELUModelFusesTwoLayersAndTheGradientTail
+
+The fused graph of the GELU model holds three subtrees: the first layer folding its GELU, the
+second layer with no activation to fold, and the fused cross-entropy gradient tail. The count is a
+fact of the graph, read without a device.
 
 ## TheGELUFoldIsReportedAsAFoldAndNotAsARefusal
 
-The test asserts that the spilled value is the one the backward rule reads. It checks this on the
-IR and not through a loss, because "the gradient is taken at the right tensor" has no numerical
+The report holds one `GEMMBiasGELU` fold, and none of its declined entries is a
+`GradientNeedsPreActivation` refusal.
+
+## TheGELUBackwardReadsTheSpilledValue
+
+The spill is produced by the fused GEMM and read by gelu_backward. The case checks this on the IR
+and not through a loss, because "the gradient is taken at the right tensor" has no numerical
 symptom when it is wrong.
 
 ## TheSpillHoldsThePreActivationItself
@@ -116,48 +130,62 @@ spellings can agree while both hold the wrong tensor.
 `pre` is left unobserved on purpose. The fold has to survive on the spill and not on a pin, or the
 test would be pinning the wrong thing.
 
-The reference the spill is compared against is computed in the test, on the host, from the inputs.
-It is not read out of another tensor the same kernel wrote.
+The reference is computed in the test, on the host, from the inputs: `b + x w` per element, with
+the sum of the absolute terms beside it. Each spilled element lies within the bound of a sum of
+four terms in float (three products and the bias). It is not read out of another tensor the same
+kernel wrote.
 
 The test also asserts that the spill is not the post-activation, which is the value a fold without
 a spill would leave for the backward pass. Where that check is made matters. gelu(x) tends to x for
 large positive x, so the two tensors agree there to within a rounding error, and an assertion taken
 where |x| is large and positive would be satisfied by either. On the negative side gelu tends to
-zero, so a sufficiently negative element separates them by about |x|.
+zero. At -0.5 the two differ by 0.35, so every element under -0.5 must separate them by more than
+0.1, and at least one element of the probe lies under it.
 
-## ASelectorRefusalStillFillsTheSpillAndMovesNoBit
+## ADeclinedEpilogueStillFillsTheSpillWithThePreActivation
 
-This test is the control for TheSpillHoldsThePreActivationItself. With the fused arm declined, the
-aux buffer is filled by a separate copy in `record_fused_gemm` (`modules/core/graph/source/lowering/fused.cpp`) and
-not by the epilogue.
-That is a different code path to the same buffer, and the gradients have to come out identical.
-Deleting either write makes this comparison fail.
+The same probe lowered with a selector that declines every form. The aux buffer is filled by a
+separate copy in `record_fused_gemm` (`modules/core/graph/source/lowering/fused.cpp`) and not by
+the epilogue. That is a different code path to the same buffer, and it must hold the same
+pre-activation. Deleting that write makes this case fail.
 
-## DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt
+## ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove
 
-This is the A/B comparison the catalog entry was written against: the same model with the catalog
-row on and off. With the row off, the K_GELU is an ordinary IR node and the pre-activation is an
-ordinary value. With it on, the pre-activation is a second output of a fused GEMM, written from
-inside a device kernel. The parameters after 24 steps have to be the same bits, and they are the
-same bits only if the gradients were.
+Two rows, ReLU and GELU. The seam between the two stages makes one promise. The static pass decides
+what could be fused and the selector decides what is fused, so a device that wants no fusion gets an
+unfused plan out of a fused graph. The numbers stay the same because every spelling of a fused node
+is the same arithmetic. The refusals equal the fused subtrees, this machine's own device refused
+none, and the refused plan issues more operations.
 
-Disabling the form costs two more kernels, as switching the ReLU form off does. The activation
-becomes an out-of-place IR node again, which is a copy and a gelu. The spill costs nothing on the
-unfused side, because the value the fused node spilled is the value K_BIAS_ADD writes anyway.
+## TrainsToTheSamePlaceAsFoldingIt
+
+Two rows, each switching one catalog form off: `GEMMBiasReLU` on the ReLU model and `GEMMBiasGELU`
+on the GELU model. This is the A/B comparison the catalog entry was written against: the same model
+with the catalog row on and off. With the GELU row off, the K_GELU is an ordinary IR node and the
+pre-activation is an ordinary value. With it on, the pre-activation is a second output of a fused
+GEMM, written from inside a device kernel. The parameters after 24 steps have to be the same bits,
+and they are the same bits only if the gradients were.
+
+Switching a form off must fall back to the two-op form and not to nothing, so the fused subtree
+count stays. It costs two more kernels and not one. Refused at the catalog, the activation stays an
+ordinary IR node. An IR activation is out of place, so it lowers to a copy and the activation.
+Refused by the selector, the node is already fused and its output tensor is the activation's own
+result, so the trailing activation runs in place and costs one. The numbers are the same either way;
+the launch counts differ. The per-entry switch also serves a user who has measured a different
+result on their own model and needs a way out.
 
 ## TheFusedStepIssuesTenFewerKernelsPerStep
 
 This test counts the headline claim and does not time it. A wall clock says different things on a
 loaded machine, and the kernel count is the number the change controls.
 
-The saving is ten for this model. The first layer's gemm+bias+relu replaces five calls (gemm; copy
-and ger for the bias; copy and relu) with one. The second layer's gemm+bias replaces three with
+The saving is ten for the ReLU model. The first layer's gemm+bias+relu replaces five calls (gemm;
+copy and ger for the bias; copy and relu) with one. The second layer's gemm+bias replaces three with
 one. The cross-entropy gradient's exp/sub/scale replaces five with one.
 
-The saving has no cost beside it. Each fused GEMM needs no host-side ordering node to carry
-the dependency edges execute_gemm could not declare for a bias its functor dereferences. Two layers
-meant two extra nodes. SushiBLAS's seam now takes the epilogue's own access set, so
-`operations_per_step` is the whole plan again and the two counts cannot drift apart.
+The saving has no cost beside it. Each fused GEMM needs no host-side ordering node to carry the
+dependency edges execute_gemm could not declare for a bias its functor dereferences. SushiBLAS's
+seam takes the epilogue's own access set, so `operations_per_step` is the whole plan.
 
 ## AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias
 
@@ -166,12 +194,12 @@ from inside the GEMM kernel, and the optimizer rewrites that same bias inside th
 plan. SushiBLAS cannot see into the functor, so this library has to make the declaration:
 `gemm_epilogue(f).reads(bias)` in `record_fused_gemm`.
 
-The edge is what the test is for, and a loss cannot stand in for it. With no edge the two tasks may still come out
-in the right order on any given run, so a falling loss proves nothing about ordering, and this
-failure mode survives an otherwise green suite. The case reads the edge from
-`SushiRuntime::Graph::plan()`, as the predecessor count of the second recorded node. The node
-count is asserted for a related reason:
-the plan holds two nodes, and no host-side ordering node carries this edge.
+The edge is what the test is for, and a loss cannot stand in for it. With no edge the two tasks may
+still come out in the right order on any given run, so a falling loss proves nothing about ordering,
+and this failure mode survives an otherwise green suite. The case reads the edge from
+`SushiRuntime::Graph::plan()`, as the predecessor count of the second recorded node. The node count
+is asserted for a related reason: the plan holds two nodes, and no host-side ordering node carries
+this edge.
 
 The bias-writing task in the test stands in for the optimizer's update: a task in the same plan
 that writes the bias the epilogue reads. It is recorded first, so an edge can only run from it to
@@ -189,37 +217,27 @@ asserts the predecessor count of the reader in the plan.
 The test emits a reader of the pre-activation after the K_GELU, the way the differentiation pass
 emits gelu_backward.
 
-## DisablingOneCatalogEntryLeavesTheRestAlone
+## ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKernel
 
-The per-entry switch serves two callers. TheFusedStepIssuesTenFewerKernelsPerStep needs it as its
-A/B control, and a user who has measured a different result on their own model needs it as a way
-out. Switching the three-op GEMM form off must fall back to the two-op form and not to nothing.
-
-The catalog refusal costs two kernels more and not one, and the two ways of declining differ here.
-Refused at the catalog, the ReLU stays an ordinary IR node. An IR activation is out of place, so it
-lowers to a copy and a ReLU. Refused by the selector, as in
-ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove, the node is already fused and its output
-tensor is the activation's own result, so the trailing ReLU runs in place and costs one. The
-numbers are the same either way; the launch counts differ.
-
-## ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove
-
-The seam between the two stages makes one promise. The static pass decides what could be fused and
-the selector decides what is fused, so a device that wants no fusion gets an unfused plan out of a
-fused graph. The numbers stay the same because every spelling of a fused node is the same
-arithmetic.
+A fused double kernel is refused on a profile without fp64 and accepted with it. A float graph is
+fused on either.
 
 ## AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory
 
-Under ForceReference the epilogue is invoked on the host by Kernels::Reference::gemm,
-so any pointer it carries must be host-readable there. SushiAI's own allocations are shared USM and
-would be readable. A bound allocation need not be, and nothing in the selector can ask which kind
-it got.
+Under ForceReference the epilogue is invoked on the host by Kernels::Reference::gemm, so any
+pointer it carries must be host-readable there. SushiAI's own allocations are shared USM and would
+be readable. A bound allocation need not be, and nothing in the selector can ask which kind it got.
+The GEMM form is refused.
 
-The zip-based form runs no host arm, so it is unaffected. A blanket refusal of every form in these
-modes would be a different bug from the one being prevented.
+The zip-based form runs no host arm, so it is unaffected. A blanket refusal of every form in this
+mode would be a different bug from the one being prevented.
+
+## AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirectly
+
+A bias that is not contiguous gets no epilogue, since the epilogue indexes it directly.
 
 ## EveryChoiceCarriesAReasonSomebodyCanRead
 
-A selector nobody can interrogate is a selector nobody will trust. The static pass carries a report
-for the same reason: both of its answers produce a plan that trains.
+A selector nobody can interrogate is a selector nobody will trust. The choice carries a non-empty
+reason both when it accepts and when it declines. The static pass carries a report for the same
+reason: both of its answers produce a plan that trains.

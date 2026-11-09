@@ -322,7 +322,7 @@ Two launches saved against the fallback and ten against the unfused graph, at
 pre-activation the unfused `BIAS_ADD` would have written anyway, kept instead of
 eliminated. The identical final loss across all three is the point of the
 exercise: the spill is what makes the gradients agree, and
-`Medium_Fusion.AGELUMLPTrainsIdenticallyFusedAndUnfused` pins it as a
+the GELU row of `Medium_FusionTraining.TrainsIdenticallyFusedAndUnfused` pins it as a
 byte-for-byte parameter comparison rather than as six printed decimals.
 
 Under `--precision mixed` the GELU layer is **not** folded: the fusion line
