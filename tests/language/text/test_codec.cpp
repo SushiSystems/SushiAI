@@ -74,43 +74,107 @@ namespace
         ASSERT_TRUE(SaTest::status_is_ok(decode_tokens(vocabulary, span_of(ids), decoded)));
         EXPECT_EQ(decoded, text);
     }
+
+    /** @brief Returns the vocabulary of 400 tokens trained on 20000 drawn bytes. */
+    Vocabulary trained_vocabulary(const std::string& corpus)
+    {
+        BPETrainerOptions options;
+        options.vocabulary_size = 400;
+        return SaTest::require_value(train_bpe(corpus, options));
+    }
+
+    /** @brief Returns the 20000 bytes the vocabulary of these tests is trained on. */
+    std::string training_corpus()
+    {
+        std::mt19937 generator(K_SEED);
+        return Support::drawn_bytes(generator, 20000, "abcdef  \n");
+    }
+
+    /** @brief Holds the rounds of the property test. */
+    constexpr std::size_t K_ROUNDS = 64;
+
+    /** @brief Expects K_ROUNDS texts of random bytes of up to 1999 bytes each to round trip. */
+    void expect_random_texts_round_trip(const Vocabulary& vocabulary, std::mt19937& generator)
+    {
+        for (std::size_t round = 0; round < K_ROUNDS; ++round)
+        {
+            const std::size_t length = generator() % 2000;
+            expect_round_trip(vocabulary, Support::drawn_bytes(generator, length));
+        }
+    }
+
+    /** @brief Returns the texts a round trip is checked for beside the random ones. */
+    std::vector<std::string> edge_texts()
+    {
+        return {training_corpus(), "", std::string("\xFF\xFE\xC0\x80\x00\xED\xA0\x80", 8)};
+    }
+
+    /** @brief Names the ids a decode refuses and what its message says. */
+    struct RefusedIDs
+    {
+        std::vector<TokenID> ids; /**< The ids to decode. */
+        std::string first;        /**< A text the message holds. */
+        std::string second;       /**< A second text the message holds. */
+        std::string third;        /**< A third text the message holds. */
+    };
+
+    /** @brief Returns the ids the decoder refuses. */
+    std::vector<RefusedIDs> refused_ids()
+    {
+        return {{{72, 9999, 105}, "9999", "index 1", "[0, 257)"},
+                {{-3}, "-3", "index 0", "decode_tokens"}};
+    }
+
+    /** @brief Provides the edge texts. */
+    class Small_TextCodecEdgeText : public ::testing::TestWithParam<std::string>
+    {
+
+    };
+
+    /** @brief Provides the ids the decoder refuses. */
+    class Small_TextCodecRefusal : public ::testing::TestWithParam<RefusedIDs>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that random bytes of every value, invalid UTF-8 among them, come back. */
 TEST(Small_TextCodec, RandomBytesSurviveARoundTrip)
 {
-    std::mt19937 generator(K_SEED);
-    const std::string corpus = Support::drawn_bytes(generator, 20000, "abcdef  \n");
+    std::mt19937 generator(K_SEED + 1);
+    const Vocabulary vocabulary = trained_vocabulary(training_corpus());
 
-    BPETrainerOptions options;
-    options.vocabulary_size = 400;
-    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, train_bpe(corpus, options));
-
-    for (std::size_t round = 0; round < 64; ++round)
-    {
-        const std::size_t length = generator() % 2000;
-        expect_round_trip(vocabulary, Support::drawn_bytes(generator, length));
-    }
-
-    expect_round_trip(vocabulary, corpus);
-    expect_round_trip(vocabulary, "");
-    expect_round_trip(vocabulary, std::string("\xFF\xFE\xC0\x80\x00\xED\xA0\x80", 8));
+    expect_random_texts_round_trip(vocabulary, generator);
 }
+
+/** @brief Tests that a fixed text, the training corpus and invalid UTF-8 among them, comes back. */
+TEST_P(Small_TextCodecEdgeText, AnEdgeTextSurvivesARoundTrip)
+{
+    const Vocabulary vocabulary = trained_vocabulary(training_corpus());
+
+    expect_round_trip(vocabulary, GetParam());
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_TextCodecEdgeText, ::testing::ValuesIn(edge_texts()));
 
 /** @brief Tests that a run of 5000 bytes without a blank, cut into chunks, comes back. */
 TEST(Small_TextCodec, ATextLongerThanOneChunkSurvivesARoundTrip)
 {
-    std::vector<Merge> merges = {Merge{97, 97}};
-    for (TokenID id = 257; id < 264; ++id)
-        merges.push_back(Merge{id, id});
-    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make(merges));
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary,
+                            Vocabulary::make(Support::doubling_merges(8)));
 
-    const std::string text(5000, 'a');
-    expect_round_trip(vocabulary, text);
+    expect_round_trip(vocabulary, std::string(5000, 'a'));
+}
+
+/** @brief Tests that 5000 bytes without a blank are cut into chunks of 256 bytes. */
+TEST(Small_TextCodec, ATextLongerThanOneChunkEncodesChunkByChunk)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary,
+                            Vocabulary::make(Support::doubling_merges(8)));
 
     // 5000 bytes are 19 chunks of 256 bytes, one token each, and one of 136 = 128 + 8.
     std::vector<TokenID> ids;
-    ASSERT_TRUE(SaTest::status_is_ok(encode_text(vocabulary, text, ids)));
+    ASSERT_TRUE(SaTest::status_is_ok(encode_text(vocabulary, std::string(5000, 'a'), ids)));
     ASSERT_EQ(ids.size(), 21u);
     EXPECT_EQ(ids[0], 264);
     EXPECT_EQ(ids[19], 263);
@@ -118,18 +182,24 @@ TEST(Small_TextCodec, ATextLongerThanOneChunkSurvivesARoundTrip)
 }
 
 /** @brief Tests that the merge learned first is applied first, from the left. */
-TEST(Small_TextCodec, MergesAreAppliedInTheOrderTheyWereLearned)
+TEST(Small_TextCodec, TheFirstMergeAppliesFirstFromTheLeft)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary doubled,
                             Vocabulary::make({Merge{97, 98}, Merge{257, 257}}));
+
     std::vector<TokenID> ids;
     ASSERT_TRUE(SaTest::status_is_ok(encode_text(doubled, "abababc", ids)));
     EXPECT_EQ(ids, (std::vector<TokenID>{258, 257, 99}));
+}
 
+/** @brief Tests that a merge learned earlier wins an overlap over one learned later. */
+TEST(Small_TextCodec, AnEarlierMergeWinsAnOverlapOverALaterOne)
+{
     // (b, c) was learned before (a, b), so "abc" is a and bc, not ab and c.
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary ordered,
                             Vocabulary::make({Merge{98, 99}, Merge{97, 98}}));
-    ids.clear();
+
+    std::vector<TokenID> ids;
     ASSERT_TRUE(SaTest::status_is_ok(encode_text(ordered, "abc ab", ids)));
     EXPECT_EQ(ids, (std::vector<TokenID>{97, 257, 32, 258}));
 }
@@ -168,17 +238,15 @@ TEST(Small_TextCodec, ASpecialTokenDecodesToNoByte)
 }
 
 /** @brief Tests that an id the vocabulary does not hold is a failure naming its index. */
-TEST(Small_TextCodec, DecodeRefusesAnIDOutsideTheVocabulary)
+TEST_P(Small_TextCodecRefusal, DecodeRefusesAnIDOutsideTheVocabulary)
 {
+    const RefusedIDs& row = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
 
     std::string text;
-    const std::vector<TokenID> ids = {72, 9999, 105};
-    SA_EXPECT_FAILURE(decode_tokens(vocabulary, span_of(ids), text),
-                      StatusCode::InvalidDescription, "decode_tokens", "9999", "index 1",
-                      "[0, 257)");
-
-    const std::vector<TokenID> negative = {-3};
-    SA_EXPECT_FAILURE(decode_tokens(vocabulary, span_of(negative), text),
-                      StatusCode::InvalidDescription, "-3", "index 0");
+    SA_EXPECT_FAILURE(decode_tokens(vocabulary, span_of(row.ids), text),
+                      StatusCode::InvalidDescription, "decode_tokens", row.first, row.second,
+                      row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_TextCodecRefusal, ::testing::ValuesIn(refused_ids()));

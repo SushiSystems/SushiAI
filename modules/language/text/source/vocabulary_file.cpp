@@ -250,11 +250,20 @@ namespace SushiAI::Language::Text
         }
     } // namespace
 
+    Result<std::string> serialise_vocabulary_file(const Vocabulary& vocabulary) noexcept
+    {
+        return Detail::at_boundary(K_WRITER, [&]() -> Result<std::string>
+        {
+            return Result<std::string>(serialise(vocabulary));
+        });
+    }
+
     Status write_vocabulary_file(const std::filesystem::path& file, const Vocabulary& vocabulary) noexcept
     {
         return Detail::at_boundary(K_WRITER, [&]() -> Status
         {
-            return Detail::write_file(file, serialise(vocabulary), K_WRITER);
+            SA_TRY_ASSIGN(const std::string bytes, serialise_vocabulary_file(vocabulary));
+            return Detail::write_file(file, bytes, K_WRITER);
         }, file);
     }
 

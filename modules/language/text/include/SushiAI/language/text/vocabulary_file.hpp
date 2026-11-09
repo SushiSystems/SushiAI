@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <string>
 #include <string_view>
 
 #include <SushiAI/failure/result.hpp>
@@ -51,7 +52,15 @@ namespace SushiAI::Language::Text
     inline constexpr std::size_t K_VOCABULARY_FILE_HEADER_BYTES = 24;
 
     /**
-     * @brief Writes a vocabulary in the current format version, replacing the file.
+     * @brief Returns the bytes of the file that write_vocabulary_file writes, in memory.
+     * @return The whole file in the current format version; OutOfMemory.
+     * @see modules/language/text/README.md, section "The vocabulary file".
+     */
+    [[nodiscard]] Result<std::string> serialise_vocabulary_file(const Vocabulary& vocabulary) noexcept;
+
+    /**
+     * @brief Writes the bytes of serialise_vocabulary_file in the current format version,
+     *        replacing the file.
      * @return Success; InvalidFile, opening with the path, when the file cannot be opened or
      *         written; OutOfMemory.
      * @see modules/language/text/README.md, section "The vocabulary file".

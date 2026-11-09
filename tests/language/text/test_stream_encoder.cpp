@@ -29,6 +29,7 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -74,32 +75,50 @@ namespace
 
         EXPECT_EQ(streamed, whole) << "piece_bytes " << piece_bytes;
     }
+
+    /** @brief Returns the piece sizes the stream is cut into. */
+    std::vector<std::size_t> piece_sizes()
+    {
+        return {1, 7, 64, 1000, K_STREAM_PIECE_BYTES};
+    }
+
+    /** @brief Provides the piece sizes. */
+    class Small_TextStreamEncoderPieces : public ::testing::TestWithParam<std::size_t>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests pieces of 1, 7, 64 and 1000 bytes and the default against encode_text. */
-TEST(Small_TextStreamEncoder, EveryPieceSizeGivesTheIDsOfTheWholeText)
+/** @brief Tests a piece size against encode_text. */
+TEST_P(Small_TextStreamEncoderPieces, EveryPieceSizeGivesTheIDsOfTheWholeText)
 {
     const std::string text = make_text();
     BPETrainerOptions options;
     options.vocabulary_size = K_VOCABULARY_SIZE;
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, train_bpe(text, options));
 
-    for (const std::size_t piece_bytes :
-         {std::size_t{1}, std::size_t{7}, std::size_t{64}, std::size_t{1000},
-          K_STREAM_PIECE_BYTES})
-        expect_same_ids(vocabulary, text, piece_bytes);
+    expect_same_ids(vocabulary, text, GetParam());
 }
 
-/** @brief Tests that an empty stream appends nothing and that the ids are appended. */
+INSTANTIATE_TEST_SUITE_P(Rows, Small_TextStreamEncoderPieces, ::testing::ValuesIn(piece_sizes()));
+
+/** @brief Tests that an empty stream appends nothing. */
 TEST(Small_TextStreamEncoder, AnEmptyStreamAppendsNothing)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
     std::istringstream empty;
-    std::istringstream word("ab");
     std::vector<TokenID> ids{7};
 
     SA_EXPECT_OK(encode_stream(vocabulary, empty, 16, ids));
     EXPECT_EQ(ids, (std::vector<TokenID>{7}));
+}
+
+/** @brief Tests that a stream of "ab" appends the ids of its bytes to the ids it is given. */
+TEST(Small_TextStreamEncoder, AStreamAppendsTheIDsOfItsBytes)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
+    std::istringstream word("ab");
+    std::vector<TokenID> ids{7};
 
     SA_EXPECT_OK(encode_stream(vocabulary, word, 16, ids));
     EXPECT_EQ(ids, (std::vector<TokenID>{7, 'a', 'b'}));

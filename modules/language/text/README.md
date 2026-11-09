@@ -24,7 +24,7 @@ included. No unit of the module reads a tensor or an engine.
 | `<SushiAI/language/text/bpe_trainer.hpp>` | `BPETrainerOptions`, `train_bpe`, `K_MIN_MERGE_COUNT`, `K_MAX_CORPUS_BYTES` |
 | `<SushiAI/language/text/codec.hpp>` | `encode_text`, `decode_tokens` |
 | `<SushiAI/language/text/stream_encoder.hpp>` | `encode_stream`, `K_STREAM_PIECE_BYTES` |
-| `<SushiAI/language/text/vocabulary_file.hpp>` | `write_vocabulary_file`, `read_vocabulary_file`, `parse_vocabulary_file`, the magic, the version and the header size |
+| `<SushiAI/language/text/vocabulary_file.hpp>` | `serialise_vocabulary_file`, `write_vocabulary_file`, `read_vocabulary_file`, `parse_vocabulary_file`, the magic, the version and the header size |
 
 Every function that can fail returns a `Status` or a `Result`. A precondition a caller broke,
 such as the bytes of an id the vocabulary does not hold, stops the process.
@@ -154,7 +154,8 @@ pairs of ids; the bytes of each token are rebuilt when the file is read.
 
 The file ends at byte `24 + special_bytes + 8 * M`. The file of end-of-text and the one merge
 `(97, 98)` is 49 bytes: the header, a length of 13 and the 13 bytes of the name, then
-`61 00 00 00 62 00 00 00`.
+`61 00 00 00 62 00 00 00`. `serialise_vocabulary_file` returns these bytes in memory and
+`write_vocabulary_file` writes them to a file.
 
 The reader refuses, with `InvalidFile` and the byte offset in the message: a file that ends
 before the end its header declares, bytes after that end, another magic, a version it does not
@@ -169,7 +170,10 @@ whole, and refuses a larger one before reading it.
 
 ## Tests
 
-`tests/language/text/test_vocabulary.cpp`, `test_text_bpe_trainer.cpp`, `test_text_codec.cpp` and
-`test_text_vocabulary_file.cpp`, in the suites `Small_TextVocabulary`, `Small_TextBpeTrainer`,
-`Small_TextCodec` and `Small_TextVocabularyFile`. None needs a device. The files they write are
-under the system's temporary directory and are removed when the test ends.
+`tests/language/text/`, one file per header, in the suites `Small_TextVocabulary`,
+`Small_TextBpeTrainer`, `Small_TextCodec`, `Small_TextStreamEncoder` and `Small_TextVocabularyFile`.
+The layout of the vocabulary file is checked small on the bytes `serialise_vocabulary_file` returns.
+Only the cases that read or write a file are `Medium_TextVocabularyFile`, and the cases that stop
+the process are `Medium_TextVocabularyDeath`. The files they write are under the system's
+temporary directory and are removed when the test ends. `token.hpp` has `compile_token.cpp`, which
+holds no test.

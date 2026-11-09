@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include "text_test_support.hpp"
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/text/token.hpp>
@@ -40,20 +41,84 @@
 using namespace SushiAI;
 using namespace SushiAI::Language::Text;
 
-/** @brief Tests that a vocabulary without merges holds the bytes and end-of-text. */
-TEST(Small_TextVocabulary, AVocabularyWithoutMergesHoldsTheBytesAndEndOfText)
+namespace
+{
+    /** @brief Names merges the vocabulary refuses and what its message says. */
+    struct RefusedMerges
+    {
+        std::vector<Merge> merges; /**< The merges given to make. */
+        std::string first;         /**< A text the message holds. */
+        std::string second;        /**< A second text the message holds. */
+    };
+
+    /** @brief Returns the merges of a token the vocabulary may not join. */
+    std::vector<RefusedMerges> refused_merges()
+    {
+        return {{{Merge{97, 257}}, "merge 0", "97 and 257"},
+                {{Merge{97, 98}, Merge{259, 97}}, "merge 1", "259 and 97"},
+                {{Merge{K_END_OF_TEXT, 97}}, "merge 0", "256 and 97"},
+                {{Merge{-1, 97}}, "merge 0", "-1 and 97"}};
+    }
+
+    /** @brief Names special names the vocabulary refuses and what its message says. */
+    struct RefusedNames
+    {
+        std::vector<std::string> names; /**< The special names given to make. */
+        std::string first;              /**< A text the message holds. */
+        std::string second;             /**< A second text the message holds. */
+    };
+
+    /** @brief Returns the special names the vocabulary refuses. */
+    std::vector<RefusedNames> refused_names()
+    {
+        return {{{""}, "special token 1", "0 bytes"},
+                {{std::string(256, 'x')}, "256 bytes", "1 to 255"},
+                {{"<pad>", "<pad>"}, "'<pad>'", "named twice"},
+                {{std::string(K_END_OF_TEXT_NAME)}, "named twice", "named twice"},
+                {std::vector<std::string>(256, "x"), "257 special tokens", "at most 256"}};
+    }
+
+    /** @brief Provides the merges the vocabulary refuses. */
+    class Small_TextVocabularyMergeRefusal : public ::testing::TestWithParam<RefusedMerges>
+    {
+
+    };
+
+    /** @brief Provides the special names the vocabulary refuses. */
+    class Small_TextVocabularyNameRefusal : public ::testing::TestWithParam<RefusedNames>
+    {
+
+    };
+} // namespace
+
+/** @brief Tests that a vocabulary without merges holds the 256 byte tokens. */
+TEST(Small_TextVocabulary, AVocabularyWithoutMergesHoldsTheByteTokens)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
+
+    EXPECT_EQ(vocabulary.kind_of(0), TokenKind::Byte);
+    EXPECT_EQ(vocabulary.kind_of(255), TokenKind::Byte);
+    EXPECT_EQ(vocabulary.bytes_of(65), "A");
+    EXPECT_EQ(vocabulary.bytes_of(255), std::string(1, '\xFF'));
+}
+
+/** @brief Tests that a vocabulary without merges holds end-of-text, which stands for no byte. */
+TEST(Small_TextVocabulary, AVocabularyWithoutMergesHoldsEndOfText)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
+
+    EXPECT_EQ(vocabulary.kind_of(K_END_OF_TEXT), TokenKind::Special);
+    EXPECT_TRUE(vocabulary.bytes_of(K_END_OF_TEXT).empty());
+    EXPECT_EQ(vocabulary.find_special(K_END_OF_TEXT_NAME), std::optional<TokenID>(256));
+}
+
+/** @brief Tests that a vocabulary without merges holds the ids 0 to 256 and no other. */
+TEST(Small_TextVocabulary, AVocabularyWithoutMergesHoldsTheIDsUpToEndOfText)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
 
     EXPECT_EQ(vocabulary.size(), 257);
     EXPECT_EQ(vocabulary.first_merged(), 257);
-    EXPECT_EQ(vocabulary.kind_of(0), TokenKind::Byte);
-    EXPECT_EQ(vocabulary.kind_of(255), TokenKind::Byte);
-    EXPECT_EQ(vocabulary.bytes_of(65), "A");
-    EXPECT_EQ(vocabulary.bytes_of(255), std::string(1, '\xFF'));
-    EXPECT_EQ(vocabulary.kind_of(K_END_OF_TEXT), TokenKind::Special);
-    EXPECT_TRUE(vocabulary.bytes_of(K_END_OF_TEXT).empty());
-    EXPECT_EQ(vocabulary.find_special(K_END_OF_TEXT_NAME), std::optional<TokenID>(256));
     EXPECT_TRUE(vocabulary.contains(256));
     EXPECT_FALSE(vocabulary.contains(257));
     EXPECT_FALSE(vocabulary.contains(-1));
@@ -69,12 +134,20 @@ TEST(Small_TextVocabulary, MergedTokensTakeIDsInTheOrderOfTheirMerges)
     EXPECT_EQ(vocabulary.kind_of(257), TokenKind::Merged);
     EXPECT_EQ(vocabulary.bytes_of(257), "ab");
     EXPECT_EQ(vocabulary.bytes_of(258), "abc");
+    ASSERT_EQ(vocabulary.merges().size(), 2u);
+    EXPECT_EQ(vocabulary.merges()[1], (Merge{257, 99}));
+}
+
+/** @brief Tests that find_merge returns the id of a merged pair and nothing for an absent pair. */
+TEST(Small_TextVocabulary, FindMergeLooksUpAPairAndAnAbsentPair)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary,
+                            Vocabulary::make({Merge{97, 98}, Merge{257, 99}}));
+
     EXPECT_EQ(vocabulary.find_merge(97, 98), std::optional<TokenID>(257));
     EXPECT_EQ(vocabulary.find_merge(257, 99), std::optional<TokenID>(258));
     EXPECT_FALSE(vocabulary.find_merge(98, 97).has_value());
     EXPECT_FALSE(vocabulary.find_merge(-1, 97).has_value());
-    ASSERT_EQ(vocabulary.merges().size(), 2u);
-    EXPECT_EQ(vocabulary.merges()[1], (Merge{257, 99}));
 }
 
 /** @brief Tests that the special tokens follow end-of-text and precede the merged tokens. */
@@ -86,25 +159,31 @@ TEST(Small_TextVocabulary, SpecialTokensFollowEndOfText)
     EXPECT_EQ(vocabulary.size(), 260);
     EXPECT_EQ(vocabulary.find_special("<pad>"), std::optional<TokenID>(257));
     EXPECT_EQ(vocabulary.find_special("<mask>"), std::optional<TokenID>(258));
-    EXPECT_FALSE(vocabulary.find_special("<absent>").has_value());
     EXPECT_EQ(vocabulary.first_merged(), 259);
     EXPECT_EQ(vocabulary.bytes_of(259), "ab");
     ASSERT_EQ(vocabulary.special_names().size(), 3u);
     EXPECT_EQ(vocabulary.special_names()[0], K_END_OF_TEXT_NAME);
 }
 
-/** @brief Tests that a merge of itself, a later, a special or a negative token is refused. */
-TEST(Small_TextVocabulary, MakeRefusesAMergeOfATokenItMayNotJoin)
+/** @brief Tests that find_special returns nothing for a name the vocabulary does not hold. */
+TEST(Small_TextVocabulary, FindSpecialLooksUpAnAbsentName)
 {
-    SA_EXPECT_FAILURE(Vocabulary::make({Merge{97, 257}}), StatusCode::InvalidDescription,
-                      "Vocabulary", "merge 0", "97 and 257");
-    SA_EXPECT_FAILURE(Vocabulary::make({Merge{97, 98}, Merge{259, 97}}),
-                      StatusCode::InvalidDescription, "merge 1", "259 and 97");
-    SA_EXPECT_FAILURE(Vocabulary::make({Merge{K_END_OF_TEXT, 97}}),
-                      StatusCode::InvalidDescription, "merge 0", "256 and 97");
-    SA_EXPECT_FAILURE(Vocabulary::make({Merge{-1, 97}}), StatusCode::InvalidDescription,
-                      "merge 0", "-1 and 97");
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}, {"<pad>"}));
+
+    EXPECT_FALSE(vocabulary.find_special("<absent>").has_value());
 }
+
+/** @brief Tests that a merge of itself, a later, a special or a negative token is refused. */
+TEST_P(Small_TextVocabularyMergeRefusal, MakeRefusesAMergeOfATokenItMayNotJoin)
+{
+    const RefusedMerges& row = GetParam();
+
+    SA_EXPECT_FAILURE(Vocabulary::make(row.merges), StatusCode::InvalidDescription, "Vocabulary",
+                      row.first, row.second);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_TextVocabularyMergeRefusal,
+                         ::testing::ValuesIn(refused_merges()));
 
 /** @brief Tests that a pair two merges name is refused at the second. */
 TEST(Small_TextVocabulary, MakeRefusesAPairNamedTwice)
@@ -113,39 +192,36 @@ TEST(Small_TextVocabulary, MakeRefusesAPairNamedTwice)
                       StatusCode::InvalidDescription, "merge 1", "97 and 98", "earlier merge");
 }
 
-/** @brief Tests that a merged token of 512 bytes is refused, and one of 256 is held. */
+/** @brief Tests that a merged token of 512 bytes is refused. */
 TEST(Small_TextVocabulary, MakeRefusesATokenAboveTheByteLimit)
 {
-    // Merge i joins the token before it with itself, so it stands for 2^(i + 1) bytes.
-    std::vector<Merge> merges = {Merge{97, 97}};
-    for (TokenID id = 257; id < 264; ++id)
-        merges.push_back(Merge{id, id});
+    SA_EXPECT_FAILURE(Vocabulary::make(Support::doubling_merges(9)),
+                      StatusCode::InvalidDescription, "merge 8", "512 bytes", "at most 256");
+}
 
-    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make(merges));
+/** @brief Tests that a merged token of 256 bytes, the limit, is held. */
+TEST(Small_TextVocabulary, MakeHoldsATokenOfTheByteLimit)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary,
+                            Vocabulary::make(Support::doubling_merges(8)));
+
     EXPECT_EQ(vocabulary.bytes_of(264), std::string(256, 'a'));
-
-    merges.push_back(Merge{264, 264});
-    SA_EXPECT_FAILURE(Vocabulary::make(merges), StatusCode::InvalidDescription, "merge 8",
-                      "512 bytes", "at most 256");
 }
 
 /** @brief Tests that an empty, an overlong and a repeated special name are refused. */
-TEST(Small_TextVocabulary, MakeRefusesASpecialNameOutOfBounds)
+TEST_P(Small_TextVocabularyNameRefusal, MakeRefusesASpecialNameOutOfBounds)
 {
-    SA_EXPECT_FAILURE(Vocabulary::make({}, {""}), StatusCode::InvalidDescription,
-                      "special token 1", "0 bytes");
-    SA_EXPECT_FAILURE(Vocabulary::make({}, {std::string(256, 'x')}),
-                      StatusCode::InvalidDescription, "256 bytes", "1 to 255");
-    SA_EXPECT_FAILURE(Vocabulary::make({}, {"<pad>", "<pad>"}), StatusCode::InvalidDescription,
-                      "'<pad>'", "named twice");
-    SA_EXPECT_FAILURE(Vocabulary::make({}, {std::string(K_END_OF_TEXT_NAME)}),
-                      StatusCode::InvalidDescription, "named twice");
-    SA_EXPECT_FAILURE(Vocabulary::make({}, std::vector<std::string>(256, "x")),
-                      StatusCode::InvalidDescription, "257 special tokens", "at most 256");
+    const RefusedNames& row = GetParam();
+
+    SA_EXPECT_FAILURE(Vocabulary::make({}, row.names), StatusCode::InvalidDescription, row.first,
+                      row.second);
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Small_TextVocabularyNameRefusal,
+                         ::testing::ValuesIn(refused_names()));
+
 /** @brief Tests that the bytes of an id outside the vocabulary stop the process. */
-TEST(Small_TextVocabulary, AnIDOutsideTheVocabularyStopsTheProcess)
+TEST(Medium_TextVocabularyDeath, AnIDOutsideTheVocabularyStopsTheProcess)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
 

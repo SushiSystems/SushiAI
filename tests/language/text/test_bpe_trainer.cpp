@@ -28,7 +28,6 @@
  * @author Mustafa Garip
  */
 
-#include <cstddef>
 #include <cstdint>
 #include <random>
 #include <string>
@@ -56,6 +55,26 @@ namespace
         options.vocabulary_size = vocabulary_size;
         return options;
     }
+
+    /** @brief Names a vocabulary size the trainer refuses and what its message says. */
+    struct SizeCase
+    {
+        std::int32_t size;  /**< The size asked for. */
+        std::string first;  /**< A text the message holds. */
+        std::string second; /**< A second text the message holds. */
+    };
+
+    /** @brief Returns the sizes the trainer refuses. */
+    std::vector<SizeCase> refused_sizes()
+    {
+        return {{256, "256 tokens", "257 to"}, {K_MAX_VOCABULARY_SIZE + 1, "asked for", "train_bpe"}};
+    }
+
+    /** @brief Provides the sizes the trainer refuses. */
+    class Small_TextBpeTrainerSizeRefusal : public ::testing::TestWithParam<SizeCase>
+    {
+
+    };
 } // namespace
 
 /**
@@ -114,9 +133,7 @@ TEST(Small_TextBpeTrainer, TheSameCorpusGivesTheSameVocabulary)
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary second, train_bpe(corpus, options_of(400)));
 
     ASSERT_FALSE(first.merges().empty());
-    ASSERT_EQ(first.merges().size(), second.merges().size());
-    for (std::size_t i = 0; i < first.merges().size(); ++i)
-        EXPECT_EQ(first.merges()[i], second.merges()[i]) << i;
+    Support::expect_same_merges(first, second);
 }
 
 /** @brief Tests that a run to a smaller size learns the first merges of a run to a larger. */
@@ -130,10 +147,7 @@ TEST(Small_TextBpeTrainer, ARunStoppedEarlyLearnsTheFirstMergesOfALongerRun)
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary stopped, train_bpe(corpus, options_of(270)));
 
     ASSERT_FALSE(stopped.merges().empty());
-    ASSERT_LE(stopped.merges().size(), 13u);
-    ASSERT_GE(whole.merges().size(), stopped.merges().size());
-    for (std::size_t i = 0; i < stopped.merges().size(); ++i)
-        EXPECT_EQ(stopped.merges()[i], whole.merges()[i]) << i;
+    Support::expect_merges_begin_with(whole, stopped);
 }
 
 /** @brief Tests that training stops when the vocabulary has the size asked for. */
@@ -145,14 +159,20 @@ TEST(Small_TextBpeTrainer, ItStopsAtTheSizeAskedFor)
     EXPECT_EQ(vocabulary.merges()[0], (Merge{97, 98}));
 }
 
-/** @brief Tests that a pair that occurs once is not merged, and an empty corpus trains. */
+/** @brief Tests that a pair that occurs once is not merged. */
 TEST(Small_TextBpeTrainer, APairThatOccursOnceIsNotMerged)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary once, train_bpe("abcdef", options_of(300)));
-    EXPECT_EQ(once.size(), 257);
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, train_bpe("abcdef", options_of(300)));
 
-    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary empty, train_bpe("", options_of(300)));
-    EXPECT_EQ(empty.size(), 257);
+    EXPECT_EQ(vocabulary.size(), 257);
+}
+
+/** @brief Tests that an empty corpus trains to the byte tokens and end-of-text alone. */
+TEST(Small_TextBpeTrainer, AnEmptyCorpusTrainsToTheBaseVocabulary)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, train_bpe("", options_of(300)));
+
+    EXPECT_EQ(vocabulary.size(), 257);
 }
 
 /** @brief Tests that the special tokens take their ids before the first merged token. */
@@ -169,15 +189,13 @@ TEST(Small_TextBpeTrainer, SpecialTokensPrecedeTheMergedTokens)
 }
 
 /** @brief Tests that a size below the base tokens or above the limit is refused. */
-TEST(Small_TextBpeTrainer, ItRefusesASizeOutOfBounds)
+TEST_P(Small_TextBpeTrainerSizeRefusal, ItRefusesASizeOutOfBounds)
 {
-    SA_EXPECT_FAILURE(train_bpe("abab", options_of(256)), StatusCode::InvalidDescription,
-                      "train_bpe", "256 tokens", "257 to");
-    SA_EXPECT_FAILURE(train_bpe("abab", options_of(K_MAX_VOCABULARY_SIZE + 1)),
-                      StatusCode::InvalidDescription, "train_bpe", "asked for");
+    const SizeCase& row = GetParam();
 
-    BPETrainerOptions options = options_of(300);
-    options.special_names = {""};
-    SA_EXPECT_FAILURE(train_bpe("abab", options), StatusCode::InvalidDescription,
-                      "special token 1");
+    SA_EXPECT_FAILURE(train_bpe("abab", options_of(row.size)), StatusCode::InvalidDescription,
+                      "train_bpe", row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_TextBpeTrainerSizeRefusal,
+                         ::testing::ValuesIn(refused_sizes()));
