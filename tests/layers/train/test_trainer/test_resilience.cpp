@@ -657,6 +657,16 @@ TEST_F(Medium_ResilienceFit, FitNamesTheClassCountThatDisagrees)
                       "5 classes", "compiled for 4");
 }
 
+/** @brief Tests that a refused dataset runs no step. */
+TEST_F(Medium_ResilienceFit, FitRunsNoStepAfterARefusedDataset)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> narrow,
+                            Data::SyntheticClassification::make(backend(), data_for(4, 1, 6, 4)));
+
+    EXPECT_FALSE(trainer->fit(*narrow).has_value());
+    EXPECT_EQ(trainer->step_count(), 0u);
+}
+
 /** @brief Tests that allocation refuses a zero extent and names it. */
 TEST_F(Medium_Resilience, AllocationRefusesAZeroExtent)
 {

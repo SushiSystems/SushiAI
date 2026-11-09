@@ -129,6 +129,24 @@ TEST(Small_ObjectiveRegistry, ATypeIsHeldOnce)
     EXPECT_EQ(registry.rows().size(), 5u);
 }
 
+/** @brief Tests that a row with an empty type stops the process. */
+TEST(Medium_ObjectiveRegistryDeathTest, ARowWithoutATypeStopsTheProcess)
+{
+    ObjectiveRegistry registry;
+
+    SA_EXPECT_FATAL((void)registry.add(ObjectiveEntry{"", &Train::make_cross_entropy}),
+                    "non-empty type");
+}
+
+/** @brief Tests that a row without a factory stops the process and names its type. */
+TEST(Medium_ObjectiveRegistryDeathTest, ARowWithoutAFactoryStopsTheProcessNamingIt)
+{
+    ObjectiveRegistry registry;
+
+    SA_EXPECT_FATAL((void)registry.add(ObjectiveEntry{"orphan", nullptr}), "'orphan'",
+                    "no factory");
+}
+
 /** @brief Tests that an unknown type is refused with every type the registry holds. */
 TEST(Small_ObjectiveRegistry, AnUnknownTypeListsWhatTheRegistryHolds)
 {

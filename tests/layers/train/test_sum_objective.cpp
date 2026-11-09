@@ -460,6 +460,16 @@ TEST(Small_SumObjective, MeasureReportsTheAccuracyOfTheFirstOfTwoTerms)
     EXPECT_EQ(metrics.all()[0].value, 0.25);
 }
 
+/** @brief Tests that a null term stops the process and names its index. */
+TEST(Medium_SumObjectiveDeathTest, ANullTermStopsTheProcessNamingIt)
+{
+    std::vector<SumTerm> terms;
+    terms.push_back(cross_entropy_term(1.0));
+    terms.push_back(SumTerm{nullptr, 1.0});
+
+    SA_EXPECT_FATAL((void)SumObjective::make(std::move(terms)), "Term 1", "is null");
+}
+
 /** @brief Tests that the "sum" row builds each term through the registry it was found in. */
 TEST(Small_SumObjective, TheFactoryBuildsEachTermThroughTheRegistry)
 {

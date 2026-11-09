@@ -2,8 +2,8 @@
 
 
 Suites: `Small_SumObjective`, `Small_SumObjectiveWeight` (one row per refused weight pair),
-`Small_SumObjectiveGradient` (one row per parameter), `Small_SumObjectiveScore` and
-`Small_SumObjectiveSection` (one row per refused section).
+`Small_SumObjectiveGradient` (one row per parameter), `Small_SumObjectiveSection` (one row per
+refused section) and `Medium_SumObjectiveDeathTest`.
 
 Tests `Train::SumObjective` and its factory `Train::make_sum_objective`, reached through the
 `sum` row of the registry. Most cases sum two `CrossEntropyObjective` terms over 4 rows of 3
@@ -81,6 +81,11 @@ One row per parameter, 0 and 1: its gradient is set.
 written at `sum_objective.cpp`, in `measure`). Two terms of a local `FixedAccuracyObjective`, which
 wraps a cross-entropy term and reports a fixed accuracy, report 0.25 and 0.75. The sum gives one
 metric, `accuracy`, of 0.25, so the case shows which term's value won.
+
+## ANullTermStopsTheProcessNamingIt
+
+`SumObjective::make` stops the process on a null term, and the message names its index ("Term 1")
+and says it is null. A death test, so it is `Medium_`.
 
 ## TheFactoryBuildsEachTermThroughTheRegistry
 

@@ -85,6 +85,11 @@ A dataset with a batch size of 4 is `Incompatible` with "batch size is 4" and "c
 
 A dataset of five classes is `Incompatible` with "5 classes" and "compiled for 4".
 
+## FitRunsNoStepAfterARefusedDataset
+
+A trainer compiled for a batch of 8 refuses a dataset of batch size 4, and its step count stays
+zero: the refusal comes before the first step.
+
 ## AllocationRefusesAZeroExtent
 
 A shape of {4, 0} is `InvalidDescription` with "Tensor extents must be positive" and "got 0".

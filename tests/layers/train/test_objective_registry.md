@@ -1,7 +1,7 @@
 # tests/layers/train/test_objective_registry.cpp
 
 
-Suites: `Small_ObjectiveRegistry`, `Small_ObjectiveRegistryFind`.
+Suites: `Small_ObjectiveRegistry`, `Small_ObjectiveRegistryFind` and `Medium_ObjectiveRegistryDeathTest`.
 
 Tests `Train::ObjectiveRegistry`, `Train::register_objectives` and `Train::make_objective`. Every
 case runs on the real rows of the layers tier; no stand-in factory is registered. The context is
@@ -24,6 +24,16 @@ After `register_objectives` the registry holds five rows in the order `cross_ent
 
 A second `add` of the held `cross_entropy` row fails with `InvalidDescription`,
 `'cross_entropy'` and "already registered", and the registry still holds five rows.
+
+## ARowWithoutATypeStopsTheProcess
+
+`ObjectiveRegistry::add` stops the process on a row whose type is empty, with "non-empty type". A
+death test, so it is `Medium_`.
+
+## ARowWithoutAFactoryStopsTheProcessNamingIt
+
+A row with a type and no factory stops the process, and the message names the type and says it has
+no factory.
 
 ## AnUnknownTypeListsWhatTheRegistryHolds
 
