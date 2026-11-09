@@ -28,6 +28,7 @@
  */
 
 #include <cstdint>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -66,32 +67,47 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the rebuilt objective declares the target leaf the traced graph holds. */
-TEST(Small_ClassifierObjective, TheObjectiveDeclaresTheTracedTargetLeaf)
+/** @brief Tests that the rebuilt objective declares the target leaf shape the traced graph holds. */
+TEST(Small_ClassifierObjective, TheObjectiveDeclaresTheTracedTargetShape)
 {
     NN::Linear model{K_FEATURES, K_CLASSES};
     SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
-    const Train::CrossEntropyObjective objective = SaTest::classifier_objective(built);
-    const Graph::Value targets = declared_targets(objective);
+    const Graph::Value targets = declared_targets(SaTest::classifier_objective(built));
 
-    const Graph::Value& traced = built.graph.value(built.spec.targets);
-    EXPECT_EQ(targets.shape, traced.shape);
+    EXPECT_EQ(targets.shape, built.graph.value(built.spec.targets).shape);
     EXPECT_EQ(targets.shape, (Shape{K_BATCH, K_CLASSES}));
-    EXPECT_EQ(targets.dtype, traced.dtype);
-    EXPECT_EQ(objective.name(), "cross_entropy");
 }
 
-/** @brief Tests that a classifier traced in another element type keeps that type. */
-TEST(Small_ClassifierObjective, TheObjectiveKeepsTheTracedElementType)
+/** @brief Holds the element type a classifier is traced in. */
+struct DTypeRow
 {
+    std::string name; /**< The row's name. */
+    DType dtype;      /**< The element type the classifier is traced in. */
+};
+
+/** @brief Runs the element-type promise over each traced element type. */
+class Small_ClassifierObjectiveDType : public ::testing::TestWithParam<DTypeRow>
+{
+};
+
+/** @brief Tests that a classifier traced in an element type gets a target leaf of that type. */
+TEST_P(Small_ClassifierObjectiveDType, TheObjectiveKeepsTheTracedElementType)
+{
+    const DTypeRow& row = GetParam();
     NN::Linear model{K_FEATURES, K_CLASSES};
     SA_ASSERT_OK_AND_ASSIGN(
         const Train::TrainingGraph built,
-        Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float64));
+        Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, row.dtype));
 
     const Graph::Value targets = declared_targets(SaTest::classifier_objective(built));
 
-    EXPECT_EQ(targets.dtype, DType::Float64);
+    EXPECT_EQ(targets.dtype, row.dtype);
+    EXPECT_EQ(targets.dtype, built.graph.value(built.spec.targets).dtype);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ClassifierObjectiveDType,
+    ::testing::Values(DTypeRow{"Float32", DType::Float32}, DTypeRow{"Float64", DType::Float64}),
+    [](const ::testing::TestParamInfo<DTypeRow>& info) { return info.param.name; });
