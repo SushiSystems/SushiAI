@@ -219,7 +219,7 @@ class TestMainCommand(unittest.TestCase):
         cases.mkdir()
         (cases / "shard_1.xml").write_text(gtest_xml({("Small_A", "Slow"): 5.0}), encoding="utf-8")
         (cases / "shard_2.xml").write_text(gtest_xml({("Small_A", "Fast"): 0.01}), encoding="utf-8")
-        self.junit.write_text(junit({"sushiai_core_tests.small.shard_1of2": 5.0}), encoding="utf-8")
+        self.junit.write_text(junit({"core_tests.small.shard_1of2": 5.0}), encoding="utf-8")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = main([str(self.junit), "--cases", str(cases), "--programs", str(self.programs), "--gate"],
