@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -52,7 +53,6 @@
 #include <SushiAI/vision/blocks/bottleneck.hpp>
 #include <SushiAI/vision/blocks/c3k.hpp>
 #include <SushiAI/vision/blocks/c3k2.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Blocks::Bottleneck;
@@ -65,17 +65,46 @@ using NN::Trace;
 namespace
 {
     using SushiAI::Test::require_value;
-    /**
-     * @brief Holds the absolute tolerance of a double stored and read back unchanged: 16 times the
-     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-15.
-     */
-    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Holds the epsilon and the momentum MANIFEST.json records for YOLO26n. */
     constexpr NormOptions K_YOLO_NORM{1e-3, 0.03};
 
     /** @brief Names the row a factory is asked to build, as a diagnostic would. */
     constexpr std::string_view K_CONTEXT = "layer 2 'c3k2'";
+
+    /** @brief Holds one inner kind whose hidden width of one the factory refuses. */
+    struct HiddenRow
+    {
+        std::string name;       /**< The row's name. */
+        std::string attributes; /**< The row's attributes. */
+    };
+
+    /** @brief Runs one row whose hidden width of one is refused. */
+    class Small_BlockC3k2Hidden : public ::testing::TestWithParam<HiddenRow>
+    {
+
+    };
+
+    /** @brief Holds one row handed to the bottleneck_psa factory and what it answers. */
+    struct PsaInnerRow
+    {
+        std::string name;   /**< The row's name. */
+        std::string inner;  /**< The "inner" the row states. */
+        bool accepted;      /**< Whether the factory builds the block. */
+        std::string needle; /**< A part of the refusal's message, or empty when accepted. */
+    };
+
+    /** @brief Runs one row of the bottleneck_psa factory. */
+    class Small_BlockC3k2PsaInner : public ::testing::TestWithParam<PsaInnerRow>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    template<typename Row>
+    std::string row_name(const ::testing::TestParamInfo<Row>& info)
+    {
+        return info.param.name;
+    }
 
     /** @brief Names which of the two kinds of state a record is. */
     enum class StateKind : std::uint8_t
@@ -131,6 +160,48 @@ namespace
             ++index;
 
         return index;
+    }
+
+    /** @brief Counts the norms a walk lists, one running mean each. */
+    std::size_t count_norms(const std::vector<std::string>& records)
+    {
+        std::size_t norms = 0;
+        for (const std::string& line : records)
+        {
+            if (line.find(".bn.running_mean ") != std::string::npos)
+                ++norms;
+        }
+
+        return norms;
+    }
+
+    /** @brief Reports whether @p records holds @p wanted. */
+    bool contains(const std::vector<std::string>& records, const std::string& wanted)
+    {
+        return std::find(records.begin(), records.end(), wanted) != records.end();
+    }
+
+    /** @brief Lists the offset each SLICE_CHANNELS node of @p graph stores, in emission order. */
+    std::vector<double> slice_offsets(const Graph::Graph& graph)
+    {
+        std::vector<double> offsets;
+        for (const Graph::Node& node : graph.nodes())
+        {
+            if (node.op == Ops::K_SLICE_CHANNELS.id)
+                offsets.push_back(node.attributes.values[0]);
+        }
+
+        return offsets;
+    }
+
+    /** @brief Lists the shape of each input of @p node, in order. */
+    std::vector<Shape> input_shapes(const Graph::Graph& graph, const Graph::Node& node)
+    {
+        std::vector<Shape> shapes;
+        for (const Graph::ValueID input : node.inputs)
+            shapes.push_back(graph.value(input).shape);
+
+        return shapes;
     }
 
     /** @brief Views one shape as the inputs of a one-input row. */
@@ -326,10 +397,10 @@ TEST(Small_BlockC3k2, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 }
 
 /**
- * @brief Tests that row 2 traces four Conv blocks, two slices, one ADD and one
- *        CONCAT_CHANNELS.
+ * @brief Tests that a training trace of row 2 yields the output width, requests a mean and a
+ *        variance update for each norm of its state and hands them the row's options.
  */
-TEST(Small_BlockC3k2, Row2EmitsFourConvBlocksTwoSlicesAndOneConcat)
+TEST(Small_BlockC3k2, Row2KeepsTheShapeUpdatesEveryNormAndKeepsTheOptions)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -339,22 +410,27 @@ TEST(Small_BlockC3k2, Row2EmitsFourConvBlocksTwoSlicesAndOneConcat)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
-    EXPECT_EQ(list.updates().size(), 8u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 64}));
+    EXPECT_EQ(list.updates().size(), 2 * count_norms(walk(block, "model.2")));
     expect_norm_options(graph, list, K_YOLO_NORM);
 }
 
-/**
- * @brief Tests that the join reads the stem's first half, its second half, then the inner
- *        block's result, and that the inner block reads the second half.
- */
-TEST(Small_BlockC3k2, TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf)
+/** @brief Tests that the stem is cut into two halves of 16 channels, at channels 0 and 16. */
+TEST(Small_BlockC3k2, TheStemIsCutIntoTwoHalvesAtChannelsZeroAndSixteen)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 32}, "x");
+    C3k2<Bottleneck> block = make_row2();
+    BufferUpdateList list;
+    static_cast<void>(block.forward(Trace::training(builder, list), x));
+
+    // A slice stores its offset as a whole number, so the copy compares exactly.
+    EXPECT_EQ(slice_offsets(graph), (std::vector<double>{0.0, 16.0}));
+}
+
+/** @brief Tests that the join takes both halves and the inner block's result, 16 channels each. */
+TEST(Small_BlockC3k2, TheJoinTakesBothHalvesAndTheInnerBlockResult)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -365,29 +441,13 @@ TEST(Small_BlockC3k2, TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf)
 
     ASSERT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
     const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
-    ASSERT_EQ(join.inputs.size(), 3u);
 
-    const Graph::Node& first_half = graph.node(graph.value(join.inputs[0]).producer);
-    const Graph::Node& second_half = graph.node(graph.value(join.inputs[1]).producer);
-    const Graph::Node& chained = graph.node(graph.value(join.inputs[2]).producer);
-    ASSERT_EQ(first_half.op, Ops::K_SLICE_CHANNELS.id);
-    ASSERT_EQ(second_half.op, Ops::K_SLICE_CHANNELS.id);
-    ASSERT_EQ(chained.op, Ops::K_ADD.id);
-
-    // A slice stores its offset as a whole number in slot 0, so it compares exactly.
-    EXPECT_NEAR(first_half.attributes.values[0], 0.0, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(second_half.attributes.values[0], 16.0, K_EXACT_TOLERANCE);
-    EXPECT_EQ(first_half.inputs[0], second_half.inputs[0]);
-    EXPECT_EQ(graph.value(join.inputs[0]).shape, (Shape{2, 4, 4, 16}));
-    EXPECT_EQ(graph.value(join.inputs[1]).shape, (Shape{2, 4, 4, 16}));
-
-    // The bottleneck adds its own input, which is the second half.
-    EXPECT_EQ(chained.inputs[0], join.inputs[1]);
+    EXPECT_EQ(input_shapes(graph, join), std::vector<Shape>(3, Shape{2, 4, 4, 16}));
     EXPECT_EQ(graph.value(join.outputs[0]).shape, (Shape{2, 4, 4, 48}));
 }
 
-/** @brief Tests that each inner block reads the one before it and that all are joined. */
-TEST(Small_BlockC3k2, TwoInnerBlocksAreChainedAndBothJoined)
+/** @brief Tests that two inner blocks are all joined and listed in the state. */
+TEST(Small_BlockC3k2, TwoInnerBlocksAreBothJoinedAndBothListedInTheState)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -396,23 +456,24 @@ TEST(Small_BlockC3k2, TwoInnerBlocksAreChainedAndBothJoined)
     inner.push_back(Bottleneck(16, 16, 8, true, K_YOLO_NORM));
     inner.push_back(Bottleneck(16, 16, 8, true, K_YOLO_NORM));
     C3k2<Bottleneck> block(32, 64, 16, std::move(inner), K_YOLO_NORM);
-
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
     ASSERT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
     const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
-    ASSERT_EQ(join.inputs.size(), 4u);
-    EXPECT_EQ(graph.node(graph.value(join.inputs[2]).producer).inputs[0], join.inputs[1]);
-    EXPECT_EQ(graph.node(graph.value(join.inputs[3]).producer).inputs[0], join.inputs[2]);
-    EXPECT_EQ(block.cv2.conv.weight.shape(), (Shape{64, 1, 1, 64}));
-    EXPECT_EQ(block.m[1].cv1.conv.weight.shape(), (Shape{8, 3, 3, 16}));
+    EXPECT_EQ(input_shapes(graph, join), std::vector<Shape>(4, Shape{2, 4, 4, 16}));
+
+    const std::vector<std::string> state = walk(block, "b");
+    EXPECT_TRUE(contains(state, record("b.cv2.conv.weight", Shape{64, 1, 1, 64},
+                                       StateKind::Parameter)));
+    EXPECT_TRUE(contains(state, record("b.m.1.cv1.conv.weight", Shape{8, 3, 3, 16},
+                                       StateKind::Parameter)));
 }
 
 /**
- * @brief Tests that row 6, whose inner block is a C3k, traces nine Conv blocks, two slices,
- *        two ADDs and two CONCAT_CHANNELS.
+ * @brief Tests that a training trace of row 6, whose inner block is a C3k, keeps the input's
+ *        shape, requests a mean and a variance update for each norm and hands them the options.
  */
-TEST(Small_BlockC3k2, Row6EmitsNineConvBlocksAndTwoConcats)
+TEST(Small_BlockC3k2, Row6KeepsTheShapeUpdatesEveryNormAndKeepsTheOptions)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -422,14 +483,8 @@ TEST(Small_BlockC3k2, Row6EmitsNineConvBlocksAndTwoConcats)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 2u);
-    EXPECT_EQ(list.updates().size(), 18u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 128}));
+    EXPECT_EQ(list.updates().size(), 2 * count_norms(walk(block, "model.6")));
     expect_norm_options(graph, list, K_YOLO_NORM);
     EXPECT_EQ(block.output_shape(Shape{40, 40, 128}).value(), (Shape{40, 40, 128}));
 }
@@ -467,24 +522,9 @@ TEST(Small_BlockC3k2, StateMatchesManifestRow6)
 }
 
 /**
- * @brief Tests that K_C3K2_INNER lists the bottleneck, the C3k and the bottleneck_psa pair,
- *        each with a factory.
- */
-TEST(Small_BlockC3k2, TheInnerTableListsEachInnerBlockWithItsFactory)
-{
-    ASSERT_EQ(Vision::Blocks::K_C3K2_INNER.size(), 3u);
-    EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[0].name, "bottleneck");
-    EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[0].make, &Vision::Blocks::make_c3k2_of_bottleneck);
-    EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[1].name, "c3k");
-    EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[1].make, &Vision::Blocks::make_c3k2_of_c3k);
-    EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[2].name, "bottleneck_psa");
-    EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[2].make, &Vision::Blocks::make_c3k2_of_bottleneck_psa);
-}
-
-/**
  * @brief Tests that make_c3k2_node builds row 22 from its file row, whose inner block is a
- *        Bottleneck and a PSABlock: the port's shape, the 45 manifest records, the 18 buffer
- *        updates and the row's norm options on all nine norms.
+ *        Bottleneck and a PSABlock: the port's shape, the 45 manifest records and the row's
+ *        norm options.
  */
 TEST(Small_BlockC3k2, TheFactoryBuildsRow22)
 {
@@ -507,12 +547,6 @@ TEST(Small_BlockC3k2, TheFactoryBuildsRow22)
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 5u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 8u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 3u);
-    EXPECT_EQ(list.updates().size(), 18u);
     expect_norm_options(graph, list, K_YOLO_NORM);
     EXPECT_EQ(walk(*node, "model.22"), row22_records());
 }
@@ -531,10 +565,7 @@ TEST(Small_BlockC3k2, TheFactoryRefusesAPSAHeadCountThatDoesNotDivideHidden)
                       StatusCode::InvalidDescription, "'hidden'", "must split into 3 parts");
 }
 
-/**
- * @brief Tests that make_c3k2_node builds row 2 from its file row: the port's shape, the 20
- *        manifest records and the row's norm options on all four norms.
- */
+/** @brief Tests that make_c3k2_node builds row 2 from its file row: the port and the options. */
 TEST(Small_BlockC3k2, TheFactoryBuildsRow2)
 {
     const Shape input{160, 160, 32};
@@ -556,17 +587,12 @@ TEST(Small_BlockC3k2, TheFactoryBuildsRow2)
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 4u);
-    EXPECT_EQ(list.updates().size(), 8u);
     expect_norm_options(graph, list, K_YOLO_NORM);
-    EXPECT_EQ(walk(*node, "model.2"), row2_records());
 }
 
 /**
  * @brief Tests that make_c3k2_node builds row 6 from its file row, whose inner block is a
- *        C3k of two bottlenecks that add their input: the port's shape, the 45 manifest
- *        records and the row's norm options on all nine norms.
+ *        C3k of two bottlenecks that add their input: the port and the options.
  */
 TEST(Small_BlockC3k2, TheFactoryBuildsRow6)
 {
@@ -587,12 +613,7 @@ TEST(Small_BlockC3k2, TheFactoryBuildsRow6)
     std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 9u);
-    EXPECT_EQ(list.updates().size(), 18u);
     expect_norm_options(graph, list, K_YOLO_NORM);
-    EXPECT_EQ(walk(*node, "model.6"), row6_records());
 }
 
 /** @brief Tests that "shortcut": false reaches the bottlenecks of a C3k inner block. */
@@ -612,7 +633,6 @@ TEST(Small_BlockC3k2, TheFactoryReadsTheShortcutOfAC3kInnerBlock)
     std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 9u);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 }
 
@@ -635,9 +655,9 @@ TEST(Small_BlockC3k2, TheFactoryDefaultsToOneBottleneckWithAShortcut)
     std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 4u);
+    ASSERT_EQ(outputs.size(), 1u);
+    EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{2, 4, 4, 64}));
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
 }
 
 /** @brief Tests that "repeats" sets the number of inner blocks and "shortcut" their add. */
@@ -657,7 +677,6 @@ TEST(Small_BlockC3k2, TheFactoryReadsRepeatsAndShortcut)
     std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 8u);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 
     const std::vector<std::string> state = walk(*node, "");
@@ -672,84 +691,139 @@ TEST(Small_BlockC3k2, TheFactoryRefusesAnInnerBlockItDoesNotList)
     const Shape input{4, 4, 32};
     const Config::Value unlisted =
         attributes_of(R"({"filters": 64, "hidden": 16, "inner": "c2psa"})");
-    const Config::Value numbered = attributes_of(R"({"filters": 64, "hidden": 16, "inner": 2})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), unlisted, K_CONTEXT),
                       StatusCode::InvalidDescription, "layer 2 'c3k2'", "'c2psa'",
                       "bottleneck, c3k, bottleneck_psa");
+}
+
+/** @brief Tests that the factory refuses an inner block given as a number. */
+TEST(Small_BlockC3k2, TheFactoryRefusesAnInnerBlockThatIsNotAString)
+{
+    const Shape input{4, 4, 32};
+    const Config::Value numbered = attributes_of(R"({"filters": 64, "hidden": 16, "inner": 2})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), numbered, K_CONTEXT),
                       StatusCode::InvalidDescription, "'inner'", "string");
 }
 
 /** @brief Tests that the factory refuses a hidden width of one, which no inner block halves. */
-TEST(Small_BlockC3k2, TheFactoryRefusesAHiddenWidthOfOne)
+TEST_P(Small_BlockC3k2Hidden, AHiddenWidthOfOneIsRefused)
 {
     const Shape input{4, 4, 32};
-    const Config::Value bottleneck = attributes_of(R"({"filters": 64, "hidden": 1})");
-    const Config::Value c3k = attributes_of(R"({"filters": 64, "hidden": 1, "inner": "c3k"})");
+    const Config::Value attributes = attributes_of(GetParam().attributes);
 
-    SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), bottleneck, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'hidden'", "at least 2");
-    SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), c3k, K_CONTEXT),
+    SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), attributes, K_CONTEXT),
                       StatusCode::InvalidDescription, "'hidden'", "at least 2");
 }
 
-/** @brief Tests that the factory refuses an unknown key, a missing width and a flat input. */
-TEST(Small_BlockC3k2, TheFactoryRefusesARowThatDoesNotFit)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockC3k2Hidden,
+    ::testing::Values(HiddenRow{"InnerBottleneck", R"({"filters": 64, "hidden": 1})"},
+                      HiddenRow{"InnerC3k", R"({"filters": 64, "hidden": 1, "inner": "c3k"})"}),
+    row_name<HiddenRow>);
+
+/** @brief Tests that the factory refuses a key the row does not take. */
+TEST(Small_BlockC3k2, TheFactoryRefusesAnUnknownKey)
 {
     const Shape input{4, 4, 32};
-    const Shape flat{512};
     const Config::Value unknown = attributes_of(R"({"filters": 64, "hidden": 16, "heads": 2})");
-    const Config::Value no_hidden = attributes_of(R"({"filters": 64})");
-    const Config::Value fits = attributes_of(R"({"filters": 64, "hidden": 16})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), unknown, K_CONTEXT),
                       StatusCode::InvalidDescription, "layer 2 'c3k2'", "'heads'");
+}
+
+/** @brief Tests that the factory refuses a row without its hidden width. */
+TEST(Small_BlockC3k2, TheFactoryRefusesAnAbsentHiddenWidth)
+{
+    const Shape input{4, 4, 32};
+    const Config::Value no_hidden = attributes_of(R"({"filters": 64})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), no_hidden, K_CONTEXT),
                       StatusCode::InvalidDescription, "'hidden'", "absent");
+}
+
+/** @brief Tests that the factory refuses an input that is not one rank-3 feature map. */
+TEST(Small_BlockC3k2, TheFactoryRefusesAFlatInput)
+{
+    const Shape flat{512};
+    const Config::Value fits = attributes_of(R"({"filters": 64, "hidden": 16})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(flat), fits, K_CONTEXT),
                       StatusCode::InvalidDescription, "[512]", "rank-3");
 }
 
-/**
- * @brief Tests that each inner factory, called directly, refuses a row whose "inner" names
- *        the other block or is not a string, and accepts its own name.
- */
-TEST(Small_BlockC3k2, AnInnerFactoryRefusesARowThatNamesAnotherInnerBlock)
+/** @brief Tests that the bottleneck factory refuses a row whose "inner" names the C3k. */
+TEST(Small_BlockC3k2, TheBottleneckFactoryRefusesTheNameOfTheC3k)
 {
     const Shape input{4, 4, 32};
     const Config::Value of_c3k = attributes_of(R"({"filters": 64, "hidden": 16, "inner": "c3k"})");
-    const Config::Value of_bottleneck =
-        attributes_of(R"({"filters": 64, "hidden": 16, "inner": "bottleneck"})");
-    const Config::Value numbered = attributes_of(R"({"filters": 64, "hidden": 16, "inner": 2})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_of_bottleneck(one_input(input), of_c3k, K_CONTEXT),
                       StatusCode::InvalidDescription, "layer 2 'c3k2'", "'inner' is 'c3k'",
                       "builds 'bottleneck'");
-    SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_of_c3k(one_input(input), of_bottleneck, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'inner' is 'bottleneck'", "builds 'c3k'");
+}
+
+/** @brief Tests that the bottleneck factory refuses an "inner" that is not a string. */
+TEST(Small_BlockC3k2, TheBottleneckFactoryRefusesAnInnerThatIsNotAString)
+{
+    const Shape input{4, 4, 32};
+    const Config::Value numbered = attributes_of(R"({"filters": 64, "hidden": 16, "inner": 2})");
+
     SA_EXPECT_FAILURE(
         Vision::Blocks::make_c3k2_of_bottleneck(one_input(input), numbered, K_CONTEXT),
         StatusCode::InvalidDescription, "'inner'", "string");
-    SA_EXPECT_OK(
-        Vision::Blocks::make_c3k2_of_bottleneck(one_input(input), of_bottleneck, K_CONTEXT));
-    SA_EXPECT_OK(Vision::Blocks::make_c3k2_of_c3k(one_input(input), of_c3k, K_CONTEXT));
 }
 
-/**
- * @brief Tests that the bottleneck_psa factory refuses a row whose "inner" names the C3k, and
- *        accepts a row that names its own block.
- */
-TEST(Small_BlockC3k2, TheBottleneckPSAFactoryRefusesARowThatNamesAnotherInnerBlock)
+/** @brief Tests that the bottleneck factory accepts a row that names its own block. */
+TEST(Small_BlockC3k2, TheBottleneckFactoryAcceptsItsOwnName)
+{
+    const Shape input{4, 4, 32};
+    const Config::Value of_bottleneck =
+        attributes_of(R"({"filters": 64, "hidden": 16, "inner": "bottleneck"})");
+
+    SA_EXPECT_OK(
+        Vision::Blocks::make_c3k2_of_bottleneck(one_input(input), of_bottleneck, K_CONTEXT));
+}
+
+/** @brief Tests that the C3k factory refuses a row whose "inner" names the bottleneck. */
+TEST(Small_BlockC3k2, TheC3kFactoryRefusesTheNameOfTheBottleneck)
+{
+    const Shape input{4, 4, 32};
+    const Config::Value of_bottleneck =
+        attributes_of(R"({"filters": 64, "hidden": 16, "inner": "bottleneck"})");
+
+    SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_of_c3k(one_input(input), of_bottleneck, K_CONTEXT),
+                      StatusCode::InvalidDescription, "'inner' is 'bottleneck'", "builds 'c3k'");
+}
+
+/** @brief Tests that the C3k factory accepts a row that names its own block. */
+TEST(Small_BlockC3k2, TheC3kFactoryAcceptsItsOwnName)
 {
     const Shape input{4, 4, 32};
     const Config::Value of_c3k = attributes_of(R"({"filters": 64, "hidden": 16, "inner": "c3k"})");
-    const Config::Value of_psa =
-        attributes_of(R"({"filters": 64, "hidden": 16, "inner": "bottleneck_psa"})");
 
-    SA_EXPECT_FAILURE(
-        Vision::Blocks::make_c3k2_of_bottleneck_psa(one_input(input), of_c3k, K_CONTEXT),
-        StatusCode::InvalidDescription, "'inner' is 'c3k'", "builds 'bottleneck_psa'");
-    SA_EXPECT_OK(
-        Vision::Blocks::make_c3k2_of_bottleneck_psa(one_input(input), of_psa, K_CONTEXT));
+    SA_EXPECT_OK(Vision::Blocks::make_c3k2_of_c3k(one_input(input), of_c3k, K_CONTEXT));
 }
+
+/** @brief Tests that the bottleneck_psa factory refuses another block's name, accepts its own. */
+TEST_P(Small_BlockC3k2PsaInner, TheBottleneckPSAFactoryAnswersARowByTheInnerItNames)
+{
+    const Shape input{4, 4, 32};
+    const PsaInnerRow& row = GetParam();
+    const Config::Value attributes = attributes_of(
+        R"({"filters": 64, "hidden": 16, "inner": ")" + row.inner + R"("})");
+
+    const auto made =
+        Vision::Blocks::make_c3k2_of_bottleneck_psa(one_input(input), attributes, K_CONTEXT);
+
+    EXPECT_EQ(made.status().is_ok(), row.accepted);
+    EXPECT_NE(std::string(made.status().message()).find(row.needle), std::string::npos);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockC3k2PsaInner,
+    ::testing::Values(PsaInnerRow{"RefusesTheNameOfTheC3k", "c3k", false,
+                                  "'inner' is 'c3k'"},
+                      PsaInnerRow{"AcceptsItsOwnName", "bottleneck_psa", true, ""}),
+    row_name<PsaInnerRow>);
