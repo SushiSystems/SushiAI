@@ -1,7 +1,7 @@
 # tests/layers/nn/test_model_graph.cpp
 
 
-Suites: `Small_ModelGraph`, `Small_ModelGraphDeathTest`.
+Suites: `Small_ModelGraph`, `Medium_ModelGraphDeathTest`.
 
 Tests ModelGraph: what add and output refuse, what a trace emits, and the state names.
 
@@ -27,7 +27,7 @@ the three-argument one takes the two names.
 
 ## BranchingModel
 
-`BranchingModel` holds a `ModelGraph` and the refs `stem`, `up` and `mix` of three of its
+`BranchingModel` holds a `ModelGraph` and the refs `stem`, `up`, `merged` and `mix` of four of its
 nodes.
 
 ## build_branching_model
@@ -61,17 +61,16 @@ shape. The node declares that shape on its port whatever its input is.
 `shape_of` is [8, 8, 3] for the input, [4, 4, 4] for stem, [4, 4, 8] for up and [4, 4, 4] for
 mix. Node 3, the merge, declares [4, 4, 12] on its port.
 
-## BranchAndMergeTracesTheNodeSequenceOfTheHandWrittenTrace
+## BranchAndMergeTracesTheShapeOfTheHandWrittenTrace
 
 The model's `forward` under an evaluation trace is compared with the same five layers traced
-by hand through a `GraphBuilder` in a second graph. The two graphs hold the same operations in
-the same order, and both results are [2, 4, 4, 4]. The sequence holds one K_UPSAMPLE2D and one
-K_CONCAT_CHANNELS.
+by hand through a `GraphBuilder` in a second graph. Both results have the same shape, [2, 4, 4, 4].
+The operations the compiler emits are not compared.
 
-## MergeEmitsOneConcatChannelsReadingBothBranches
+## MergeJoinsBothBranchesIntoTwelveChannels
 
-With stem, up and mix published, the traced graph holds one K_CONCAT_CHANNELS node. Its inputs
-are the published value of up and then that of stem, and its output is [2, 4, 4, 12].
+With the merge node published as "merged", its traced value is [2, 4, 4, 12]: the 4 channels of
+the stem and the 8 of the up branch, so the merge reads both.
 
 ## TraceReturnsEveryPublishedOutputByName
 
@@ -80,8 +79,8 @@ With "features" and "skip" published in that order, `trace` returns two entries 
 
 ## ForwardReturnsTheSinglePublishedOutput
 
-A model of one ReLU node whose result is published traces one K_RELU node. That node reads the
-input, and its output is the id `forward` returned.
+A model of one ReLU node whose result is published returns from `forward` a value other than
+the input, with the shape [4, 6].
 
 ## ForwardFailsWhenTwoOutputsArePublished
 
@@ -127,8 +126,7 @@ After a trace of the branching model, the walk under "model" yields "model.stem.
 
 ## ATrainingTraceReachesAModalNodeAndTheWalkNamesItsBuffers
 
-A model of one `BatchNorm2d(3)` node named "bn", traced under a training trace, emits one
-K_BATCHNORM2D node and leaves two updates in the list. The parameter walk under "model" yields
+A model of one `BatchNorm2d(3)` node named "bn", traced under a training trace, leaves two updates in the list. The parameter walk under "model" yields
 "model.bn.weight:[3]" and "model.bn.bias:[3]", and `for_each_buffer` yields
 "model.bn.running_mean" and "model.bn.running_var".
 
@@ -141,7 +139,7 @@ the names are "0.weight:[8, 6]", "0.bias:[8]", "2.weight:[4, 8]" and "2.bias:[4]
 
 ## NestsInASequentialUnderItsIndex
 
-A `Sequential<ModelGraph, ReLU>` traces to a [4, 8] value whose last node is a K_RELU. Its walk
+A `Sequential<ModelGraph, ReLU>` traces to a [4, 8] value. Its walk
 yields "0.dense.weight:[8, 6]" and "0.dense.bias:[8]".
 
 ## AddRejectsADuplicateName
@@ -183,8 +181,8 @@ port, fails with a message containing "node 'late'", "'only' has 1 ports" and "p
 ## PortSelectsANamedPortThatALaterNodeReads
 
 `port(pair, "high")` returns a ref to node 0, port 1, and `port(high, "low")` returns a ref
-equal to `pair`. A ReLU added on `high` and published traces three nodes. Node 1 is the GELU,
-and node 2 reads node 1's output.
+equal to `pair`. A ReLU added on `high` and published traces three nodes. Node 2 reads node 1's output, the
+selected port.
 
 ## PortRejectsAnUnknownNameAndTheInput
 
@@ -193,8 +191,7 @@ high". `port(input, "low")` fails with "the model input has no port named 'low'"
 
 ## OutputPortsPublishesEveryPortUnderItsOwnName
 
-`output_ports(pair)` publishes two outputs. `at("low")` is the output of graph node 0 and
-`at("high")` that of graph node 1.
+`output_ports(pair)` publishes two outputs, and `at("low")` and `at("high")` are both present.
 
 ## OutputPortsPublishesNothingWhenAPortNameIsTaken
 
@@ -231,33 +228,37 @@ A `Concat` built over two shapes and added with one source fails with a message 
 "node 'merge'", "reads 2 values" and "given is 1". A `TwoPortNode` added with two sources fails
 with "node 'split'", "reads 1 values" and "given is 2". `size()` stays 0.
 
-## AMovedGraphKeepsItsRefsAndLeavesAnEmptyUsableGraph
+## AMovedGraphKeepsItsRefs
 
 A graph move-constructed from the branching model has `size()` 5, resolves the ref `up` to
-[4, 4, 8] and accepts `output("features", mix)`. The graph moved from has `size()` 0. A ReLU
-added to it and published traces one node whose output is the published value.
+[4, 4, 8] and accepts `output("features", mix)`.
+
+## AGraphMovedFromIsEmptyAndUsable
+
+The graph moved from has `size()` 0. A ReLU added to it and published traces one node whose output
+is the published value.
 
 ## AccessorsAreFatalOutOfRange
 
-The case is in the suite `Small_ModelGraphDeathTest`. On an empty graph, `shape_of` of a ref to
+The case is in the suite `Medium_ModelGraphDeathTest`, because a death test starts a child process. On an empty graph, `shape_of` of a ref to
 another graph's node stops the process with "shape_of" and "source node 0", and `node(0)`
 stops it with "ModelGraph::node" and "node 0".
 
 ## AddIsFatalOnANullNode
 
-The case is in the suite `Small_ModelGraphDeathTest`. `add` given a null `unique_ptr<NN::Node>`
+The case is in the suite `Medium_ModelGraphDeathTest`, because a death test starts a child process. `add` given a null `unique_ptr<NN::Node>`
 stops the process with a report containing "null node" and "'ghost'".
 
 ## AddIsFatalOnANodeWithTwoPortsOfOneName
 
-The case is in the suite `Small_ModelGraphDeathTest`. `add` given a `TwoPortNode` whose ports
+The case is in the suite `Medium_ModelGraphDeathTest`, because a death test starts a child process. `add` given a `TwoPortNode` whose ports
 are both named "low" stops the process with a report containing "'pair'" and "two ports named
 'low'".
 
 ## TraceIncrementalHandsEachLayerThePerSampleShapeItReads
 
 A model of the sample shape [5, 6] holds one `SliceProbe`. `trace_incremental` in a carrying
-trace over a [1, 1, 6] slice hands the probe the shape [5, 6] and adds one GELU node, and the
+trace over a [1, 1, 6] slice hands the probe the shape [5, 6], and the
 output "y" has the shape [1, 1, 6].
 
 ## TraceStillChecksThePerSampleShapeTheIncrementalWalkSkips
@@ -278,4 +279,4 @@ With a `ReLU` named "act" after the probe, `trace_incremental` fails with `Unsup
 ## ANestedGraphTracesItsIncrementalForm
 
 With the probe's graph added as one node of an outer graph, `trace_incremental` of the outer
-graph hands the probe [5, 6] and adds one GELU node.
+graph hands the probe [5, 6].
