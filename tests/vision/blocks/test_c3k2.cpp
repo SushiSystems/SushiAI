@@ -562,7 +562,7 @@ TEST(Small_BlockC3k2, TheFactoryRefusesAPSAHeadCountThatDoesNotDivideHidden)
         attributes_of(R"({"filters": 256, "hidden": 200, "inner": "bottleneck_psa"})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), attributes, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'hidden'", "must split into 3 parts");
+                      StatusCode::InvalidDescription, "Attention needs", "200 channels and 3 heads");
 }
 
 /** @brief Tests that make_c3k2_node builds row 2 from its file row: the port and the options. */

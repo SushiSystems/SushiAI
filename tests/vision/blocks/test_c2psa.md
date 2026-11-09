@@ -57,7 +57,7 @@ A row stating neither `repeats` nor `heads` builds one block: the walk yields 35
 
 ## AHiddenWidthTheHeadsDoNotSplitIsRefused
 
-A hidden width of 128 with 3 heads, and with 128 heads, fails with "'hidden'" and "parts of at least 2 channels". The suite is `Small_BlockC2psaHeads`, one row each.
+A hidden width of 128 with 3 heads, and with 128 heads, fails with "Attention needs" and, for 3 heads, "its head count divides", for 128 heads, "at least 2 channels per head": the refusals of `check_attention_heads`. The suite is `Small_BlockC2psaHeads`, one row each.
 
 ## TheFactoryRefusesAnUnknownKey
 

@@ -112,10 +112,7 @@ namespace SushiAI
                        "{} 'filters' must equal the input width, because C2PSA keeps it; it is {}, "
                        "and the input has {} channels",
                        context, filters, input[2]);
-            SA_FAIL_IF(hidden % heads != 0 || hidden / heads < Detail::K_SMALLEST_HEAD_WIDTH,
-                       StatusCode::InvalidDescription,
-                       "{} 'hidden' must split into {} parts of at least {} channels; it is {}",
-                       context, heads, Detail::K_SMALLEST_HEAD_WIDTH, hidden);
+            SA_TRY(check_attention_heads(hidden, heads));
 
             return Detail::wrap_block(C2PSA(input[2], filters, hidden, repeats, heads, norm),
                                       input);

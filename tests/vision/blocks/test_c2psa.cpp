@@ -73,6 +73,7 @@ namespace
     {
         std::string name; /**< The row's name. */
         int64_t heads;    /**< The head count the row states. */
+        std::string phrase; /**< The part of the refusal that names the cause. */
     };
 
     /** @brief Runs one head count the hidden width cannot split into. */
@@ -435,12 +436,12 @@ TEST_P(Small_BlockC2psaHeads, AHiddenWidthTheHeadsDoNotSplitIsRefused)
         R"({"filters": 256, "hidden": 128, "heads": )" + std::to_string(GetParam().heads) + "}");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c2psa_node(one_input(input), attributes, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'hidden'", "parts of at least 2 channels");
+                      StatusCode::InvalidDescription, "Attention needs", GetParam().phrase);
 }
 
 INSTANTIATE_TEST_SUITE_P(Rows, Small_BlockC2psaHeads,
-                         ::testing::Values(HeadRow{"HeadsThatDoNotDivide", 3},
-                                           HeadRow{"OneChannelPerHead", 128}),
+                         ::testing::Values(HeadRow{"HeadsThatDoNotDivide", 3, "its head count divides"},
+                                           HeadRow{"OneChannelPerHead", 128, "at least 2 channels per head"}),
                          row_name<HeadRow>);
 
 /** @brief Tests that the factory refuses a key the row does not take. */

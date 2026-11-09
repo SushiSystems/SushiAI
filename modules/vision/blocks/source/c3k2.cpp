@@ -235,11 +235,7 @@ namespace SushiAI
 
             // PSABlock throws on a width or head count its attention refuses; refuse them here.
             const int64_t heads = default_attention_heads(row.hidden);
-            SA_FAIL_IF(row.hidden % heads != 0 ||
-                           row.hidden / heads < Detail::K_SMALLEST_HEAD_WIDTH,
-                       StatusCode::InvalidDescription,
-                       "{} 'hidden' must split into {} parts of at least {} channels; it is {}",
-                       context, heads, Detail::K_SMALLEST_HEAD_WIDTH, row.hidden);
+            SA_TRY(check_attention_heads(row.hidden, heads));
 
             return build_c3k2_of(row, &bottleneck_psa_of);
         }

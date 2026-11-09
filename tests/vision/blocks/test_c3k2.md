@@ -130,7 +130,7 @@ The walk of traced row 6 under "model.6" equals `row6_records()`.
 ## TheFactoryRefusesAPSAHeadCountThatDoesNotDivideHidden
 
 With `hidden` 200 and `inner` "bottleneck_psa", `make_c3k2_node` fails with
-`InvalidDescription`, "'hidden'" and "must split into 3 parts".
+`InvalidDescription`, "Attention needs" and "200 channels and 3 heads", the refusal of `check_attention_heads`.
 
 ## TheFactoryBuildsRow2
 
