@@ -99,19 +99,20 @@ class RuleDeviceSourceMissingTest(unittest.TestCase):
 
     K_TEST_SIZE = "small"
 
-    def test_reports_a_unit_that_reaches_a_kernel_through_a_header(self) -> None:
-        """Names the unit and the chain of includes that leads to the kernel."""
-        tree = _tree(["source/sgd.cpp", "source/schedule.cpp"], [])
-        self.assertEqual(_messages(rule_device_source_missing, tree), [K_MISSING_MESSAGE])
-
-    def test_reports_a_unit_that_launches_a_kernel_itself(self) -> None:
-        """Names a unit whose own text launches a kernel."""
+    def test_reports_a_unit_that_reaches_a_kernel(self) -> None:
+        """Names a unit that reaches a kernel through a header and a unit that launches one itself."""
         own = {"modules/core/optim/source/own.cpp": "void f() { queue.parallel_for(range, body); }"}
-        tree = _tree(["source/own.cpp"], [], own)
-        self.assertEqual(
-            _messages(rule_device_source_missing, tree),
-            ["own.cpp reaches a kernel through a kernel launch and is not in DEVICE_SOURCES of optim"],
+        rows = (
+            ("header", _tree(["source/sgd.cpp", "source/schedule.cpp"], []), K_MISSING_MESSAGE),
+            (
+                "launch",
+                _tree(["source/own.cpp"], [], own),
+                "own.cpp reaches a kernel through a kernel launch and is not in DEVICE_SOURCES of optim",
+            ),
         )
+        for name, tree, message in rows:
+            with self.subTest(reach=name):
+                self.assertEqual(_messages(rule_device_source_missing, tree), [message])
 
     def test_ignores_a_kernel_name_in_a_comment(self) -> None:
         """Gives no issue for a unit that names a launch only in a comment."""
