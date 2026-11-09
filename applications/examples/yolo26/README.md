@@ -21,7 +21,7 @@ model.
 | 22 | `c3k2` with `"inner": "bottleneck_psa"` | `register_nodes` |
 | 23 | `detect`, 80 classes, over rows 16, 19 and 22 | `register_nodes` |
 
-`TheYOLO26FileHoldsItsTwentyFourRows` pins the types. The shape tests replace row 10 with a
+`TheYOLO26FileListsTheTypesOfItsTwentyFourRows` pins the types. The shape tests replace row 10 with a
 `silu` row, which keeps the shape `c2psa` keeps, so they run without the attention block.
 
 ## The rows

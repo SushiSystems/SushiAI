@@ -52,6 +52,7 @@
 #include <SushiAI/vision/registration/registration.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include "registration_test_support.hpp"
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using NN::ModelGraph;
@@ -75,9 +76,10 @@ namespace
         std::size_t rows;
 
         /**
-         * @brief Holds the parameter count of the Ultralytics summary line at 80 classes; a
-         *        figure from memory, which this file's own count of the rows matches once the
-         *        ramp of the distribution expectation is taken out.
+         * @brief Holds the parameter count in the summary line Ultralytics prints when it loads
+         *        yolov8n.yaml (3157200 parameters) and yolo11n.yaml (2624080 parameters) at 80
+         *        classes. The figure is the published one, not a count made here; the ramp of
+         *        the distribution expectation is taken out of it before the comparison.
          */
         std::int64_t reference_parameters;
     };
@@ -90,6 +92,12 @@ namespace
 
     /** @brief Lists the folders of every anchor-free file that states a task section. */
     const char* const K_TASK_FOLDERS[] = {"yolov8n", "yolo11n", "yolo26"};
+
+    /** @brief Holds the score threshold the task section of each file reads back as. */
+    constexpr float K_TASK_SCORE_THRESHOLD = 0.25f;
+
+    /** @brief Holds the suppression threshold the task section of each file reads back as. */
+    constexpr float K_TASK_SUPPRESSION_THRESHOLD = 0.7f;
 
     /** @brief Holds the distribution bins per box side the files state. */
     constexpr std::int64_t K_REG_MAX = 16;
@@ -129,116 +137,230 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that each file holds its rows, the input of 640 pixels and one output node. */
-TEST(Medium_UltralyticsFiles, HoldTheirRowsAndTheirInput)
+namespace
 {
-    for (const UltralyticsFile& file : K_FILES)
-    {
-        SCOPED_TRACE(file.folder);
-        const Config::ModelSpec spec = require_value(Config::load_model(model_path(file.folder)));
+    /** @brief Gives each file of K_FILES its row, so a test runs once per file. */
+    class Medium_UltralyticsFiles : public ::testing::TestWithParam<UltralyticsFile> {};
 
-        EXPECT_EQ(spec.layers.size(), file.rows);
-        EXPECT_EQ(spec.input_shape, (Shape{K_INPUT_SIDE, K_INPUT_SIDE, 3}));
-        EXPECT_EQ(spec.outputs.size(), 1u);
+    /** @brief Gives each folder of K_TASK_FOLDERS to a test of the task section. */
+    class Medium_UltralyticsTaskSection : public ::testing::TestWithParam<const char*> {};
+
+    /** @brief Names a file in the name of its test. */
+    std::string file_name(const ::testing::TestParamInfo<UltralyticsFile>& info)
+    {
+        return SushiAI::Test::parameter_name(info.param.folder);
     }
+
+    /** @brief Names a folder in the name of its test. */
+    std::string folder_name(const ::testing::TestParamInfo<const char*>& info)
+    {
+        return SushiAI::Test::parameter_name(info.param);
+    }
+
+    /** @brief Loads the model file of @p file. */
+    Config::ModelSpec load_spec(const UltralyticsFile& file)
+    {
+        return require_value(Config::load_model(model_path(file.folder)));
+    }
+
+    /**
+     * @brief Builds @p spec over the composed registry and lists the outputs it traces to.
+     * @param spec The model file, which must build.
+     */
+    std::vector<Train::OutputShape> traced_outputs(const Config::ModelSpec& spec)
+    {
+        const NN::NodeRegistry registry = require_value(composed());
+        ModelGraph model = require_value(NN::build_model(registry, spec));
+
+        return trace_outputs(model, spec.input_shape);
+    }
+
+    /** @brief Derives the facts of the head of @p spec from the outputs it traces to. */
+    FreeModelFacts head_facts(const Config::ModelSpec& spec)
+    {
+        return require_value(
+            Vision::Training::derive_free_model_facts(spec.input_shape, traced_outputs(spec)));
+    }
+} // namespace
+
+/** @brief Tests that the file holds its rows. */
+TEST_P(Medium_UltralyticsFiles, HoldsItsRows)
+{
+    const Config::ModelSpec spec = load_spec(GetParam());
+
+    EXPECT_EQ(spec.layers.size(), GetParam().rows);
+}
+
+/** @brief Tests that the file takes a 640 by 640 by 3 input. */
+TEST_P(Medium_UltralyticsFiles, TakesA640By640By3Input)
+{
+    const Config::ModelSpec spec = load_spec(GetParam());
+
+    EXPECT_EQ(spec.input_shape, (Shape{K_INPUT_SIDE, K_INPUT_SIDE, 3}));
+}
+
+/** @brief Tests that the file publishes one output. */
+TEST_P(Medium_UltralyticsFiles, PublishesOneOutput)
+{
+    const Config::ModelSpec spec = load_spec(GetParam());
+
+    EXPECT_EQ(spec.outputs.size(), 1u);
 }
 
 /**
- * @brief Tests that the parameter count of each built model is the Ultralytics summary figure
+ * @brief Tests that the parameter count of the built model is the Ultralytics summary figure
  *        less the elements of the ramp, which the framework holds as no record.
  */
-TEST(Medium_UltralyticsFiles, BuildToTheParameterCountOfTheReference)
+TEST_P(Medium_UltralyticsFiles, BuildToTheParameterCountOfTheReference)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
+    const Config::ModelSpec spec = load_spec(GetParam());
+    SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
+    (void)trace_outputs(model, spec.input_shape);
 
-    for (const UltralyticsFile& file : K_FILES)
-    {
-        SCOPED_TRACE(file.folder);
-        Config::ModelSpec spec = require_value(Config::load_model(model_path(file.folder)));
-        SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
-        (void)trace_outputs(model, spec.input_shape);
-
-        EXPECT_EQ(count_parameters(model), file.reference_parameters - K_RAMP_ELEMENTS);
-    }
+    EXPECT_EQ(count_parameters(model), GetParam().reference_parameters - K_RAMP_ELEMENTS);
 }
+
+/** @brief Tests that the model publishes the three boxes and the three scores and no other port. */
+TEST_P(Medium_UltralyticsFiles, PublishOnlyTheOneToManyPorts)
+{
+    const std::vector<Train::OutputShape> outputs = traced_outputs(load_spec(GetParam()));
+
+    EXPECT_EQ(outputs.size(), 2 * K_LEVELS);
+}
+
+/** @brief Tests that the boxes of level 0 are 4 * reg_max channels wide at stride 8. */
+TEST_P(Medium_UltralyticsFiles, PublishTheBoxesOfLevelZeroAtStrideEight)
+{
+    const std::vector<Train::OutputShape> outputs = traced_outputs(load_spec(GetParam()));
+
+    EXPECT_EQ(shape_of(outputs, "one2many.level0.boxes"),
+              (Shape{1, K_INPUT_SIDE / 8, K_INPUT_SIDE / 8, 4 * K_REG_MAX}));
+}
+
+/** @brief Tests that the boxes of level 1 are 4 * reg_max channels wide at stride 16. */
+TEST_P(Medium_UltralyticsFiles, PublishTheBoxesOfLevelOneAtStrideSixteen)
+{
+    const std::vector<Train::OutputShape> outputs = traced_outputs(load_spec(GetParam()));
+
+    EXPECT_EQ(shape_of(outputs, "one2many.level1.boxes"),
+              (Shape{1, K_INPUT_SIDE / 16, K_INPUT_SIDE / 16, 4 * K_REG_MAX}));
+}
+
+/** @brief Tests that the boxes of level 2 are 4 * reg_max channels wide at stride 32. */
+TEST_P(Medium_UltralyticsFiles, PublishTheBoxesOfLevelTwoAtStrideThirtyTwo)
+{
+    const std::vector<Train::OutputShape> outputs = traced_outputs(load_spec(GetParam()));
+
+    EXPECT_EQ(shape_of(outputs, "one2many.level2.boxes"),
+              (Shape{1, K_INPUT_SIDE / 32, K_INPUT_SIDE / 32, 4 * K_REG_MAX}));
+}
+
+/** @brief Tests that the scores of level 0 are 80 channels wide at stride 8. */
+TEST_P(Medium_UltralyticsFiles, PublishTheScoresOfLevelZeroAtStrideEight)
+{
+    const std::vector<Train::OutputShape> outputs = traced_outputs(load_spec(GetParam()));
+
+    EXPECT_EQ(shape_of(outputs, "one2many.level0.scores"),
+              (Shape{1, K_INPUT_SIDE / 8, K_INPUT_SIDE / 8, K_CLASSES}));
+}
+
+/** @brief Tests that the scores of level 1 are 80 channels wide at stride 16. */
+TEST_P(Medium_UltralyticsFiles, PublishTheScoresOfLevelOneAtStrideSixteen)
+{
+    const std::vector<Train::OutputShape> outputs = traced_outputs(load_spec(GetParam()));
+
+    EXPECT_EQ(shape_of(outputs, "one2many.level1.scores"),
+              (Shape{1, K_INPUT_SIDE / 16, K_INPUT_SIDE / 16, K_CLASSES}));
+}
+
+/** @brief Tests that the scores of level 2 are 80 channels wide at stride 32. */
+TEST_P(Medium_UltralyticsFiles, PublishTheScoresOfLevelTwoAtStrideThirtyTwo)
+{
+    const std::vector<Train::OutputShape> outputs = traced_outputs(load_spec(GetParam()));
+
+    EXPECT_EQ(shape_of(outputs, "one2many.level2.scores"),
+              (Shape{1, K_INPUT_SIDE / 32, K_INPUT_SIDE / 32, K_CLASSES}));
+}
+
+/** @brief Tests that the traced outputs of the model give reg_max 16. */
+TEST_P(Medium_UltralyticsFiles, GiveARegMaxOfSixteen)
+{
+    EXPECT_EQ(head_facts(load_spec(GetParam())).reg_max, K_REG_MAX);
+}
+
+/** @brief Tests that the traced outputs of the model give 80 classes. */
+TEST_P(Medium_UltralyticsFiles, GiveEightyClasses)
+{
+    EXPECT_EQ(head_facts(load_spec(GetParam())).classes, K_CLASSES);
+}
+
+/** @brief Tests that the traced outputs of the model give no one-to-one copy. */
+TEST_P(Medium_UltralyticsFiles, GiveNoOneToOneCopy)
+{
+    EXPECT_FALSE(head_facts(load_spec(GetParam())).has_one_to_one);
+}
+
+/** @brief Tests that the traced outputs of the model give three levels at strides 8, 16 and 32. */
+TEST_P(Medium_UltralyticsFiles, GiveThreeLevelsAtTheLevelStrides)
+{
+    const FreeModelFacts facts = head_facts(load_spec(GetParam()));
+
+    ASSERT_EQ(facts.levels.size(), K_LEVELS);
+    EXPECT_EQ(facts.levels[0].stride, K_STRIDES[0]);
+    EXPECT_EQ(facts.levels[1].stride, K_STRIDES[1]);
+    EXPECT_EQ(facts.levels[2].stride, K_STRIDES[2]);
+}
+
+/** @brief Tests that the traced outputs of the model give square levels of the input over the stride. */
+TEST_P(Medium_UltralyticsFiles, GiveSquareLevelsOfTheInputOverTheStride)
+{
+    const FreeModelFacts facts = head_facts(load_spec(GetParam()));
+
+    ASSERT_EQ(facts.levels.size(), K_LEVELS);
+    EXPECT_EQ(facts.levels[0].height, K_INPUT_SIDE / K_STRIDES[0]);
+    EXPECT_EQ(facts.levels[0].width, K_INPUT_SIDE / K_STRIDES[0]);
+    EXPECT_EQ(facts.levels[1].height, K_INPUT_SIDE / K_STRIDES[1]);
+    EXPECT_EQ(facts.levels[1].width, K_INPUT_SIDE / K_STRIDES[1]);
+    EXPECT_EQ(facts.levels[2].height, K_INPUT_SIDE / K_STRIDES[2]);
+    EXPECT_EQ(facts.levels[2].width, K_INPUT_SIDE / K_STRIDES[2]);
+}
+
+INSTANTIATE_TEST_SUITE_P(Files, Medium_UltralyticsFiles, ::testing::ValuesIn(K_FILES),
+                         file_name);
 
 /**
- * @brief Tests that each model publishes the boxes and the scores of three levels at strides 8,
- *        16 and 32, 4 * reg_max and 80 channels wide, and publishes no other port.
+ * @brief Tests that the task section of an anchor-free file reads back as score 0.25, with
+ *        the values written out here and not read from FreeTask{}, the code under test.
  */
-TEST(Medium_UltralyticsFiles, PublishTheOneToManyPortsAtTheLevelStrides)
+TEST_P(Medium_UltralyticsTaskSection, ReadsBackTheDefaultScoreThreshold)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
+    const Config::ModelSpec spec = require_value(Config::load_model(model_path(GetParam())));
 
-    for (const UltralyticsFile& file : K_FILES)
-    {
-        SCOPED_TRACE(file.folder);
-        Config::ModelSpec spec = require_value(Config::load_model(model_path(file.folder)));
-        SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
+    SA_ASSERT_OK_AND_ASSIGN(const FreeTask task, Vision::Detect::Free::read_free_task(spec.task));
 
-        const std::vector<Train::OutputShape> outputs = trace_outputs(model, spec.input_shape);
-
-        EXPECT_EQ(outputs.size(), 2 * K_LEVELS);
-        for (std::size_t level = 0; level < K_LEVELS; ++level)
-        {
-            SCOPED_TRACE(level);
-            const std::int64_t side = K_INPUT_SIDE / K_STRIDES[level];
-            const std::string prefix = "one2many.level" + std::to_string(level);
-
-            EXPECT_EQ(shape_of(outputs, prefix + ".boxes"), (Shape{1, side, side, 4 * K_REG_MAX}));
-            EXPECT_EQ(shape_of(outputs, prefix + ".scores"), (Shape{1, side, side, K_CLASSES}));
-        }
-    }
+    EXPECT_EQ(task.score_threshold, K_TASK_SCORE_THRESHOLD);
 }
 
-/** @brief Tests that the traced outputs of each model give strides 8, 16, 32 and reg_max 16. */
-TEST(Medium_UltralyticsFiles, GiveTheFactsOfAnAnchorFreeModel)
+/** @brief Tests that the task section reads back as suppression at 0.7. */
+TEST_P(Medium_UltralyticsTaskSection, ReadsBackTheDefaultSuppressionThreshold)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
+    const Config::ModelSpec spec = require_value(Config::load_model(model_path(GetParam())));
 
-    for (const UltralyticsFile& file : K_FILES)
-    {
-        SCOPED_TRACE(file.folder);
-        Config::ModelSpec spec = require_value(Config::load_model(model_path(file.folder)));
-        SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
-        const std::vector<Train::OutputShape> outputs = trace_outputs(model, spec.input_shape);
+    SA_ASSERT_OK_AND_ASSIGN(const FreeTask task, Vision::Detect::Free::read_free_task(spec.task));
 
-        SA_ASSERT_OK_AND_ASSIGN(
-            const FreeModelFacts facts,
-            Vision::Training::derive_free_model_facts(spec.input_shape, outputs));
-
-        EXPECT_EQ(facts.reg_max, K_REG_MAX);
-        EXPECT_EQ(facts.classes, K_CLASSES);
-        EXPECT_FALSE(facts.has_one_to_one);
-        ASSERT_EQ(facts.levels.size(), K_LEVELS);
-        for (std::size_t level = 0; level < K_LEVELS; ++level)
-        {
-            SCOPED_TRACE(level);
-            EXPECT_EQ(facts.levels[level].stride, K_STRIDES[level]);
-            EXPECT_EQ(facts.levels[level].height, K_INPUT_SIDE / K_STRIDES[level]);
-            EXPECT_EQ(facts.levels[level].width, K_INPUT_SIDE / K_STRIDES[level]);
-        }
-    }
+    EXPECT_EQ(task.suppression_threshold, K_TASK_SUPPRESSION_THRESHOLD);
 }
 
-/**
- * @brief Tests that the task section of each anchor-free file reads back as the FreeTask
- *        defaults: score 0.25, intersection over union suppression at 0.7.
- */
-TEST(Medium_UltralyticsFiles, TheTaskSectionReadsBackAsTheDefaults)
+/** @brief Tests that the task section reads back as suppression by intersection over union. */
+TEST_P(Medium_UltralyticsTaskSection, ReadsBackIntersectionOverUnionSuppression)
 {
-    const FreeTask defaults;
+    const Config::ModelSpec spec = require_value(Config::load_model(model_path(GetParam())));
 
-    for (const char* const folder : K_TASK_FOLDERS)
-    {
-        SCOPED_TRACE(folder);
-        const Config::ModelSpec spec = require_value(Config::load_model(model_path(folder)));
+    SA_ASSERT_OK_AND_ASSIGN(const FreeTask task, Vision::Detect::Free::read_free_task(spec.task));
 
-        SA_ASSERT_OK_AND_ASSIGN(const FreeTask task,
-                                Vision::Detect::Free::read_free_task(spec.task));
-
-        EXPECT_EQ(task.score_threshold, defaults.score_threshold);
-        EXPECT_EQ(task.suppression_threshold, defaults.suppression_threshold);
-        EXPECT_EQ(task.criterion, defaults.criterion);
-    }
+    EXPECT_EQ(task.criterion, Vision::Detect::SuppressionCriterion::IoU);
 }
+
+INSTANTIATE_TEST_SUITE_P(Folders, Medium_UltralyticsTaskSection,
+                         ::testing::ValuesIn(K_TASK_FOLDERS), folder_name);

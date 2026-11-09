@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -75,6 +76,28 @@ namespace SushiAI::Test
         for (const NN::ModelOutputs::Entry& output : outputs.all())
             shapes.push_back(Train::OutputShape{output.first, graph.value(output.second).shape});
         return shapes;
+    }
+
+    /** @brief Returns the number of elements the parameters of each row of @p model hold. */
+    inline std::vector<std::int64_t> count_row_parameters(NN::ModelGraph& model)
+    {
+        std::vector<std::int64_t> rows;
+        for (std::size_t row = 0; row < model.size(); ++row)
+        {
+            std::int64_t total = 0;
+            auto on_parameter = [&total](const std::string&, NN::Parameter& parameter)
+            {
+                total += parameter.shape().num_elements();
+            };
+            auto on_buffer = [](const std::string&, NN::Buffer&)
+            {
+
+            };
+            const NN::StateVisitor visitor(on_parameter, on_buffer);
+            model.node(row).walk_state("", visitor);
+            rows.push_back(total);
+        }
+        return rows;
     }
 
     /** @brief Returns the number of elements the parameters of @p model hold. */

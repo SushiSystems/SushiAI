@@ -39,6 +39,7 @@
 #include <ios>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -65,6 +66,7 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -78,6 +80,7 @@
 #include <SushiAI/layer_traces/trace_summary.hpp>
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/nn/buffer.hpp>
+#include <support/test_names.hpp>
 #include <support/tolerance.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
@@ -161,13 +164,6 @@ namespace
     constexpr std::size_t K_ATTENTION_INNER_ROW = 22;
 
     /**
-     * @brief Holds the absolute bound on a real compared here; each is exact in the file: 16384
-     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-12.
-     */
-    constexpr double K_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
-    /**
      * @brief Lists a minimal object for every single-port row of register_nodes, in the rows'
      *        order; detect, the one row with several ports, has K_DETECT_CASE.
      */
@@ -241,6 +237,12 @@ namespace
     std::filesystem::path yolo_model_path(const std::filesystem::path& root)
     {
         return root / "applications" / "examples" / "yolo26" / "model.json";
+    }
+
+    /** @brief Loads the YOLO26n model file as it is written. */
+    Config::ModelSpec load_spec()
+    {
+        return SaTest::require_value(Config::load_model(yolo_model_path(repository_root())));
     }
 
     /** @brief Returns the path of the YOLO26 reference manifest in the fixture folder. */
@@ -389,11 +391,53 @@ namespace
 
 } // namespace
 
+namespace
+{
+    /** @brief Names a row of the node registry in the name of its test. */
+    std::string case_name(const ::testing::TestParamInfo<MinimalCase>& info)
+    {
+        return SaTest::parameter_name(info.param.type);
+    }
+
+    /** @brief Lists the types of the rows of @p spec, in row order. */
+    std::vector<std::string> layer_types(const Config::ModelSpec& spec)
+    {
+        std::vector<std::string> types;
+        for (const Config::LayerSpec& layer : spec.layers)
+            types.push_back(layer.type);
+
+        return types;
+    }
+
+    /** @brief Lists the rows that row @p row of @p spec reads. */
+    std::vector<std::int64_t> layer_sources(const Config::ModelSpec& spec, std::size_t row)
+    {
+        std::vector<std::int64_t> sources;
+        for (const Config::SourceSpec& source : spec.layers[row].from)
+            sources.push_back(source.node);
+
+        return sources;
+    }
+
+    /** @brief Lists the shape of the one port of every row of @p model, in row order. */
+    std::vector<Shape> row_shapes(const ModelGraph& model)
+    {
+        std::vector<Shape> shapes;
+        for (std::size_t row = 0; row < model.size(); ++row)
+        {
+            const auto ports = model.node(row).ports();
+            shapes.push_back(ports.size() == 1u ? ports[0].shape : Shape{});
+        }
+
+        return shapes;
+    }
+} // namespace
+
 /**
  * @brief Tests that register_nodes adds conv, bottleneck, c3k, c3k2, c2f, c3, sppf, c2psa,
  *        detect and segment_head, in that order.
  */
-TEST(Medium_VisionRegistration, RegisterNodesAddsTheTenBlocks)
+TEST(Small_VisionRegistration, RegisterNodesAddsTheTenBlocks)
 {
     const std::vector<std::string_view> expected = {
         "conv", "bottleneck", "c3k", "c3k2", "c2f", "c3", "sppf", "c2psa", "detect",
@@ -407,8 +451,8 @@ TEST(Medium_VisionRegistration, RegisterNodesAddsTheTenBlocks)
     EXPECT_TRUE(registry.layers().empty());
 }
 
-/** @brief Tests that register_datasets adds "mnist" and "reader", each with a factory. */
-TEST(Medium_VisionRegistration, RegisterDatasetsAddsMNISTAndReader)
+/** @brief Tests that register_datasets adds "mnist", then "reader", each with a factory. */
+TEST(Small_VisionRegistration, RegisterDatasetsAddsMNISTThenReader)
 {
     const std::vector<std::string_view> expected = {"mnist", "reader"};
 
@@ -419,6 +463,13 @@ TEST(Medium_VisionRegistration, RegisterDatasetsAddsMNISTAndReader)
     const Data::DatasetEntry* const mnist = registry.find("mnist");
     ASSERT_NE(mnist, nullptr);
     EXPECT_NE(mnist->make, nullptr);
+}
+
+/** @brief Tests that the "reader" row of register_datasets builds through make_reader_dataset. */
+TEST(Small_VisionRegistration, TheReaderRowHoldsMakeReaderDataset)
+{
+    Data::DatasetRegistry registry;
+    SA_EXPECT_OK(Vision::register_datasets(registry));
 
     const Data::DatasetEntry* const reader = registry.find(Config::K_READER_DATA_TYPE);
     ASSERT_NE(reader, nullptr);
@@ -426,7 +477,7 @@ TEST(Medium_VisionRegistration, RegisterDatasetsAddsMNISTAndReader)
 }
 
 /** @brief Tests that build_model over register_layers alone fails at the first conv row. */
-TEST(Medium_VisionRegistration, ARegistryWithoutTheBlocksRefusesConv)
+TEST(Small_VisionRegistration, ARegistryWithoutTheBlocksRefusesConv)
 {
     NN::NodeRegistry registry;
     ASSERT_TRUE(SushiAI::Test::status_is_ok(NN::register_layers(registry)));
@@ -436,24 +487,8 @@ TEST(Medium_VisionRegistration, ARegistryWithoutTheBlocksRefusesConv)
                       "does not have");
 }
 
-/**
- * @brief Tests that every row of register_nodes has a minimal case here, in row order, with
- *        detect and segment_head last.
- */
-TEST(Medium_VisionRegistration, EveryRowHasAMinimalCase)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
-    const SushiRuntime::span<const NN::NodeEntry> nodes = registry.nodes();
-    ASSERT_EQ(K_MINIMAL_CASES.size() + 2, nodes.size());
-
-    for (std::size_t index = 0; index < K_MINIMAL_CASES.size(); ++index)
-        EXPECT_EQ(K_MINIMAL_CASES[index].type, nodes[index].type);
-    EXPECT_EQ(K_DETECT_CASE.type, nodes[K_MINIMAL_CASES.size()].type);
-    EXPECT_EQ(K_SEGMENT_HEAD_CASE.type, nodes[K_MINIMAL_CASES.size() + 1].type);
-}
-
 /** @brief Tests that segment_head builds one port at twice the extents, a channel per class. */
-TEST(Medium_VisionRegistration, SegmentHeadBuildsOnePortAtTheUpsampledSize)
+TEST(Small_VisionRegistration, SegmentHeadBuildsOnePortAtTheUpsampledSize)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
     SA_ASSERT_OK_AND_ASSIGN(
@@ -469,7 +504,7 @@ TEST(Medium_VisionRegistration, SegmentHeadBuildsOnePortAtTheUpsampledSize)
  * @brief Tests that detect over three levels builds four ports per level: the boxes and the
  *        scores of each of the two copies.
  */
-TEST(Medium_VisionRegistration, DetectBuildsFourPortsPerLevel)
+TEST(Small_VisionRegistration, DetectBuildsFourPortsPerLevel)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
@@ -479,83 +514,100 @@ TEST(Medium_VisionRegistration, DetectBuildsFourPortsPerLevel)
     EXPECT_EQ(node->ports().size(), 4u * K_DETECT_CASE.inputs.size());
 }
 
-/** @brief Tests that each row builds a one-port node of the expected shape from its case. */
-TEST(Medium_VisionRegistration, EachRowBuildsFromAMinimalObject)
+namespace
 {
+    /** @brief Gives each row of K_MINIMAL_CASES, and detect, its case. */
+    class Small_VisionRegistrationRow : public ::testing::TestWithParam<MinimalCase> {};
+} // namespace
+
+/** @brief Tests that a single-port row builds a one-port node of its case's shape. */
+TEST_P(Small_VisionRegistrationRow, BuildsFromAMinimalObject)
+{
+    const MinimalCase& minimal = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
-    for (const MinimalCase& minimal : K_MINIMAL_CASES)
-    {
-        SCOPED_TRACE(std::string(minimal.type));
 
-        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
-                                make_minimal(registry, minimal, minimal.attributes));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            make_minimal(registry, minimal, minimal.attributes));
 
-        ASSERT_NE(node, nullptr);
-        ASSERT_EQ(node->ports().size(), 1u);
-        EXPECT_EQ(node->ports()[0].name, NN::K_SINGLE_PORT_NAME);
-        EXPECT_EQ(node->ports()[0].shape, minimal.output);
-    }
+    ASSERT_NE(node, nullptr);
+    ASSERT_EQ(node->ports().size(), 1u);
+    EXPECT_EQ(node->ports()[0].name, NN::K_SINGLE_PORT_NAME);
+    EXPECT_EQ(node->ports()[0].shape, minimal.output);
 }
 
-/** @brief Tests that each row refuses a key it does not know and names the row and the key. */
-TEST(Medium_VisionRegistration, EachRowRejectsAnUnknownKey)
+/** @brief Tests that a row refuses a key it does not know and names the row and the key. */
+TEST_P(Small_VisionRegistrationRow, RejectsAnUnknownKey)
 {
+    const MinimalCase& minimal = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
-    for (const MinimalCase& minimal : K_MINIMAL_CASES)
-    {
-        const std::string context = "layer 0 '" + std::string(minimal.type) + "'";
+    const std::string context = "layer 0 '" + std::string(minimal.type) + "'";
 
-        SA_EXPECT_FAILURE(make_minimal(registry, minimal, R"({"no_such_key": 1})"),
-                          StatusCode::InvalidDescription, context, "'no_such_key'");
-    }
-
-    SA_EXPECT_FAILURE(make_minimal(registry, K_DETECT_CASE, R"({"no_such_key": 1})"),
-                      StatusCode::InvalidDescription, "layer 0 'detect'", "'no_such_key'");
+    SA_EXPECT_FAILURE(make_minimal(registry, minimal, R"({"no_such_key": 1})"),
+                      StatusCode::InvalidDescription, context, "'no_such_key'");
 }
 
-/**
- * @brief Tests that the YOLO26n file parses to its 24 rows: the types in order, the sources
- *        of the four joins and of the head, the merged defaults and the one output.
- */
-TEST(Medium_VisionRegistration, TheYOLO26FileHoldsItsTwentyFourRows)
-{
-    const std::filesystem::path root = repository_root();
-    const Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
+INSTANTIATE_TEST_SUITE_P(SingleRows, Small_VisionRegistrationRow,
+                         ::testing::ValuesIn(K_MINIMAL_CASES), case_name);
 
+INSTANTIATE_TEST_SUITE_P(DetectRow, Small_VisionRegistrationRow,
+                         ::testing::Values(K_DETECT_CASE), case_name);
+
+/** @brief Tests that the YOLO26n file parses to 24 rows of the types it lists, in order. */
+TEST(Medium_VisionRegistration, TheYOLO26FileListsTheTypesOfItsTwentyFourRows)
+{
+    const Config::ModelSpec spec = load_spec();
     const std::vector<std::string> expected_types = {
         "conv", "conv",     "c3k2",   "conv", "c3k2",     "conv",   "c3k2", "conv",
         "c3k2", "sppf",     "c2psa",  "upsample", "concat", "c3k2", "upsample", "concat",
         "c3k2", "conv",     "concat", "c3k2", "conv",     "concat", "c3k2", "detect",
     };
-    std::vector<std::string> types;
-    for (const Config::LayerSpec& layer : spec.layers)
-        types.push_back(layer.type);
 
     ASSERT_EQ(spec.layers.size(), K_YOLO_ROWS);
-    EXPECT_EQ(types, expected_types);
+    EXPECT_EQ(layer_types(spec), expected_types);
+}
+
+/** @brief Tests that the YOLO26n file states an input of 640 by 640 by 3. */
+TEST(Medium_VisionRegistration, TheYOLO26FileTakesA640By640By3Input)
+{
+    const Config::ModelSpec spec = load_spec();
+
     EXPECT_EQ(spec.input_shape, (Shape{640, 640, 3}));
+}
 
-    const auto sources_of = [&spec](std::size_t row)
-    {
-        std::vector<std::int64_t> sources;
-        for (const Config::SourceSpec& source : spec.layers[row].from)
-            sources.push_back(source.node);
-        return sources;
-    };
-    EXPECT_EQ(sources_of(0), (std::vector<std::int64_t>{Config::K_MODEL_INPUT}));
-    EXPECT_EQ(sources_of(12), (std::vector<std::int64_t>{11, 6}));
-    EXPECT_EQ(sources_of(15), (std::vector<std::int64_t>{14, 4}));
-    EXPECT_EQ(sources_of(18), (std::vector<std::int64_t>{17, 13}));
-    EXPECT_EQ(sources_of(21), (std::vector<std::int64_t>{20, 10}));
-    EXPECT_EQ(sources_of(23), (std::vector<std::int64_t>{16, 19, 22}));
+/**
+ * @brief Tests that row 0 reads the model input, the four concat rows read rows 11 and 6, 14
+ *        and 4, 17 and 13, and 20 and 10, and the detect row reads rows 16, 19 and 22.
+ */
+TEST(Medium_VisionRegistration, TheYOLO26FileReadsTheSourcesOfItsInputJoinsAndHead)
+{
+    const Config::ModelSpec spec = load_spec();
 
-    EXPECT_NEAR(real_of(spec.layers[0].attributes, "bn_epsilon"),
-                0.001,
-                K_TOLERANCE);
-    EXPECT_NEAR(real_of(spec.layers[9].attributes, "bn_momentum"),
-                0.03,
-                K_TOLERANCE);
+    EXPECT_EQ(layer_sources(spec, 0), (std::vector<std::int64_t>{Config::K_MODEL_INPUT}));
+    EXPECT_EQ(layer_sources(spec, 12), (std::vector<std::int64_t>{11, 6}));
+    EXPECT_EQ(layer_sources(spec, 15), (std::vector<std::int64_t>{14, 4}));
+    EXPECT_EQ(layer_sources(spec, 18), (std::vector<std::int64_t>{17, 13}));
+    EXPECT_EQ(layer_sources(spec, 21), (std::vector<std::int64_t>{20, 10}));
+    EXPECT_EQ(layer_sources(spec, 23), (std::vector<std::int64_t>{16, 19, 22}));
+}
+
+/**
+ * @brief Tests that row 0 holds the bn_epsilon of the file's defaults, row 9 the bn_momentum,
+ *        and row 11, which has no norm, none. Both reals are parsed from the same decimal text
+ *        as the literal, so they are equal.
+ */
+TEST(Medium_VisionRegistration, TheYOLO26FileMergesItsDefaultsIntoTheRows)
+{
+    const Config::ModelSpec spec = load_spec();
+
+    EXPECT_EQ(real_of(spec.layers[0].attributes, "bn_epsilon"), 0.001);
+    EXPECT_EQ(real_of(spec.layers[9].attributes, "bn_momentum"), 0.03);
     EXPECT_FALSE(spec.layers[11].attributes.has("bn_epsilon"));
+}
+
+/** @brief Tests that the YOLO26n file publishes one output, row 23 with an empty port. */
+TEST(Medium_VisionRegistration, TheYOLO26FilePublishesTheDetectRowAsItsOneOutput)
+{
+    const Config::ModelSpec spec = load_spec();
 
     ASSERT_EQ(spec.outputs.size(), 1u);
     EXPECT_EQ(spec.outputs[0].node, 23);
@@ -569,9 +621,8 @@ TEST(Medium_VisionRegistration, TheYOLO26FileHoldsItsTwentyFourRows)
  */
 TEST(Medium_VisionRegistration, TheYOLO26FileBuildsWhole)
 {
-    const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
+    Config::ModelSpec spec = load_spec();
     const Config::Value manifest = SaTest::require_value(Config::parse_json_file(manifest_path()));
 
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
@@ -592,9 +643,8 @@ TEST(Medium_VisionRegistration, TheYOLO26FileBuildsWhole)
  */
 TEST(Medium_VisionRegistration, YOLO26RowsTwoAndFourAddTheirBottlenecksInput)
 {
-    const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
+    Config::ModelSpec spec = load_spec();
     const std::size_t rows_through_four = 5;
     keep_first_rows(spec, rows_through_four);
 
@@ -614,9 +664,8 @@ TEST(Medium_VisionRegistration, YOLO26RowsTwoAndFourAddTheirBottlenecksInput)
  */
 TEST(Medium_VisionRegistration, YOLO26RowsZeroToNineMatchTheManifest)
 {
-    const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
+    Config::ModelSpec spec = load_spec();
     keep_first_rows(spec, K_ATTENTION_ROW);
     const Config::Value manifest = SaTest::require_value(Config::parse_json_file(manifest_path()));
 
@@ -636,78 +685,133 @@ TEST(Medium_VisionRegistration, YOLO26RowsZeroToNineMatchTheManifest)
  */
 TEST(Medium_VisionRegistration, YOLO26RowsBuildToTheReferenceShapes)
 {
-    const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
+    Config::ModelSpec spec = load_spec();
     stand_in(spec, K_ATTENTION_ROW, "silu", "{}");
     keep_first_rows(spec, K_ATTENTION_INNER_ROW);
 
     SA_ASSERT_OK_AND_ASSIGN(const ModelGraph model, NN::build_model(registry, spec));
 
-    ASSERT_EQ(model.size(), K_YOLO_ROW_SHAPES.size());
-    for (std::size_t row = 0; row < model.size(); ++row)
+    EXPECT_EQ(row_shapes(model), K_YOLO_ROW_SHAPES);
+}
+
+namespace
+{
+    /**
+     * @brief Builds rows 0 to 21 of the YOLO26n file, with a silu row for row 10, and traces
+     *        rows 16, 19 and 21 as "level0", "level1" and "joined", beside the manifest.
+     */
+    class Medium_VisionRegistrationNeck : public ::testing::Test
     {
-        SCOPED_TRACE("row " + std::to_string(row));
-        ASSERT_EQ(model.node(row).ports().size(), 1u);
-        EXPECT_EQ(model.node(row).ports()[0].shape, K_YOLO_ROW_SHAPES[row]);
+        protected:
+            /** @brief Builds and traces the model and reads the manifest. */
+            void SetUp() override
+            {
+                SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
+                Config::ModelSpec spec = load_spec();
+                stand_in(spec, K_ATTENTION_ROW, "silu", "{}");
+                keep_first_rows(spec, K_ATTENTION_INNER_ROW);
+                spec.outputs = {named_output(16, "level0"), named_output(19, "level1"),
+                                named_output(21, "joined")};
+                input_side = spec.input_shape[0];
+                manifest.emplace(
+                    SaTest::require_value(Config::parse_json_file(manifest_path())));
+
+                SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
+                SA_ASSERT_OK_AND_ASSIGN(TraceSummary traced,
+                                        trace_summary(model, spec.input_shape, "model"));
+                trace.emplace(std::move(traced));
+            }
+
+            /** @brief Returns the levels MANIFEST.json records for forward.sacp. */
+            const std::vector<Config::Value>& levels() const
+            {
+                return array_of(SaTest::require_value(
+                                    manifest_file(*manifest, "forward.sacp")
+                                        .at("context", "forward.sacp")),
+                                "levels");
+            }
+
+            /** @brief Holds the side of the input, in pixels. */
+            std::int64_t input_side = 0;
+
+            /** @brief Holds the parsed MANIFEST.json. */
+            std::optional<Config::Value> manifest;
+
+            /** @brief Holds the trace of the neck. */
+            std::optional<TraceSummary> trace;
+    };
+
+    /** @brief Gives each of the two neck levels that MANIFEST.json records its index. */
+    class Medium_VisionRegistrationNeckLevel : public Medium_VisionRegistrationNeck,
+                                               public ::testing::WithParamInterface<std::size_t>
+    {
+    };
+
+    /** @brief Names a level in the name of its test. */
+    std::string level_name(const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return "level" + std::to_string(info.param);
     }
+} // namespace
+
+/** @brief Tests that rows 16 and 19 trace to the extents the manifest records for a level. */
+TEST_P(Medium_VisionRegistrationNeckLevel, TracesToTheManifestExtents)
+{
+    const std::size_t level = GetParam();
+    ASSERT_GT(levels().size(), level);
+    const std::int64_t height = int_of(levels()[level], "height");
+    const std::int64_t width = int_of(levels()[level], "width");
+    const std::int64_t channels = int_of(levels()[level], "channels");
+    const Shape expected{K_TRACE_BATCH, height, width, channels};
+
+    ASSERT_GT(trace->outputs.size(), level);
+    EXPECT_EQ(trace->outputs[level], "level" + std::to_string(level) + " " + expected.to_string());
+}
+
+/** @brief Tests that the stride of a level times its height is the side of the input. */
+TEST_P(Medium_VisionRegistrationNeckLevel, StrideTimesHeightIsTheInputSide)
+{
+    const std::size_t level = GetParam();
+    ASSERT_GT(levels().size(), level);
+
+    EXPECT_EQ(real_of(levels()[level], "stride") *
+                  static_cast<double>(int_of(levels()[level], "height")),
+              static_cast<double>(input_side));
+}
+
+INSTANTIATE_TEST_SUITE_P(Levels, Medium_VisionRegistrationNeckLevel, ::testing::Values(0, 1),
+                         level_name);
+
+/** @brief Tests that the manifest records three levels, the last of which the neck joins. */
+TEST_F(Medium_VisionRegistrationNeck, TheManifestRecordsThreeLevels)
+{
+    EXPECT_EQ(levels().size(), 3u);
+}
+
+/** @brief Tests that row 21 joins its two sources to 384 channels at 20 by 20. */
+TEST_F(Medium_VisionRegistrationNeck, Row21JoinsToThe384Channels)
+{
+    ASSERT_EQ(trace->outputs.size(), 3u);
+    EXPECT_EQ(trace->outputs[2], "joined [2, 20, 20, 384]");
 }
 
 /**
- * @brief Tests that rows 16 and 19 trace to the extents, widths and strides MANIFEST.json
- *        records for feature levels 0 and 1, and that rows 11 to 21 yield the manifest's
- *        records for rows 13 to 20.
+ * @brief Tests that rows 0 to 9 and 11 to 21 yield the records MANIFEST.json lists under
+ *        model.0 to model.9 and model.11 to model.21, in that order.
  */
-TEST(Medium_VisionRegistration, YOLO26NeckTracesToTheReferenceLevels)
+TEST_F(Medium_VisionRegistrationNeck, StateIsTheManifestRecordsOfRows0To9And11To21)
 {
-    const std::filesystem::path root = repository_root();
-    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
-    stand_in(spec, K_ATTENTION_ROW, "silu", "{}");
-    keep_first_rows(spec, K_ATTENTION_INNER_ROW);
-    spec.outputs = {named_output(16, "level0"), named_output(19, "level1"),
-                    named_output(21, "joined")};
-    const Config::Value manifest = SaTest::require_value(Config::parse_json_file(manifest_path()));
-
-    SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
-    SA_ASSERT_OK_AND_ASSIGN(const TraceSummary trace,
-                            trace_summary(model, spec.input_shape, "model"));
-
-    const std::vector<Config::Value>& levels =
-        array_of(SaTest::require_value(manifest_file(manifest, "forward.sacp").at("context",
-                                                                                  "forward.sacp")),
-                 "levels");
-    ASSERT_EQ(levels.size(), 3u);
-    ASSERT_EQ(trace.outputs.size(), 3u);
-    for (std::size_t level = 0; level < 2; ++level)
-    {
-        SCOPED_TRACE("level " + std::to_string(level));
-        const std::int64_t height =
-            int_of(levels[level], "height");
-        const std::int64_t width =
-            int_of(levels[level], "width");
-        const std::int64_t channels =
-            int_of(levels[level], "channels");
-        const Shape expected{K_TRACE_BATCH, height, width, channels};
-
-        EXPECT_EQ(trace.outputs[level],
-                  "level" + std::to_string(level) + " " + expected.to_string());
-
-        EXPECT_NEAR(real_of(levels[level], "stride") *
-                        static_cast<double>(height),
-                    static_cast<double>(spec.input_shape[0]), K_TOLERANCE);
-    }
-    EXPECT_EQ(trace.outputs[2], "joined [2, 20, 20, 384]");
-
-    std::vector<std::string> expected = manifest_records(manifest, 0, 9);
-    const std::vector<std::string> neck = manifest_records(manifest, 11, 21);
+    std::vector<std::string> expected = manifest_records(*manifest, 0, 9);
+    const std::vector<std::string> neck = manifest_records(*manifest, 11, 21);
     ASSERT_EQ(neck.size(), 145u);
     expected.insert(expected.end(), neck.begin(), neck.end());
-    EXPECT_EQ(trace.state, expected);
+
+    EXPECT_EQ(trace->state, expected);
 }
 
 /** @brief Tests that the vision domain adds its four objectives after the layers' rows. */
-TEST(Medium_VisionRegistration, RegistersTheDetectionAndThePixelObjectives)
+TEST(Small_VisionRegistration, RegisterObjectivesAddsFourRowsAfterTheLayers)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
@@ -720,13 +824,20 @@ TEST(Medium_VisionRegistration, RegistersTheDetectionAndThePixelObjectives)
     EXPECT_EQ(registry.rows()[layers + 1].type, "anchor_free");
     EXPECT_EQ(registry.rows()[layers + 2].type, "pixel_cross_entropy");
     EXPECT_EQ(registry.rows()[layers + 3].type, "dice");
+}
+
+/** @brief Tests that a second register_objectives refuses "anchor" as already registered. */
+TEST(Small_VisionRegistration, RegisterObjectivesTwiceRefusesAnchorAsRegistered)
+{
+    Train::ObjectiveRegistry registry;
+    SA_EXPECT_OK(Vision::register_objectives(registry));
 
     SA_EXPECT_FAILURE(Vision::register_objectives(registry), StatusCode::InvalidDescription,
                       "'anchor'", "already registered");
 }
 
 /** @brief Tests that the registered row refuses a model file that has no task section. */
-TEST(Medium_VisionRegistration, TheAnchorRowReadsTheTaskOfTheModel)
+TEST(Small_VisionRegistration, TheAnchorRowReadsTheTaskOfTheModel)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Vision::register_objectives(registry));
@@ -737,8 +848,20 @@ TEST(Medium_VisionRegistration, TheAnchorRowReadsTheTaskOfTheModel)
                       StatusCode::InvalidDescription, "the objective block", "'task'");
 }
 
-/** @brief Tests that each pixel row builds its objective over one [N, H, W, C] output. */
-TEST(Medium_VisionRegistration, ThePixelRowsBuildOverOneLogitMap)
+namespace
+{
+    /** @brief Gives each pixel row of the objective registry its type. */
+    class Small_VisionRegistrationPixelRow : public ::testing::TestWithParam<const char*> {};
+
+    /** @brief Names a pixel row in the name of its test. */
+    std::string type_name(const ::testing::TestParamInfo<const char*>& info)
+    {
+        return SaTest::parameter_name(info.param);
+    }
+} // namespace
+
+/** @brief Tests that a pixel row builds its objective over one [N, H, W, C] output. */
+TEST_P(Small_VisionRegistrationPixelRow, BuildsOverOneLogitMapAndIsNamedByItsType)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Vision::register_objectives(registry));
@@ -749,33 +872,39 @@ TEST(Medium_VisionRegistration, ThePixelRowsBuildOverOneLogitMap)
     const Config::Value section =
         SaTest::require_value(Config::parse_json(R"({"ignore_index": 255})", "<test>"));
 
-    for (const std::string_view type : {"pixel_cross_entropy", "dice"})
-    {
-        SCOPED_TRACE(std::string(type));
-        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Objective> objective,
-                                Train::make_objective(registry, type, given, section,
-                                                      "the objective block"));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Objective> objective,
+                            Train::make_objective(registry, GetParam(), given, section,
+                                                  "the objective block"));
 
-        ASSERT_NE(objective, nullptr);
-        EXPECT_EQ(objective->name(), type);
-    }
+    ASSERT_NE(objective, nullptr);
+    EXPECT_EQ(objective->name(), GetParam());
 }
 
-/** @brief Tests that the vision domain adds the "darknet" importer and refuses a repeat. */
-TEST(Medium_VisionRegistration, RegistersTheDarknetImporter)
+INSTANTIATE_TEST_SUITE_P(PixelRows, Small_VisionRegistrationPixelRow,
+                         ::testing::Values("pixel_cross_entropy", "dice"), type_name);
+
+/** @brief Tests that the vision domain adds one importer row, "darknet". */
+TEST(Small_VisionRegistration, RegisterImportersAddsTheDarknetRow)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(Vision::register_importers(registry));
 
     ASSERT_EQ(registry.rows().size(), 1u);
     EXPECT_EQ(registry.rows()[0].format, "darknet");
+}
+
+/** @brief Tests that a second register_importers refuses "darknet" as already registered. */
+TEST(Small_VisionRegistration, RegisterImportersTwiceRefusesDarknetAsRegistered)
+{
+    IO::ImporterRegistry registry;
+    SA_EXPECT_OK(Vision::register_importers(registry));
 
     SA_EXPECT_FAILURE(Vision::register_importers(registry), StatusCode::InvalidDescription,
                       "'darknet'", "already registered");
 }
 
 /** @brief Tests that the registered row reaches the Darknet importer, which counts its files. */
-TEST(Medium_VisionRegistration, TheDarknetRowRefusesACallWithoutFiles)
+TEST(Small_VisionRegistration, TheDarknetRowRefusesACallWithoutFiles)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(Vision::register_importers(registry));
@@ -786,14 +915,17 @@ TEST(Medium_VisionRegistration, TheDarknetRowRefusesACallWithoutFiles)
 
 namespace
 {
-    /** @brief Provides an engine for the dataset rows, whose factories take one. */
-    class Medium_VisionRegistrationData : public SushiAI::Test::EngineTest
+    /** @brief Provides a host engine for the dataset rows, whose factories take one. */
+    class Small_VisionRegistrationData : public ::testing::Test
     {
+        protected:
+            /** @brief Holds the host engine the refusals run on; no device is used. */
+            HostExecutionBackend backend;
     };
 } // namespace
 
-/** @brief Tests that the "reader" row reaches the reader table through the registry. */
-TEST_F(Medium_VisionRegistrationData, TheReaderRowBuildsADataSection)
+/** @brief Tests that the "reader" row refuses an unknown reader and names the known ones. */
+TEST_F(Small_VisionRegistrationData, TheReaderRowRefusesAnUnknownReaderNamingTheKnownOnes)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(Vision::register_datasets(registry));
@@ -801,11 +933,104 @@ TEST_F(Medium_VisionRegistrationData, TheReaderRowBuildsADataSection)
     const Config::Value section = SushiAI::Test::attributes_from(
         R"({"reader": "no_such_reader", "task": "detection", "root": "sushiai_absent_root"})");
 
-    SA_EXPECT_FAILURE(Data::make_dataset(registry, *engine, Config::K_READER_DATA_TYPE, section,
-                                         "the data block"),
+    SA_EXPECT_FAILURE(Data::make_dataset(registry, backend.engine(), Config::K_READER_DATA_TYPE,
+                                         section, "the data block"),
                       StatusCode::InvalidDescription, "the data block 'reader'",
                       "'no_such_reader'", "'coco_json'", "'yolo_txt'");
 }
+
+namespace
+{
+    /** @brief Provides a host engine and a dataset registry that holds the vision rows. */
+    class Small_VisionMnist : public ::testing::Test
+    {
+        protected:
+            /** @brief Adds the "mnist" row the vision registry holds. */
+            void SetUp() override
+            {
+                SA_EXPECT_OK(Vision::register_datasets(datasets));
+            }
+
+            /** @brief Holds the host engine the refusals run on; no device is used. */
+            HostExecutionBackend backend;
+
+            /** @brief Holds the dataset rows the tests build from. */
+            Data::DatasetRegistry datasets;
+    };
+} // namespace
+
+/** @brief Tests that the dataset registry carries a row named "mnist". */
+TEST_F(Small_VisionMnist, TheDatasetRegistryListsMNIST)
+{
+    EXPECT_NE(datasets.find("mnist"), nullptr);
+}
+
+/** @brief Tests that an unknown dataset type is refused and the refusal names 'mnist'. */
+TEST_F(Small_VisionMnist, AnUnknownDatasetTypeIsRefusedNamingMNIST)
+{
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(datasets, backend.engine(), "coco", attributes_from("{}"), "data"),
+        StatusCode::InvalidDescription, "'mnist'");
+}
+
+/** @brief Tests that "mnist" rejects a key it does not know before it looks for any file. */
+TEST_F(Small_VisionMnist, AnUnknownMNISTKeyIsRejectedByItsOwnFactory)
+{
+    SA_EXPECT_FAILURE(Data::make_dataset(
+            datasets, backend.engine(), "mnist",
+            attributes_from(R"({"directory": "sushiai_absent_mnist", "batch_sizes": 16})"),
+            "data"), StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
+}
+
+/** @brief Tests that "mnist" refuses a section without the required "directory" key. */
+TEST_F(Small_VisionMnist, MNISTRequiresADirectory)
+{
+    SA_EXPECT_FAILURE(Data::make_dataset(datasets, backend.engine(), "mnist",
+                                 attributes_from(R"({"split": "test"})"), "data"),
+        StatusCode::InvalidDescription, "data", "has no", "'directory'");
+}
+
+namespace
+{
+    /** @brief Names an option of "mnist", a value it does not allow and the two values it does. */
+    struct MNISTOptionRow
+    {
+        std::string_view key;      /**< The option's key. */
+        std::string_view value;    /**< The value the section gives. */
+        std::string_view allowed_a; /**< The first allowed value, quoted as the refusal quotes it. */
+        std::string_view allowed_b; /**< The second allowed value, quoted. */
+    };
+
+    /** @brief Gives each option row of "mnist" its refusal. */
+    class Small_VisionMnistOption : public Small_VisionMnist,
+                                    public ::testing::WithParamInterface<MNISTOptionRow>
+    {
+    };
+
+    /** @brief Names an option row in the name of its test. */
+    std::string option_name(const ::testing::TestParamInfo<MNISTOptionRow>& info)
+    {
+        return SaTest::parameter_name(info.param.key);
+    }
+} // namespace
+
+/** @brief Tests that "mnist" refuses a value its option does not allow, naming the allowed ones. */
+TEST_P(Small_VisionMnistOption, AnUnknownValueIsRefusedNamingTheAllowedOnes)
+{
+    const MNISTOptionRow& row = GetParam();
+    const std::string section = R"({"directory": "sushiai_absent_mnist", ")" +
+                                std::string(row.key) + R"(": ")" + std::string(row.value) + R"("})";
+
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(datasets, backend.engine(), "mnist", attributes_from(section), "data"),
+        StatusCode::InvalidDescription, "data", "'" + std::string(row.key) + "'",
+        "'" + std::string(row.value) + "'", row.allowed_a, row.allowed_b);
+}
+
+INSTANTIATE_TEST_SUITE_P(Options, Small_VisionMnistOption,
+                         ::testing::Values(MNISTOptionRow{"split", "validation", "'train'", "'test'"},
+                                           MNISTOptionRow{"layout", "tiled", "'flat'", "'image'"}),
+                         option_name);
 
 namespace
 {
@@ -824,103 +1049,86 @@ namespace
             Data::DatasetRegistry datasets;
     };
 
+    /** @brief Names a split of "mnist" and what the refusal of its absent files names. */
+    struct MNISTSplitRow
+    {
+        std::string_view split_json; /**< The "split" key and value, or empty for the default. */
+        std::string_view label;      /**< The split as the refusal names it. */
+        std::string_view images;     /**< The image file and the word "labels" the refusal names. */
+        std::string_view other_a;    /**< Another file the refusal names, or empty. */
+        std::string_view other_b;    /**< Another file the refusal names, or empty. */
+        std::string_view other_c;    /**< Another file the refusal names, or empty. */
+    };
+
+    /** @brief Gives each split of "mnist" its refusal for absent files. */
+    class Medium_VisionMnistSplit : public Medium_VisionMnist,
+                                    public ::testing::WithParamInterface<MNISTSplitRow>
+    {
+    };
+
+    /** @brief Names a split row in the name of its test. */
+    std::string split_name(const ::testing::TestParamInfo<MNISTSplitRow>& info)
+    {
+        return SaTest::parameter_name(info.param.label);
+    }
 } // namespace
 
-/** @brief Tests that the dataset registry carries a row named "mnist". */
-TEST_F(Medium_VisionMnist, TheDatasetRegistryListsMNIST)
+/** @brief Tests that "mnist" fails, naming the directory and the files of the split, when absent. */
+TEST_P(Medium_VisionMnistSplit, RefusesADirectoryWithoutTheFiles)
 {
-    EXPECT_NE(datasets.find("mnist"), nullptr);
+    const MNISTSplitRow& row = GetParam();
+    const std::string section = R"({"directory": "sushiai_absent_mnist")" +
+                                (row.split_json.empty() ? std::string()
+                                                        : ", " + std::string(row.split_json)) + "}";
 
     SA_EXPECT_FAILURE(
-        Data::make_dataset(datasets, *engine, "coco", attributes_from("{}"), "data"),
-        StatusCode::InvalidDescription, "'mnist'");
+        Data::make_dataset(datasets, *engine, "mnist", attributes_from(section), "data"),
+        StatusCode::FileNotFound, "data", "sushiai_absent_mnist", row.label, row.images,
+        row.other_a, row.other_b, row.other_c);
 }
 
-/** @brief Tests that "mnist" rejects a key it does not know before it looks for any file. */
-TEST_F(Medium_VisionMnist, AnUnknownMNISTKeyIsRejectedByItsOwnFactory)
+INSTANTIATE_TEST_SUITE_P(
+    Splits, Medium_VisionMnistSplit,
+    ::testing::Values(
+        MNISTSplitRow{"", "MNIST train split", "train-images-idx3-ubyte, labels",
+                      "train-labels-idx1-ubyte", "t10k-images-idx3-ubyte",
+                      "t10k-labels-idx1-ubyte"},
+        MNISTSplitRow{R"("split": "test")", "MNIST test split", "t10k-images-idx3-ubyte, labels",
+                      "", "", ""}),
+    split_name);
+
+namespace
 {
-    SA_EXPECT_FAILURE(Data::make_dataset(
-            datasets, *engine, "mnist",
-            attributes_from(R"({"directory": "sushiai_absent_mnist", "batch_sizes": 16})"),
-            "data"), StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
-}
+    /** @brief Loads the first 32 samples of the "image" layout, or skips when the files are absent. */
+    class Medium_VisionMnistImage : public SaTest::EngineTest
+    {
+        protected:
+            /** @brief Loads the dataset; the test is skipped when the IDX files are absent. */
+            void SetUp() override
+            {
+                SaTest::EngineTest::SetUp();
+                MNISTOptions options;
+                options.layout = MNISTLayout::Image;
+                options.batch_size = 16;
+                options.max_samples = 32;
+                if (!Vision::Datasets::mnist_available(options))
+                    GTEST_SKIP() << "MNIST IDX files are absent from "
+                                 << options.directory.string();
 
-/** @brief Tests that "mnist" fails, naming the directory and its files, when they are absent. */
-TEST_F(Medium_VisionMnist, MNISTRefusesADirectoryWithoutTheFiles)
+                Result<std::unique_ptr<Data::Dataset>> loaded =
+                    Vision::Datasets::try_load_mnist(*engine, options);
+                ASSERT_TRUE(loaded.has_value()) << loaded.status().message();
+                dataset = std::move(loaded).value();
+            }
+
+            /** @brief Holds the dataset the tests read. */
+            std::unique_ptr<Data::Dataset> dataset;
+    };
+} // namespace
+
+/** @brief Tests that the "image" layout yields [16, 28, 28, 1] inputs and rank-1 labels. */
+TEST_F(Medium_VisionMnistImage, YieldsRankFourInputsAndRankOneLabels)
 {
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(datasets, *engine, "mnist",
-                           attributes_from(R"({"directory": "sushiai_absent_mnist"})"),
-                           "data"),
-        StatusCode::FileNotFound, "data", "sushiai_absent_mnist", "MNIST train split",
-        "train-images-idx3-ubyte, labels", "train-labels-idx1-ubyte", "t10k-images-idx3-ubyte",
-        "t10k-labels-idx1-ubyte");
-}
-
-/** @brief Tests that the "test" split of "mnist" looks for the t10k file pair. */
-TEST_F(Medium_VisionMnist, MNISTTestSplitLooksForTheT10kFiles)
-{
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(
-            datasets, *engine, "mnist",
-            attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "test"})"),
-            "data"),
-        StatusCode::FileNotFound, "data", "sushiai_absent_mnist", "MNIST test split",
-        "t10k-images-idx3-ubyte, labels");
-}
-
-/** @brief Tests that "mnist" throws when the required "directory" key is absent. */
-TEST_F(Medium_VisionMnist, MNISTRequiresADirectory)
-{
-    SA_EXPECT_FAILURE(Data::make_dataset(datasets, *engine, "mnist",
-                                 attributes_from(R"({"split": "test"})"), "data"),
-        StatusCode::InvalidDescription, "data", "has no", "'directory'");
-}
-
-/** @brief Tests that "mnist" rejects a split other than "train" or "test". */
-TEST_F(Medium_VisionMnist, MNISTRefusesASplitItDoesNotKnow)
-{
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(
-            datasets, *engine, "mnist",
-            attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "validation"})"),
-            "data"),
-        StatusCode::InvalidDescription, "data", "'split'", "'validation'", "'train'", "'test'");
-}
-
-/** @brief Tests that "mnist" refuses a layout other than "flat" or "image" before any file. */
-TEST_F(Medium_VisionMnist, AnMNISTLayoutOtherThanFlatOrImageIsRefused)
-{
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(
-            datasets, *engine, "mnist",
-            attributes_from(R"({"directory": "sushiai_absent_mnist", "layout": "tiled"})"),
-            "data"),
-        StatusCode::InvalidDescription, "data", "'layout'", "'tiled'", "'flat'", "'image'");
-}
-
-/** @brief Tests that the "image" layout yields [N, rows, cols, 1] batches from the IDX files. */
-TEST_F(Medium_VisionMnist, AnImageLayoutYieldsRankFourBatches)
-{
-    MNISTOptions options;
-    options.layout = MNISTLayout::Image;
-    options.batch_size = 16;
-    options.max_samples = 32;
-    if (!Vision::Datasets::mnist_available(options))
-        GTEST_SKIP() << "MNIST IDX files are absent from " << options.directory.string();
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
-                            Vision::Datasets::try_load_mnist(*engine, options));
-
-    EXPECT_EQ(dataset->sample_shape(), (Shape{28, 28, 1}));
-    EXPECT_EQ(dataset->sample_shape().num_elements(), 784);
-
-    ASSERT_EQ(dataset->targets().size(), 1u);
-    EXPECT_EQ(dataset->targets().front().role, Data::K_ROLE_LABELS);
-    EXPECT_EQ(dataset->targets().front().sample_shape, Shape{});
-    EXPECT_EQ(dataset->targets().front().dtype, DType::Int32);
-    EXPECT_EQ(dataset->targets().front().classes, 10);
-
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     const Data::BatchTarget* labels =
@@ -938,7 +1146,19 @@ TEST_F(Medium_VisionMnist, AnImageLayoutYieldsRankFourBatches)
     EXPECT_EQ(inputs.shape[3], 1);
 }
 
-/** @brief Tests that an absent directory is unavailable, refused and named. */
+/** @brief Tests that the "image" layout states a 28 by 28 by 1 sample and a 10-class label target. */
+TEST_F(Medium_VisionMnistImage, StatesItsSampleShapeAndLabelTarget)
+{
+    EXPECT_EQ(dataset->sample_shape(), (Shape{28, 28, 1}));
+
+    ASSERT_EQ(dataset->targets().size(), 1u);
+    EXPECT_EQ(dataset->targets().front().role, Data::K_ROLE_LABELS);
+    EXPECT_EQ(dataset->targets().front().sample_shape, Shape{});
+    EXPECT_EQ(dataset->targets().front().dtype, DType::Int32);
+    EXPECT_EQ(dataset->targets().front().classes, 10);
+}
+
+/** @brief Tests that an absent directory is unavailable and try_load refuses it by name. */
 TEST_F(Medium_VisionMnist, AnAbsentMNISTDirectoryIsUnavailableAndRefusedByName)
 {
     MNISTOptions options;
@@ -947,13 +1167,19 @@ TEST_F(Medium_VisionMnist, AnAbsentMNISTDirectoryIsUnavailableAndRefusedByName)
     EXPECT_FALSE(Vision::Datasets::mnist_available(options));
     SA_EXPECT_FAILURE(Vision::Datasets::try_load_mnist(*engine, options),
                       StatusCode::FileNotFound, "this-directory-does-not-exist");
+}
+
+/** @brief Tests that mnist_expected_paths lists the files the options look for. */
+TEST(Small_VisionMnistPaths, TheExpectedPathsAreListed)
+{
+    MNISTOptions options;
+    options.directory = "this-directory-does-not-exist";
+
     EXPECT_FALSE(Vision::Datasets::mnist_expected_paths(options).empty());
 }
 
 namespace
 {
-    class Medium_Yolo26Forward : public SaTest::EngineTest {};
-
     using SaTest::ReferenceFile;
     using SaTest::ReferenceTensor;
     using SaTest::near_reference;
@@ -1086,12 +1312,6 @@ namespace
         return std::filesystem::path(SA_TEST_FIXTURE_DIR) / "yolo26" / "weights.sushi";
     }
 
-    /** @brief Loads the YOLO26n model file as it is written. */
-    Config::ModelSpec load_spec()
-    {
-        return SaTest::require_value(Config::load_model(yolo_model_path(repository_root())));
-    }
-
     /**
      * @brief Builds a graph that holds row @p row of the model file alone, named by its index.
      * @param sample The per-sample shape the row reads.
@@ -1220,20 +1440,6 @@ namespace
         return near_reference(found->second, reference.floats(), tolerance);
     }
 
-    /** @brief Expects every row of K_OBSERVED_ROWS that is a @p use to match its record. */
-    void expect_rows_match(const ForwardOutputs& ours, ReferenceFile& file, RowUse use)
-    {
-        for (const ObservedRow& observed : K_OBSERVED_ROWS)
-        {
-            if (observed.use != use)
-                continue;
-
-            const std::string name(observed.record);
-            SCOPED_TRACE(name);
-            EXPECT_TRUE(matches_reference(ours, file, name, K_ACTIVATION_TOLERANCE));
-        }
-    }
-
     /**
      * @brief Joins the three levels of @p kind of @p branch into `[1, A, channels]`.
      * @param joined Receives the rows, levels in order; resized here.
@@ -1356,55 +1562,179 @@ namespace
         return run_model(backend, model, K_INPUT_SHAPE, image, &import_every_weight);
     }
 
-    /**
-     * @brief Returns the outputs of the one forward pass the cases of this file share.
-     * @return The outputs of the first successful run_forward(), or the failure of this call.
-     */
-    Result<const ForwardOutputs*> shared_forward(SushiAI::ExecutionBackend& backend,
-                                                 const std::vector<float>& image)
-    {
-        static ForwardOutputs outputs;
-        if (outputs.empty())
-        {
-            SA_TRY_ASSIGN(outputs, run_forward(backend, image));
-        }
-
-        return Result<const ForwardOutputs*>(&outputs);
-    }
-
 } // namespace
 
-/**
- * @brief Declares @p reference as forward.sacp and @p ours as the shared forward outputs, or
- *        skips the test naming the reference file that is missing.
- * @pre Used as statements in a TEST_F of Medium_Yolo26Forward.
- */
-#define SA_RUN_FORWARD_OR_SKIP(ours, reference)                                        \
-    SA_OPEN_REFERENCE_OR_SKIP(reference, "yolo26/forward.sacp");                       \
-    SA_OPEN_REFERENCE_OR_SKIP(reference##_weights, "yolo26/weights.sushi");            \
-    SA_OPEN_REFERENCE_OR_SKIP(reference##_input, "yolo26/input.sacp");                 \
-    SA_READ_REFERENCE_OR_FAIL(reference##_image, reference##_input, "image");          \
-    SA_ASSERT_OK_AND_ASSIGN(const ForwardOutputs* const ours,                          \
-                            shared_forward(backend(), reference##_image.floats()))
-
-/** @brief Tests that rows 16, 19 and 22 compute the reference's three feature maps. */
-TEST_F(Medium_Yolo26Forward, TheFeatureRowsMatchTheReferenceLevels)
+namespace
 {
-    SA_RUN_FORWARD_OR_SKIP(ours, forward);
+    /**
+     * @brief Opens forward.sacp and weights.sushi of the YOLO26n fixture, or skips the test
+     *        naming the file that is missing.
+     */
+    class Medium_Yolo26Forward : public SaTest::EngineTest
+    {
+        protected:
+            /** @brief Opens the two reference files; the test is skipped when one is absent. */
+            void SetUp() override
+            {
+                SaTest::EngineTest::SetUp();
+                reference_file.emplace(SA_TEST_FIXTURE_DIR, "yolo26/forward.sacp");
+                if (!reference_file->is_present())
+                    GTEST_SKIP() << reference_file->reason();
 
-    expect_rows_match(*ours, forward, RowUse::HeadLevel);
+                const ReferenceFile weights(SA_TEST_FIXTURE_DIR, "yolo26/weights.sushi");
+                if (!weights.is_present())
+                    GTEST_SKIP() << weights.reason();
+            }
+
+            /** @brief Returns the open forward.sacp. */
+            ReferenceFile& reference()
+            {
+                return *reference_file;
+            }
+
+            /** @brief Holds forward.sacp, once SetUp has opened it. */
+            std::optional<ReferenceFile> reference_file;
+    };
+
+    /** @brief Runs the whole YOLO26n model over the fixture's image once per test. */
+    class Medium_Yolo26Whole : public Medium_Yolo26Forward
+    {
+        protected:
+            /** @brief Reads the image and runs the forward pass; skips when input.sacp is absent. */
+            void SetUp() override
+            {
+                Medium_Yolo26Forward::SetUp();
+                if (IsSkipped())
+                    return;
+
+                ReferenceFile input(SA_TEST_FIXTURE_DIR, "yolo26/input.sacp");
+                if (!input.is_present())
+                    GTEST_SKIP() << input.reason();
+                const ReferenceTensor image = input.read("image");
+                ASSERT_TRUE(image.found) << image.reason;
+
+                Result<ForwardOutputs> run = run_forward(backend(), image.floats());
+                ASSERT_TRUE(run.has_value()) << run.status().message();
+                forward = std::move(run).value();
+            }
+
+            /** @brief Holds every tensor the forward pass published, by name. */
+            ForwardOutputs forward;
+    };
+
+    /** @brief Names one port of the head: the copy, the level and the kind of the output. */
+    struct PortRow
+    {
+        std::string_view branch; /**< "one2many" or "one2one". */
+        std::size_t level;       /**< The feature level, finest first. */
+        std::string_view kind;   /**< "boxes" or "scores". */
+    };
+
+    /** @brief Lists the twelve ports of the head. */
+    std::vector<PortRow> port_rows()
+    {
+        std::vector<PortRow> rows;
+        for (const std::string_view branch : {std::string_view("one2many"),
+                                              std::string_view("one2one")})
+        {
+            for (std::size_t level = 0; level < K_LEVELS.size(); ++level)
+            {
+                rows.push_back(PortRow{branch, level, "boxes"});
+                rows.push_back(PortRow{branch, level, "scores"});
+            }
+        }
+
+        return rows;
+    }
+
+    /** @brief Lists the rows of K_OBSERVED_ROWS that are a @p use. */
+    std::vector<ObservedRow> observed_rows(RowUse use)
+    {
+        std::vector<ObservedRow> rows;
+        for (const ObservedRow& observed : K_OBSERVED_ROWS)
+        {
+            if (observed.use == use)
+                rows.push_back(observed);
+        }
+
+        return rows;
+    }
+
+    /** @brief Names a row of the model file in the name of its test. */
+    std::string observed_name(const ::testing::TestParamInfo<ObservedRow>& info)
+    {
+        return SaTest::parameter_name(info.param.record);
+    }
+
+    /** @brief Names a port in the name of its test. */
+    std::string port_row_name(const ::testing::TestParamInfo<PortRow>& info)
+    {
+        return SaTest::parameter_name(port_name(info.param.branch, info.param.level,
+                                                info.param.kind));
+    }
+
+    /** @brief Pairs a copy of the head with the host decode of its boxes. */
+    struct BranchRow
+    {
+        std::string_view branch; /**< "one2many" or "one2one". */
+        BoxDecode decode;        /**< The host decode of the copy's boxes. */
+    };
+
+    /** @brief Names a branch in the name of its test. */
+    std::string branch_name(const ::testing::TestParamInfo<BranchRow>& info)
+    {
+        return SaTest::parameter_name(info.param.branch);
+    }
+
+    /** @brief Runs the whole model and compares one feature row with its record. */
+    class Medium_Yolo26FeatureRows : public Medium_Yolo26Whole,
+                                     public ::testing::WithParamInterface<ObservedRow>
+    {
+    };
+
+    /** @brief Runs the whole model and compares one inner row with its record. */
+    class Medium_Yolo26InnerRows : public Medium_Yolo26Whole,
+                                   public ::testing::WithParamInterface<ObservedRow>
+    {
+    };
+
+    /** @brief Runs the whole model and compares one port of the head with its record. */
+    class Medium_Yolo26Ports : public Medium_Yolo26Whole,
+                               public ::testing::WithParamInterface<PortRow>
+    {
+    };
+
+    /** @brief Runs the whole model and compares one copy's host decode with the reference. */
+    class Medium_Yolo26Decode : public Medium_Yolo26Whole,
+                                public ::testing::WithParamInterface<BranchRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests that rows 16, 19 and 22 compute the reference's feature maps. */
+TEST_P(Medium_Yolo26FeatureRows, MatchesTheReferenceLevel)
+{
+    const std::string name(GetParam().record);
+
+    EXPECT_TRUE(matches_reference(forward, reference(), name, K_ACTIVATION_TOLERANCE));
 }
 
 /**
  * @brief Tests that rows 9, 10 and 21 of the whole-model pass compute the reference's records
  *        of them, which pins the input and the output of c2psa and the concat row 22 reads.
  */
-TEST_F(Medium_Yolo26Forward, TheInnerRowsMatchTheReferenceRows)
+TEST_P(Medium_Yolo26InnerRows, MatchesTheReferenceRow)
 {
-    SA_RUN_FORWARD_OR_SKIP(ours, forward);
+    const std::string name(GetParam().record);
 
-    expect_rows_match(*ours, forward, RowUse::Inner);
+    EXPECT_TRUE(matches_reference(forward, reference(), name, K_ACTIVATION_TOLERANCE));
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_Yolo26FeatureRows,
+                         ::testing::ValuesIn(observed_rows(RowUse::HeadLevel)), observed_name);
+
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_Yolo26InnerRows,
+                         ::testing::ValuesIn(observed_rows(RowUse::Inner)), observed_name);
 
 /**
  * @brief Tests that row 10 built alone, with its own weights and the reference's row 9 as its
@@ -1412,9 +1742,7 @@ TEST_F(Medium_Yolo26Forward, TheInnerRowsMatchTheReferenceRows)
  */
 TEST_F(Medium_Yolo26Forward, C2PSAAloneMapsTheReferenceRow9ToRow10)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
-    SA_OPEN_REFERENCE_OR_SKIP(weights, "yolo26/weights.sushi");
-    SA_READ_REFERENCE_OR_FAIL(input, forward, record_of(K_C2PSA_ROW - 1));
+    SA_READ_REFERENCE_OR_FAIL(input, reference(), record_of(K_C2PSA_ROW - 1));
     ASSERT_EQ(input.shape.rank(), 4);
 
     const std::string produced(record_of(K_C2PSA_ROW));
@@ -1424,68 +1752,55 @@ TEST_F(Medium_Yolo26Forward, C2PSAAloneMapsTheReferenceRow9ToRow10)
                             run_model(backend(), block, input.shape, input.floats(),
                                       &import_matching_weights));
 
-    EXPECT_TRUE(matches_reference(ours, forward, produced, K_ACTIVATION_TOLERANCE));
+    EXPECT_TRUE(matches_reference(ours, reference(), produced, K_ACTIVATION_TOLERANCE));
 }
 
-/** @brief Tests that the twelve ports of the head compute the reference's raw outputs. */
-TEST_F(Medium_Yolo26Forward, TheTwelvePortsMatchTheReferenceRawOutputs)
+/** @brief Tests that a port of the head computes the reference's raw output. */
+TEST_P(Medium_Yolo26Ports, MatchesTheReferenceRawOutput)
 {
-    SA_RUN_FORWARD_OR_SKIP(ours, forward);
+    const PortRow& row = GetParam();
+    const std::string name = port_name(row.branch, row.level, row.kind);
 
-    for (const std::string_view branch : {std::string_view("one2many"),
-                                          std::string_view("one2one")})
-    {
-        for (std::size_t level = 0; level < K_LEVELS.size(); ++level)
-        {
-            for (const std::string_view kind : {std::string_view("boxes"),
-                                                std::string_view("scores")})
-            {
-                const std::string name = port_name(branch, level, kind);
-                SCOPED_TRACE(name);
-                EXPECT_TRUE(matches_reference(*ours, forward, name, K_ACTIVATION_TOLERANCE));
-            }
-        }
-    }
+    EXPECT_TRUE(matches_reference(forward, reference(), name, K_ACTIVATION_TOLERANCE));
 }
+
+INSTANTIATE_TEST_SUITE_P(Ports, Medium_Yolo26Ports, ::testing::ValuesIn(port_rows()),
+                         port_row_name);
 
 /**
- * @brief Tests that the host decode of our raw outputs gives the reference's decoded boxes and
- *        probabilities: one-to-many as centre and size, one-to-one as corners.
+ * @brief Tests that the host decode of a copy's raw outputs gives the reference's decoded
+ *        boxes and probabilities: one-to-many as centre and size, one-to-one as corners.
  */
-TEST_F(Medium_Yolo26Forward, TheHostDecodeMatchesTheReferenceDecodes)
+TEST_P(Medium_Yolo26Decode, MatchesTheReferenceDecodes)
 {
-    SA_RUN_FORWARD_OR_SKIP(ours, forward);
+    const BranchRow& branch = GetParam();
+    const std::string prefix = std::string(branch.branch) + ".decoded.";
+    SA_READ_REFERENCE_OR_FAIL(boxes, reference(), prefix + "boxes");
+    SA_READ_REFERENCE_OR_FAIL(scores, reference(), prefix + "scores");
 
-    const std::pair<std::string_view, BoxDecode> branches[] = {
-        {"one2many", &Vision::Detect::Free::decode_xywh},
-        {"one2one", &Vision::Detect::Free::decode_xyxy},
-    };
-    for (const std::pair<std::string_view, BoxDecode>& branch : branches)
-    {
-        SCOPED_TRACE(std::string(branch.first));
-        const std::string prefix = std::string(branch.first) + ".decoded.";
-        SA_READ_REFERENCE_OR_FAIL(boxes, forward, prefix + "boxes");
-        SA_READ_REFERENCE_OR_FAIL(scores, forward, prefix + "scores");
+    DecodedBranch decoded;
+    ASSERT_TRUE(decode_branch(forward, branch.branch, branch.decode, decoded));
 
-        DecodedBranch decoded;
-        ASSERT_TRUE(decode_branch(*ours, branch.first, branch.second, decoded));
-
-        EXPECT_TRUE(near_reference(decoded.boxes, boxes.floats(), K_DECODE_TOLERANCE));
-        EXPECT_TRUE(near_reference(decoded.scores, scores.floats(), K_PROBABILITY_TOLERANCE));
-    }
+    EXPECT_TRUE(near_reference(decoded.boxes, boxes.floats(), K_DECODE_TOLERANCE));
+    EXPECT_TRUE(near_reference(decoded.scores, scores.floats(), K_PROBABILITY_TOLERANCE));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Branches, Medium_Yolo26Decode,
+    ::testing::Values(BranchRow{"one2many", &Vision::Detect::Free::decode_xywh},
+                      BranchRow{"one2one", &Vision::Detect::Free::decode_xyxy}),
+    branch_name);
 
 /**
  * @brief Tests that the top-k selection over our one-to-one decode gives the scores of the
  *        reference detections, best first.
  */
-TEST_F(Medium_Yolo26Forward, TheTopScoresMatchTheReferenceDetections)
+TEST_F(Medium_Yolo26Whole, TheTopScoresMatchTheReferenceDetections)
 {
-    SA_RUN_FORWARD_OR_SKIP(ours, forward);
-    SA_READ_REFERENCE_OR_FAIL(reference, forward, "one2one.detections");
+    SA_READ_REFERENCE_OR_FAIL(detections_reference, reference(), "one2one.detections");
 
     DecodedBranch decoded;
-    ASSERT_TRUE(decode_branch(*ours, "one2one", &Vision::Detect::Free::decode_xyxy, decoded));
+    ASSERT_TRUE(decode_branch(forward, "one2one", &Vision::Detect::Free::decode_xyxy, decoded));
 
     const std::int64_t anchors =
         SaTest::require_value(Vision::Detect::Free::count_anchors(K_LEVELS));
@@ -1497,6 +1812,7 @@ TEST_F(Medium_Yolo26Forward, TheTopScoresMatchTheReferenceDetections)
                                                        Vision::Detect::K_MAX_DETECTIONS,
                                                        detections));
 
-    EXPECT_TRUE(near_reference(score_column(detections), score_column(reference.floats()),
+    EXPECT_TRUE(near_reference(score_column(detections),
+                               score_column(detections_reference.floats()),
                                K_PROBABILITY_TOLERANCE));
 }
