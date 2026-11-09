@@ -74,8 +74,11 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief The rounded operations of the mean of three class F1 values: three quotients, two sums and one quotient. */
-    constexpr std::size_t K_F1_MEAN_OPERATIONS = 8;
+    /**
+     * @brief The rounded operations of the mean of three class F1 values: the quotient of one
+     *        class, two sums (the first addition to the zero start is exact) and the division by 3.
+     */
+    constexpr std::size_t K_F1_MEAN_OPERATIONS = 4;
 
     /** @brief Holds the samples of the batch the graph cases build. */
     constexpr int64_t K_BATCH = 4;

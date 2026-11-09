@@ -56,11 +56,21 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief The rounded operations on the longest path from a count to a ratio. */
-    constexpr std::size_t K_RATIO_OPERATIONS = 4;
+    /**
+     * @brief The rounded operations from the counts to a ratio: the sums of counts are exact
+     *        integers and convert exactly, so the one quotient rounds.
+     */
+    constexpr std::size_t K_RATIO_OPERATIONS = 1;
 
-    /** @brief The rounded operations of the logit of a probability and the sigmoid of that logit. */
-    constexpr std::size_t K_SIGMOID_ROUND_TRIP_OPERATIONS = 8;
+    /**
+     * @brief Returns the rounded operations from @p probability to the sigmoid of its logit x:
+     *        2 for the subtraction and the quotient of logit_of, |x| for the logarithm's
+     *        rounding of x once the exponential multiplies it, and 3 for the sigmoid.
+     */
+    std::size_t sigmoid_round_trip_operations(double probability)
+    {
+        return 5 + static_cast<std::size_t>(std::ceil(std::abs(Train::logit_of(probability))));
+    }
 
     /** @brief Provides the host engine the logits and the truth are allocated on. */
     class HostTensors
@@ -240,7 +250,8 @@ TEST_P(Small_DecisionThresholdLogit, LogitOfInvertsTheSigmoid)
     const double logit = Train::logit_of(probability);
 
     EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
-        1.0 / (1.0 + std::exp(-logit)), probability, K_SIGMOID_ROUND_TRIP_OPERATIONS)));
+        1.0 / (1.0 + std::exp(-logit)), probability,
+        sigmoid_round_trip_operations(probability))));
 }
 
 INSTANTIATE_TEST_SUITE_P(Probabilities, Small_DecisionThresholdLogit,

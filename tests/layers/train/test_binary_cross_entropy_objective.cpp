@@ -75,8 +75,11 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief The rounded operations on the longest path from a count to a ratio. */
-    constexpr std::size_t K_RATIO_OPERATIONS = 4;
+    /**
+     * @brief The rounded operations from the counts to a ratio: the sums of counts are exact
+     *        integers and convert exactly, so the one quotient rounds.
+     */
+    constexpr std::size_t K_RATIO_OPERATIONS = 1;
 
     /** @brief Holds the samples of the batch the graph cases build. */
     constexpr int64_t K_BATCH = 4;

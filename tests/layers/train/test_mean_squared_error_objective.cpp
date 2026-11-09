@@ -74,7 +74,11 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief The rounded operations of a mean of four absolute differences: three sums and one quotient. */
+    /**
+     * @brief The rounded operations of the mean absolute error over four elements: one
+     *        difference, three sums (the first addition to the zero start is exact) and the
+     *        division by 4.
+     */
     constexpr std::size_t K_MEAN_OPERATIONS = 5;
 
     /** @brief Holds the samples of the batch the graph cases build. */

@@ -52,7 +52,8 @@ With 4 true negatives and nothing else the accuracy is 1 and the F1 is 0.
 ## TheRatiosAreTheQuotientsOfTheCounts
 
 For 2 true positives and 1 of each other count the accuracy is 3/5, and the precision, the recall and
-the F1 are 2/3, 2/3 and 4/6. Each is within four rounded operations of double of the quotient.
+the F1 are 2/3, 2/3 and 4/6. Each is within one rounded operation of double of the quotient: the counts are exact integers and
+the division rounds once.
 
 ## LogitOfOneHalfIsZero
 
@@ -60,8 +61,10 @@ the F1 are 2/3, 2/3 and 4/6. Each is within four rounded operations of double of
 
 ## LogitOfInvertsTheSigmoid
 
-For 0.1, 0.731 and 0.9 the sigmoid of `logit_of(p)` is p within eight rounded operations of double,
-the logit and the sigmoid together.
+For 0.1, 0.731 and 0.9 the sigmoid of `logit_of(p)` is p within 5 + ceil(|x|) rounded operations of
+double, x being the logit: the subtraction and the quotient of `logit_of` round twice, its logarithm
+rounds x by |x| unit roundoffs once the exponential reads it, and the exponential, the sum and the
+quotient of the sigmoid round three times.
 
 ## ReadRow
 

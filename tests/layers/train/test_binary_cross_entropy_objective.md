@@ -82,8 +82,8 @@ Over five rows `measure` adds three metrics in the order accuracy, precision, re
 ## BinaryMeasuresAccuracyPrecisionAndRecall
 
 Over five rows with the logits 2, 1, -1, -3, 4 and the labels 1, 0, 1, 0, 1 at the threshold one
-half, the accuracy is 3/5 and the precision and the recall are each 2/3, each within four rounded
-operations of double.
+half, the accuracy is 3/5 and the precision and the recall are each 2/3, each within one rounded
+operation of double, the quotient of two exact counts.
 
 ## ARaisedThresholdKeepsTheLastRowAlone
 
@@ -93,12 +93,14 @@ sigmoid(2) is 0.88, so only the last row passes the cut.
 ## MultiLabelMeasuresTheMeanF1OfTheClasses
 
 Over two rows of three classes `measure` adds one metric named "f1" that is a fraction and
-equals 1/3 within eight rounded operations of double.
+equals 1/3 within four rounded operations of double: one quotient per class, two sums of the
+three values, and the division by 3.
 
 ## MeanSquaredErrorMeasuresTheMeanAbsoluteError
 
 Over the predictions 1, 2, 3, 4 and the values 1.5, 2, 2, 6, `measure` adds one metric named
-"mean_absolute_error" that is not a fraction and equals 3.5/4 within five rounded operations of double.
+"mean_absolute_error" that is not a fraction and equals 3.5/4 within five rounded operations of double: one difference, three sums of the four
+absolute differences, and the division by 4.
 
 ## AMetricRefusesAnOutputOfAnotherCount
 
