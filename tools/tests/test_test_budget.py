@@ -23,6 +23,7 @@ from testing.test_budget import (  # noqa: E402
     exit_code,
     main,
     parse_exemptions,
+    parse_gtest_xml,
     parse_junit,
     parse_programs,
     render,
@@ -39,6 +40,15 @@ def junit(cases: dict[str, float], skipped: tuple[str, ...] = ()) -> str:
     rows += "".join(f'<testcase name="{name}" classname="{name}" time="0" status="run"><skipped/></testcase>'
                     for name in skipped)
     return f'<?xml version="1.0"?><testsuite name="(empty)" tests="{len(cases)}">{rows}</testsuite>'
+
+
+def gtest_xml(cases: dict[tuple[str, str], float], skipped: tuple[tuple[str, str], ...] = ()) -> str:
+    """Returns the text of a GoogleTest XML file with one case per (suite, case) entry."""
+    rows = "".join(f'<testcase name="{case}" status="run" result="completed" time="{seconds}" classname="{suite}"/>'
+                   for (suite, case), seconds in cases.items())
+    rows += "".join(f'<testcase name="{case}" status="run" result="skipped" time="0" classname="{suite}"/>'
+                    for suite, case in skipped)
+    return f'<?xml version="1.0"?><testsuites tests="{len(cases)}"><testsuite name="S">{rows}</testsuite></testsuites>'
 
 
 def judge(timings: list[Timing], **overrides) -> Report:
@@ -66,6 +76,11 @@ class TestReadingAndNames(unittest.TestCase):
     def test_reads_times_and_leaves_out_a_skipped_test(self) -> None:
         self.assertEqual(parse_junit(junit({"Small_A.One": 0.25}, skipped=("Large_B.Gpu",)).encode(), "a.xml"),
                          [Timing("Small_A.One", 0.25)])
+
+    def test_reads_a_gtest_case_as_suite_dot_case_and_leaves_out_a_skipped_one(self) -> None:
+        text = gtest_xml({("Small_A", "One"): 0.002, ("Rows/Medium_B", "Two/3"): 0.5}, skipped=(("Large_C", "Gpu"),))
+        self.assertEqual(parse_gtest_xml(text.encode(), "s.xml"),
+                         [Timing("Small_A.One", 0.002), Timing("Rows/Medium_B.Two/3", 0.5)])
 
     def test_refuses_a_file_with_a_doctype_or_an_entity(self) -> None:
         with self.assertRaises(SystemExit):
@@ -193,6 +208,22 @@ class TestMainCommand(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = main([str(self.junit), "--programs", str(self.programs), "--gate"], budget=K_LIMITS)
+        self.assertEqual((code, out.getvalue().splitlines()), (1, [
+            "budget: small 5.0 s (core), whole run not measured, shape 100% small, 0% medium, 0% large",
+            "rerun: ^(Small_A\\.Slow)$",
+            "Small_A.Slow: 5.0 s, over the small limit of 1 s (not rerun)",
+        ]))
+
+    def test_adds_the_per_case_times_of_the_shard_files_and_ignores_the_shard_entry_of_ctest(self) -> None:
+        cases = Path(self._folder.name) / "cases"
+        cases.mkdir()
+        (cases / "shard_1.xml").write_text(gtest_xml({("Small_A", "Slow"): 5.0}), encoding="utf-8")
+        (cases / "shard_2.xml").write_text(gtest_xml({("Small_A", "Fast"): 0.01}), encoding="utf-8")
+        self.junit.write_text(junit({"sushiai_core_tests.small.shard_1of2": 5.0}), encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = main([str(self.junit), "--cases", str(cases), "--programs", str(self.programs), "--gate"],
+                        budget=K_LIMITS)
         self.assertEqual((code, out.getvalue().splitlines()), (1, [
             "budget: small 5.0 s (core), whole run not measured, shape 100% small, 0% medium, 0% large",
             "rerun: ^(Small_A\\.Slow)$",

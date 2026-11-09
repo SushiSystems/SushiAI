@@ -4,8 +4,8 @@
 # Licensed under the Apache License 2.0. See LICENSE.
 """Applies the time limits of `testing` to the times of one test run and prints a line and the findings.
 
-Usage: python tools/testing/test_budget.py JUNIT [--programs MAP] [--exemptions TOML] [--rerun JUNIT]
-           [--scope default|large|partial] [--wall SECONDS] [--root ROOT --base REVISION]
+Usage: python tools/testing/test_budget.py JUNIT [--cases FOLDER] [--programs MAP] [--exemptions TOML]
+           [--rerun JUNIT_OR_FOLDER] [--scope default|large|partial] [--wall SECONDS] [--root ROOT --base REVISION]
            [--not-rebuilt] [--gate] [--factor N]
 """
 
@@ -55,25 +55,62 @@ class Report:
     rerun: tuple[str, ...]
 
 
-def parse_junit(data: bytes, name: str) -> list[Timing]:
-    """Returns the time of each test that ran in a JUnit file; skipped and not-run tests are left out.
+def _parse_root(data: bytes, name: str) -> ElementTree.Element:
+    """Returns the root of an XML test file; a file with a DOCTYPE or an ENTITY is refused unread.
 
-    A file with a DOCTYPE or an ENTITY is refused unread: CTest writes neither, and the standard
-    library parser, the only one a checker may use, expands them.
+    CTest and GoogleTest write neither, and the standard library parser, the only one a checker may
+    use, expands them.
     """
     if b"<!DOCTYPE" in data or b"<!ENTITY" in data:
-        raise SystemExit(f"{name}: a JUnit file from CTest has no DOCTYPE or ENTITY; refusing to parse it")
+        raise SystemExit(f"{name}: a test result file has no DOCTYPE or ENTITY; refusing to parse it")
+    return ElementTree.fromstring(data)
+
+
+def _was_skipped(case: ElementTree.Element) -> bool:
+    """Returns whether a test case did not run: CTest and GoogleTest mark that by a child or a status."""
+    return (case.find("skipped") is not None or case.get("status") == "notrun"
+            or case.get("result") in ("skipped", "suppressed"))
+
+
+def parse_junit(data: bytes, name: str) -> list[Timing]:
+    """Returns the time of each test that ran in a JUnit file; skipped and not-run tests are left out."""
     timings: list[Timing] = []
-    for case in ElementTree.fromstring(data).iter("testcase"):
-        if case.find("skipped") is not None or case.get("status") == "notrun":
-            continue
-        timings.append(Timing(case.get("name", ""), float(case.get("time", "0") or 0), _property_size(case)))
+    for case in _parse_root(data, name).iter("testcase"):
+        if not _was_skipped(case):
+            timings.append(Timing(case.get("name", ""), float(case.get("time", "0") or 0), _property_size(case)))
+    return timings
+
+
+def parse_gtest_xml(data: bytes, name: str) -> list[Timing]:
+    """Returns the time of each case that ran in a GoogleTest XML file, named `Suite.Case`.
+
+    GoogleTest writes the suite as `classname` and the case as `name`; a parametrised case keeps its
+    `/index` and its instantiation prefix, so `Prefix/Suite.Case/0` reads as `suite_and_size` expects.
+    """
+    timings: list[Timing] = []
+    for case in _parse_root(data, name).iter("testcase"):
+        if not _was_skipped(case):
+            timings.append(Timing(f"{case.get('classname', '')}.{case.get('name', '')}",
+                                  float(case.get("time", "0") or 0)))
     return timings
 
 
 def read_junit(path: Path) -> list[Timing]:
     """Returns the times of the tests in a JUnit file on disk."""
     return parse_junit(path.read_bytes(), str(path))
+
+
+def read_gtest_folder(folder: Path) -> list[Timing]:
+    """Returns the per-case times of every GoogleTest XML file in a folder, the files of the shards of a run."""
+    timings: list[Timing] = []
+    for path in sorted(folder.glob("*.xml")):
+        timings.extend(parse_gtest_xml(path.read_bytes(), str(path)))
+    return timings
+
+
+def read_times(path: Path) -> list[Timing]:
+    """Returns the times in a JUnit file, or in the GoogleTest files of a folder."""
+    return read_gtest_folder(path) if path.is_dir() else read_junit(path)
 
 
 def _property_size(case: ElementTree.Element) -> str | None:
@@ -229,9 +266,11 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
     """Returns the parsed command line."""
     parser = argparse.ArgumentParser(description="Apply the time limits of testing to one test run.")
     parser.add_argument("junit", type=Path)
+    parser.add_argument("--cases", type=Path,
+                        help="folder of the GoogleTest XML files the shards wrote; their per-case times join JUNIT")
     parser.add_argument("--programs", type=Path, help="JSON object from suite name to test program")
     parser.add_argument("--exemptions", type=Path)
-    parser.add_argument("--rerun", type=Path, help="JUnit file of the tests named by `rerun:`, run alone")
+    parser.add_argument("--rerun", type=Path, help="JUnit file, or folder of GoogleTest XML files, of the tests named by `rerun:`, run alone")
     parser.add_argument("--scope", choices=("default", "large", "partial"), default="partial")
     parser.add_argument("--wall", type=float, help="wall time of the whole run, in seconds")
     parser.add_argument("--root", type=Path, help="the repository root, for open backlog IDs and added cases")
@@ -245,7 +284,9 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None, *, budget: dict[str, float] | None = None) -> int:
     """Prints the budget line, the tests to rerun and the findings of a run; returns the exit code.
 
-    The JUnit file is what `ctest --output-junit` writes, with `Suite.Case` names. MAP is a JSON object
+    The JUnit file is what `ctest --output-junit` writes. A sharded C++ program is one CTest test per
+    shard, so its cases come from --cases, the folder of the GoogleTest XML files, as `Suite.Case`
+    names; a CTest entry named after no size counts nowhere. MAP is a JSON object
     from suite name to test program. The exemption TOML holds `"Suite.Case" = "RW-12"` under
     `[exempt]`, and an exempt test is left out of every limit and total. The first run names the tests
     over a limit in a `rerun:` line; the caller reruns them alone and passes that file as --rerun, and
@@ -265,9 +306,12 @@ def main(argv: list[str] | None = None, *, budget: dict[str, float] | None = Non
         open_backlog = open_ids(arguments.root, None)
         if arguments.base:
             added = sum(len(added_cases(commit)) for commit in commits_since(arguments.root, arguments.base))
+    timings = read_junit(arguments.junit)
+    if arguments.cases:
+        timings += read_gtest_folder(arguments.cases)
     report = evaluate(
-        read_junit(arguments.junit), programs=programs, exemptions=exemptions,
-        rerun=read_junit(arguments.rerun) if arguments.rerun else None, scope=arguments.scope,
+        timings, programs=programs, exemptions=exemptions,
+        rerun=read_times(arguments.rerun) if arguments.rerun else None, scope=arguments.scope,
         wall=arguments.wall, factor=arguments.factor, added=added, base=arguments.base,
         rebuilt=not arguments.not_rebuilt, open_backlog=open_backlog, budget=budget)
     for line in render(report, rerun_given=arguments.rerun is not None):
