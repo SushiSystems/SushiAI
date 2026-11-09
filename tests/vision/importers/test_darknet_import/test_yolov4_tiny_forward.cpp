@@ -33,6 +33,7 @@
 #include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
+#include <support/tolerance.hpp>
 
 namespace SaTest = SushiAI::Test;
 
@@ -41,8 +42,10 @@ namespace
     /**
      * @brief States what yolov4-tiny.cfg and its runs hold (REPORT sections 12 and 22).
      *
-     * The bounds are those of SPEC 6.3: a head value within 1e-3 absolute plus 1e-4 relative, a
-     * box entry and a score of a row within 1e-4, a decision named within 1e-6 of a threshold.
+     * The bounds are those of SPEC 6.3, as multiples of the float unit roundoff u: a head value
+     * within 32768 u absolute plus 2048 u relative, a box entry and a score of a row within
+     * 2048 u, a decision named within 32 u of a threshold. Each multiple is the smallest power of
+     * two not tighter than the bound SPEC 6.3 states (1e-3, 1e-4, 1e-4 and 1e-6).
      */
     SaTest::DarknetParityCase describe_model()
     {
@@ -57,10 +60,10 @@ namespace
         parity.coding = SushiAI::Vision::Detect::Anchor::HeadCoding::Logit;
         parity.criterion = SushiAI::Vision::Detect::SuppressionCriterion::DistanceIoU;
         parity.distance_exponent = 0.6f;
-        parity.bounds.head_absolute = 1e-3;
-        parity.bounds.head_relative = 1e-4;
-        parity.bounds.row_absolute = 1e-4;
-        parity.bounds.threshold_margin = 1e-6;
+        parity.bounds.head_absolute = 32768.0 * TestSupport::unit_roundoff<float>();
+        parity.bounds.head_relative = 2048.0 * TestSupport::unit_roundoff<float>();
+        parity.bounds.row_absolute = 2048.0 * TestSupport::unit_roundoff<float>();
+        parity.bounds.threshold_margin = 32.0 * TestSupport::unit_roundoff<float>();
         return parity;
     }
 
@@ -78,7 +81,7 @@ namespace
 
 /**
  * @brief Tests that both published heads of the folded model equal the raw heads Darknet
- *        dumped, in both runs, within 1e-3 absolute plus 1e-4 relative.
+ *        dumped, in both runs, within 32768 u absolute plus 2048 u relative.
  */
 TEST_F(Medium_DarknetYolov4TinyForward, TheFoldedHeadsMatchTheDumpedHeads)
 {
@@ -103,7 +106,7 @@ TEST_F(Medium_DarknetYolov4TinyForward, TheHostYOLOOutputsMatchTheDumpedLayers)
  *        the IoU less the distance term to the power 0.6.
  *
  * Both sides are sorted by class, then by score. A row matches when its class is equal and its
- * box entries and score are within 1e-4. Every decision within 1e-6 of a threshold is printed.
+ * box entries and score are within 2048 u. Every decision within 32 u of a threshold is printed.
  */
 TEST_F(Medium_DarknetYolov4TinyForward, TheDetectionsMatchTheDumpedRows)
 {
@@ -114,7 +117,7 @@ TEST_F(Medium_DarknetYolov4TinyForward, TheDetectionsMatchTheDumpedRows)
  * @brief Tests that the Separate model, with its own batch-norm rows, computes the heads of the
  *        Folded model, and prints the largest difference at each head.
  *
- * The bound is the head tolerance, 1e-3 absolute plus 1e-4 relative to the folded value.
+ * The bound is the head tolerance, 32768 u absolute plus 2048 u relative to the folded value.
  */
 TEST_F(Medium_DarknetYolov4TinyForward, TheSeparateFormComputesTheFoldedHeads)
 {

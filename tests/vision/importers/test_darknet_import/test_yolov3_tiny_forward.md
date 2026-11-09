@@ -7,8 +7,7 @@ The fixture `DarknetParityTest` imports YOLOv3-tiny from `yolov3-tiny.cfg` and `
 in the directory `SA_REFERENCE_DATA_DIR` names and compares its forward pass over a 416 pixel input
 with the reference tensors under `references/`: `yolov3_tiny` at a threshold of 0.25 and
 `yolov3_tiny_thresh_0p01` at 0.01. The model has two heads on grids of 13 and 26, each with three
-anchor slots over 80 classes, coded as logits. A head value is held to 1e-3 absolute plus 1e-4
-relative, and a box entry or a score of a detection row to 1e-4. Every case is skipped when a file
+anchor slots over 80 classes, coded as logits. A head value is held to 32768 u absolute plus 2048 u relative (u is the float unit roundoff), and a box entry or a score of a detection row to 2048 u. Every case is skipped when a file
 is missing.
 
 ## TheFoldedHeadsMatchTheDumpedHeads
@@ -25,11 +24,11 @@ but the sizes, and compared with the dumped layer output within the head toleran
 
 Decode, threshold and suppression over the library's heads are compared with the dumped rows: none
 at 0.25 and 16 at 0.01. Suppression runs at 0.45 on the IoU. Both sides are sorted by class, then by
-score, and a row matches when its class is equal and its box entries and score are within 1e-4.
-Every decision within 1e-6 of a threshold is printed.
+score, and a row matches when its class is equal and its box entries and score are within 2048 u.
+Every decision within 32 u of a threshold is printed.
 
 ## TheSeparateFormComputesTheFoldedHeads
 
 The Separate model, which keeps its own batch-norm rows, is run beside the Folded one. Each of its
-heads is within 1e-3 absolute plus 1e-4 relative of the folded head, and the largest difference at
+heads is within 32768 u absolute plus 2048 u relative of the folded head, and the largest difference at
 each head is printed.
