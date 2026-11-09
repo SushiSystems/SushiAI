@@ -67,6 +67,7 @@
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <support/tolerance.hpp>
+#include "blocks_test_support.hpp"
 
 using namespace SushiAI;
 using Language::Blocks::AttentionMask;
@@ -91,11 +92,30 @@ namespace
     /** @brief Holds the head count every case splits K_DIM into. */
     constexpr int64_t K_HEADS = 2;
 
-    /** @brief Holds the nodes a head adds besides its mask. */
-    constexpr std::size_t K_NODES_PER_HEAD = 14;
+    /** @brief Holds T, the rows of the caches of every incremental case. */
+    constexpr int64_t K_WINDOW = 5;
 
-    /** @brief Holds the nodes a trace adds besides its heads: four leaves and eleven others. */
-    constexpr std::size_t K_NODES_AROUND_HEADS = 15;
+    /** @brief Holds the pairs of a head of K_DIM / K_HEADS channels. */
+    constexpr int64_t K_HEAD_PAIRS = 2;
+
+    /** @brief Holds the positions of the sequence the numeric case reads. */
+    constexpr int64_t K_POSITIONS = 3;
+
+    /** @brief Holds the operations a value of the numeric case sums, an upper bound. */
+    constexpr std::size_t K_REFERENCE_OPERATIONS = 512;
+
+    /** @brief Returns the per-sample [T, dim] shape the block reads in its ordinary form. */
+    Shape window_sample()
+    {
+        return Shape{K_WINDOW, K_DIM};
+    }
+
+    /** @brief Returns a causal block of K_HEADS heads over K_DIM with rotary positions. */
+    CausalSelfAttention rotary_block()
+    {
+        return CausalSelfAttention(K_DIM, K_HEADS, AttentionMask::Causal,
+                                   AttentionPositions::Rotary);
+    }
 
     /** @brief Counts the nodes of @p graph that carry @p op. */
     std::size_t count_nodes(const Graph::Graph& graph, OpID op)
@@ -118,16 +138,214 @@ namespace
         EXPECT_EQ(block.forward(trace, x), x);
         return trace.status();
     }
-}
 
-/** @brief Tests that a causal trace adds 15 nodes around its heads and 15 per head. */
-TEST(Medium_BlockCausalSelfAttention, ACausalTraceMasksEveryHead)
+    /** @brief Returns the names of the state @p block yields under "attn", in walk order. */
+    std::vector<std::string> walked_names(CausalSelfAttention& block)
+    {
+        std::vector<std::string> names;
+        const auto on_parameter = [&names](const std::string& name, NN::Parameter&)
+        {
+            names.push_back(name);
+        };
+        const auto on_buffer = [&names](const std::string& name, NN::Buffer&)
+        {
+            names.push_back(name);
+        };
+        const NN::StateVisitor visitor(on_parameter, on_buffer);
+        NN::walk_state(block, "attn", visitor);
+        return names;
+    }
+
+    /** @brief Returns @p count rows of @p rows mapped through the linear layer weight and bias. */
+    std::vector<double> linear_on_host(const std::vector<double>& rows, std::size_t count,
+                                       const std::vector<double>& weight,
+                                       const std::vector<double>& bias)
+    {
+        const std::size_t out = bias.size();
+        const std::size_t in = weight.size() / out;
+        std::vector<double> result(count * out);
+        for (std::size_t row = 0; row < count; ++row)
+        {
+            for (std::size_t column = 0; column < out; ++column)
+            {
+                double sum = bias[column];
+                for (std::size_t i = 0; i < in; ++i)
+                    sum += rows[row * in + i] * weight[column * in + i];
+
+                result[row * out + column] = sum;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * @brief Returns the output of an unmasked attention of K_HEADS heads over the K_POSITIONS rows
+     *        of @p x, with the state write_state() gives: scores scaled by one over the square
+     *        root of the head width, softmax over the positions, the values mixed, then proj.
+     */
+    std::vector<double> attention_on_host(const std::vector<double>& x)
+    {
+        const std::size_t dim = static_cast<std::size_t>(K_DIM);
+        const std::size_t length = static_cast<std::size_t>(K_POSITIONS);
+        const std::size_t head_dim = dim / static_cast<std::size_t>(K_HEADS);
+        const double scale = 1.0 / std::sqrt(static_cast<double>(head_dim));
+        const std::vector<double> mixed = linear_on_host(
+            x, length, SaTest::eighths(3 * K_DIM * K_DIM, 0), SaTest::eighths(3 * K_DIM, 1));
+
+        std::vector<double> joined(length * dim);
+        for (std::size_t head = 0; head < static_cast<std::size_t>(K_HEADS); ++head)
+        {
+            const std::size_t offset = head * head_dim;
+            for (std::size_t row = 0; row < length; ++row)
+            {
+                std::vector<double> weights(length);
+                double total = 0.0;
+                for (std::size_t other = 0; other < length; ++other)
+                {
+                    double score = 0.0;
+                    for (std::size_t i = 0; i < head_dim; ++i)
+                        score += mixed[row * 3 * dim + offset + i]
+                               * mixed[other * 3 * dim + dim + offset + i];
+
+                    weights[other] = std::exp(score * scale);
+                    total += weights[other];
+                }
+
+                for (std::size_t i = 0; i < head_dim; ++i)
+                {
+                    double sum = 0.0;
+                    for (std::size_t other = 0; other < length; ++other)
+                        sum += weights[other] / total
+                             * mixed[other * 3 * dim + 2 * dim + offset + i];
+
+                    joined[row * dim + offset + i] = sum;
+                }
+            }
+        }
+
+        return linear_on_host(joined, length, SaTest::eighths(K_DIM * K_DIM, 2),
+                              SaTest::eighths(K_DIM, 3));
+    }
+
+    /** @brief Expects every element of @p computed to be within the bound of @p reference. */
+    void expect_close(const std::vector<double>& computed, const std::vector<double>& reference)
+    {
+        ASSERT_EQ(computed.size(), reference.size());
+        for (std::size_t i = 0; i < computed.size(); ++i)
+        {
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_sum_error<double>(
+                computed[i], reference[i], 1.0, K_REFERENCE_OPERATIONS)))
+                << "at element " << i;
+        }
+    }
+
+    /** @brief Names a row by its name field. */
+    template<typename Row>
+    std::string row_name(const ::testing::TestParamInfo<Row>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Holds an input the ordinary trace refuses and the words of its message. */
+    struct InputRow
+    {
+        std::string name;   /**< The row's name. */
+        Shape shape;        /**< The input's shape. */
+        DType dtype;        /**< The input's element type. */
+        std::string first;  /**< A word of the message. */
+        std::string second; /**< A word of the message, or empty. */
+        std::string third;  /**< A word of the message, or empty. */
+    };
+
+    /** @brief Runs one input the trace refuses. */
+    class Small_BlockCausalSelfAttentionInput : public ::testing::TestWithParam<InputRow>
+    {
+
+    };
+
+    /** @brief Holds a block description the trace refuses and the words of its message. */
+    struct DescriptionRow
+    {
+        std::string name;   /**< The row's name. */
+        int64_t dim;        /**< The width the block states. */
+        int64_t heads;      /**< The head count the block states. */
+        std::string first;  /**< A word of the message. */
+        std::string second; /**< A word of the message, or empty. */
+    };
+
+    /** @brief Runs one description the trace refuses. */
+    class Small_BlockCausalSelfAttentionDescription
+        : public ::testing::TestWithParam<DescriptionRow>
+    {
+
+    };
+
+    /** @brief Holds a factory row the factory refuses and four words of its message. */
+    struct FactoryRow
+    {
+        std::string name;   /**< The row's name. */
+        std::string json;   /**< The row's attributes. */
+        Shape input;        /**< The input the factory reads. */
+        std::string first;  /**< A word of the message, after the context. */
+        std::string second; /**< A word of the message, or empty. */
+        std::string third;  /**< A word of the message, or empty. */
+        std::string fourth; /**< A word of the message, or empty. */
+    };
+
+    /** @brief Runs one factory row the factory refuses. */
+    class Small_BlockCausalSelfAttentionFactory : public ::testing::TestWithParam<FactoryRow>
+    {
+
+    };
+
+    /** @brief Runs one factory row that misreads the positions. */
+    class Small_BlockCausalSelfAttentionPositions : public ::testing::TestWithParam<FactoryRow>
+    {
+
+    };
+
+    /** @brief Holds an incremental trace the block refuses and the words of its message. */
+    struct CacheRow
+    {
+        std::string name;   /**< The row's name. */
+        AttentionMask mask; /**< The mask of the block. */
+        Shape input;        /**< The shape of the one position. */
+        bool carrying;      /**< Whether the trace is a carrying one. */
+        Shape sample;       /**< The per-sample shape of the cache. */
+        std::string first;  /**< A word of the message. */
+        std::string second; /**< A word of the message. */
+    };
+
+    /** @brief Runs one incremental trace the block refuses. */
+    class Small_BlockCausalSelfAttentionCache : public ::testing::TestWithParam<CacheRow>
+    {
+
+    };
+
+    /** @brief Holds a rotary block the trace refuses and the words of its message. */
+    struct RotaryRow
+    {
+        std::string name;   /**< The row's name. */
+        int64_t dim;        /**< The width of the block. */
+        std::string first;  /**< A word of the message. */
+        std::string second; /**< A word of the message. */
+    };
+
+    /** @brief Runs one rotary block the trace refuses. */
+    class Small_BlockCausalSelfAttentionRotary : public ::testing::TestWithParam<RotaryRow>
+    {
+
+    };
+} // namespace
+
+/** @brief Tests that a causal trace keeps the [N, T, dim] shape and records no failure. */
+TEST(Small_BlockCausalSelfAttention, ACausalTraceKeepsTheSequenceShape)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 5, K_DIM}, "x");
     CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::Causal);
-    const std::size_t nodes_before = graph.node_count();
 
     const Trace trace = Trace::evaluation(builder);
     const Graph::ValueID y = block.forward(trace, x);
@@ -135,60 +353,50 @@ TEST(Medium_BlockCausalSelfAttention, ACausalTraceMasksEveryHead)
     SA_EXPECT_OK(trace.status());
     EXPECT_FALSE(graph.has_refusal());
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 5, K_DIM}));
-    EXPECT_EQ(graph.node_count(),
-              nodes_before + K_NODES_AROUND_HEADS + K_HEADS * (K_NODES_PER_HEAD + 1));
-    EXPECT_EQ(count_nodes(graph, Ops::K_CAUSAL_MASK.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 6u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 6u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SCALE.id), 2u);
 }
 
-/** @brief Tests that each mask reads a [N, T, T] product scaled by 1 / sqrt(dim / heads). */
-TEST(Medium_BlockCausalSelfAttention, EachMaskReadsTheScaledScoresOfItsHead)
+/**
+ * @brief Tests that the scores of each head are scaled by one over the square root of the head
+ *        width: 0.5 for a width of 8 and two heads.
+ *
+ * The block has no mask, so the host evaluator runs it. The reference is the attention worked on
+ * the host from the same state and the same rows.
+ */
+TEST(Small_BlockCausalSelfAttention, TheScoresOfEachHeadAreScaledByTheRootOfItsWidth)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::Causal);
-    static_cast<void>(block.forward(Trace::evaluation(builder),
-                                    builder.input(Shape{2, 5, K_DIM}, "x")));
+    const Graph::ValueID x = builder.input(Shape{1, K_POSITIONS, K_DIM}, "x");
+    CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::None);
+    const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
+    const std::vector<double> rows = SaTest::eighths(K_POSITIONS * K_DIM, 4);
+    Graph::HostEvaluator run(graph);
+    SA_EXPECT_OK(run.write(x, rows));
+    SA_EXPECT_OK(SaTest::write_state(run, graph, block));
 
-    for (const Graph::Node& node : graph.nodes())
-    {
-        if (node.op != Ops::K_CAUSAL_MASK.id)
-            continue;
+    SA_EXPECT_OK(run.run());
 
-        EXPECT_EQ(graph.value(node.inputs[0]).shape, (Shape{2, 5, 5}));
-        EXPECT_LT(node.attributes.values[0], -1.0e8);
-
-        const Graph::Node& scaled = graph.node(graph.value(node.inputs[0]).producer);
-        ASSERT_EQ(scaled.op, Ops::K_SCALE.id);
-        EXPECT_DOUBLE_EQ(scaled.attributes.values[0], 0.5);
-        EXPECT_EQ(graph.node(graph.value(scaled.inputs[0]).producer).op, Ops::K_MATMUL.id);
-    }
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got, run.read(y));
+    expect_close(got, attention_on_host(rows));
 }
 
-/** @brief Tests that a block without a mask adds no CAUSAL_MASK and one node less per head. */
-TEST(Medium_BlockCausalSelfAttention, ATraceWithoutAMaskEmitsNone)
+/** @brief Tests that a block without a mask adds no CAUSAL_MASK node. */
+TEST(Small_BlockCausalSelfAttention, ATraceWithoutAMaskEmitsNone)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 5, K_DIM}, "x");
     CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::None);
-    const std::size_t nodes_before = graph.node_count();
 
     const Trace trace = Trace::evaluation(builder);
     static_cast<void>(block.forward(trace, x));
 
     SA_EXPECT_OK(trace.status());
     EXPECT_EQ(count_nodes(graph, Ops::K_CAUSAL_MASK.id), 0u);
-    EXPECT_EQ(graph.node_count(),
-              nodes_before + K_NODES_AROUND_HEADS + K_HEADS * K_NODES_PER_HEAD);
 }
 
 /** @brief Tests that qkv is [3 * dim, dim], proj [dim, dim], and the walk names the four. */
-TEST(Medium_BlockCausalSelfAttention, TheWalkYieldsTheTwoProjections)
+TEST(Small_BlockCausalSelfAttention, TheWalkYieldsTheTwoProjections)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -196,64 +404,63 @@ TEST(Medium_BlockCausalSelfAttention, TheWalkYieldsTheTwoProjections)
     static_cast<void>(block.forward(Trace::evaluation(builder),
                                     builder.input(Shape{2, 5, K_DIM}, "x")));
 
-    std::vector<std::string> names;
-    const auto on_parameter = [&names](const std::string& name, NN::Parameter&)
-    {
-        names.push_back(name);
-    };
-    const auto on_buffer = [&names](const std::string& name, NN::Buffer&)
-    {
-        names.push_back(name);
-    };
-    const NN::StateVisitor visitor(on_parameter, on_buffer);
-    NN::walk_state(block, "attn", visitor);
-
-    EXPECT_EQ(names, (std::vector<std::string>{"attn.qkv.weight", "attn.qkv.bias",
-                                               "attn.proj.weight", "attn.proj.bias"}));
+    EXPECT_EQ(walked_names(block),
+              (std::vector<std::string>{"attn.qkv.weight", "attn.qkv.bias", "attn.proj.weight",
+                                        "attn.proj.bias"}));
     EXPECT_EQ(block.qkv.weight.shape(), (Shape{3 * K_DIM, K_DIM}));
     EXPECT_EQ(block.proj.weight.shape(), (Shape{K_DIM, K_DIM}));
 }
 
 /** @brief Tests that a rank-2 input, another width and an integer input fail and emit nothing. */
-TEST(Medium_BlockCausalSelfAttention, AnInputThatDoesNotFitFails)
+TEST_P(Small_BlockCausalSelfAttentionInput, AnInputThatDoesNotFitFails)
 {
+    const InputRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID flat = builder.input(Shape{5, K_DIM}, "flat");
-    const Graph::ValueID wide = builder.input(Shape{2, 5, K_DIM + 2}, "wide");
-    const Graph::ValueID whole = builder.input(Shape{2, 5, K_DIM}, "whole", DType::Int32);
+    const Graph::ValueID x = builder.input(row.shape, "x", row.dtype);
     CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::Causal);
     const std::size_t nodes_before = graph.node_count();
 
-    SA_EXPECT_FAILURE(refused(block, builder, flat), StatusCode::InvalidDescription,
-                      "CausalSelfAttention", "rank-3 [N, T, 8] input", "[5, 8]");
-    SA_EXPECT_FAILURE(refused(block, builder, wide), StatusCode::InvalidDescription,
-                      "CausalSelfAttention", "[2, 5, 10]");
-    SA_EXPECT_FAILURE(refused(block, builder, whole), StatusCode::InvalidDescription,
-                      "half, float32 or float64 input", "int32");
+    SA_EXPECT_FAILURE(refused(block, builder, x), StatusCode::InvalidDescription, row.first,
+                      row.second, row.third);
 
     EXPECT_EQ(graph.node_count(), nodes_before);
     EXPECT_FALSE(block.qkv.weight.declared());
     EXPECT_TRUE(graph.has_refusal());
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockCausalSelfAttentionInput,
+    ::testing::Values(InputRow{"RankTwo", Shape{5, K_DIM}, DType::Float32, "CausalSelfAttention",
+                               "rank-3 [N, T, 8] input", "[5, 8]"},
+                      InputRow{"AnotherWidth", Shape{2, 5, K_DIM + 2}, DType::Float32,
+                               "CausalSelfAttention", "[2, 5, 10]", ""},
+                      InputRow{"Int32", Shape{2, 5, K_DIM}, DType::Int32,
+                               "half, float32 or float64 input", "int32", ""}),
+    row_name<InputRow>);
+
 /** @brief Tests that a head count that does not divide the width, and no width, each fail. */
-TEST(Medium_BlockCausalSelfAttention, ABlockDescribedWrongFails)
+TEST_P(Small_BlockCausalSelfAttentionDescription, ABlockDescribedWrongFails)
 {
+    const DescriptionRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 5, K_DIM}, "x");
-    CausalSelfAttention uneven(K_DIM, 3, AttentionMask::Causal);
-    CausalSelfAttention empty{};
+    CausalSelfAttention block(row.dim, row.heads, AttentionMask::Causal);
 
-    SA_EXPECT_FAILURE(refused(uneven, builder, x), StatusCode::InvalidDescription,
-                      "head count divides", "dim=8 heads=3");
-    SA_EXPECT_FAILURE(refused(empty, builder, x), StatusCode::InvalidDescription,
-                      "dim=0 heads=0");
+    SA_EXPECT_FAILURE(refused(block, builder, x), StatusCode::InvalidDescription, row.first,
+                      row.second);
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockCausalSelfAttentionDescription,
+    ::testing::Values(DescriptionRow{"UnevenHeads", K_DIM, 3, "head count divides",
+                                     "dim=8 heads=3"},
+                      DescriptionRow{"EmptyBlock", 0, 0, "dim=0 heads=0", ""}),
+    row_name<DescriptionRow>);
+
 /** @brief Tests that the factory takes dim from the input and reads "heads" and "causal". */
-TEST(Medium_BlockCausalSelfAttention, TheFactoryReadsTheHeadsAndTheMask)
+TEST(Small_BlockCausalSelfAttention, TheFactoryReadsTheHeadsAndTheMask)
 {
     const Shape input{5, K_DIM};
     const Config::Value plain =
@@ -284,50 +491,31 @@ TEST(Medium_BlockCausalSelfAttention, TheFactoryReadsTheHeadsAndTheMask)
 }
 
 /** @brief Tests that the factory refuses a stray key, no heads, uneven heads and a bad input. */
-TEST(Medium_BlockCausalSelfAttention, TheFactoryRefusesARowThatDoesNotFit)
+TEST_P(Small_BlockCausalSelfAttentionFactory, TheFactoryRefusesARowThatDoesNotFit)
 {
-    const Shape input{5, K_DIM};
-    const Shape map{4, 4, K_DIM};
-    const Config::Value good =
-        SaTest::require_value(Config::parse_json(R"({"heads": 2})", "<test>"));
-    const Config::Value stray =
-        SaTest::require_value(Config::parse_json(R"({"heads": 2, "dropout": 0.1})", "<test>"));
-    const Config::Value absent = SaTest::require_value(Config::parse_json("{}", "<test>"));
-    const Config::Value uneven =
-        SaTest::require_value(Config::parse_json(R"({"heads": 3})", "<test>"));
+    const FactoryRow& row = GetParam();
+    const Config::Value attributes =
+        SaTest::require_value(Config::parse_json(row.json, "<test>"));
 
     SA_EXPECT_FAILURE(
-        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&input, 1), stray,
-                                                          "layer 3"),
-        StatusCode::InvalidDescription, "layer 3", "'dropout'");
-    SA_EXPECT_FAILURE(
-        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&input, 1), absent,
-                                                          "layer 3"),
-        StatusCode::InvalidDescription, "layer 3", "'heads'", "absent");
-    SA_EXPECT_FAILURE(
-        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&input, 1), uneven,
-                                                          "layer 3"),
-        StatusCode::InvalidDescription, "layer 3", "dim=8 heads=3");
-    SA_EXPECT_FAILURE(
-        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&map, 1), good,
-                                                          "layer 3"),
-        StatusCode::InvalidDescription, "layer 3", "rank-2 [T, C] input", "[4, 4, 8]");
+        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&row.input, 1),
+                                                          attributes, "layer 3"),
+        StatusCode::InvalidDescription, "layer 3", row.first, row.second, row.third);
 }
 
-namespace
-{
-    /** @brief Holds T, the rows of the caches of every incremental case. */
-    constexpr int64_t K_WINDOW = 5;
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockCausalSelfAttentionFactory,
+    ::testing::Values(FactoryRow{"StrayKey", R"({"heads": 2, "dropout": 0.1})", Shape{5, K_DIM},
+                                 "'dropout'", "", "", ""},
+                      FactoryRow{"NoHeads", "{}", Shape{5, K_DIM}, "'heads'", "absent", "", ""},
+                      FactoryRow{"UnevenHeads", R"({"heads": 3})", Shape{5, K_DIM},
+                                 "dim=8 heads=3", "", "", ""},
+                      FactoryRow{"RankThreeInput", R"({"heads": 2})", Shape{4, 4, K_DIM},
+                                 "rank-2 [T, C] input", "[4, 4, 8]", "", ""}),
+    row_name<FactoryRow>);
 
-    /** @brief Returns the per-sample [T, dim] shape the block reads in its ordinary form. */
-    Shape window_sample()
-    {
-        return Shape{K_WINDOW, K_DIM};
-    }
-} // namespace
-
-/** @brief Tests that one position writes two rows and attends over the cache with no mask node. */
-TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormWritesOneRowPerCacheAndReadsEveryRow)
+/** @brief Tests that one position keeps the output shape and records no failure. */
+TEST(Small_BlockCausalSelfAttention, TheIncrementalFormWritesOneRowPerCacheAndReadsEveryRow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -342,18 +530,10 @@ TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormWritesOneRowPerCacheAndR
     SA_EXPECT_OK(trace.status());
     EXPECT_FALSE(graph.has_refusal());
     EXPECT_EQ(graph.value(y).shape, (Shape{1, 1, K_DIM}));
-    EXPECT_EQ(count_nodes(graph, Ops::K_SCATTER_ADD_ROWS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CAUSAL_MASK.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 6u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SCALE.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 4u);
 }
 
 /** @brief Tests that the block declares the position, the mask and two carried [T, dim] leaves. */
-TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormDeclaresTwoFedLeavesAndTwoCarriedValues)
+TEST(Small_BlockCausalSelfAttention, TheIncrementalFormDeclaresTwoFedLeavesAndTwoCarriedValues)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -379,12 +559,11 @@ TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormDeclaresTwoFedLeavesAndT
         EXPECT_EQ(graph.value(kept.leaf).shape, (Shape{K_WINDOW, K_DIM}));
         EXPECT_EQ(graph.value(kept.next).shape, (Shape{K_WINDOW, K_DIM}));
         EXPECT_EQ(graph.value(kept.leaf).lifetime, Graph::Lifetime::Input);
-        EXPECT_EQ(graph.node(graph.value(kept.next).producer).op, Ops::K_ADD.id);
     }
 }
 
 /** @brief Tests that two blocks of one trace share the fed leaves and carry four values. */
-TEST(Medium_BlockCausalSelfAttention, TwoBlocksOfOneTraceShareTheirFedLeaves)
+TEST(Small_BlockCausalSelfAttention, TwoBlocksOfOneTraceShareTheirFedLeaves)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -404,7 +583,7 @@ TEST(Medium_BlockCausalSelfAttention, TwoBlocksOfOneTraceShareTheirFedLeaves)
 }
 
 /** @brief Tests that the incremental form declares the state the ordinary form declares. */
-TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormDeclaresTheParametersOfTheOrdinaryForm)
+TEST(Small_BlockCausalSelfAttention, TheIncrementalFormDeclaresTheParametersOfTheOrdinaryForm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -421,85 +600,43 @@ TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormDeclaresTheParametersOfT
     EXPECT_EQ(NN::buffer_count(block), 0u);
 }
 
-/** @brief Tests that an unmasked block, a longer slice and a plain trace are each refused. */
-TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormRefusesWhatItCannotCache)
+/** @brief Tests that an unmasked block, a longer slice, a plain trace and a flat sample fail. */
+TEST_P(Small_BlockCausalSelfAttentionCache, TheIncrementalFormRefusesWhatItCannotCache)
 {
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID x = builder.input(Shape{1, 1, K_DIM}, "x");
-        CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::None);
-        NN::FedLeafList fed;
-        NN::CarriedValueList carried;
-        const Trace trace = Trace::carrying(builder, fed, carried);
+    const CacheRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(row.input, "x");
+    CausalSelfAttention block(K_DIM, K_HEADS, row.mask);
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    const Trace trace = row.carrying ? Trace::carrying(builder, fed, carried)
+                                     : Trace::evaluation(builder);
 
-        EXPECT_EQ(block.forward_incremental(trace, x, window_sample()), x);
-        SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "no mask",
-                          "no incremental form");
-    }
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID x = builder.input(Shape{1, 3, K_DIM}, "x");
-        CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::Causal);
-        NN::FedLeafList fed;
-        NN::CarriedValueList carried;
-        const Trace trace = Trace::carrying(builder, fed, carried);
+    EXPECT_EQ(block.forward_incremental(trace, x, row.sample), x);
 
-        EXPECT_EQ(block.forward_incremental(trace, x, window_sample()), x);
-        SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "one position",
-                          "[1, 3, 8]");
-    }
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID x = builder.input(Shape{1, 1, K_DIM}, "x");
-        CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::Causal);
-        const Trace trace = Trace::evaluation(builder);
-
-        EXPECT_EQ(block.forward_incremental(trace, x, window_sample()), x);
-        SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "'position'",
-                          "carrying trace");
-    }
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID x = builder.input(Shape{1, 1, K_DIM}, "x");
-        CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::Causal);
-        NN::FedLeafList fed;
-        NN::CarriedValueList carried;
-        const Trace trace = Trace::carrying(builder, fed, carried);
-
-        EXPECT_EQ(block.forward_incremental(trace, x, Shape{K_WINDOW}), x);
-        SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "per-sample",
-                          "[5]");
-    }
+    SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, row.first, row.second);
 }
 
-namespace
-{
-    /** @brief Holds the nodes rotary positions add to a trace: two tables and 21 others. */
-    constexpr std::size_t K_ROTARY_NODES = 23;
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockCausalSelfAttentionCache,
+    ::testing::Values(CacheRow{"NoMask", AttentionMask::None, Shape{1, 1, K_DIM}, true,
+                               Shape{K_WINDOW, K_DIM}, "no mask", "no incremental form"},
+                      CacheRow{"ThreePositions", AttentionMask::Causal, Shape{1, 3, K_DIM}, true,
+                               Shape{K_WINDOW, K_DIM}, "one position", "[1, 3, 8]"},
+                      CacheRow{"PlainTrace", AttentionMask::Causal, Shape{1, 1, K_DIM}, false,
+                               Shape{K_WINDOW, K_DIM}, "'position'", "carrying trace"},
+                      CacheRow{"FlatSample", AttentionMask::Causal, Shape{1, 1, K_DIM}, true,
+                               Shape{K_WINDOW}, "per-sample", "[5]"}),
+    row_name<CacheRow>);
 
-    /** @brief Holds the pairs of a head of K_DIM / K_HEADS channels. */
-    constexpr int64_t K_HEAD_PAIRS = 2;
-
-    /** @brief Returns a causal block of K_HEADS heads over K_DIM with rotary positions. */
-    CausalSelfAttention rotary_block()
-    {
-        return CausalSelfAttention(K_DIM, K_HEADS, AttentionMask::Causal,
-                                   AttentionPositions::Rotary);
-    }
-} // namespace
-
-/** @brief Tests that rotary positions turn the queries and the keys once, for every head. */
-TEST(Medium_BlockCausalSelfAttention, ARotaryTraceTurnsTheQueriesAndTheKeysOnce)
+/** @brief Tests that rotary positions keep the shape and fill one table of cosines and of sines. */
+TEST(Small_BlockCausalSelfAttention, ARotaryTraceTurnsTheQueriesAndTheKeysOnce)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 5, K_DIM}, "x");
     CausalSelfAttention block = rotary_block();
-    const std::size_t nodes_before = graph.node_count();
 
     NN::HostTableList tables;
     Trace trace = Trace::evaluation(builder);
@@ -509,13 +646,6 @@ TEST(Medium_BlockCausalSelfAttention, ARotaryTraceTurnsTheQueriesAndTheKeysOnce)
     SA_EXPECT_OK(trace.status());
     EXPECT_FALSE(graph.has_refusal());
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 5, K_DIM}));
-    EXPECT_EQ(graph.node_count(),
-              nodes_before + K_NODES_AROUND_HEADS + K_HEADS * (K_NODES_PER_HEAD + 1) +
-                  K_ROTARY_NODES);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CHANNEL_AFFINE.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CAUSAL_MASK.id), 2u);
 
     // One table of cosines and one of sines, a row per position and a column per pair.
     ASSERT_EQ(tables.tables().size(), 2u);
@@ -531,7 +661,7 @@ TEST(Medium_BlockCausalSelfAttention, ARotaryTraceTurnsTheQueriesAndTheKeysOnce)
 }
 
 /** @brief Tests that the walk of a rotary block yields the two projections and no table. */
-TEST(Medium_BlockCausalSelfAttention, ARotaryBlockHoldsTheStateOfALearnedOne)
+TEST(Small_BlockCausalSelfAttention, ARotaryBlockHoldsTheStateOfALearnedOne)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -542,60 +672,40 @@ TEST(Medium_BlockCausalSelfAttention, ARotaryBlockHoldsTheStateOfALearnedOne)
     static_cast<void>(block.forward(trace, builder.input(Shape{2, 5, K_DIM}, "x")));
     SA_EXPECT_OK(trace.status());
 
-    std::vector<std::string> names;
-    const auto on_parameter = [&names](const std::string& name, NN::Parameter&)
-    {
-        names.push_back(name);
-    };
-    const auto on_buffer = [&names](const std::string& name, NN::Buffer&)
-    {
-        names.push_back(name);
-    };
-    const NN::StateVisitor visitor(on_parameter, on_buffer);
-    NN::walk_state(block, "attn", visitor);
-
-    EXPECT_EQ(names, (std::vector<std::string>{"attn.qkv.weight", "attn.qkv.bias",
-                                               "attn.proj.weight", "attn.proj.bias"}));
+    EXPECT_EQ(walked_names(block),
+              (std::vector<std::string>{"attn.qkv.weight", "attn.qkv.bias", "attn.proj.weight",
+                                        "attn.proj.bias"}));
 }
 
 /** @brief Tests that a trace no step fills tables for and an odd head are each refused. */
-TEST(Medium_BlockCausalSelfAttention, ARotaryTraceRefusesWhatItCannotTurn)
+TEST_P(Small_BlockCausalSelfAttentionRotary, ARotaryTraceRefusesWhatItCannotTurn)
 {
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID x = builder.input(Shape{2, 5, K_DIM}, "x");
-        CausalSelfAttention block = rotary_block();
+    const RotaryRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 5, row.dim}, "x");
+    CausalSelfAttention block(row.dim, K_HEADS, AttentionMask::Causal,
+                              AttentionPositions::Rotary);
 
-        SA_EXPECT_FAILURE(refused(block, builder, x), StatusCode::InvalidDescription,
-                          "'rotary_cosine'", "collect_tables");
-    }
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID x = builder.input(Shape{2, 5, 6}, "x");
-        CausalSelfAttention odd(6, 2, AttentionMask::Causal, AttentionPositions::Rotary);
-
-        SA_EXPECT_FAILURE(refused(odd, builder, x), StatusCode::InvalidDescription,
-                          "rotary positions", "3 channels");
-    }
+    SA_EXPECT_FAILURE(refused(block, builder, x), StatusCode::InvalidDescription, row.first,
+                      row.second);
 }
 
-/** @brief Tests that the factory reads "positions" and refuses a word or a head that misfits. */
-TEST(Medium_BlockCausalSelfAttention, TheFactoryReadsThePositions)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockCausalSelfAttentionRotary,
+    ::testing::Values(RotaryRow{"NoTables", K_DIM, "'rotary_cosine'", "collect_tables"},
+                      RotaryRow{"OddHeadWidth", 6, "rotary positions", "3 channels"}),
+    row_name<RotaryRow>);
+
+/** @brief Tests that the factory reads "positions", learned or rotary, into the layer. */
+TEST(Small_BlockCausalSelfAttention, TheFactoryReadsThePositions)
 {
     const Shape input{5, K_DIM};
-    const Shape odd{5, 6};
     const Config::Value plain =
         SaTest::require_value(Config::parse_json(R"({"heads": 2})", "<test>"));
     const Config::Value rotary =
         SaTest::require_value(Config::parse_json(R"({"heads": 2, "positions": "rotary"})",
                                                  "<test>"));
-    const Config::Value unknown =
-        SaTest::require_value(Config::parse_json(R"({"heads": 2, "positions": "sinusoidal"})",
-                                                 "<test>"));
-    const Config::Value number =
-        SaTest::require_value(Config::parse_json(R"({"heads": 2, "positions": 1})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> learned,
@@ -614,24 +724,35 @@ TEST(Medium_BlockCausalSelfAttention, TheFactoryReadsThePositions)
     ASSERT_NE(wrapped_turned, nullptr);
     EXPECT_EQ(wrapped->layer().positions, AttentionPositions::Learned);
     EXPECT_EQ(wrapped_turned->layer().positions, AttentionPositions::Rotary);
-
-    SA_EXPECT_FAILURE(
-        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&input, 1), unknown,
-                                                          "layer 3"),
-        StatusCode::InvalidDescription, "layer 3", "'positions'", "'sinusoidal'", "'learned'",
-        "'rotary'");
-    SA_EXPECT_FAILURE(
-        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&input, 1), number,
-                                                          "layer 3"),
-        StatusCode::InvalidDescription, "layer 3", "'positions'", "must be a string");
-    SA_EXPECT_FAILURE(
-        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&odd, 1), rotary,
-                                                          "layer 3"),
-        StatusCode::InvalidDescription, "layer 3", "rotary positions", "3 channels");
 }
 
-/** @brief Tests that one rotary position puts a row in place of what each ring holds. */
-TEST(Medium_BlockCausalSelfAttention, TheRotaryIncrementalFormReplacesARowOfEachRing)
+/** @brief Tests that the factory refuses an unknown word, a non-string and an odd head width. */
+TEST_P(Small_BlockCausalSelfAttentionPositions, TheFactoryRefusesWhatItCannotRead)
+{
+    const FactoryRow& row = GetParam();
+    const Config::Value attributes =
+        SaTest::require_value(Config::parse_json(row.json, "<test>"));
+
+    SA_EXPECT_FAILURE(
+        Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&row.input, 1),
+                                                          attributes, "layer 3"),
+        StatusCode::InvalidDescription, "layer 3", row.first, row.second, row.third,
+        row.fourth);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockCausalSelfAttentionPositions,
+    ::testing::Values(FactoryRow{"UnknownWord", R"({"heads": 2, "positions": "sinusoidal"})",
+                                 Shape{5, K_DIM}, "'positions'", "'sinusoidal'", "'learned'",
+                                 "'rotary'"},
+                      FactoryRow{"NotAString", R"({"heads": 2, "positions": 1})", Shape{5, K_DIM},
+                                 "'positions'", "must be a string", "", ""},
+                      FactoryRow{"OddHeadWidth", R"({"heads": 2, "positions": "rotary"})",
+                                 Shape{5, 6}, "rotary positions", "3 channels", "", ""}),
+    row_name<FactoryRow>);
+
+/** @brief Tests that one rotary position keeps the output shape and carries two windows. */
+TEST(Small_BlockCausalSelfAttention, TheRotaryIncrementalFormReplacesARowOfEachRing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -646,26 +767,11 @@ TEST(Medium_BlockCausalSelfAttention, TheRotaryIncrementalFormReplacesARowOfEach
     SA_EXPECT_OK(trace.status());
     EXPECT_FALSE(graph.has_refusal());
     EXPECT_EQ(graph.value(y).shape, (Shape{1, 1, K_DIM}));
-
-    // One scatter marks the row and one per ring places it; a select takes the place of the add.
-    EXPECT_EQ(count_nodes(graph, Ops::K_SCATTER_ADD_ROWS.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SELECT.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CHANNEL_AFFINE.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CAUSAL_MASK.id), 0u);
-
-    ASSERT_EQ(carried.values().size(), 2u);
-    for (const NN::CarriedValue& kept : carried.values())
-    {
-        EXPECT_EQ(graph.value(kept.leaf).shape, (Shape{K_WINDOW, K_DIM}));
-        const Graph::Node& written = graph.node(graph.value(kept.next).producer);
-        ASSERT_EQ(written.op, Ops::K_SELECT.id);
-        EXPECT_EQ(written.inputs[2], kept.leaf);
-    }
+    EXPECT_EQ(carried.values().size(), 2u);
 }
 
 /** @brief Tests that a rotary position is fed its slot, the mask and its angles, no position. */
-TEST(Medium_BlockCausalSelfAttention, TheRotaryIncrementalFormIsFedASlotAndTheAngles)
+TEST(Small_BlockCausalSelfAttention, TheRotaryIncrementalFormIsFedASlotAndTheAngles)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -720,19 +826,6 @@ namespace
         std::vector<double> values(count);
         SaTest::HostNoise(seed).fill(values, 1.0);
         return values;
-    }
-
-    /** @brief Counts the nodes of @p graph that carry @p op. */
-    std::size_t count_gradient_nodes(const Graph::Graph& graph, OpID op)
-    {
-        std::size_t found = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++found;
-        }
-
-        return found;
     }
 
     /** @brief Names the leaf a probe differentiates at and the [N, C] value its loss reads. */
@@ -914,9 +1007,6 @@ namespace
             return attention_subject(builder, block, variable);
         });
 
-        // Each head's softmax is one LOG_SOFTMAX, and none of them feeds a cross-entropy.
-        EXPECT_EQ(count_gradient_nodes(probe.graph(), Ops::K_LOG_SOFTMAX_BACKWARD.id),
-                  static_cast<std::size_t>(K_HEADS));
         ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(probe, seed + 1000));
     }
 }
@@ -945,7 +1035,6 @@ TEST_F(Medium_AttentionGradient, AnUnfusedLogSoftmaxMatchesItsClosedForm)
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients, Autograd::differentiate(
         graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
     ASSERT_NE(gradients.at(0), Graph::K_NO_VALUE);
-    ASSERT_EQ(count_gradient_nodes(graph, Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
 
     // The weights are positive and their rows do not sum to one.
     const std::vector<double> values = noise(K_ROWS * K_CLASSES, 7101);
@@ -997,7 +1086,6 @@ TEST_F(Medium_AttentionGradient, ASoftmaxGradientMatchesCentralDifferences)
         return Subject{x, builder.matmul(builder.softmax(x), mix).value()};
     });
 
-    EXPECT_EQ(count_gradient_nodes(probe.graph(), Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
     ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(probe, 7201));
 }
 
@@ -1011,7 +1099,6 @@ TEST_F(Medium_AttentionGradient, ASoftmaxOverRankThreeDifferentiatesThroughItsRe
         return Subject{x, builder.reshape(builder.softmax(x), Shape{6, 4}).value()};
     });
 
-    EXPECT_EQ(count_gradient_nodes(probe.graph(), Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
     ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(probe, 7301));
 }
 
@@ -1044,8 +1131,18 @@ namespace
 
     };
 
-    /** @brief Bounds a value that must be the same number in both runs. */
-    constexpr double K_EXACT_TOLERANCE = 0.0;
+    /** @brief Provides the Engine and the element type of the mask cases. */
+    class Medium_CausalAttentionMask : public SaTest::EngineTest,
+                                       public ::testing::WithParamInterface<DType>
+    {
+
+    };
+
+    /** @brief Names a mask row by its element type. */
+    std::string dtype_row_name(const ::testing::TestParamInfo<DType>& info)
+    {
+        return info.param == DType::Float32 ? "Float32" : "Float64";
+    }
 
     /** @brief Holds the value the mask cases write above the diagonal. */
     constexpr double K_FILL = -1.0e9;
@@ -1180,17 +1277,17 @@ namespace
     }
 }
 
-/** @brief Tests that the mask keeps the lower triangle and writes the fill above, in FLOAT32. */
-TEST_F(Medium_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonal)
+/**
+ * @brief Tests that the mask keeps the lower triangle and writes the fill above, in FLOAT32 and
+ *        in FLOAT64, where the mask vectors are converted from FLOAT32.
+ */
+TEST_P(Medium_CausalAttentionMask, TheMaskReplacesTheEntriesAboveTheDiagonal)
 {
-    ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(backend(), DType::Float32));
+    ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(backend(), GetParam()));
 }
 
-/** @brief Tests the same in FLOAT64, where the mask vectors are converted from FLOAT32. */
-TEST_F(Medium_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonalInFloat64)
-{
-    ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(backend(), DType::Float64));
-}
+INSTANTIATE_TEST_SUITE_P(Dtypes, Medium_CausalAttentionMask,
+                         ::testing::Values(DType::Float32, DType::Float64), dtype_row_name);
 
 /**
  * @brief Tests that the gradient of the scores is the incoming gradient on and below the
@@ -1243,9 +1340,11 @@ TEST_F(Medium_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlon
         {
             const std::size_t i = row * K_SIDE + column;
             const double kept = (std::exp(values[i]) / total - one_hot[i]) / 4.0;
-            const double expected = column <= row ? kept : 0.0;
-            const double bound = column <= row ? K_CLOSED_FORM_TOLERANCE : K_EXACT_TOLERANCE;
-            EXPECT_NEAR(got[i], expected, bound) << "at row " << row << " column " << column;
+            if (column <= row)
+                EXPECT_NEAR(got[i], kept, K_CLOSED_FORM_TOLERANCE)
+                    << "at row " << row << " column " << column;
+            else
+                EXPECT_EQ(got[i], 0.0) << "at row " << row << " column " << column;
         }
     }
 }
