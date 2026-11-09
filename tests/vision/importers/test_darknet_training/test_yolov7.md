@@ -15,6 +15,9 @@ that run measured: the heads were at most 0.0052 from the dump, the [yolo] outpu
 an entry of the delta that is no box entry 0.00103. The other bounds held. The cause of the
 differences is not known.
 
+Every bound below is a multiple of the float unit roundoff u, 2^-24: the smallest power
+of two not tighter than the decimal bound the measured differences set.
+
 ## TheTrainingOptionsMatchTheDumpedSettings
 
 The options read from the cfg hold the box loss and the objectness target above, and the weights and
@@ -23,27 +26,29 @@ thresholds that the descriptions of the dump hold.
 ## TheDeltaOfADumpedHeadMatchesDarknet
 
 The delta is computed on the host from each dumped head of `yolov7_plain_pool_thresh_0p01`. Its
-assignments equal the dumped ones exactly, a box entry is within 1e-6 absolute plus 1e-4 relative of
-the dumped delta and every other entry within 1e-6, and the stored cost agrees to 1e-5 relative.
+assignments equal the dumped ones exactly, a box entry is within 32 u absolute plus 2048 u relative of
+the dumped delta and every other entry within 32 u, and the stored cost agrees to 256 u relative.
 
 ## TheDeltaOfATwoImageHeadMatchesDarknet
 
 The same computation over each dumped head of `yolov7_train_step` is compared with the delta that
-run dumped, under the same bounds, and the stored cost to 1e-5 relative.
+run dumped, under the same bounds, and the stored cost to 256 u relative.
 
 ## TheHeadsUnderBatchStatisticsMatchDarknet
 
 Each head of the Separate model under batch statistics, and the [yolo] output computed from it, are
-within 1e-3 absolute plus 1e-4 relative of the dump.
+within 262144 u absolute plus 2048 u relative of the dump.
 
 ## TheDeltasOfTheStepMatchDarknet
 
-The check is the one [`test_yolov4.md`](test_yolov4.md) describes, run on this model.
+The check is the one [`test_yolov4.md`](test_yolov4.md) describes, run on this model. A box entry is
+within 32768 u absolute plus 4096 u relative, any other entry within 32768 u, and the costs to
+32768 u relative.
 
 ## TheUpdatesOfTheHeadConvolutionsMatchDarknet
 
 The weight and bias gradients of the convolution before each head, times minus the batch, are
-compared with the dumped updates. The bound is 1e-3 of the dump's largest magnitude plus 1e-3 of the
+compared with the dumped updates. The bound is 32768 u of the dump's largest magnitude plus 32768 u of the
 entry.
 
 ## TheFirstConvolutionReceivesAGradient
@@ -55,8 +60,8 @@ compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 ## TheRollingStatisticsAfterOneStepMatchDarknet
 
 The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
-is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
-same 1e-5, each time against a variance the test computes on the host from the batch and the
+is within 256 u of the dump after one blend. The variance after the blend is checked twice at the
+same 256 u, each time against a variance the test computes on the host from the batch and the
 The check is the one [`test_yolov3.md`](test_yolov3.md) describes, run on this model.
 
 ## TheCostOfOneBatchFallsUnderATenth
