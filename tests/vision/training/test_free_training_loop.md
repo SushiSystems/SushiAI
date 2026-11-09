@@ -14,7 +14,7 @@ The first and last terms of the report equal those the callback saw for the firs
 
 ### ADatasetTheStepCannotReadIsRefusedBeforeAnyUpdate, OptionsARunCannotUseAreRefused, AStartTheDatasetLacksIsRefused
 
-A batch of 3 against a step traced for 2, a dataset of no batch, a dataset without the `boxes` role, 0 epochs, a step schedule of 2 steps and 1 scale, an epoch index of -1 and a first batch of 3 in a dataset of 3 are all refused, and the optimizer takes no step.
+A dataset of another batch size, a run of no epoch and a first batch past the end each make `run_free_training` fail, and after the call the optimizer has taken no step and the step has counted no run. The reasons of these refusals are tested in `test_detection_run_check.cpp`, which `check_detection_run` owns; this file keeps what only the loop owns, that nothing was updated.
 
 ### ARunStartsAtTheEpochAndTheBatchItsOptionsState
 

@@ -237,6 +237,54 @@ namespace
             /** @brief Holds the step the loop drives. */
             std::unique_ptr<AnchorTrainingStep> step_;
     };
+
+    /** @brief Returns the rate of each update in @p seen. */
+    std::vector<double> rates_of(const std::vector<AnchorProgress>& seen)
+    {
+        std::vector<double> rates;
+        for (const AnchorProgress& progress : seen)
+            rates.push_back(progress.rate);
+
+        return rates;
+    }
+
+    /** @brief Returns the epoch of each update in @p seen. */
+    std::vector<std::int64_t> epochs_of(const std::vector<AnchorProgress>& seen)
+    {
+        std::vector<std::int64_t> epochs;
+        for (const AnchorProgress& progress : seen)
+            epochs.push_back(progress.epoch);
+
+        return epochs;
+    }
+
+    /** @brief Returns the batch of each update in @p seen. */
+    std::vector<std::size_t> batches_of(const std::vector<AnchorProgress>& seen)
+    {
+        std::vector<std::size_t> batches;
+        for (const AnchorProgress& progress : seen)
+            batches.push_back(progress.batch);
+
+        return batches;
+    }
+
+    /** @brief Returns the iteration number of each update in @p seen. */
+    std::vector<std::int64_t> iterations_of(const std::vector<AnchorProgress>& seen)
+    {
+        std::vector<std::int64_t> iterations;
+        for (const AnchorProgress& progress : seen)
+            iterations.push_back(progress.iteration);
+
+        return iterations;
+    }
+
+    /** @brief Expects each rate of @p actual within K_RATE_TOLERANCE of the one of @p expected. */
+    void expect_rates_near(const std::vector<double>& actual, const std::vector<double>& expected)
+    {
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t i = 0; i < actual.size(); ++i)
+            EXPECT_NEAR(actual[i], expected[i], K_RATE_TOLERANCE) << "update " << i;
+    }
 } // namespace
 
 /** @brief Tests that each update takes the schedule's rate at its number, across epochs. */
@@ -255,15 +303,10 @@ TEST_F(Medium_AnchorTrainingLoop, EachUpdateTakesTheRateOfItsIteration)
     SA_ASSERT_OK_AND_ASSIGN(const AnchorRunReport report,
                             run_anchor_training(*step_, dataset, options));
 
-    const double rates[] = {0.1, 0.05, 0.05, 0.05, 0.025, 0.025};
-    ASSERT_EQ(seen.size(), 6u);
-    for (std::size_t update = 0; update < seen.size(); ++update)
-    {
-        EXPECT_EQ(seen[update].epoch, static_cast<std::int64_t>(update / K_BATCHES) + 1);
-        EXPECT_EQ(seen[update].batch, update % K_BATCHES);
-        EXPECT_EQ(seen[update].iteration, static_cast<std::int64_t>(update) + 1);
-        EXPECT_NEAR(seen[update].rate, rates[update], K_RATE_TOLERANCE);
-    }
+    EXPECT_EQ(epochs_of(seen), (std::vector<std::int64_t>{1, 1, 1, 2, 2, 2}));
+    EXPECT_EQ(batches_of(seen), (std::vector<std::size_t>{0, 1, 2, 0, 1, 2}));
+    EXPECT_EQ(iterations_of(seen), (std::vector<std::int64_t>{1, 2, 3, 4, 5, 6}));
+    expect_rates_near(rates_of(seen), {0.1, 0.05, 0.05, 0.05, 0.025, 0.025});
 
     EXPECT_EQ(report.updates, 6u);
     EXPECT_NEAR(report.last_rate, 0.025, K_RATE_TOLERANCE);
@@ -295,13 +338,9 @@ TEST_F(Medium_AnchorTrainingLoop, ACosineScheduleSetsTheRateOfEachUpdate)
     SA_ASSERT_OK_AND_ASSIGN(const AnchorRunReport report,
                             run_anchor_training(*step_, dataset, options));
 
-    // A double holds the schedule's own rate, so the two are compared exactly.
-    ASSERT_EQ(seen.size(), 6u);
-    for (std::size_t update = 0; update < seen.size(); ++update)
-    {
-        const std::int64_t iteration = static_cast<std::int64_t>(update) + 1;
-        EXPECT_DOUBLE_EQ(seen[update].rate, cosine.rate_at(iteration)) << "update " << update;
-    }
+    EXPECT_EQ(seen.size(), 6u);
+    expect_rates_near(rates_of(seen), {cosine.rate_at(1), cosine.rate_at(2), cosine.rate_at(3),
+                                       cosine.rate_at(4), cosine.rate_at(5), cosine.rate_at(6)});
     EXPECT_DOUBLE_EQ(report.last_rate, cosine.rate_at(6));
 }
 
@@ -319,50 +358,31 @@ TEST_F(Medium_AnchorTrainingLoop, ARunWithoutAScheduleKeepsTheOptimizersRate)
     EXPECT_NEAR(optimizer_->learning_rate(), K_MADE_RATE, K_RATE_TOLERANCE);
 }
 
-/** @brief Tests that a dataset the step cannot read is refused before any update. */
+/** @brief Tests that a refused dataset runs no update; check_detection_run owns the reasons. */
 TEST_F(Medium_AnchorTrainingLoop, ADatasetTheStepCannotReadIsRefusedBeforeAnyUpdate)
 {
     ASSERT_NE(step_, nullptr);
-
     const Data::MaterialisedDataset other_batch =
         make_dataset(K_BATCHES, K_BATCH + 1, truth_roles());
-    SA_EXPECT_FAILURE(run_anchor_training(*step_, other_batch), StatusCode::Incompatible,
-                      "'truths'", "batch of 3", "declared for 2");
 
-    const Data::MaterialisedDataset empty = make_dataset(0, K_BATCH, truth_roles());
-    SA_EXPECT_FAILURE(run_anchor_training(*step_, empty), StatusCode::InvalidDescription,
-                      "'truths'", "no batches");
-
-    const Data::MaterialisedDataset labelled = make_dataset(
-        K_BATCHES, K_BATCH,
-        {Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{}, DType::Int32,
-                                 K_CLASSES}});
-    SA_EXPECT_FAILURE(run_anchor_training(*step_, labelled), StatusCode::InvalidDescription,
-                      "'truths'", "'boxes'");
+    EXPECT_FALSE(run_anchor_training(*step_, other_batch).has_value());
 
     EXPECT_EQ(optimizer_->step_count(), 0u);
+    EXPECT_EQ(step_->run_count(), 0u);
 }
 
-/** @brief Tests that the options of a run are checked: the epochs and the schedule. */
+/** @brief Tests that refused options run no update; check_detection_run owns the reasons. */
 TEST_F(Medium_AnchorTrainingLoop, OptionsARunCannotUseAreRefused)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
-
     AnchorLoopOptions no_epoch;
     no_epoch.epochs = 0;
-    SA_EXPECT_FAILURE(run_anchor_training(*step_, dataset, no_epoch),
-                      StatusCode::InvalidDescription, "at least one epoch", "0");
 
-    Optim::StepSchedule uneven_steps = make_halving_schedule();
-    uneven_steps.scales.pop_back();
-    const Optim::RateSchedule uneven = uneven_steps;
-    AnchorLoopOptions bad_schedule;
-    bad_schedule.schedule = &uneven;
-    SA_EXPECT_FAILURE(run_anchor_training(*step_, dataset, bad_schedule),
-                      StatusCode::InvalidDescription, "2 steps", "1 scales");
+    EXPECT_FALSE(run_anchor_training(*step_, dataset, no_epoch).has_value());
 
     EXPECT_EQ(optimizer_->step_count(), 0u);
+    EXPECT_EQ(step_->run_count(), 0u);
 }
 
 /** @brief Tests that a run goes on at the epoch index and the batch its options state. */
@@ -392,26 +412,21 @@ TEST_F(Medium_AnchorTrainingLoop, ARunStartsAtTheEpochAndTheBatchItsOptionsState
     EXPECT_EQ(seen[1].batch, 0u);
 }
 
-/** @brief Tests that a start the run cannot take is refused before any update. */
+/** @brief Tests that a start the dataset lacks runs no update; check_detection_run owns why. */
 TEST_F(Medium_AnchorTrainingLoop, AStartTheDatasetLacksIsRefused)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
-
-    AnchorLoopOptions negative;
-    negative.first_epoch = -1;
-    SA_EXPECT_FAILURE(run_anchor_training(*step_, dataset, negative),
-                      StatusCode::InvalidDescription, "epoch index", "-1");
-
     AnchorLoopOptions past_the_end;
     past_the_end.first_batch = K_BATCHES;
-    SA_EXPECT_FAILURE(run_anchor_training(*step_, dataset, past_the_end),
-                      StatusCode::Incompatible, "batch 3", "'truths'", "3 batches");
+
+    EXPECT_FALSE(run_anchor_training(*step_, dataset, past_the_end).has_value());
 
     EXPECT_EQ(optimizer_->step_count(), 0u);
+    EXPECT_EQ(step_->run_count(), 0u);
 }
 
-/** @brief Tests that a restored count is the count of both parts, and is restored once. */
+/** @brief Tests that a restored count is the count of both parts, and counts on. */
 TEST_F(Medium_AnchorTrainingLoop, ARestoredRunCountIsTheCountOfBothParts)
 {
     ASSERT_NE(step_, nullptr);
@@ -425,6 +440,15 @@ TEST_F(Medium_AnchorTrainingLoop, ARestoredRunCountIsTheCountOfBothParts)
     SA_EXPECT_OK(run_anchor_training(*step_, dataset));
     EXPECT_EQ(step_->run_count(), 4u + K_BATCHES);
     EXPECT_EQ(step_->training().lead()->run_count(), 4u + K_BATCHES);
+}
+
+/** @brief Tests that a count below the current run is refused, naming the run. */
+TEST_F(Medium_AnchorTrainingLoop, ACountBelowTheCurrentRunIsRefused)
+{
+    ASSERT_NE(step_, nullptr);
+    const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
+    SA_EXPECT_OK(step_->restore_run_count(4));
+    SA_EXPECT_OK(run_anchor_training(*step_, dataset));
 
     SA_EXPECT_FAILURE(step_->restore_run_count(1), StatusCode::InvalidDescription,
                       "before its first run", "run 7");

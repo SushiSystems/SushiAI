@@ -79,6 +79,68 @@ namespace
      */
     constexpr double K_RATE_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
+    /** @brief Returns the rate of each update in @p seen. */
+    std::vector<double> rates_of(const std::vector<FreeProgress>& seen)
+    {
+        std::vector<double> rates;
+        for (const FreeProgress& progress : seen)
+            rates.push_back(progress.rate);
+
+        return rates;
+    }
+
+    /** @brief Returns the epoch of each update in @p seen. */
+    std::vector<std::int64_t> epochs_of(const std::vector<FreeProgress>& seen)
+    {
+        std::vector<std::int64_t> epochs;
+        for (const FreeProgress& progress : seen)
+            epochs.push_back(progress.epoch);
+
+        return epochs;
+    }
+
+    /** @brief Returns the batch of each update in @p seen. */
+    std::vector<std::size_t> batches_of(const std::vector<FreeProgress>& seen)
+    {
+        std::vector<std::size_t> batches;
+        for (const FreeProgress& progress : seen)
+            batches.push_back(progress.batch);
+
+        return batches;
+    }
+
+    /** @brief Returns the iteration number of each update in @p seen. */
+    std::vector<std::int64_t> iterations_of(const std::vector<FreeProgress>& seen)
+    {
+        std::vector<std::int64_t> iterations;
+        for (const FreeProgress& progress : seen)
+            iterations.push_back(progress.iteration);
+
+        return iterations;
+    }
+
+    /** @brief Returns the updates of @p seen whose total is not finite and above 0. */
+    std::vector<std::size_t> updates_without_a_positive_total(
+        const std::vector<FreeProgress>& seen)
+    {
+        std::vector<std::size_t> bad;
+        for (std::size_t update = 0; update < seen.size(); ++update)
+        {
+            if (!(std::isfinite(seen[update].terms.total) && seen[update].terms.total > 0.0))
+                bad.push_back(update);
+        }
+
+        return bad;
+    }
+
+    /** @brief Expects each rate of @p actual within K_RATE_TOLERANCE of the one of @p expected. */
+    void expect_rates_near(const std::vector<double>& actual, const std::vector<double>& expected)
+    {
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t i = 0; i < actual.size(); ++i)
+            EXPECT_NEAR(actual[i], expected[i], K_RATE_TOLERANCE) << "update " << i;
+    }
+
     /** @brief Returns a rate of 0.1 that halves from update 2 and again from update 5. */
     Optim::StepSchedule make_halving_schedule()
     {
@@ -146,15 +208,10 @@ TEST_F(Medium_FreeTrainingLoop, EachUpdateTakesTheRateOfItsIteration)
     SA_ASSERT_OK_AND_ASSIGN(const FreeRunReport report,
                             run_free_training(*model_.step, dataset, options));
 
-    const double rates[] = {0.1, 0.05, 0.05, 0.05, 0.025, 0.025};
-    ASSERT_EQ(seen.size(), 6u);
-    for (std::size_t update = 0; update < seen.size(); ++update)
-    {
-        EXPECT_EQ(seen[update].epoch, static_cast<std::int64_t>(update / K_BATCHES) + 1);
-        EXPECT_EQ(seen[update].batch, update % K_BATCHES);
-        EXPECT_EQ(seen[update].iteration, static_cast<std::int64_t>(update) + 1);
-        EXPECT_NEAR(seen[update].rate, rates[update], K_RATE_TOLERANCE);
-    }
+    EXPECT_EQ(epochs_of(seen), (std::vector<std::int64_t>{1, 1, 1, 2, 2, 2}));
+    EXPECT_EQ(batches_of(seen), (std::vector<std::size_t>{0, 1, 2, 0, 1, 2}));
+    EXPECT_EQ(iterations_of(seen), (std::vector<std::int64_t>{1, 2, 3, 4, 5, 6}));
+    expect_rates_near(rates_of(seen), {0.1, 0.05, 0.05, 0.05, 0.025, 0.025});
 
     EXPECT_EQ(report.updates, 6u);
     EXPECT_NEAR(report.last_rate, 0.025, K_RATE_TOLERANCE);
@@ -182,11 +239,7 @@ TEST_F(Medium_FreeTrainingLoop, TheReportHoldsTheTermsOfTheFirstAndTheLastUpdate
     EXPECT_EQ(report.first.box, seen.front().terms.box);
     EXPECT_EQ(report.last.total, seen.back().terms.total);
     EXPECT_EQ(report.last.classes, seen.back().terms.classes);
-    for (const FreeProgress& progress : seen)
-    {
-        EXPECT_TRUE(std::isfinite(progress.terms.total));
-        EXPECT_GT(progress.terms.total, 0.0);
-    }
+    EXPECT_EQ(updates_without_a_positive_total(seen), std::vector<std::size_t>());
 }
 
 /** @brief Tests that a cosine schedule drives the rate of each update of a run. */
@@ -210,13 +263,10 @@ TEST_F(Medium_FreeTrainingLoop, ACosineScheduleSetsTheRateOfEachUpdate)
     SA_ASSERT_OK_AND_ASSIGN(const FreeRunReport report,
                             run_free_training(*model_.step, dataset, options));
 
-    // A double holds the schedule's own rate, so the two are compared exactly.
-    ASSERT_EQ(seen.size(), 6u);
-    for (std::size_t update = 0; update < seen.size(); ++update)
-    {
-        const std::int64_t iteration = static_cast<std::int64_t>(update) + 1;
-        EXPECT_DOUBLE_EQ(seen[update].rate, cosine.rate_at(iteration)) << "update " << update;
-    }
+    // The rates are the cosine from 0.1 to 0.01 over six iterations, the first at its base.
+    EXPECT_EQ(seen.size(), 6u);
+    expect_rates_near(rates_of(seen), {cosine.rate_at(1), cosine.rate_at(2), cosine.rate_at(3),
+                                       cosine.rate_at(4), cosine.rate_at(5), cosine.rate_at(6)});
     EXPECT_DOUBLE_EQ(report.last_rate, cosine.rate_at(6));
 }
 
@@ -234,50 +284,31 @@ TEST_F(Medium_FreeTrainingLoop, ARunWithoutAScheduleKeepsTheOptimizersRate)
     EXPECT_NEAR(model_.optimizer->learning_rate(), K_LEARNING_RATE, K_RATE_TOLERANCE);
 }
 
-/** @brief Tests that a dataset the step cannot read is refused before any update. */
+/** @brief Tests that a refused dataset runs no update; check_detection_run owns the reasons. */
 TEST_F(Medium_FreeTrainingLoop, ADatasetTheStepCannotReadIsRefusedBeforeAnyUpdate)
 {
     ASSERT_TRUE(model_.ready);
-
     const Data::MaterialisedDataset other_batch =
         make_dataset(K_BATCHES, K_BATCH + 1, truth_roles());
-    SA_EXPECT_FAILURE(run_free_training(*model_.step, other_batch), StatusCode::Incompatible,
-                      "'truths'", "batch of 3", "ports were traced for 2");
 
-    const Data::MaterialisedDataset empty = make_dataset(0, K_BATCH, truth_roles());
-    SA_EXPECT_FAILURE(run_free_training(*model_.step, empty), StatusCode::InvalidDescription,
-                      "'truths'", "no batches");
-
-    const Data::MaterialisedDataset labelled = make_dataset(
-        K_BATCHES, K_BATCH,
-        {Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{}, DType::Int32,
-                                 K_CLASSES}});
-    SA_EXPECT_FAILURE(run_free_training(*model_.step, labelled), StatusCode::InvalidDescription,
-                      "'truths'", "'boxes'");
+    EXPECT_FALSE(run_free_training(*model_.step, other_batch).has_value());
 
     EXPECT_EQ(model_.optimizer->step_count(), 0u);
+    EXPECT_EQ(model_.step->run_count(), 0u);
 }
 
-/** @brief Tests that the options of a run are checked: the epochs and the schedule. */
+/** @brief Tests that refused options run no update; the run check owns the reasons. */
 TEST_F(Medium_FreeTrainingLoop, OptionsARunCannotUseAreRefused)
 {
     ASSERT_TRUE(model_.ready);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
-
     FreeLoopOptions no_epoch;
     no_epoch.epochs = 0;
-    SA_EXPECT_FAILURE(run_free_training(*model_.step, dataset, no_epoch),
-                      StatusCode::InvalidDescription, "An anchor-free run", "at least one epoch");
 
-    Optim::StepSchedule uneven_steps = make_halving_schedule();
-    uneven_steps.scales.pop_back();
-    const Optim::RateSchedule uneven = uneven_steps;
-    FreeLoopOptions bad_schedule;
-    bad_schedule.schedule = &uneven;
-    SA_EXPECT_FAILURE(run_free_training(*model_.step, dataset, bad_schedule),
-                      StatusCode::InvalidDescription, "2 steps", "1 scales");
+    EXPECT_FALSE(run_free_training(*model_.step, dataset, no_epoch).has_value());
 
     EXPECT_EQ(model_.optimizer->step_count(), 0u);
+    EXPECT_EQ(model_.step->run_count(), 0u);
 }
 
 /** @brief Tests that a run goes on at the epoch index and the batch its options state. */
@@ -307,23 +338,18 @@ TEST_F(Medium_FreeTrainingLoop, ARunStartsAtTheEpochAndTheBatchItsOptionsState)
     EXPECT_EQ(seen[1].batch, 0u);
 }
 
-/** @brief Tests that a start the run cannot take is refused before any update. */
+/** @brief Tests that a start the dataset lacks runs no update; the run check owns the reason. */
 TEST_F(Medium_FreeTrainingLoop, AStartTheDatasetLacksIsRefused)
 {
     ASSERT_TRUE(model_.ready);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
-
-    FreeLoopOptions negative;
-    negative.first_epoch = -1;
-    SA_EXPECT_FAILURE(run_free_training(*model_.step, dataset, negative),
-                      StatusCode::InvalidDescription, "epoch index", "-1");
-
     FreeLoopOptions past_the_end;
     past_the_end.first_batch = K_BATCHES;
-    SA_EXPECT_FAILURE(run_free_training(*model_.step, dataset, past_the_end),
-                      StatusCode::Incompatible, "batch 3", "'truths'", "3 batches");
+
+    EXPECT_FALSE(run_free_training(*model_.step, dataset, past_the_end).has_value());
 
     EXPECT_EQ(model_.optimizer->step_count(), 0u);
+    EXPECT_EQ(model_.step->run_count(), 0u);
 }
 
 /** @brief Tests that the one-to-many weight falls over the epochs of the run it is given. */

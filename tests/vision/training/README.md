@@ -730,3 +730,4 @@ The files below have a page beside them that says what each case pins.
 | `test_free_batch_decoder.cpp` | [`test_free_batch_decoder.md`](test_free_batch_decoder.md) |
 | `test_free_assignment_stage.cpp` | [`test_free_assignment_stage.md`](test_free_assignment_stage.md) |
 | `test_free_training_step.cpp` | [`test_free_training_step.md`](test_free_training_step.md) |
+| `test_anchor_training_loop.cpp` | [`test_anchor_training_loop.md`](test_anchor_training_loop.md) |
