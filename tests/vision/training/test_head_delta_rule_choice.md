@@ -1,12 +1,16 @@
 # tests/vision/training/test_head_delta_rule_choice.cpp
 
-Suites: `Small_HeadDeltaRuleChoice`.
+Suites: `Small_HeadDeltaRuleChoice` and `Small_HeadDeltaRuleChoiceBestShape`.
 
 Tests `choose_head_delta_rule` of `head_delta_rule_choice.hpp`.
 
-### BestShapeBuildsTheBestShapeRule, ShapeRatioBuildsTheShapeRatioRule
+### BestShapeBuildsTheBestShapeRule
 
-The default choice builds a `BestShapeHeadDeltaRule` and the shape-ratio choice builds a `ShapeRatioHeadDeltaRule`; the pointer is never null.
+Rows: the default choice, and a best-shape choice that also holds a shape-ratio limit of 1, which the best-shape rule does not read. Each builds a `BestShapeHeadDeltaRule`; the pointer is never null.
+
+### ShapeRatioBuildsTheShapeRatioRule
+
+The shape-ratio choice builds a `ShapeRatioHeadDeltaRule`; the pointer is never null.
 
 ### TheShapeRatioSettingsReachTheRule
 
@@ -15,7 +19,3 @@ A rule built with a neighbour offset of 0.5 assigns more slots over the fixture 
 ### ShapeRatioSettingsThatAreRefusedNameTheirKey
 
 A ratio limit of 1 fails with `InvalidDescription` naming "'ratio_limit'".
-
-### BestShapeIgnoresTheShapeRatioSettings
-
-A best-shape choice that holds a ratio limit of 1 still builds its rule.

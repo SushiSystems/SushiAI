@@ -69,6 +69,20 @@ namespace
         return choice;
     }
 
+    /** @brief Returns the best-shape choice that also states a shape-ratio limit of 1. */
+    AssignmentChoice best_shape_with_ratio_settings()
+    {
+        AssignmentChoice choice;
+        choice.shape_ratio.ratio_limit = 1.0f;
+        return choice;
+    }
+
+    /** @brief Provides the choices that build the best-shape rule. */
+    class Small_HeadDeltaRuleChoiceBestShape : public ::testing::TestWithParam<AssignmentChoice>
+    {
+
+    };
+
     /** @brief Returns the slots @p rule assigns over the squared sigmoid fixture. */
     std::int64_t count_assignments(const HeadDeltaRule& rule)
     {
@@ -81,15 +95,18 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the default choice builds the best-shape rule. */
-TEST(Small_HeadDeltaRuleChoice, BestShapeBuildsTheBestShapeRule)
+/** @brief Tests that a best-shape choice builds the best-shape rule. */
+TEST_P(Small_HeadDeltaRuleChoiceBestShape, BestShapeBuildsTheBestShapeRule)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::shared_ptr<const HeadDeltaRule> rule,
-                            choose_head_delta_rule(AssignmentChoice()));
+                            choose_head_delta_rule(GetParam()));
 
     ASSERT_NE(rule, nullptr);
     EXPECT_NE(dynamic_cast<const BestShapeHeadDeltaRule*>(rule.get()), nullptr);
 }
+
+INSTANTIATE_TEST_SUITE_P(Choices, Small_HeadDeltaRuleChoiceBestShape,
+                         ::testing::Values(AssignmentChoice(), best_shape_with_ratio_settings()));
 
 /** @brief Tests that the shape-ratio choice builds the shape-ratio rule. */
 TEST(Small_HeadDeltaRuleChoice, ShapeRatioBuildsTheShapeRatioRule)
@@ -123,14 +140,3 @@ TEST(Small_HeadDeltaRuleChoice, ShapeRatioSettingsThatAreRefusedNameTheirKey)
                       "'ratio_limit'");
 }
 
-/** @brief Tests that the settings of the shape-ratio rule are not read for the best-shape one. */
-TEST(Small_HeadDeltaRuleChoice, BestShapeIgnoresTheShapeRatioSettings)
-{
-    AssignmentChoice choice;
-    choice.shape_ratio.ratio_limit = 1.0f;
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::shared_ptr<const HeadDeltaRule> rule,
-                            choose_head_delta_rule(choice));
-
-    EXPECT_NE(dynamic_cast<const BestShapeHeadDeltaRule*>(rule.get()), nullptr);
-}

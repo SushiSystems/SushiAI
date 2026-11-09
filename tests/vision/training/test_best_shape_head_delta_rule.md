@@ -1,6 +1,6 @@
 # tests/vision/training/test_best_shape_head_delta_rule.cpp
 
-Suites: `Small_BestShapeHeadDeltaRule`.
+Suites: `Small_BestShapeHeadDeltaRule` and `Small_BestShapeHeadDeltaRuleLevel`.
 
 Tests `BestShapeHeadDeltaRule`. The heads decode exponential sides.
 
@@ -12,13 +12,17 @@ Tests `BestShapeHeadDeltaRule`. The heads decode exponential sides.
 
 With the second head changed to squared sigmoid sides, `check` fails with `InvalidDescription`; the message holds "exponentials" and "head 'head.1'".
 
-### ComputeWritesTheDeltaOfEachHead
+### ComputeWritesTheDeltaOfTheHead
 
-For each head, the delta, assigned rows, assigned classes and assignment count equal those of `compute_head_delta` run on that head alone, and at least one slot is assigned.
+Rows: head 0 and head 1. The delta, assigned rows, assigned classes and assignment count of the head equal those of `compute_head_delta` run on that head alone.
+
+### ComputeAssignsTheTruthAtACost
+
+At least one slot is assigned over the two heads and the total cost is above 0.
 
 ### ComputeSumsTheCostOfEachHead
 
-The total, box, non-box and stored shares equal the sums of `measure_head_cost` over the two heads.
+The total, box, non-box and stored shares equal the sum of `measure_head_cost` of the first head and of the second. The expectation is the rule's own building block, not a literal: the fixture's floats are not derivable by hand.
 
 ### ComputeReplacesTheDeltasItWasGiven
 

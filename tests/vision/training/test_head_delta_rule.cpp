@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/result.hpp>
@@ -57,6 +58,32 @@ namespace
     using Vision::Training::HeadDeltaRule;
     using Vision::Training::ShapeRatioHeadDeltaRule;
 
+    /** @brief Names a rule, the size form its heads decode and how to build it. */
+    struct RuleRow
+    {
+        const char* name;                                  /**< Names the row in the test name. */
+        SizeForm form;                                     /**< The sides the rule trains. */
+        std::unique_ptr<HeadDeltaRule> (*make)();          /**< Builds the rule. */
+    };
+
+    /** @brief Builds the best-shape rule. */
+    std::unique_ptr<HeadDeltaRule> make_best_shape()
+    {
+        return std::make_unique<BestShapeHeadDeltaRule>();
+    }
+
+    /** @brief Builds the shape-ratio rule with its default options. */
+    std::unique_ptr<HeadDeltaRule> make_shape_ratio()
+    {
+        return std::make_unique<ShapeRatioHeadDeltaRule>(ShapeRatioOptions());
+    }
+
+    /** @brief Provides the rules that serve the HeadDeltaRule interface. */
+    class Small_HeadDeltaRuleContract : public ::testing::TestWithParam<RuleRow>
+    {
+
+    };
+
     /**
      * @brief Checks that @p rule, used only as a HeadDeltaRule, accepts the heads of @p fixture
      *        and gives each head a delta of its `[B, H, W, A * (5 + C)]` size.
@@ -78,54 +105,22 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that a default batch names no layout, no truth, no head and no output. */
-TEST(Small_HeadDeltaRule, ADefaultBatchHoldsNothing)
+/** @brief Tests that a rule checks and computes through the interface, whichever rule it is. */
+TEST_P(Small_HeadDeltaRuleContract, TheRuleServesTheInterface)
 {
-    const HeadDeltaBatch batch;
-
-    EXPECT_EQ(batch.layout, nullptr);
-    EXPECT_EQ(batch.truth, nullptr);
-    EXPECT_TRUE(batch.heads.empty());
-    EXPECT_TRUE(batch.outputs.empty());
-    EXPECT_EQ(batch.network.height, 0);
-    EXPECT_EQ(batch.network.width, 0);
-}
-
-/** @brief Tests that a fixture's batch views the heads, outputs, layout and truth it holds. */
-TEST(Small_HeadDeltaRule, ABatchViewsTheHeadsOutputsLayoutAndTruthItIsGiven)
-{
-    RuleBatch fixture(SizeForm::Exponential);
-
-    const HeadDeltaBatch batch = fixture.batch();
-
-    EXPECT_EQ(batch.layout, &fixture.layout());
-    EXPECT_EQ(batch.truth, &fixture.truth());
-    ASSERT_EQ(batch.heads.size(), 2u);
-    EXPECT_EQ(batch.heads[1].output, "head.1");
-    ASSERT_EQ(batch.outputs.size(), 2u);
-    EXPECT_EQ(batch.outputs[0].data(), fixture.output(0).data());
-    EXPECT_EQ(batch.network.height, K_NETWORK_SIDE);
-    EXPECT_EQ(batch.network.width, K_NETWORK_SIDE);
-}
-
-/** @brief Tests that the best-shape rule checks and computes through the interface. */
-TEST(Small_HeadDeltaRule, TheBestShapeRuleServesTheInterface)
-{
-    RuleBatch fixture(SizeForm::Exponential);
-    const std::unique_ptr<HeadDeltaRule> rule = std::make_unique<BestShapeHeadDeltaRule>();
+    RuleBatch fixture(GetParam().form);
+    const std::unique_ptr<HeadDeltaRule> rule = GetParam().make();
 
     expect_delta_shapes(*rule, fixture);
 }
 
-/** @brief Tests that the shape-ratio rule checks and computes through the interface. */
-TEST(Small_HeadDeltaRule, TheShapeRatioRuleServesTheInterface)
-{
-    RuleBatch fixture(SizeForm::SquaredSigmoid);
-    const std::unique_ptr<HeadDeltaRule> rule =
-        std::make_unique<ShapeRatioHeadDeltaRule>(ShapeRatioOptions());
-
-    expect_delta_shapes(*rule, fixture);
-}
+INSTANTIATE_TEST_SUITE_P(Rules, Small_HeadDeltaRuleContract,
+                         ::testing::Values(RuleRow{"BestShape", SizeForm::Exponential,
+                                                   &make_best_shape},
+                                           RuleRow{"ShapeRatio", SizeForm::SquaredSigmoid,
+                                                   &make_shape_ratio}),
+                         [](const ::testing::TestParamInfo<RuleRow>& info)
+                         { return std::string(info.param.name); });
 
 /** @brief Tests that a rule refuses through check the heads it cannot train. */
 TEST(Small_HeadDeltaRule, EachRuleRefusesThroughCheckTheHeadsOfTheOther)

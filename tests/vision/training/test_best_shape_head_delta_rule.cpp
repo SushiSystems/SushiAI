@@ -54,6 +54,20 @@ namespace
     using Vision::Detect::Anchor::SizeForm;
     using Vision::Training::AnchorHead;
     using Vision::Training::BestShapeHeadDeltaRule;
+
+    /** @brief Returns the cost of the head @p level alone, measured on its delta. */
+    HeadCost cost_of_head(RuleBatch& fixture, const std::vector<HeadDelta>& deltas,
+                          std::size_t level)
+    {
+        const AnchorHead& head = fixture.heads()[level];
+        return measure_head_cost(deltas[level], head.shape, head.options, head.training);
+    }
+
+    /** @brief Provides the level of each head of the batch. */
+    class Small_BestShapeHeadDeltaRuleLevel : public ::testing::TestWithParam<std::size_t>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that heads decoding their sides as exponentials are accepted. */
@@ -74,8 +88,35 @@ TEST(Small_BestShapeHeadDeltaRule, CheckRefusesAHeadOfSquaredSigmoidSides)
                       StatusCode::InvalidDescription, "exponentials", "head 'head.1'");
 }
 
-/** @brief Tests that the rule gives each head the delta compute_head_delta gives it alone. */
-TEST(Small_BestShapeHeadDeltaRule, ComputeWritesTheDeltaOfEachHead)
+/** @brief Tests that the rule gives a head the delta compute_head_delta gives it alone. */
+TEST_P(Small_BestShapeHeadDeltaRuleLevel, ComputeWritesTheDeltaOfTheHead)
+{
+    const std::size_t level = GetParam();
+    RuleBatch fixture(SizeForm::Exponential);
+    std::vector<HeadDelta> deltas = make_deltas();
+
+    SA_EXPECT_OK(BestShapeHeadDeltaRule().compute(fixture.batch(), view_deltas(deltas)));
+
+    ASSERT_EQ(deltas.size(), 2u);
+    const AnchorHead& head = fixture.heads()[level];
+    HeadDelta alone;
+    SA_EXPECT_OK(compute_head_delta(fixture.output(level), head.shape, head.options,
+                                    fixture.layout(), static_cast<std::int64_t>(level),
+                                    head.training, fixture.truth(),
+                                    NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE}, alone));
+
+    EXPECT_EQ(deltas[level].delta.size(),
+              static_cast<std::size_t>(K_SIDES[level] * K_SIDES[level] * K_CHANNELS));
+    EXPECT_EQ(deltas[level].delta, alone.delta);
+    EXPECT_EQ(deltas[level].assigned_row, alone.assigned_row);
+    EXPECT_EQ(deltas[level].assigned_class, alone.assigned_class);
+    EXPECT_EQ(deltas[level].assignments, alone.assignments);
+}
+
+INSTANTIATE_TEST_SUITE_P(Heads, Small_BestShapeHeadDeltaRuleLevel, ::testing::Values(0u, 1u));
+
+/** @brief Tests that the rule assigns at least one truth box and costs something. */
+TEST(Small_BestShapeHeadDeltaRule, ComputeAssignsTheTruthAtACost)
 {
     RuleBatch fixture(SizeForm::Exponential);
     std::vector<HeadDelta> deltas = make_deltas();
@@ -84,24 +125,6 @@ TEST(Small_BestShapeHeadDeltaRule, ComputeWritesTheDeltaOfEachHead)
                             BestShapeHeadDeltaRule().compute(fixture.batch(),
                                                              view_deltas(deltas)));
 
-    ASSERT_EQ(deltas.size(), 2u);
-    for (std::size_t level = 0; level < 2; ++level)
-    {
-        SCOPED_TRACE(level);
-        const AnchorHead& head = fixture.heads()[level];
-        HeadDelta alone;
-        SA_EXPECT_OK(compute_head_delta(fixture.output(level), head.shape, head.options,
-                                        fixture.layout(), static_cast<std::int64_t>(level),
-                                        head.training, fixture.truth(),
-                                        NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE}, alone));
-
-        EXPECT_EQ(deltas[level].delta.size(),
-                  static_cast<std::size_t>(K_SIDES[level] * K_SIDES[level] * K_CHANNELS));
-        EXPECT_EQ(deltas[level].delta, alone.delta);
-        EXPECT_EQ(deltas[level].assigned_row, alone.assigned_row);
-        EXPECT_EQ(deltas[level].assigned_class, alone.assigned_class);
-        EXPECT_EQ(deltas[level].assignments, alone.assignments);
-    }
     EXPECT_GT(deltas[0].assignments + deltas[1].assignments, 0);
     EXPECT_GT(cost.total, 0.0);
 }
@@ -116,21 +139,12 @@ TEST(Small_BestShapeHeadDeltaRule, ComputeSumsTheCostOfEachHead)
                             BestShapeHeadDeltaRule().compute(fixture.batch(),
                                                              view_deltas(deltas)));
 
-    HeadCost expected;
-    for (std::size_t level = 0; level < 2; ++level)
-    {
-        const AnchorHead& head = fixture.heads()[level];
-        const HeadCost one =
-            measure_head_cost(deltas[level], head.shape, head.options, head.training);
-        expected.total += one.total;
-        expected.box += one.box;
-        expected.non_box += one.non_box;
-        expected.stored += one.stored;
-    }
-    EXPECT_DOUBLE_EQ(cost.total, expected.total);
-    EXPECT_DOUBLE_EQ(cost.box, expected.box);
-    EXPECT_DOUBLE_EQ(cost.non_box, expected.non_box);
-    EXPECT_DOUBLE_EQ(cost.stored, expected.stored);
+    const HeadCost fine = cost_of_head(fixture, deltas, 0);
+    const HeadCost coarse = cost_of_head(fixture, deltas, 1);
+    EXPECT_DOUBLE_EQ(cost.total, fine.total + coarse.total);
+    EXPECT_DOUBLE_EQ(cost.box, fine.box + coarse.box);
+    EXPECT_DOUBLE_EQ(cost.non_box, fine.non_box + coarse.non_box);
+    EXPECT_DOUBLE_EQ(cost.stored, fine.stored + coarse.stored);
 }
 
 /** @brief Tests that deltas a caller filled before are replaced, not extended. */
