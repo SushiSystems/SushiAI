@@ -34,6 +34,7 @@
 #include <string>
 #include <vector>
 
+#include <string>
 #include <gtest/gtest.h>
 
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -88,6 +89,53 @@ namespace
             terms.push_back(measured);
         }
     }
+
+    /** @brief Expects every element of @p left to equal the same element of @p right. */
+    void expect_weights_equal(const std::vector<std::vector<double>>& left,
+                              const std::vector<std::vector<double>>& right)
+    {
+        ASSERT_EQ(left.size(), right.size());
+        for (std::size_t entry = 0; entry < left.size(); ++entry)
+            EXPECT_EQ(left[entry], right[entry]) << "entry " << entry;
+    }
+
+    /** @brief Returns the largest change of one element between @p start and @p end. */
+    double largest_move(const std::vector<double>& start, const std::vector<double>& end)
+    {
+        double moved = 0.0;
+        for (std::size_t i = 0; i < end.size(); ++i)
+            moved = std::fmax(moved, std::fabs(end[i] - start[i]));
+
+        return moved;
+    }
+
+    /** @brief Returns the names of the entries of @p model whose weights did not move. */
+    std::vector<std::string> entries_that_stayed(const TwoLevelCase& model,
+                                                 const std::vector<std::vector<double>>& start,
+                                                 const std::vector<std::vector<double>>& end)
+    {
+        std::vector<std::string> stayed;
+        for (std::size_t entry = 0; entry < end.size(); ++entry)
+        {
+            if (!(largest_move(start[entry], end[entry]) > 0.0))
+                stayed.push_back(model.state->entries()[entry].name);
+        }
+
+        return stayed;
+    }
+
+    /** @brief Returns the terms of @p terms whose total is not finite, as run indices. */
+    std::vector<std::size_t> runs_without_a_finite_total(const std::vector<FreeLossTerms>& terms)
+    {
+        std::vector<std::size_t> bad;
+        for (std::size_t run = 0; run < terms.size(); ++run)
+        {
+            if (!std::isfinite(terms[run].total))
+                bad.push_back(run);
+        }
+
+        return bad;
+    }
 } // namespace
 
 /** @brief Tests that two runs of one seed end two steps with equal weights and terms. */
@@ -113,30 +161,22 @@ TEST_F(Medium_FreeTrainingStep, TwoRunsOfOneSeedEndWithEqualWeights)
     ASSERT_EQ(left.size(), right.size());
     ASSERT_EQ(left.size(), start.size());
 
+    expect_weights_equal(left, right);
     double moved = 0.0;
     for (std::size_t entry = 0; entry < left.size(); ++entry)
-    {
-        ASSERT_EQ(left[entry].size(), right[entry].size()) << "entry " << entry;
-        for (std::size_t i = 0; i < left[entry].size(); ++i)
-        {
-            EXPECT_EQ(left[entry][i], right[entry][i])
-                << "entry " << entry << " element " << i;
-            moved = std::fmax(moved, std::fabs(left[entry][i] - start[entry][i]));
-        }
-    }
+        moved = std::fmax(moved, largest_move(start[entry], left[entry]));
     EXPECT_GT(moved, K_MOVED);
 
-    for (std::size_t run = 0; run < 2; ++run)
-    {
-        EXPECT_TRUE(std::isfinite(first_terms[run].total)) << "run " << run;
-        EXPECT_GT(first_terms[run].total, 0.0) << "run " << run;
-        EXPECT_EQ(first_terms[run].total, second_terms[run].total) << "run " << run;
-    }
+    EXPECT_EQ(runs_without_a_finite_total(first_terms), std::vector<std::size_t>());
+    EXPECT_GT(first_terms[0].total, 0.0);
+    EXPECT_GT(first_terms[1].total, 0.0);
+    EXPECT_EQ(first_terms[0].total, second_terms[0].total);
+    EXPECT_EQ(first_terms[1].total, second_terms[1].total);
     EXPECT_EQ(first.step->run_count(), 2u);
 }
 
-/** @brief Tests that the leaves hold what the stage assigned and the projection's bins. */
-TEST_F(Medium_FreeTrainingStep, TheLeavesHoldTheStageAndTheProjection)
+/** @brief Tests that the sum leaf holds the stage's target score sum, at least 1. */
+TEST_F(Medium_FreeTrainingStep, TheSumLeafHoldsTheStagesTargetSum)
 {
     TwoLevelCase model;
     model.prepare(backend());
@@ -146,55 +186,68 @@ TEST_F(Medium_FreeTrainingStep, TheLeavesHoldTheStageAndTheProjection)
 
     const std::vector<double> sum = model.leaf_values("free.target_scores_sum");
     ASSERT_EQ(sum.size(), 1u);
-    EXPECT_EQ(sum[0],
-                static_cast<double>(model.step->stage().targets().target_scores_sum[0]));
+    EXPECT_EQ(sum[0], static_cast<double>(model.step->stage().targets().target_scores_sum[0]));
     EXPECT_GE(sum[0], 1.0);
-
-    const std::vector<double> projection =
-        model.leaf_values(Vision::Training::K_FREE_PROJECTION_ROLE);
-    ASSERT_EQ(projection.size(), static_cast<std::size_t>(K_REG_MAX));
-    EXPECT_EQ(projection[0], 0.0);
-    EXPECT_EQ(projection[1], 1.0);
 }
 
-/** @brief Tests that a one-to-one copy trains every port and reads both branch weights. */
-TEST_F(Medium_FreeTrainingStep, AOneToOneCopyMovesEveryWeightAndReadsBothBranchWeights)
+/** @brief Tests that the projection leaf holds the bin indices 0 and 1. */
+TEST_F(Medium_FreeTrainingStep, TheProjectionLeafHoldsTheBinIndices)
+{
+    TwoLevelCase model;
+    model.prepare(backend());
+    ASSERT_TRUE(model.ready);
+    std::vector<FreeLossTerms> terms;
+    run_two_steps(model, *engine, terms);
+
+    EXPECT_EQ(model.leaf_values(Vision::Training::K_FREE_PROJECTION_ROLE),
+              (std::vector<double>{0.0, 1.0}));
+}
+
+/** @brief Tests that a one-to-one copy trains every port. */
+TEST_F(Medium_FreeTrainingStep, AOneToOneCopyMovesEveryWeight)
+{
+    TwoLevelCase model;
+    model.prepare(backend(), true);
+    ASSERT_TRUE(model.ready);
+    const std::vector<std::vector<double>> start = model.weights();
+    std::vector<FreeLossTerms> terms;
+    run_two_steps(model, *engine, terms);
+
+    EXPECT_EQ(entries_that_stayed(model, start, model.weights()), std::vector<std::string>());
+}
+
+/** @brief Tests that both branch weights are read back as the start and the set value. */
+TEST_F(Medium_FreeTrainingStep, ABranchWeightIsReadBackFromItsLeaf)
 {
     TwoLevelCase model;
     model.prepare(backend(), true);
     ASSERT_TRUE(model.ready);
     EXPECT_FLOAT_EQ(model.step->one_to_many_weight(), 0.8f);
     model.step->set_one_to_many_weight(0.25f);
-
-    const std::vector<std::vector<double>> start = model.weights();
     std::vector<FreeLossTerms> terms;
     run_two_steps(model, *engine, terms);
-    const std::vector<std::vector<double>> end = model.weights();
-    ASSERT_EQ(start.size(), end.size());
 
-    for (std::size_t entry = 0; entry < end.size(); ++entry)
-    {
-        double moved = 0.0;
-        for (std::size_t i = 0; i < end[entry].size(); ++i)
-            moved = std::fmax(moved, std::fabs(end[entry][i] - start[entry][i]));
-        EXPECT_GT(moved, 0.0) << model.state->entries()[entry].name;
-    }
-
-    const std::vector<double> many =
-        model.leaf_values(Vision::Training::K_FREE_ONE_TO_MANY_WEIGHT_ROLE);
-    const std::vector<double> one =
-        model.leaf_values(Vision::Training::K_FREE_ONE_TO_ONE_WEIGHT_ROLE);
-    ASSERT_EQ(many.size(), 1u);
-    ASSERT_EQ(one.size(), 1u);
-    EXPECT_EQ(many[0], 0.25);
-    EXPECT_EQ(one[0], 0.75);
+    EXPECT_EQ(model.leaf_values(Vision::Training::K_FREE_ONE_TO_MANY_WEIGHT_ROLE),
+              (std::vector<double>{0.25}));
+    EXPECT_EQ(model.leaf_values(Vision::Training::K_FREE_ONE_TO_ONE_WEIGHT_ROLE),
+              (std::vector<double>{0.75}));
     EXPECT_GE(model.leaf_values("free.one_to_one.target_scores_sum")[0], 1.0);
-    for (const FreeLossTerms& measured : terms)
-        EXPECT_TRUE(std::isfinite(measured.total));
 }
 
-/** @brief Tests that a truth of another batch is refused before any replay. */
-TEST_F(Medium_FreeTrainingStep, ATruthOfAnotherBatchIsRefused)
+/** @brief Tests that the terms of a one-to-one run are finite. */
+TEST_F(Medium_FreeTrainingStep, TheTermsOfAOneToOneRunAreFinite)
+{
+    TwoLevelCase model;
+    model.prepare(backend(), true);
+    ASSERT_TRUE(model.ready);
+    std::vector<FreeLossTerms> terms;
+    run_two_steps(model, *engine, terms);
+
+    EXPECT_EQ(runs_without_a_finite_total(terms), std::vector<std::size_t>());
+}
+
+/** @brief Tests that a refused truth counts no run; check_truth_layout owns the reason. */
+TEST_F(Medium_FreeTrainingStep, ARefusedTruthCountsNoRun)
 {
     TwoLevelCase model;
     model.prepare(backend());
@@ -204,30 +257,28 @@ TEST_F(Medium_FreeTrainingStep, ATruthOfAnotherBatchIsRefused)
     GroundTruthBatch truth = make_truth();
     truth.batch = 1;
 
-    SA_EXPECT_FAILURE(model.step->run(inputs, truth), StatusCode::Incompatible, "images");
+    EXPECT_FALSE(model.step->run(inputs, truth).has_value());
     EXPECT_EQ(model.step->run_count(), 0u);
 }
 
-/** @brief Tests that a label outside the score ports' classes is refused by row. */
-TEST_F(Medium_FreeTrainingStep, ALabelOutsideTheClassesIsRefused)
+/** @brief Tests that make refuses a pool that holds no tensor for a port, naming the port. */
+TEST_F(Medium_FreeTrainingStep, MakeRefusesAPoolWithoutTheTensorsOfThePorts)
 {
     TwoLevelCase model;
     model.prepare(backend());
     ASSERT_TRUE(model.ready);
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
+    Graph::TensorPool empty(backend().engine());
 
-    GroundTruthBatch truth = make_truth();
-    truth.labels[1] = K_CLASSES;
-
-    SA_EXPECT_FAILURE(model.step->run(inputs, truth), StatusCode::InvalidDescription, "row 1");
+    SA_EXPECT_FAILURE(Vision::Training::FreeTrainingStep::make(backend(), *model.objective,
+                                                               model.built, empty,
+                                                               *model.optimizer, {}),
+                      StatusCode::InvalidDescription, "has no tensor in the training pool");
 }
 
-#if SA_ENABLE_PROFILER
+#if SA_ENABLE_PROFILER && SA_PROFILE_LEVEL >= 1
 /** @brief Tests that one step's host phases and device run fall in the period that opened it. */
 TEST_F(Medium_FreeTrainingZones, AStepPutsReadbackAssignAndLossInItsPeriod)
 {
-    if (SA_PROFILE_LEVEL < 1)
-        GTEST_SKIP() << "the build compiles every zone away";
     TwoLevelCase model;
     model.prepare(backend());
     ASSERT_TRUE(model.ready);
