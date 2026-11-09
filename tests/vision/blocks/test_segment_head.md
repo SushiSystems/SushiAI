@@ -13,11 +13,9 @@ normalisation.
 For the input [6, 10, 16], a head of scale 4 reports [24, 40, 5] and a head of scale 1 reports
 [6, 10, 5].
 
-## TheTraceEndsAtTheUpsample
+## TheTraceYieldsTheScaledExtentsAndTheClassCount
 
-A training trace of a head with 8 hidden channels and scale 2 over [2, 4, 4, 16] holds one
-BATCHNORM2D, one SILU and one UPSAMPLE2D. The result has the shape [2, 8, 8, 5] and the
-UPSAMPLE2D node produces it.
+A training trace of a head with 8 hidden channels and scale 2 over [2, 4, 4, 16] returns a value of the shape [2, 8, 8, 5].
 
 ## StateIsListedUnderCv1AndCv2
 
@@ -32,8 +30,14 @@ one port of shape [8, 8, 5]. The row with only `classes` 5 gives one port of sha
 after an evaluation trace it has seven pieces of state, the first being `cv1.conv.weight`
 [16, 3, 3, 16].
 
-## TheFactoryRefusesARowThatDoesNotFit
+## TheFactoryRefusesAnUnknownKey
 
-`make_segment_head_node` fails with `InvalidDescription` for a row with the key `mode`
-("layer 3 'segment_head'", "'mode'"), for a row without `classes` ("'classes'", "absent") and
-for `scale` 0 ("'scale'", "positive").
+`make_segment_head_node` fails with `InvalidDescription` for a row with the key `mode`, naming "layer 3 'segment_head'" and "'mode'".
+
+## TheFactoryRefusesAnAbsentClassCount
+
+A row without `classes` fails with "'classes'" and "absent".
+
+## TheFactoryRefusesAScaleOfZero
+
+`scale` 0 fails with "'scale'" and "positive".

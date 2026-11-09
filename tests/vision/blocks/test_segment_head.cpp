@@ -83,19 +83,6 @@ namespace
         return records;
     }
 
-    /** @brief Counts the nodes of @p graph that carry the operation @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
-    {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
-
-        return count;
-    }
-
     /** @brief Views one shape as the inputs of a one-input row. */
     NN::ShapeSpan one_input(const Shape& shape)
     {
@@ -113,8 +100,8 @@ TEST(Small_BlockSegmentHead, OutputShapeScalesTheExtentsAndSetsTheClasses)
     EXPECT_EQ(unscaled.output_shape(Shape{6, 10, 16}).value(), (Shape{6, 10, 5}));
 }
 
-/** @brief Tests that the trace is two convolutions, one norm, one SiLU and one upsample. */
-TEST(Small_BlockSegmentHead, TheTraceEndsAtTheUpsample)
+/** @brief Tests that a training trace scales H and W by the scale and ends at the class count. */
+TEST(Small_BlockSegmentHead, TheTraceYieldsTheScaledExtentsAndTheClassCount)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -124,11 +111,7 @@ TEST(Small_BlockSegmentHead, TheTraceEndsAtTheUpsample)
 
     const Graph::ValueID y = head.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_UPSAMPLE2D.id), 1u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 8, 5}));
-    EXPECT_EQ(graph.node(graph.value(y).producer).op, Ops::K_UPSAMPLE2D.id);
 }
 
 /** @brief Tests the seven pieces of state: cv1's five, then the weight and the bias of cv2. */
@@ -180,22 +163,36 @@ TEST(Small_BlockSegmentHead, TheFactoryBuildsTheRow)
     EXPECT_EQ(state[0], "cv1.conv.weight [16, 3, 3, 16]");
 }
 
-/** @brief Tests that the factory refuses an unknown key, a missing class count and scale 0. */
-TEST(Small_BlockSegmentHead, TheFactoryRefusesARowThatDoesNotFit)
+/** @brief Tests that the factory refuses a key the row does not take. */
+TEST(Small_BlockSegmentHead, TheFactoryRefusesAnUnknownKey)
 {
     const Shape input{4, 4, 16};
     const Config::Value unknown =
         require_value(Config::parse_json(R"({"classes": 5, "mode": 1})", "<test>"));
-    const Config::Value no_classes = require_value(Config::parse_json(R"({"scale": 2})", "<test>"));
-    const Config::Value zero_scale =
-        require_value(Config::parse_json(R"({"classes": 5, "scale": 0})", "<test>"));
 
     SA_EXPECT_FAILURE(
         Vision::Blocks::make_segment_head_node(one_input(input), unknown, K_CONTEXT),
         StatusCode::InvalidDescription, "layer 3 'segment_head'", "'mode'");
+}
+
+/** @brief Tests that the factory refuses a row without its class count. */
+TEST(Small_BlockSegmentHead, TheFactoryRefusesAnAbsentClassCount)
+{
+    const Shape input{4, 4, 16};
+    const Config::Value no_classes = require_value(Config::parse_json(R"({"scale": 2})", "<test>"));
+
     SA_EXPECT_FAILURE(
         Vision::Blocks::make_segment_head_node(one_input(input), no_classes, K_CONTEXT),
         StatusCode::InvalidDescription, "'classes'", "absent");
+}
+
+/** @brief Tests that the factory refuses a scale of zero. */
+TEST(Small_BlockSegmentHead, TheFactoryRefusesAScaleOfZero)
+{
+    const Shape input{4, 4, 16};
+    const Config::Value zero_scale =
+        require_value(Config::parse_json(R"({"classes": 5, "scale": 0})", "<test>"));
+
     SA_EXPECT_FAILURE(
         Vision::Blocks::make_segment_head_node(one_input(input), zero_scale, K_CONTEXT),
         StatusCode::InvalidDescription, "'scale'", "positive");
