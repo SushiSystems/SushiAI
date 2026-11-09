@@ -79,14 +79,17 @@ is absent.
 The raw one-to-one boxes, decoded with `decode_xyxy` and scaled, equal `one2one.decoded.boxes`
 within `K_DECODE_TOLERANCE`. The case is skipped when `forward.sacp` is absent.
 
+## EncodeReturnsHandDistancesExactly
+
+Six hand anchors have distances float32 holds exactly. `encode_distances` of the boxes
+`decode_xyxy` writes returns the distances value for value, so the case compares for equality.
+
 ## EncodeInvertsDecode
 
-In `Medium_DetectBoxesRoundTrip`, over two rows. `encode_distances` of the boxes `decode_xyxy`
-writes returns the distances. `HandValues` holds six hand anchors whose distances float32 holds
-exactly, so the largest error allowed is 0. `ReferenceBoxes` holds the raw one-to-one boxes of
-`forward.sacp` over the 8400 anchors, allowed `K_ROUND_TRIP_TOLERANCE`, and the row is skipped
-when `forward.sacp` is absent. The two rows are one promise; the earlier case that ran only the
-reference input is merged into the second.
+In `Medium_DetectBoxesRoundTrip`, over one row. `ReferenceBoxes` holds the raw one-to-one boxes of
+`forward.sacp` over the 8400 anchors. `encode_distances` of the boxes `decode_xyxy` writes returns
+the distances within `K_ROUND_TRIP_TOLERANCE`, and the row is skipped when `forward.sacp` is
+absent.
 
 ## IdenticalBoxesScoreOne
 
@@ -108,11 +111,18 @@ A 4 by 2 box and a 2 by 2 box at one corner have IoU 0.5. The expected complete 
 in double from the centre term, the angle gap `atan(1) - atan(2)` and the trade-off factor, and
 compared within `K_IOU_TOLERANCE`.
 
-## ADegenerateBoxStaysFinite
+## ADegenerateBoxHasAnIouOfZero
 
-A box of zero size inside a 2 by 2 box has IoU 0. Its width over its height is 0 over eps, so
-the angle gap is pi / 4, the aspect term is 0.25, and the complete IoU is -0.25 * 0.25 / 1.25,
-which is -0.05. The complete IoU of the zero-size box with itself is finite and 0.
+A box of zero size inside a 2 by 2 box has IoU 0.
+
+## ADegenerateBoxPaysTheAspectTerm
+
+The width of the zero-size box over its height is 0 over eps, so the angle gap is pi / 4, the
+aspect term is 0.25, and the complete IoU is -0.25 * 0.25 / 1.25, which is -0.05.
+
+## ADegenerateBoxAgainstItselfScoresZero
+
+The complete IoU of the zero-size box with itself is finite and 0.
 
 ## ElementwiseFormsPairRows
 

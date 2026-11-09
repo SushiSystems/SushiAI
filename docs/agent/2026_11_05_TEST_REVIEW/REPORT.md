@@ -158,6 +158,8 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 
 59. Join and split belong to `test_level_rows.cpp` (2026-11-10, the worker): `level_rows.hpp` owns them, so the four `Small_DetectLevelRows` cases of `test_anchors.cpp` are gone from there. `JoinPlacesALevelAtItsAnchorOffset` was a copy of `AJoinKeepsTheRowsOfOtherLevels` and `ASplitAfterAJoinReturnsTheLevel` and is deleted. The split from a counting array and the two refusals had no copy and move over as `ASplitReadsTheLevelAtItsAnchorOffset` (its joined array is written out, no loop), `AJoinRefusesALevelPastTheLastAnchor` and `ASplitRefusesALevelArrayOfTheWrongSize`. `ASplitAfterAJoinReturnsTheLevel` writes its level as twelve literals instead of filling it in a loop. `SplitsIntoALevelsPointsAndStrides` stays in `test_anchors.cpp`: it tests the anchor leaves, which it cuts with `split_level`. Not built or run; the syntax was checked only.
 
+60. `EncodeInvertsDecode` keeps one row (2026-11-10, the worker): the hand row had a `largest_error` of 0.0f, which is an equality, so it becomes `Small_DetectBoxes.EncodeReturnsHandDistancesExactly` comparing the recovered distances with `EXPECT_EQ` over the hand arrays. `EncodeInvertsDecode` keeps the `ReferenceBoxes` row with `K_ROUND_TRIP_TOLERANCE`. The `ADegenerateBoxStaysFinite` section of `test_box_coding.md` is split as decision 58 splits the case of `test_iou.cpp`. Not built or run; the syntax was checked only.
+
 ## Seams the M jobs wait on
 
 RW-155 asks the owner to rule on these. Each changes a module's surface, so the test named stays as it is until then.

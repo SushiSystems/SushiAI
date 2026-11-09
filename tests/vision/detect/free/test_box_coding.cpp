@@ -136,13 +136,12 @@ namespace
         float largest_error;              /**< The largest absolute error allowed. */
     };
 
-    /** @brief Returns six hand anchors with distances float32 holds exactly. */
-    RoundTripInput load_hand_input()
-    {
-        return {{},
-                {0.5f, 0.5f, 1.5f, 0.5f, 0.5f, 1.5f},
-                {0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 0.0f, 0.5f, 3.0f, 1.5f, 1.5f, 0.0f, 4.0f}};
-    }
+    /** @brief Holds six hand anchors, as `[N, 2]`. */
+    const std::vector<float> K_HAND_POINTS{0.5f, 0.5f, 1.5f, 0.5f, 0.5f, 1.5f};
+
+    /** @brief Holds the distances of the hand anchors, as `[N, 4]`; float32 holds each exactly. */
+    const std::vector<float> K_HAND_DISTANCES{0.25f, 0.5f,  0.75f, 1.0f, 2.0f, 0.0f,
+                                              0.5f,  3.0f,  1.5f,  1.5f, 0.0f, 4.0f};
 
     /** @brief Returns the 8400 anchors of the reference grid and its raw one-to-one boxes. */
     RoundTripInput load_reference_input()
@@ -160,9 +159,8 @@ namespace
         return input;
     }
 
-    /** @brief Holds the rows of the round trip: hand values, then the reference's raw boxes. */
+    /** @brief Holds the rows of the round trip: the reference's raw boxes. */
     const RoundTripRow K_ROUND_TRIP_ROWS[] = {
-        {"HandValues", &load_hand_input, 0.0f},
         {"ReferenceBoxes", &load_reference_input, K_ROUND_TRIP_TOLERANCE}};
 
     /** @brief Returns the largest absolute difference between @p actual and @p expected. */
@@ -288,7 +286,18 @@ TEST(Medium_DetectBoxes, ReproducesTheReferenceOneToOneDecode)
     EXPECT_TRUE(near_reference(boxes, reference.floats(), K_DECODE_TOLERANCE));
 }
 
-/** @brief Tests that encoding a decoded box returns the distances it was decoded from. */
+/** @brief Tests that encoding the boxes decoded from hand distances returns them exactly. */
+TEST(Small_DetectBoxes, EncodeReturnsHandDistancesExactly)
+{
+    std::vector<float> boxes(K_HAND_DISTANCES.size());
+    std::vector<float> recovered(K_HAND_DISTANCES.size());
+    SushiAI::Vision::Detect::Free::decode_xyxy(K_HAND_DISTANCES, K_HAND_POINTS, boxes);
+    SushiAI::Vision::Detect::Free::encode_distances(K_HAND_POINTS, boxes, recovered);
+
+    EXPECT_EQ(recovered, K_HAND_DISTANCES);
+}
+
+/** @brief Tests that encoding a decoded reference box returns the distances it came from. */
 TEST_P(Medium_DetectBoxesRoundTrip, EncodeInvertsDecode)
 {
     std::vector<float> boxes(input_.distances.size());
