@@ -69,7 +69,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M48 | the tests of `vision/importers` (23 files): 92 rewrite, 23 resize, 14 split, 10 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | in progress (2026-11-10): `test_darknet_config.cpp`, `test_darknet_fold.cpp`, `test_decode.cpp` and the six `test_yolov*_forward.cpp` applied; `test_import.cpp` (with the split check helpers of `darknet_import_cases`) and `test_yolov3_tiny_layers.cpp` applied (2026-11-10, decision 53 holds the sample cache port); decision 54 is built (0b8c90d3: DatasetStorage, MemorySource::remove); `test_darknet_model.cpp` applied (P43-P60; its state cases are Small_ on a HostExecutionBackend fixture), resume at `test_darknet_recipe.cpp`, then follow the order of REPORT.md (recipe, store, tensors, training/, weights), then the adds; not yet built or run |
 | M49 | the tests of `vision/registration` (3 files): 20 rewrite, 9 resize, 7 split, 4 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M50 | the tests of `vision/segment` (7 files): 8 rewrite, 4 split, 3 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
-| M51 | the tests of `vision/training` (37 files): 88 rewrite, 19 resize, 25 split, 8 merge, 9 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M51 | the tests of `vision/training` (37 files): 88 rewrite, 19 resize, 25 split, 8 merge, 9 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-10, decision 55; not yet built or run) |
 | M52 | the tests of `vision/umbrella` (2 files): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 
 ## Acceptance
