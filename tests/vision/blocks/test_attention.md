@@ -70,3 +70,7 @@ This is a death test, so it is `Medium_`.
 
 `Attention(2, 2)` stops the process naming "at least 2 channels per head", "2 channels" and
 "2 heads".
+
+## EachHeadAttendsOverItsOwnValues
+
+Runs on `Graph::HostEvaluator`. `Attention(4, 2)` over two tokens (1, 2, 3, 4) and (5, 6, 7, 8) as [1, 1, 2, 4], with queries and keys zero, norms that are the identity, a projection that is the identity and a zero positional convolution. Head 0 takes its values from channels 0 and 1 and head 1 from channels 2 and 3, and every token weighs both tokens 1/2, so each output token is (3, 4, 5, 6); two heads that read each other's values would give (5, 6, 3, 4).

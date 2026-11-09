@@ -153,6 +153,14 @@ namespace SushiAI
                     return 0.5 * v * (1.0 + std::tanh(inner));
                 });
             }
+
+            Status host_silu(const HostNodeContext& context) noexcept
+            {
+                return map_unary(context, [](double v)
+                {
+                    return v / (1.0 + std::exp(-v));
+                });
+            }
         } // namespace Detail
     } // namespace Graph
 } // namespace SushiAI

@@ -78,6 +78,91 @@ namespace SushiAI
                 }
             } // namespace
 
+            Status host_im2col(const HostNodeContext& context) noexcept
+            {
+                const Extents in = extents_of(context.input_shape(0));
+                const int64_t kernel_h = context.attribute_int(0);
+                const int64_t kernel_w = context.attribute_int(1);
+                const int64_t stride_h = context.attribute_int(2);
+                const int64_t stride_w = context.attribute_int(3);
+                const int64_t dilation_h = context.attribute_int(4);
+                const int64_t dilation_w = context.attribute_int(5);
+                const int64_t pad_top = context.attribute_int(6);
+                const int64_t pad_left = context.attribute_int(7);
+                const int64_t out_h = context.attribute_int(8);
+                const int64_t out_w = context.attribute_int(9);
+                const std::vector<double>& x = context.input(0);
+                std::vector<double>& cols = context.output(0);
+
+                // Row (n, h, w) holds taps (r, s, c) in the order (r * kernel_w + s) * C + c.
+                std::size_t at = 0;
+                for (int64_t n = 0; n < in.batch; ++n)
+                    for (int64_t h = 0; h < out_h; ++h)
+                        for (int64_t w = 0; w < out_w; ++w)
+                            for (int64_t r = 0; r < kernel_h; ++r)
+                                for (int64_t s = 0; s < kernel_w; ++s)
+                                    for (int64_t c = 0; c < in.channels; ++c, ++at)
+                                    {
+                                        const int64_t h_in =
+                                            h * stride_h - pad_top + r * dilation_h;
+                                        const int64_t w_in =
+                                            w * stride_w - pad_left + s * dilation_w;
+                                        if (h_in < 0 || h_in >= in.height || w_in < 0
+                                            || w_in >= in.width)
+                                            continue;
+
+                                        cols[at] = x[static_cast<std::size_t>(
+                                            offset_of(in, n, h_in, w_in, c))];
+                                    }
+
+                return Status();
+            }
+
+            Status host_depthwise_conv2d(const HostNodeContext& context) noexcept
+            {
+                const Extents in = extents_of(context.input_shape(0));
+                const Extents out = extents_of(context.output_value(0).shape);
+                const int64_t kernel_h = context.attribute_int(0);
+                const int64_t kernel_w = context.attribute_int(1);
+                const int64_t stride_h = context.attribute_int(2);
+                const int64_t stride_w = context.attribute_int(3);
+                const int64_t dilation_h = context.attribute_int(4);
+                const int64_t dilation_w = context.attribute_int(5);
+                const int64_t pad_top = context.attribute_int(6);
+                const int64_t pad_left = context.attribute_int(7);
+                const std::vector<double>& x = context.input(0);
+                const std::vector<double>& taps = context.input(1);
+                std::vector<double>& y = context.output(0);
+
+                for (int64_t n = 0; n < out.batch; ++n)
+                    for (int64_t h = 0; h < out.height; ++h)
+                        for (int64_t w = 0; w < out.width; ++w)
+                            for (int64_t c = 0; c < out.channels; ++c)
+                            {
+                                double sum = 0.0;
+                                for (int64_t r = 0; r < kernel_h; ++r)
+                                    for (int64_t s = 0; s < kernel_w; ++s)
+                                    {
+                                        const int64_t h_in =
+                                            h * stride_h - pad_top + r * dilation_h;
+                                        const int64_t w_in =
+                                            w * stride_w - pad_left + s * dilation_w;
+                                        if (h_in < 0 || h_in >= in.height || w_in < 0
+                                            || w_in >= in.width)
+                                            continue;
+
+                                        sum += x[static_cast<std::size_t>(
+                                                   offset_of(in, n, h_in, w_in, c))]
+                                            * taps[static_cast<std::size_t>(
+                                                (r * kernel_w + s) * in.channels + c)];
+                                    }
+
+                                y[static_cast<std::size_t>(offset_of(out, n, h, w, c))] = sum;
+                            }
+
+                return Status();
+            }
+
             Status host_maxpool2d(const HostNodeContext& context) noexcept
             {
                 const Extents in = extents_of(context.input_shape(0));

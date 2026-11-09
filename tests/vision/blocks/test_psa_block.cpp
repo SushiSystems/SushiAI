@@ -39,18 +39,22 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/psa_block.hpp>
+#include "host_state_support.hpp"
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
 using NN::NormOptions;
 using NN::Trace;
 using Vision::Blocks::PSABlock;
+
+namespace SaTest = SushiAI::Test;
 
 namespace
 {
@@ -232,4 +236,44 @@ TEST_F(Medium_BlockPsaBlockDeath, AWidthTheHeadCountDoesNotDivideIsFatal)
 {
     SA_EXPECT_FATAL(static_cast<void>(PSABlock(100, 3, K_YOLO_NORM)), "head count divides",
                     "100 channels", "3 heads");
+}
+
+/**
+ * @brief Tests that both residuals carry the input through once. Every weight is zero, the bias of
+ *        the attention's projection norm is 10 and the bias of the feed-forward's last norm is 1,
+ *        so the attention adds 10 and the feed-forward adds 1 whatever they read: x = 1..16 as
+ *        [1, 2, 2, 4] gives x + 11.
+ */
+TEST(Small_BlockPsaBlock, BothResidualsCarryTheInputThroughOnce)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 4}, "x");
+    PSABlock block(4, 2, K_YOLO_NORM);
+    const Trace trace = Trace::evaluation(builder);
+    const Graph::ValueID y = block.forward(trace, x);
+    ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, SaTest::ramp(16)));
+    SA_EXPECT_OK(SaTest::write_state_by(
+        evaluator, graph, block, "",
+        [](const std::string& name, const Shape& shape)
+        {
+            if (name == "attn.proj.bn.bias")
+                return SaTest::filled(shape, 10.0);
+
+            if (name == "ffn.1.bn.bias")
+                return SaTest::filled(shape, 1.0);
+
+            return SaTest::filled(shape, 0.0);
+        }));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    std::vector<double> expected = SaTest::ramp(16);
+    for (double& value : expected)
+        value += 11.0;
+
+    EXPECT_EQ(result, expected);
 }

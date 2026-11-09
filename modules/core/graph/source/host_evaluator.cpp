@@ -43,7 +43,7 @@ namespace SushiAI
         namespace
         {
             /** @brief Lists every operation HostEvaluator computes, with its rule. */
-            constexpr std::array<Detail::HostRuleEntry, 23> K_HOST_RULES = {{
+            constexpr std::array<Detail::HostRuleEntry, 28> K_HOST_RULES = {{
                 {Ops::K_ZERO.id, &Detail::host_zero},
                 {Ops::K_CONSTANT.id, &Detail::host_constant},
                 {Ops::K_CAST.id, &Detail::host_cast},
@@ -55,6 +55,7 @@ namespace SushiAI
                 {Ops::K_LESS_EQUAL.id, &Detail::host_less_equal},
                 {Ops::K_SELECT.id, &Detail::host_select},
                 {Ops::K_GELU.id, &Detail::host_gelu},
+                {Ops::K_SILU.id, &Detail::host_silu},
                 {Ops::K_MATMUL.id, &Detail::host_matmul},
                 {Ops::K_BIAS_ADD.id, &Detail::host_bias_add},
                 {Ops::K_SUM_ROWS.id, &Detail::host_sum_rows},
@@ -65,6 +66,10 @@ namespace SushiAI
                 {Ops::K_CHANNEL_AFFINE.id, &Detail::host_channel_affine},
                 {Ops::K_LOG_SOFTMAX.id, &Detail::host_log_softmax},
                 {Ops::K_LAYER_NORM.id, &Detail::host_layer_norm},
+                {Ops::K_BATCHNORM2D.id, &Detail::host_batchnorm2d},
+                {Ops::K_BATCHNORM_FOLD.id, &Detail::host_batchnorm_fold},
+                {Ops::K_IM2COL.id, &Detail::host_im2col},
+                {Ops::K_DEPTHWISE_CONV2D.id, &Detail::host_depthwise_conv2d},
                 {Ops::K_MAXPOOL2D.id, &Detail::host_maxpool2d},
                 {Ops::K_UPSAMPLE2D.id, &Detail::host_upsample2d},
             }};

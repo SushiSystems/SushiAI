@@ -119,3 +119,11 @@ The input shape [256] fails with "[256]" and "rank-3".
 
 A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two K_BATCHNORM2D nodes and four
 updates, and `expect_norm_options` finds those two values on all of them.
+
+## AShortcutReturnsTheInputWhenTheBranchIsZero
+
+Runs on `Graph::HostEvaluator` with every weight and buffer written as zero, so the branch is zero. `Bottleneck(4, 4, 2, true)` over x = 1..16 as [1, 2, 2, 4] returns 1..16: the shortcut adds the input once.
+
+## WithoutAShortcutTheZeroBranchGivesZeros
+
+`Bottleneck(4, 4, 2, false)` over the same input and state returns sixteen zeros.

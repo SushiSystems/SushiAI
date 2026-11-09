@@ -41,6 +41,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/buffer.hpp>
@@ -48,12 +49,15 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/bottleneck.hpp>
+#include "host_state_support.hpp"
 
 using namespace SushiAI;
 using Vision::Blocks::Bottleneck;
 using NN::BufferUpdateList;
 using NN::NormOptions;
 using NN::Trace;
+
+namespace SaTest = SushiAI::Test;
 
 namespace
 {
@@ -386,4 +390,51 @@ TEST(Small_BlockBottleneck, TheFactoryHandsTheNormOptionsToBothNorms)
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);
     ASSERT_EQ(list.updates().size(), 4u);
     expect_norm_options(graph, list, K_YOLO_NORM);
+}
+
+/**
+ * @brief Tests that a shortcut over equal widths returns the input once when the branch is zero:
+ *        every weight and buffer is zero, so x = 1..16 as [1, 2, 2, 4] comes back.
+ */
+TEST(Small_BlockBottleneck, AShortcutReturnsTheInputWhenTheBranchIsZero)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 4}, "x");
+    Bottleneck block(4, 4, 2, true, K_YOLO_NORM);
+    const Trace trace = Trace::evaluation(builder);
+    const Graph::ValueID y = block.forward(trace, x);
+    ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, SaTest::ramp(16)));
+    SA_EXPECT_OK(SaTest::write_state_by(
+        evaluator, graph, block, "",
+        [](const std::string&, const Shape& shape) { return SaTest::filled(shape, 0.0); }));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, SaTest::ramp(16));
+}
+
+/** @brief Tests that without a shortcut the same zero branch gives zeros, not the input. */
+TEST(Small_BlockBottleneck, WithoutAShortcutTheZeroBranchGivesZeros)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 4}, "x");
+    Bottleneck block(4, 4, 2, false, K_YOLO_NORM);
+    const Trace trace = Trace::evaluation(builder);
+    const Graph::ValueID y = block.forward(trace, x);
+    ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, SaTest::ramp(16)));
+    SA_EXPECT_OK(SaTest::write_state_by(
+        evaluator, graph, block, "",
+        [](const std::string&, const Shape& shape) { return SaTest::filled(shape, 0.0); }));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, std::vector<double>(16, 0.0));
 }

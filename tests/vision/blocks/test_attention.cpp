@@ -40,12 +40,14 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/attention.hpp>
+#include "host_state_support.hpp"
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
@@ -54,6 +56,8 @@ using Vision::Blocks::check_attention_heads;
 using NN::BufferUpdateList;
 using NN::NormOptions;
 using NN::Trace;
+
+namespace SaTest = SushiAI::Test;
 
 namespace
 {
@@ -389,4 +393,63 @@ TEST_F(Medium_BlockAttentionDeath, OneChannelPerHeadIsFatal)
 {
     SA_EXPECT_FATAL(static_cast<void>(Attention(2, 2, K_YOLO_NORM)),
                     "at least 2 channels per head", "2 channels", "2 heads");
+}
+
+/**
+ * @brief Tests that each head attends over its own values. Four channels over two heads give a
+ *        head width of 4: one query, one key and two values. The queries and keys are zero, so
+ *        every token weighs the two tokens 1/2 each, and the values of head 0 and head 1 are
+ *        input channels 0, 1 and 2, 3. With tokens (1, 2, 3, 4) and (5, 6, 7, 8) each output
+ *        token is the mean (3, 4, 5, 6); swapped heads would give (5, 6, 3, 4).
+ */
+TEST(Small_BlockAttention, EachHeadAttendsOverItsOwnValues)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 1, 2, 4}, "x");
+    Attention block(4, 2, SaTest::K_IDENTITY_NORM);
+    const Trace trace = Trace::evaluation(builder);
+    const Graph::ValueID y = block.forward(trace, x);
+    ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, SaTest::ramp(8)));
+    SA_EXPECT_OK(SaTest::write_state_by(
+        evaluator, graph, block, "",
+        [](const std::string& name, const Shape& shape)
+        {
+            if (SaTest::ends_with(name, "bn.weight"))
+                return (name == "qkv.bn.weight" || name == "proj.bn.weight")
+                    ? SaTest::filled(shape, 2.0)
+                    : SaTest::filled(shape, 0.0);
+
+            if (name == "qkv.bn.running_var" || name == "proj.bn.running_var")
+                return SaTest::filled(shape, 1.0);
+
+            // qkv is head-major, [q, k, v, v] per head: mixed 2, 3 read x 0, 1 and 6, 7 read x 2, 3.
+            if (name == "qkv.conv.weight")
+            {
+                std::vector<double> taps(32, 0.0);
+                taps[2 * 4 + 0] = 1.0;
+                taps[3 * 4 + 1] = 1.0;
+                taps[6 * 4 + 2] = 1.0;
+                taps[7 * 4 + 3] = 1.0;
+                return taps;
+            }
+
+            if (name == "proj.conv.weight")
+            {
+                std::vector<double> taps(16, 0.0);
+                for (int channel = 0; channel < 4; ++channel)
+                    taps[static_cast<std::size_t>(channel * 4 + channel)] = 1.0;
+
+                return taps;
+            }
+
+            return SaTest::filled(shape, 0.0);
+        }));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    SaTest::expect_values_near(result, {3, 4, 5, 6, 3, 4, 5, 6});
 }

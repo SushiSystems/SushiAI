@@ -1,7 +1,8 @@
 # tests/vision/blocks/test_c2psa.cpp
 
 
-Suites: `Small_BlockC2psa`, `Small_BlockC2psaDefaultHeads` and `Small_BlockC2psaHeads`.
+Suites: `Small_BlockC2psa`, `Small_BlockC2psaDefaultHeads`, `Small_BlockC2psaHeads` and
+`Small_BlockC2psaRepeats`.
 
 Tests the `C2PSA` block and its factory `Vision::Blocks::make_c2psa_node` at row 10 of YOLO26n: 256
 channels in and out and a hidden width of 128. The traced cases use a [2, 4, 4, 256] input and the
@@ -70,3 +71,7 @@ A row without `hidden` fails with "'hidden'" and "absent".
 ## TheFactoryRefusesAFlatInput
 
 The input shape [512] fails with "[512]" and "rank-3".
+
+## EachRepeatReadsTheResultOfThePreviousOne
+
+Runs on `Graph::HostEvaluator`, one row for 1, 2 and 3 repeats of `C2PSA(4, 4, 2, repeats, 1)`. Every weight is zero except the bias of each feed-forward's last norm, 1, so a PSABlock adds 1 to what it reads, and `cv2`, which takes the first chained channel through a norm that is the identity and through SiLU. The chain therefore gives the repeat count, and channel 0 of every pixel is SiLU(repeats): 0.7310585786300049, 1.7615941559557646 and 2.8577223804672998. The other three channels are zero. A repeat that read the block's input instead of the previous result would leave 1 in every row.

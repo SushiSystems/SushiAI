@@ -41,6 +41,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/buffer.hpp>
@@ -48,6 +49,7 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/c2psa.hpp>
+#include "host_state_support.hpp"
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
@@ -55,6 +57,8 @@ using NN::NormOptions;
 using NN::Trace;
 using Vision::Blocks::C2PSA;
 using Vision::Blocks::default_attention_heads;
+
+namespace SaTest = SushiAI::Test;
 
 namespace
 {
@@ -78,6 +82,20 @@ namespace
 
     /** @brief Runs one head count the hidden width cannot split into. */
     class Small_BlockC2psaHeads : public ::testing::TestWithParam<HeadRow>
+    {
+
+    };
+
+    /** @brief Holds a repeat count and the value the last block leaves in the kept channel. */
+    struct RepeatRow
+    {
+        std::string name;   /**< The row's name. */
+        int64_t repeats;    /**< How many PSABlocks the C2PSA chains. */
+        double expected;    /**< SiLU of the repeat count, the value cv2 yields. */
+    };
+
+    /** @brief Runs one repeat count over a zero stem. */
+    class Small_BlockC2psaRepeats : public ::testing::TestWithParam<RepeatRow>
     {
 
     };
@@ -474,3 +492,63 @@ TEST(Small_BlockC2psa, TheFactoryRefusesAFlatInput)
     SA_EXPECT_FAILURE(Vision::Blocks::make_c2psa_node(one_input(flat), fits, K_CONTEXT),
                       StatusCode::InvalidDescription, "[512]", "rank-3");
 }
+
+/**
+ * @brief Tests that each repeat reads the result of the one before. Every weight is zero but the
+ *        bias of each feed-forward's last norm, 1, so a PSABlock adds 1 to what it reads; cv1
+ *        yields zero, and cv2 passes the first chained channel through an identity norm and SiLU.
+ *        The chain gives the repeat count, so the output is SiLU(repeats) in channel 0 and zero in
+ *        the others: 0.7310585786300049, 1.7615941559557646 and 2.8577223804672998 for 1, 2, 3.
+ */
+TEST_P(Small_BlockC2psaRepeats, EachRepeatReadsTheResultOfThePreviousOne)
+{
+    const RepeatRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 4}, "x");
+    C2PSA block(4, 4, 2, row.repeats, 1, SaTest::K_IDENTITY_NORM);
+    const Trace trace = Trace::evaluation(builder);
+    const Graph::ValueID y = block.forward(trace, x);
+    ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, SaTest::ramp(16)));
+    SA_EXPECT_OK(SaTest::write_state_by(
+        evaluator, graph, block, "",
+        [](const std::string& name, const Shape& shape)
+        {
+            if (SaTest::ends_with(name, ".ffn.1.bn.bias"))
+                return SaTest::filled(shape, 1.0);
+
+            if (name == "cv2.bn.weight")
+                return SaTest::filled(shape, 2.0);
+
+            if (name == "cv2.bn.running_var")
+                return SaTest::filled(shape, 1.0);
+
+            // cv2 reads [kept 0, kept 1, chained 0, chained 1]; output 0 takes chained 0.
+            if (name == "cv2.conv.weight")
+            {
+                std::vector<double> taps(16, 0.0);
+                taps[2] = 1.0;
+                return taps;
+            }
+
+            return SaTest::filled(shape, 0.0);
+        }));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    std::vector<double> expected;
+    for (int pixel = 0; pixel < 4; ++pixel)
+        for (const double channel : {row.expected, 0.0, 0.0, 0.0})
+            expected.push_back(channel);
+
+    SaTest::expect_values_near(result, expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_BlockC2psaRepeats,
+                         ::testing::Values(RepeatRow{"OneRepeat", 1, 0.7310585786300049},
+                                           RepeatRow{"TwoRepeats", 2, 1.7615941559557646},
+                                           RepeatRow{"ThreeRepeats", 3, 2.8577223804672998}),
+                         row_name<RepeatRow>);

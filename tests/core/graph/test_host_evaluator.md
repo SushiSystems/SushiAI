@@ -25,13 +25,14 @@ One row per ADD, SUB, MUL and LESS_EQUAL over a = {1, 4, -2} and b = {3, 4, 5}: 
 
 ## AUnaryRuleMapsEachElement
 
-One row per SCALE by -0.5, EXP and GELU over {1, -2}. The expected values are e and
-0.1353352832366127 for EXP, and 0.8411919906082768 and -0.04540230591222494 for the tanh form of
-GELU.
+One row per SCALE by -0.5, EXP, GELU and SILU over {1, -2}. The expected values are e and
+0.1353352832366127 for EXP, 0.8411919906082768 and -0.04540230591222494 for the tanh form of
+GELU, and 0.7310585786300049 and -0.2384058440442351 for SILU, v / (1 + exp(-v)).
 
 ## HostEvaluatesNamesTheRuledOperations
 
-`host_evaluates` is true for LEAF, MATMUL and LAYER_NORM, and false for RELU and CAUSAL_MASK.
+`host_evaluates` is true for LEAF, MATMUL, LAYER_NORM, SILU, IM2COL, DEPTHWISE_CONV2D,
+BATCHNORM2D and BATCHNORM_FOLD, and false for RELU and CAUSAL_MASK.
 
 ## AReshapeKeepsTheElementsInOrder
 
@@ -95,6 +96,35 @@ values the first is kept.
 ## AnUpsampleRepeatsEachPixel
 
 {3, 7} upsampled by 1 by 2 gives {3, 3, 7, 7}.
+
+## AConvolutionSumsEachWindowOverItsFilter
+
+A 2 by 2 `conv2d` over x = 1..9 as a 3 by 3 image, with filters {1, 1, 1, 1} and {1, 0, 0, -1}
+and biases {10, 0}, gives {22, -4, 26, -4, 34, -4, 38, -4}: the window sums 12, 16, 24 and 28
+plus 10, and -4 for the second filter in every window. A CONV2D has no node of its own; the
+builder emits IM2COL, MATMUL, BIAS_ADD and RESHAPE, and the new rule is IM2COL's.
+
+## APaddedConvolutionReadsZeroOutsideTheImage
+
+A 3 by 3 window padded by one over {1, 2, 3, 4} as 2 by 2, with the taps 1..9 and a zero bias,
+gives {77, 67, 47, 37}. The first is 1*5 + 2*6 + 3*8 + 4*9.
+
+## ADepthwiseConvolutionFiltersEachChannelByItsOwnTaps
+
+A 2 by 2 depthwise window over two channels, the first 1..9 and the second ten times that,
+with taps {1, 1, 1, 1} on the first and {1, 0, 0, -1} on the second, gives
+{12, -40, 16, -40, 24, -40, 28, -40}.
+
+## ABatchNormSavesItsStatisticsAndNormalisesEachChannel
+
+Over [1, 2, 2, 2] with channel 0 = {1, 3, 5, 7} and channel 1 = {2, 2, 2, 2}, epsilon 4, gamma
+{2, 1} and beta {0, 1}: the means are {4, 2}, the biased variances {5, 0} (exact), the inverse
+deviations {1/3, 1/2}, and the result {-2, 1, -2/3, 1, 2/3, 1, 2, 1}.
+
+## AFoldGivesTheScaleAndShiftOfEachChannel
+
+With epsilon 4, gamma {2, 1}, beta {1, 0}, mean {4, 2} and variance {5, 0}, the scale is
+{2/3, 1/2} and the shift {-5/3, -1}.
 
 ## AnOperationWithoutARuleIsUnsupported
 

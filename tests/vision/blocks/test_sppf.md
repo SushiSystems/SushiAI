@@ -145,4 +145,12 @@ updates, and `expect_norm_options` finds those two values on all of them.
 
 ## TheFactoryReadsThePoolCount
 
-With `kernel` 3 and `pools` 1 the walk yields ten records and the `cv2` weight is [64, 1, 1, 64], two parts. The value of `kernel` shows only in the pool node's attributes and in values, so no case here pins it.
+With `kernel` 3 and `pools` 1 the walk yields ten records and the `cv2` weight is [64, 1, 1, 64], two parts. The value of `kernel` is not visible through the factory, which returns a type-erased node; `TheKernelSizeIsTheOneTheConstructorTook` pins it on the constructor.
+
+## AShortcutReturnsTheInputWhenTheBranchIsZero
+
+Runs on `Graph::HostEvaluator` with every weight and buffer written as zero, so each norm yields zero and the branch is zero. `SPPF(4, 4, 3, 1, true)` over x = 1..16 as [1, 2, 2, 4] returns 1..16: the closing add carries the input once.
+
+## WithoutAShortcutTheZeroBranchGivesZeros
+
+`SPPF(4, 4, 3, 1, false)` over the same input and state returns sixteen zeros.

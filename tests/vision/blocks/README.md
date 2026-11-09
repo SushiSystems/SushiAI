@@ -2,6 +2,10 @@
 
 The tests of the module `vision/blocks`, one file per header of `modules/vision/blocks/include/`. The suite prefix of a case gives its ctest label.
 
+Where a case compares numbers, it traces the block in evaluation mode and runs the graph on
+`Graph::HostEvaluator` over the state that `host_state_support.hpp` writes (`write_state_by`, a rule
+per state name), so no engine starts.
+
 ## Test files
 
 Each test file has a page beside it that says what its cases pin.

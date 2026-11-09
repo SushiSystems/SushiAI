@@ -90,10 +90,11 @@ Each seam keeps the default behaviour: a `TensorPool` built over an `Engine` all
 - `HostEvaluator(graph)` computes a graph on the host with no engine. `write(leaf, elements)`
   fills a leaf, `run()` evaluates the nodes in insertion order and `read(value)` returns a value's
   elements. Every value is held as double, so the result is the host reference of the graph, not
-  the rounding of a device run. It has a rule for 23 operations: ZERO, CONSTANT, CAST to float32
-  or float64, ADD, SUB, MUL, SCALE, EXP, LESS_EQUAL, SELECT, GELU, MATMUL, BIAS_ADD, SUM_ROWS,
+  the rounding of a device run. It has a rule for 28 operations: ZERO, CONSTANT, CAST to float32
+  or float64, ADD, SUB, MUL, SCALE, EXP, LESS_EQUAL, SELECT, GELU, SILU, MATMUL, BIAS_ADD, SUM_ROWS,
   RESHAPE, GATHER_ROWS, SLICE_CHANNELS, CONCAT_CHANNELS, CHANNEL_AFFINE, LOG_SOFTMAX, LAYER_NORM,
-  MAXPOOL2D and UPSAMPLE2D. `run()` returns `Unsupported` for any other operation, and
+  BATCHNORM2D, BATCHNORM_FOLD, IM2COL, DEPTHWISE_CONV2D, MAXPOOL2D and UPSAMPLE2D. A
+  convolution has no node of its own: the builder emits IM2COL, MATMUL, BIAS_ADD and RESHAPE. `run()` returns `Unsupported` for any other operation, and
   `host_evaluates(op)` says beforehand whether it has a rule. The rules live under
   `source/host_evaluation/`, one file per family, in one table in `host_evaluator.cpp`.
 - `RunCounter` holds the count of runs of a `CompiledStep` and the rule that a restore comes before

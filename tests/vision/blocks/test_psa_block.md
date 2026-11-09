@@ -28,3 +28,7 @@ weight and `ffn.1` a [128, 1, 1, 256] weight.
 ## AWidthTheHeadCountDoesNotDivideIsFatal
 
 `PSABlock(100, 3)` stops the process naming "head count divides", "100 channels" and "3 heads". This is a death test, so it is `Medium_BlockPsaBlockDeath`. The rule itself runs small in `test_attention.cpp` as `check_attention_heads`.
+
+## BothResidualsCarryTheInputThroughOnce
+
+Runs on `Graph::HostEvaluator`. Every weight and buffer is zero except `attn.proj.bn.bias`, 10, and `ffn.1.bn.bias`, 1, so the attention branch is the constant 10 and the feed-forward branch the constant 1. `PSABlock(4, 2)` over x = 1..16 as [1, 2, 2, 4] returns x + 11: the input reaches the output once, through both adds.

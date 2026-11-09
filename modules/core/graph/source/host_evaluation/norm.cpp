@@ -98,6 +98,67 @@ namespace SushiAI
 
                 return Status();
             }
+
+            Status host_batchnorm2d(const HostNodeContext& context) noexcept
+            {
+                const std::vector<double>& x = context.input(0);
+                const std::vector<double>& gamma = context.input(1);
+                const std::vector<double>& beta = context.input(2);
+                const double epsilon = context.node().attributes.get(0);
+                const std::size_t channels = gamma.size();
+                const std::size_t rows = x.size() / channels;
+                std::vector<double>& y = context.output(0);
+                std::vector<double>& means = context.output(1);
+                std::vector<double>& inv_stds = context.output(2);
+                std::vector<double>& variances = context.output(3);
+
+                for (std::size_t c = 0; c < channels; ++c)
+                {
+                    double mean = 0.0;
+                    for (std::size_t row = 0; row < rows; ++row)
+                        mean += x[row * channels + c];
+
+                    mean /= static_cast<double>(rows);
+                    double variance = 0.0;
+                    for (std::size_t row = 0; row < rows; ++row)
+                    {
+                        const double centred = x[row * channels + c] - mean;
+                        variance += centred * centred;
+                    }
+
+                    // The variance is biased and has no epsilon; only inv_std carries it.
+                    variance /= static_cast<double>(rows);
+                    const double inv_std = 1.0 / std::sqrt(variance + epsilon);
+                    for (std::size_t row = 0; row < rows; ++row)
+                        y[row * channels + c] =
+                            (x[row * channels + c] - mean) * inv_std * gamma[c] + beta[c];
+
+                    means[c] = mean;
+                    inv_stds[c] = inv_std;
+                    variances[c] = variance;
+                }
+
+                return Status();
+            }
+
+            Status host_batchnorm_fold(const HostNodeContext& context) noexcept
+            {
+                const std::vector<double>& gamma = context.input(0);
+                const std::vector<double>& beta = context.input(1);
+                const std::vector<double>& mean = context.input(2);
+                const std::vector<double>& variance = context.input(3);
+                const double epsilon = context.node().attributes.get(0);
+                std::vector<double>& scale = context.output(0);
+                std::vector<double>& shift = context.output(1);
+
+                for (std::size_t c = 0; c < gamma.size(); ++c)
+                {
+                    scale[c] = gamma[c] / std::sqrt(variance[c] + epsilon);
+                    shift[c] = beta[c] - mean[c] * scale[c];
+                }
+
+                return Status();
+            }
         } // namespace Detail
     } // namespace Graph
 } // namespace SushiAI

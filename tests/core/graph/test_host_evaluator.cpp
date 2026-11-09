@@ -120,7 +120,8 @@ namespace
     /**
      * @brief Lists the unary rules with their specified values: exp(1) = e and
      *        exp(-2) = 0.1353352832366127; GELU(v) = 0.5 v (1 + tanh(sqrt(2 / pi)
-     *        (v + 0.044715 v^3))), 0.8411919906082768 at 1 and -0.04540230591222494 at -2.
+     *        (v + 0.044715 v^3))), 0.8411919906082768 at 1 and -0.04540230591222494 at -2;
+     *        SiLU(v) = v / (1 + exp(-v)), 0.7310585786300049 at 1 and -0.2384058440442351 at -2.
      */
     std::vector<UnaryRow> unary_rows()
     {
@@ -131,6 +132,8 @@ namespace
              {2.718281828459045, 0.1353352832366127}},
             {"Gelu", [](const GraphBuilder& b, ValueID x) { return b.gelu(x); },
              {0.8411919906082768, -0.04540230591222494}},
+            {"Silu", [](const GraphBuilder& b, ValueID x) { return b.silu(x); },
+             {0.7310585786300049, -0.2384058440442351}},
         };
     }
 
@@ -153,6 +156,17 @@ namespace
     {
 
     };
+
+    /** @brief Expects each of @p result to sit within the rounding bound of its @p expected. */
+    void expect_each_within(const std::vector<double>& result,
+                            const std::vector<double>& expected)
+    {
+        ASSERT_EQ(result.size(), expected.size());
+        for (std::size_t at = 0; at < expected.size(); ++at)
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+                result[at], expected[at], K_TRANSCENDENTAL_OPERATIONS)))
+                << "element " << at;
+    }
 
     /** @brief Names a row by its name field. */
     template<typename Row>
@@ -251,6 +265,11 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(CoverageRow{"Leaf", Ops::K_LEAF.id, true},
                       CoverageRow{"Matmul", Ops::K_MATMUL.id, true},
                       CoverageRow{"LayerNorm", Ops::K_LAYER_NORM.id, true},
+                      CoverageRow{"Silu", Ops::K_SILU.id, true},
+                      CoverageRow{"Im2col", Ops::K_IM2COL.id, true},
+                      CoverageRow{"DepthwiseConv2d", Ops::K_DEPTHWISE_CONV2D.id, true},
+                      CoverageRow{"BatchNorm2d", Ops::K_BATCHNORM2D.id, true},
+                      CoverageRow{"BatchNormFold", Ops::K_BATCHNORM_FOLD.id, true},
                       CoverageRow{"Relu", Ops::K_RELU.id, false},
                       CoverageRow{"CausalMask", Ops::K_CAUSAL_MASK.id, false}),
     row_name<CoverageRow>);
@@ -539,6 +558,152 @@ TEST(Small_HostEvaluator, AnUpsampleRepeatsEachPixel)
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> spread, evaluator.read(repeated));
     EXPECT_EQ(spread, (std::vector<double>{3, 3, 7, 7}));
+}
+
+/**
+ * @brief Tests that a 2 by 2 convolution (IM2COL, MATMUL, BIAS_ADD) reads each window's taps in
+ *        the weight's order. Over x = 1..9 as 3 by 3, the filter {1, 1, 1, 1} sums each window
+ *        to 12, 16, 24, 28, and {1, 0, 0, -1} gives x[r0, s0] - x[r1, s1] = -4; the biases are
+ *        10 and 0.
+ */
+TEST(Small_HostEvaluator, AConvolutionSumsEachWindowOverItsFilter)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{1, 3, 3, 1}, "x");
+    const ValueID weight = builder.input(Shape{2, 2, 2, 1}, "weight");
+    const ValueID bias = builder.input(Shape{2}, "bias");
+    Graph::ConvGeometry window;
+    window.kernel_h = 2;
+    window.kernel_w = 2;
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.conv2d(x, weight, bias, window));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {1, 2, 3, 4, 5, 6, 7, 8, 9}));
+    SA_EXPECT_OK(evaluator.write(weight, {1, 1, 1, 1, 1, 0, 0, -1}));
+    SA_EXPECT_OK(evaluator.write(bias, {10, 0}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, (std::vector<double>{22, -4, 26, -4, 34, -4, 38, -4}));
+}
+
+/**
+ * @brief Tests that a 3 by 3 window padded by one reads zero outside a 2 by 2 image. With
+ *        x = {1, 2, 3, 4} and the taps 1..9, the output at (h, w) is the sum of
+ *        taps[r][s] * x[h - 1 + r][w - 1 + s]: 77 at (0, 0), 67, 47 and 37 at (1, 1).
+ */
+TEST(Small_HostEvaluator, APaddedConvolutionReadsZeroOutsideTheImage)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueID weight = builder.input(Shape{1, 3, 3, 1}, "weight");
+    const ValueID bias = builder.input(Shape{1}, "bias");
+    Graph::ConvGeometry window;
+    window.kernel_h = 3;
+    window.kernel_w = 3;
+    window.pad_top = 1;
+    window.pad_left = 1;
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.conv2d(x, weight, bias, window));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {1, 2, 3, 4}));
+    SA_EXPECT_OK(evaluator.write(weight, {1, 2, 3, 4, 5, 6, 7, 8, 9}));
+    SA_EXPECT_OK(evaluator.write(bias, {0}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, (std::vector<double>{77, 67, 47, 37}));
+}
+
+/**
+ * @brief Tests that a depthwise convolution filters each channel by its own taps. Channel 0 of
+ *        x is 1..9 as 3 by 3 and channel 1 is ten times that; the taps {1, 1, 1, 1} on channel 0
+ *        give 12, 16, 24, 28 and {1, 0, 0, -1} on channel 1 give 10 * (-4) = -40 for each window.
+ */
+TEST(Small_HostEvaluator, ADepthwiseConvolutionFiltersEachChannelByItsOwnTaps)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{1, 3, 3, 2}, "x");
+    const ValueID taps = builder.input(Shape{2, 2, 2}, "taps");
+    Graph::ConvGeometry window;
+    window.kernel_h = 2;
+    window.kernel_w = 2;
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.depthwise_conv2d(x, taps, window));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {1, 10, 2, 20, 3, 30, 4, 40, 5, 50, 6, 60, 7, 70, 8, 80, 9, 90}));
+    SA_EXPECT_OK(evaluator.write(taps, {1, 1, 1, 0, 1, 0, 1, -1}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, (std::vector<double>{12, -40, 16, -40, 24, -40, 28, -40}));
+}
+
+/**
+ * @brief Tests that a batch normalisation takes its statistics per channel over every pixel.
+ *        Channel 0 is {1, 3, 5, 7}: mean 4, biased variance 5, and with epsilon 4 the inverse
+ *        deviation is 1 / 3. Channel 1 is {2, 2, 2, 2}: mean 2, variance 0, inverse deviation
+ *        1 / 2. With gamma {2, 1} and beta {0, 1} channel 0 becomes 2 (x - 4) / 3 and channel 1
+ *        becomes 1.
+ */
+TEST(Small_HostEvaluator, ABatchNormSavesItsStatisticsAndNormalisesEachChannel)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{1, 2, 2, 2}, "x");
+    const ValueID gamma = builder.input(Shape{2}, "gamma");
+    const ValueID beta = builder.input(Shape{2}, "beta");
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormResult norm,
+                            builder.batchnorm2d(x, gamma, beta, 4.0));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {1, 2, 3, 2, 5, 2, 7, 2}));
+    SA_EXPECT_OK(evaluator.write(gamma, {2, 1}));
+    SA_EXPECT_OK(evaluator.write(beta, {0, 1}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> y, evaluator.read(norm.output));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> mean, evaluator.read(norm.saved_mean));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> inv_std,
+                            evaluator.read(norm.saved_inv_std));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> variance,
+                            evaluator.read(norm.batch_variance));
+    EXPECT_EQ(mean, (std::vector<double>{4, 2}));
+    EXPECT_EQ(variance, (std::vector<double>{5, 0}));
+    expect_each_within(inv_std, {1.0 / 3.0, 0.5});
+    expect_each_within(y, {-2.0, 1.0, -2.0 / 3.0, 1.0, 2.0 / 3.0, 1.0, 2.0, 1.0});
+}
+
+/**
+ * @brief Tests that a fold gives scale = gamma / sqrt(variance + epsilon) and
+ *        shift = beta - mean * scale. With epsilon 4, gamma {2, 1}, beta {1, 0}, mean {4, 2}
+ *        and variance {5, 0}: the scale is {2 / 3, 1 / 2} and the shift {-5 / 3, -1}.
+ */
+TEST(Small_HostEvaluator, AFoldGivesTheScaleAndShiftOfEachChannel)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID gamma = builder.input(Shape{2}, "gamma");
+    const ValueID beta = builder.input(Shape{2}, "beta");
+    const ValueID mean = builder.input(Shape{2}, "mean");
+    const ValueID variance = builder.input(Shape{2}, "variance");
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormFold folded,
+                            builder.batchnorm_fold(gamma, beta, mean, variance, 4.0));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(gamma, {2, 1}));
+    SA_EXPECT_OK(evaluator.write(beta, {1, 0}));
+    SA_EXPECT_OK(evaluator.write(mean, {4, 2}));
+    SA_EXPECT_OK(evaluator.write(variance, {5, 0}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> scale, evaluator.read(folded.scale));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> shift, evaluator.read(folded.shift));
+    expect_each_within(scale, {2.0 / 3.0, 0.5});
+    expect_each_within(shift, {-5.0 / 3.0, -1.0});
 }
 
 /** @brief Tests that run() names the first operation it has no rule for. */

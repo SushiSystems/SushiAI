@@ -41,6 +41,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/buffer.hpp>
@@ -48,12 +49,15 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/sppf.hpp>
+#include "host_state_support.hpp"
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
 using NN::NormOptions;
 using Vision::Blocks::SPPF;
 using NN::Trace;
+
+namespace SaTest = SushiAI::Test;
 
 namespace
 {
@@ -500,4 +504,51 @@ TEST(Small_BlockSppf, TheFactoryReadsThePoolCount)
     const std::vector<std::string> state = walk(*node, "");
     ASSERT_EQ(state.size(), 10u);
     EXPECT_EQ(state[5], record("cv2.conv.weight", Shape{64, 1, 1, 64}, StateKind::Parameter));
+}
+
+/**
+ * @brief Tests that the closing add returns the input once: every weight and buffer is zero, so
+ *        the branch is zero and a shortcut over equal widths gives x = 1..16 back.
+ */
+TEST(Small_BlockSppf, AShortcutReturnsTheInputWhenTheBranchIsZero)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 4}, "x");
+    SPPF block(4, 4, 3, 1, true, K_YOLO_NORM);
+    const Trace trace = Trace::evaluation(builder);
+    const Graph::ValueID y = block.forward(trace, x);
+    ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, SaTest::ramp(16)));
+    SA_EXPECT_OK(SaTest::write_state_by(
+        evaluator, graph, block, "",
+        [](const std::string&, const Shape& shape) { return SaTest::filled(shape, 0.0); }));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, SaTest::ramp(16));
+}
+
+/** @brief Tests that without a shortcut the same zero branch gives zeros, not the input. */
+TEST(Small_BlockSppf, WithoutAShortcutTheZeroBranchGivesZeros)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 4}, "x");
+    SPPF block(4, 4, 3, 1, false, K_YOLO_NORM);
+    const Trace trace = Trace::evaluation(builder);
+    const Graph::ValueID y = block.forward(trace, x);
+    ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, SaTest::ramp(16)));
+    SA_EXPECT_OK(SaTest::write_state_by(
+        evaluator, graph, block, "",
+        [](const std::string&, const Shape& shape) { return SaTest::filled(shape, 0.0); }));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, std::vector<double>(16, 0.0));
 }

@@ -152,6 +152,8 @@ namespace SushiAI
             [[nodiscard]] Status host_select(const HostNodeContext& context) noexcept;
             /** @brief Writes the tanh approximation of GELU of the operand. */
             [[nodiscard]] Status host_gelu(const HostNodeContext& context) noexcept;
+            /** @brief Writes x times the logistic function of x for each element. */
+            [[nodiscard]] Status host_silu(const HostNodeContext& context) noexcept;
 
             /** @brief Writes op(A) * op(B) of rank 2 or 3, transposing per slots 0 and 1. */
             [[nodiscard]] Status host_matmul(const HostNodeContext& context) noexcept;
@@ -175,7 +177,15 @@ namespace SushiAI
             [[nodiscard]] Status host_log_softmax(const HostNodeContext& context) noexcept;
             /** @brief Writes the layer normalisation of each last-axis row and its statistics. */
             [[nodiscard]] Status host_layer_norm(const HostNodeContext& context) noexcept;
+            /** @brief Writes the batch normalisation of an NHWC operand and its statistics. */
+            [[nodiscard]] Status host_batchnorm2d(const HostNodeContext& context) noexcept;
+            /** @brief Writes the scale and the shift that fold a normalisation into a conv. */
+            [[nodiscard]] Status host_batchnorm_fold(const HostNodeContext& context) noexcept;
 
+            /** @brief Writes each NHWC window as a row of the column matrix, padding with zeros. */
+            [[nodiscard]] Status host_im2col(const HostNodeContext& context) noexcept;
+            /** @brief Writes each channel of an NHWC operand filtered by its own taps. */
+            [[nodiscard]] Status host_depthwise_conv2d(const HostNodeContext& context) noexcept;
             /** @brief Writes the maximum of each NHWC window and the flat index it came from. */
             [[nodiscard]] Status host_maxpool2d(const HostNodeContext& context) noexcept;
             /** @brief Writes each NHWC pixel repeated by the scales in slots 0 and 1. */
