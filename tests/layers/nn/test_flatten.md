@@ -3,7 +3,7 @@
 
 The Flatten layer's trace, shape rule, rejections and parameter walk.
 
-Suites: `Small_Flatten`.
+Suites: `Small_Flatten`, `Small_FlattenRank`, `Small_FlattenRefused`.
 
 Tests the Flatten layer's trace, shape rule, rejections and parameter walk.
 
@@ -15,18 +15,17 @@ no parameter. It folds every axis after the batch axis into one.
 `traced_shape` traces a `Flatten` over a new input of the given batched shape and returns the
 result's shape.
 
-## SatisfiesTheModuleTrait
-
-Two `static_assert` lines require `Flatten` to be a `Module` and not a `ModuleContainer`.
-
 ## ARank4InputTracesToOneReshape
 
 A [2, 4, 5, 3] input traces to a [2, 60] value. The trace adds exactly one node, a K_RESHAPE
 with the input as its one operand and the result as its one output.
 
-## ARank3InputFoldsItsTwoInnerAxes
+## Small_FlattenRank.TheInnerAxesFold
 
-A [2, 3, 4] input traces to [2, 12].
+`output_shape` of the per-sample shape is the flattened shape, and the shape traced over the
+batched input is the batch extent followed by the flattened extent. The rows are AnImage
+([2, 4, 5, 3], per sample [4, 5, 3] to [60]), AMatrix ([6, 3, 4], per sample [3, 4] to [12]) and
+AVector ([2, 7], per sample [7] to [7]).
 
 ## ARank2InputPassesThroughWithNoNode
 
@@ -38,24 +37,12 @@ nothing to the step.
 
 The input is asserted to be NHWC first, and the flattened result is NHWC too.
 
-## ForwardRejectsAnNCHWInput
+## Small_FlattenRefused.ForwardRefuses
 
-The layout tag of a [2, 3, 4, 5] input is set to NCHW by hand, and `forward()` returns InvalidDescription.
-
-## OutputShapeAgreesWithTheTracedShape
-
-`output_shape()` maps [4, 5, 3] to [60], [3, 4] to [12] and [7] to [7]. For each, the traced
-shape of a batch equals the batch extent followed by that one extent.
-
-## ForwardRejectsARank1Input
-
-`forward()` returns InvalidDescription on a [6] input, which has a batch axis and no per-sample axis.
+`forward` returns `InvalidDescription`. The rows are AnNCHWInput (a [2, 3, 4, 5] input tagged
+NCHW) and ARank1Input ([6], which has no per-sample axis).
 
 ## OutputShapeRejectsARank0Shape
 
 `output_shape()` fails on an empty shape.
 
-## TheParameterWalkVisitsNothing
-
-`parameter_count` is 0 before a trace. After one the walk visits nothing and
-`parameter_elements` is 0.

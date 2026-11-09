@@ -1,33 +1,36 @@
 # tests/layers/nn/test_embedding.cpp
 
 
-Suites: `Medium_GatherRows`.
+Suites: `Medium_GatherRows`, `Medium_GatherRowsReplay`, `Medium_GatherRowsDeterminism`.
 
 The file runs GATHER_ROWS, SCATTER_ADD_ROWS and the `Embedding` layer on an engine. The tables hold
 the dyadic values 0.25, 0.5, 0.75 and so on, whose copies and sums are exact, so results are
-compared with a host loop at a tolerance of 0. Indices are written into INT32 leaves.
+compared with a host loop for equality. Indices are written into INT32 leaves.
 
 ## GatherCopiesTheRowsItsIndexNames
 
 A `[2, 3]` index over a `[5, 3]` table, with row 2 named three times, gives the rows a host loop
 copies.
 
-## AReplayReadsTheIndexOfItsOwnRun
+## Medium_GatherRowsReplay.AReplayReadsTheIndexOfItsOwnRun
 
-One compiled step over a FLOAT64 `[6, 2]` table is run with two different indices of four. Each run
-returns the rows of the index written before it.
+One compiled step over a FLOAT64 `[6, 2]` table is run once with the index `{0, 1, 2, 3}`, then
+the row's index of four is written and the step runs again. The second run returns the rows of
+the index written before it. The rows are ARepeatedAndOutOfOrderIndex (`{5, 5, 0, 4}`) and
+AReversedIndex (`{3, 2, 1, 0}`).
 
 ## ScatterAddSumsTheRowsOfARepeatedIndex
 
 Six FLOAT64 rows are scattered into five table rows with the index `{3, 1, 3, 3, 0, 1}`, and the
 step is run twice. The result equals the host sums, and rows 2 and 4, which no index names, are
-zero.
+zero in the device result.
 
-## TheTableGradientIsBitIdenticalAcrossReplays
+## Medium_GatherRowsDeterminism.TheTableGradientIsBitIdenticalAcrossReplays
 
-A FLOAT32 `[13, 8]` table is gathered with 256 indices, so each row is named about twenty times, and
-the loss is differentiated at the table. The bytes of the gradient are the same after each of four
-runs.
+A FLOAT32 `[13, 8]` table is gathered with 256 indices from `repeated_index`, so each row is
+named about twenty times, and the loss is differentiated at the table. The bytes of the gradient
+after the first run are the same after the replays of the row: OneReplay, TwoReplays and
+ThreeReplays, each run by `run_times`.
 
 ## AnEmbeddingYieldsTheRowsOfItsTable
 
@@ -54,7 +57,7 @@ reads the weight and then the indices, and its result is a float32 value of shap
 
 After a trace of a float64 layer the weight is declared with the shape [7, 3], the type float64
 and the role `ParameterRole::Embedding`. Its initialiser is `Normal` with the deviation
-`K_EMBEDDING_DEVIATION`, which is 0.02, and its fan-in and fan-out are both 3. The weight's
+`K_EMBEDDING_DEVIATION`, and its fan-in and fan-out are both 3. The weight's
 value has the lifetime `Parameter` and requires a gradient, and the result is float64.
 
 ## TheWalkYieldsTheTable
@@ -67,22 +70,25 @@ shape [7, 3], and visits no buffer.
 After traces of one layer into two graphs, `weight.state()` is the same `StateID` and is not
 `K_NO_STATE`, and `weight.id_in` returns a value in each graph.
 
-## AnInputThatIsNotInt32Fails
+## Small_EmbeddingIndexType.AnInputThatIsNotInt32Fails
 
-A float32 input and an int64 input each fail with `InvalidDescription` and a message containing
-"Embedding(7, 3)", "int32 input of indices" and the type given. `forward` returns its input,
-the graph gains no value and no node, the weight stays undeclared and the graph has a refusal.
+An index input of the row's type fails with `InvalidDescription` and a message containing
+"Embedding(7, 3)", "int32 input of indices" and the type given. `forward` returns its input, the
+graph gains no value and no node, the weight stays undeclared and the graph has a refusal. The
+rows are Float32 and Int64.
 
 ## AnInputOfTheHighestRankFails
 
 A rank-6 int32 input fails with `InvalidDescription`, "rank 1 to 5" and
 "[1, 1, 1, 1, 1, 1]", and the weight stays undeclared.
 
-## ALayerDescribedWrongFails
+## Small_EmbeddingWrongLayer.TheTraceIsRefused
 
-`num_embeddings` 0 and `embedding_dim` -1 each fail with "positive extents" and the field with
-its value. An int32 table fails with "half, float32 or float64 table" and "int32". The weights
-of the first and the third layer stay undeclared.
+A layer described wrongly fails with `InvalidDescription` and the row's substrings, and its weight
+stays undeclared. The rows are NoRows (`num_embeddings` 0: "positive extents",
+"num_embeddings=0"), ANegativeLength (`embedding_dim` -1: "positive extents",
+"embedding_dim=-1") and AnIntegerTable (an int32 table: "Embedding(7, 3)", "half, float32 or
+float64 table").
 
 ## OutputShapeAppendsTheRowLength
 
@@ -94,11 +100,12 @@ of the first and the third layer stay undeclared.
 a `ModuleNode<Embedding>` whose layer holds 11, 4 and float32. The node reads one input and its
 one port has the shape [5, 4].
 
-## TheFactoryRefusesARowThatDoesNotFit
+## Small_EmbeddingFactoryRefusal.TheFactoryRefuses
 
-Five rows fail with `InvalidDescription` and a message naming "layer 3": a `padding` key, an
-absent `embedding_dim`, a `num_embeddings` of 0 ("positive"), two inputs ("reads one input",
-"given 2") and a rank-5 input ("[1, 1, 1, 1, 1]", "rank 1 to 4").
+Each row fails with `InvalidDescription` and a message naming "layer 3" and the row's
+substrings. The rows are AStrayKey (`padding`), AnAbsentKey (`embedding_dim` absent),
+ZeroRows (`num_embeddings` of 0: "positive"), TwoInputs ("reads one input", "given 2") and
+ARankOutsideOneToFour (a rank-5 input: "[1, 1, 1, 1, 1]", "rank 1 to 4").
 
 ## ATraceOverAValueTheGraphLacksIsFatal
 

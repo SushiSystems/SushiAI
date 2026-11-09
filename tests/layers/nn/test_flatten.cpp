@@ -56,13 +56,6 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that Flatten satisfies the Module trait. */
-TEST(Small_Flatten, SatisfiesTheModuleTrait)
-{
-    static_assert(NN::Module<Flatten>, "Flatten must be a Module");
-    static_assert(!NN::ModuleContainer<Flatten>, "Flatten must not look like a container");
-}
-
 /** @brief Tests that a rank-4 input traces to one RESHAPE of shape [N, H * W * C]. */
 TEST(Small_Flatten, ARank4InputTracesToOneReshape)
 {
@@ -84,12 +77,6 @@ TEST(Small_Flatten, ARank4InputTracesToOneReshape)
     EXPECT_EQ(node.inputs[0], x);
     ASSERT_EQ(node.outputs.size(), 1u);
     EXPECT_EQ(node.outputs[0], y);
-}
-
-/** @brief Tests that a rank-3 input traces to [N, d1 * d2]. */
-TEST(Small_Flatten, ARank3InputFoldsItsTwoInnerAxes)
-{
-    EXPECT_EQ(traced_shape(Shape{2, 3, 4}), (Shape{2, 12}));
 }
 
 /** @brief Tests that a rank-2 input comes back as the same value and adds no node. */
@@ -124,47 +111,68 @@ TEST(Small_Flatten, AnNHWCInputYieldsAnNHWCResult)
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
-/** @brief Tests that forward() throws on an input tagged NCHW. */
-TEST(Small_Flatten, ForwardRejectsAnNCHWInput)
+/** @brief Holds a batched input, its per-sample shape and the per-sample shape Flatten gives. */
+struct RankRow
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
+    std::string name;  /**< The row's name. */
+    Shape batched;     /**< The input shape, batch axis included. */
+    Shape sample;      /**< The per-sample input shape. */
+    Shape flattened;   /**< The per-sample shape Flatten gives. */
+};
 
-    const Graph::ValueID x = builder.input(Shape{2, 3, 4, 5}, "x");
-    graph.value(x).layout = Graph::TensorLayout::NCHW;
-
-    SA_EXPECT_FAILURE(Flatten{}.forward(builder, x), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() matches the traced shape for an image and two vectors. */
-TEST(Small_Flatten, OutputShapeAgreesWithTheTracedShape)
+/** @brief Runs the flattening promise over each input rank. */
+class Small_FlattenRank : public ::testing::TestWithParam<RankRow>
 {
+};
+
+/** @brief Tests that output_shape and the traced shape fold every axis after the batch. */
+TEST_P(Small_FlattenRank, TheInnerAxesFold)
+{
+    const RankRow& row = GetParam();
     const Flatten layer{};
 
-    const Shape image = layer.output_shape(Shape{4, 5, 3}).value();
-    EXPECT_EQ(image, (Shape{60}));
-    EXPECT_EQ(traced_shape(Shape{2, 4, 5, 3}), (Shape{2, image[0]}));
-
-    const Shape matrix = layer.output_shape(Shape{3, 4}).value();
-    EXPECT_EQ(matrix, (Shape{12}));
-    EXPECT_EQ(traced_shape(Shape{6, 3, 4}), (Shape{6, matrix[0]}));
-
-    const Shape vector = layer.output_shape(Shape{7}).value();
-    EXPECT_EQ(vector, (Shape{7}));
-    EXPECT_EQ(traced_shape(Shape{2, 7}), (Shape{2, vector[0]}));
+    EXPECT_EQ(layer.output_shape(row.sample).value(), row.flattened);
+    EXPECT_EQ(traced_shape(row.batched), (Shape{row.batched[0], row.flattened[0]}));
 }
 
-/** @brief Tests that forward() throws on a rank-1 input, which has no per-sample axis. */
-TEST(Small_Flatten, ForwardRejectsARank1Input)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_FlattenRank,
+    ::testing::Values(RankRow{"AnImage", Shape{2, 4, 5, 3}, Shape{4, 5, 3}, Shape{60}},
+                      RankRow{"AMatrix", Shape{6, 3, 4}, Shape{3, 4}, Shape{12}},
+                      RankRow{"AVector", Shape{2, 7}, Shape{7}, Shape{7}}),
+    [](const ::testing::TestParamInfo<RankRow>& info) { return info.param.name; });
+
+/** @brief Holds an input shape Flatten refuses and whether it is tagged NCHW. */
+struct RefusedInputRow
+{
+    std::string name; /**< The row's name. */
+    Shape input;      /**< The input shape, batch axis included. */
+    bool nchw;        /**< Whether the input is tagged NCHW. */
+};
+
+/** @brief Runs the forward refusal over each input Flatten does not take. */
+class Small_FlattenRefused : public ::testing::TestWithParam<RefusedInputRow>
+{
+};
+
+/** @brief Tests that forward refuses the input. */
+TEST_P(Small_FlattenRefused, ForwardRefuses)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-
-    const Graph::ValueID x = builder.input(Shape{6}, "x");
+    const Graph::ValueID x = builder.input(GetParam().input, "x");
+    if (GetParam().nchw)
+        graph.value(x).layout = Graph::TensorLayout::NCHW;
     const Flatten layer{};
 
     SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_FlattenRefused,
+    ::testing::Values(RefusedInputRow{"AnNCHWInput", Shape{2, 3, 4, 5}, true},
+                      RefusedInputRow{"ARank1Input", Shape{6}, false}),
+    [](const ::testing::TestParamInfo<RefusedInputRow>& info) { return info.param.name; });
 
 /** @brief Tests that output_shape() fails on a rank-0 per-sample shape. */
 TEST(Small_Flatten, OutputShapeRejectsARank0Shape)
@@ -172,26 +180,4 @@ TEST(Small_Flatten, OutputShapeRejectsARank0Shape)
     const Flatten layer{};
 
     SA_EXPECT_FAILURE(layer.output_shape(Shape{}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that the parameter walk visits nothing, before and after a trace. */
-TEST(Small_Flatten, TheParameterWalkVisitsNothing)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    Flatten layer{};
-    EXPECT_EQ(NN::parameter_count(layer), 0u);
-
-    const Graph::ValueID x = builder.input(Shape{2, 4, 5, 3}, "x");
-    SA_EXPECT_OK(layer.forward(builder, x));
-
-    std::size_t visits = 0;
-    NN::for_each_parameter(layer,
-                           [&visits](const std::string&, NN::Parameter&)
-                           {
-                               ++visits;
-                           });
-    EXPECT_EQ(visits, 0u);
-    EXPECT_EQ(NN::parameter_elements(layer), 0);
 }

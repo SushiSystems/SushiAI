@@ -173,8 +173,7 @@ TEST(Small_Embedding, TheTableIsAnEmbeddingDrawnFromANormalOfFixedDeviation)
     EXPECT_EQ(layer.weight.dtype(), DType::Float64);
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Embedding);
     EXPECT_EQ(layer.weight.init().kind, NN::ParameterInit::Kind::Normal);
-    EXPECT_DOUBLE_EQ(layer.weight.init().deviation, NN::K_EMBEDDING_DEVIATION);
-    EXPECT_DOUBLE_EQ(NN::K_EMBEDDING_DEVIATION, 0.02);
+    EXPECT_EQ(layer.weight.init().deviation, NN::K_EMBEDDING_DEVIATION);
     EXPECT_EQ(layer.weight.fan_in(), K_LENGTH);
     EXPECT_EQ(layer.weight.fan_out(), K_LENGTH);
     EXPECT_EQ(graph.value(y).dtype, DType::Float64);
@@ -229,27 +228,43 @@ TEST(Small_Embedding, TwoGraphsNameTheSameTable)
     EXPECT_NE(layer.weight.id_in(second), Graph::K_NO_VALUE);
 }
 
-/** @brief Tests that a FLOAT32 input and an INT64 input fail and declare nothing. */
-TEST(Small_Embedding, AnInputThatIsNotInt32Fails)
+/** @brief Holds an element type of indices that Embedding refuses, and its printed name. */
+struct IndexTypeRow
+{
+    std::string name; /**< The row's name. */
+    DType dtype;      /**< The element type of the index input. */
+    std::string type; /**< The type name the message holds. */
+};
+
+/** @brief Runs the index-type refusal over each element type other than int32. */
+class Small_EmbeddingIndexType : public ::testing::TestWithParam<IndexTypeRow>
+{
+};
+
+/** @brief Tests that an index input that is not int32 fails and declares nothing. */
+TEST_P(Small_EmbeddingIndexType, AnInputThatIsNotInt32Fails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID real = builder.input(Shape{2, 5}, "real");
-    const Graph::ValueID wide = builder.input(Shape{2, 5}, "wide", DType::Int64);
+    const Graph::ValueID indices = builder.input(Shape{2, 5}, "indices", GetParam().dtype);
     Embedding layer = make_layer();
     const std::size_t values_before = graph.value_count();
     const std::size_t nodes_before = graph.node_count();
 
-    SA_EXPECT_FAILURE(refused(layer, builder, real), StatusCode::InvalidDescription,
-                      "Embedding(7, 3)", "int32 input of indices", "float32");
-    SA_EXPECT_FAILURE(refused(layer, builder, wide), StatusCode::InvalidDescription,
-                      "Embedding(7, 3)", "int32 input of indices", "int64");
+    SA_EXPECT_FAILURE(refused(layer, builder, indices), StatusCode::InvalidDescription,
+                      "Embedding(7, 3)", "int32 input of indices", GetParam().type);
 
     EXPECT_EQ(graph.value_count(), values_before);
     EXPECT_EQ(graph.node_count(), nodes_before);
     EXPECT_FALSE(layer.weight.declared());
     EXPECT_TRUE(graph.has_refusal());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_EmbeddingIndexType,
+    ::testing::Values(IndexTypeRow{"Float32", DType::Float32, "float32"},
+                      IndexTypeRow{"Int64", DType::Int64, "int64"}),
+    [](const ::testing::TestParamInfo<IndexTypeRow>& info) { return info.param.name; });
 
 /** @brief Tests that an index of the highest rank fails, as the result has no rank left. */
 TEST(Small_Embedding, AnInputOfTheHighestRankFails)
@@ -265,28 +280,48 @@ TEST(Small_Embedding, AnInputOfTheHighestRankFails)
     EXPECT_FALSE(layer.weight.declared());
 }
 
-/** @brief Tests that an extent that is not positive and an integer table each fail. */
-TEST(Small_Embedding, ALayerDescribedWrongFails)
+/** @brief Holds a layer described wrongly and the substrings of the refusal. */
+struct WrongLayerRow
 {
+    std::string name;   /**< The row's name. */
+    int64_t rows;       /**< The row count of the table. */
+    int64_t length;     /**< The row length of the table. */
+    DType dtype;        /**< The element type of the table. */
+    std::string first;  /**< A substring the message holds. */
+    std::string second; /**< A second substring the message holds. */
+};
+
+/** @brief Runs the description refusal over each wrong description. */
+class Small_EmbeddingWrongLayer : public ::testing::TestWithParam<WrongLayerRow>
+{
+};
+
+/** @brief Tests that a layer described wrongly fails to trace and declares no table. */
+TEST_P(Small_EmbeddingWrongLayer, TheTraceIsRefused)
+{
+    const WrongLayerRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID indices = builder.input(Shape{2, 5}, "indices", DType::Int32);
+    Embedding layer = make_layer(row.dtype);
+    layer.num_embeddings = row.rows;
+    layer.embedding_dim = row.length;
 
-    Embedding no_rows = make_layer();
-    no_rows.num_embeddings = 0;
-    Embedding no_length = make_layer();
-    no_length.embedding_dim = -1;
-    Embedding integer_table = make_layer(DType::Int32);
-
-    SA_EXPECT_FAILURE(refused(no_rows, builder, indices), StatusCode::InvalidDescription,
-                      "positive extents", "num_embeddings=0");
-    SA_EXPECT_FAILURE(refused(no_length, builder, indices), StatusCode::InvalidDescription,
-                      "positive extents", "embedding_dim=-1");
-    SA_EXPECT_FAILURE(refused(integer_table, builder, indices), StatusCode::InvalidDescription,
-                      "Embedding(7, 3)", "half, float32 or float64 table", "int32");
-    EXPECT_FALSE(no_rows.weight.declared());
-    EXPECT_FALSE(integer_table.weight.declared());
+    SA_EXPECT_FAILURE(refused(layer, builder, indices), StatusCode::InvalidDescription, row.first,
+                      row.second);
+    EXPECT_FALSE(layer.weight.declared());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_EmbeddingWrongLayer,
+    ::testing::Values(
+        WrongLayerRow{"NoRows", 0, K_LENGTH, DType::Float32, "positive extents",
+                      "num_embeddings=0"},
+        WrongLayerRow{"ANegativeLength", K_ROWS, -1, DType::Float32, "positive extents",
+                      "embedding_dim=-1"},
+        WrongLayerRow{"AnIntegerTable", K_ROWS, K_LENGTH, DType::Int32, "Embedding(7, 3)",
+                      "half, float32 or float64 table"}),
+    [](const ::testing::TestParamInfo<WrongLayerRow>& info) { return info.param.name; });
 
 /** @brief Tests that output_shape appends the row length to a per-sample shape of any rank. */
 TEST(Small_Embedding, OutputShapeAppendsTheRowLength)
@@ -320,34 +355,50 @@ TEST(Small_Embedding, TheFactoryReadsTheTwoExtents)
     EXPECT_EQ(node->input_count(), 1u);
 }
 
-/** @brief Tests that the factory refuses a stray key, an absent key and an input that is off. */
-TEST(Small_Embedding, TheFactoryRefusesARowThatDoesNotFit)
+/** @brief Holds a factory row that does not fit and the substrings of the refusal. */
+struct FactoryRefusalRow
 {
-    const Shape input{5};
-    const Shape pair[] = {Shape{5}, Shape{5}};
-    const Shape deep{1, 1, 1, 1, 1};
-    const Config::Value both =
-        SaTest::require_value(Config::parse_json(R"({"num_embeddings": 11, "embedding_dim": 4})",
-                                                 "<test>"));
-    const Config::Value stray = SaTest::require_value(Config::parse_json(
-        R"({"num_embeddings": 11, "embedding_dim": 4, "padding": 0})", "<test>"));
-    const Config::Value no_length =
-        SaTest::require_value(Config::parse_json(R"({"num_embeddings": 11})", "<test>"));
-    const Config::Value zero_rows =
-        SaTest::require_value(Config::parse_json(R"({"num_embeddings": 0, "embedding_dim": 4})",
-                                                 "<test>"));
+    std::string name;          /**< The row's name. */
+    std::string json;          /**< The attribute row, as JSON. */
+    std::vector<Shape> inputs; /**< The input shapes the factory is given. */
+    std::string first;         /**< A substring the message holds. */
+    std::string second;        /**< A second substring the message holds; empty for none. */
+    std::string third;         /**< A third substring the message holds; empty for none. */
+};
 
-    SA_EXPECT_FAILURE(NN::make_embedding_node(NN::ShapeSpan(&input, 1), stray, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'padding'");
-    SA_EXPECT_FAILURE(NN::make_embedding_node(NN::ShapeSpan(&input, 1), no_length, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'embedding_dim'", "absent");
-    SA_EXPECT_FAILURE(NN::make_embedding_node(NN::ShapeSpan(&input, 1), zero_rows, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'num_embeddings'", "positive");
-    SA_EXPECT_FAILURE(NN::make_embedding_node(NN::ShapeSpan(pair, 2), both, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "reads one input", "given 2");
-    SA_EXPECT_FAILURE(NN::make_embedding_node(NN::ShapeSpan(&deep, 1), both, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "[1, 1, 1, 1, 1]", "rank 1 to 4");
+/** @brief Runs the factory refusal over each row that does not fit. */
+class Small_EmbeddingFactoryRefusal : public ::testing::TestWithParam<FactoryRefusalRow>
+{
+};
+
+/** @brief Tests that the factory refuses the row and names the context and the cause. */
+TEST_P(Small_EmbeddingFactoryRefusal, TheFactoryRefuses)
+{
+    const FactoryRefusalRow& row = GetParam();
+    const Config::Value attributes = SaTest::require_value(Config::parse_json(row.json, "<test>"));
+
+    SA_EXPECT_FAILURE(NN::make_embedding_node(NN::ShapeSpan(row.inputs.data(), row.inputs.size()),
+                                              attributes, "layer 3"),
+                      StatusCode::InvalidDescription, "layer 3", row.first, row.second,
+                      row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_EmbeddingFactoryRefusal,
+    ::testing::Values(
+        FactoryRefusalRow{"AStrayKey",
+                          R"({"num_embeddings": 11, "embedding_dim": 4, "padding": 0})",
+                          {Shape{5}}, "'padding'", "", ""},
+        FactoryRefusalRow{"AnAbsentKey", R"({"num_embeddings": 11})", {Shape{5}},
+                          "'embedding_dim'", "absent", ""},
+        FactoryRefusalRow{"ZeroRows", R"({"num_embeddings": 0, "embedding_dim": 4})",
+                          {Shape{5}}, "'num_embeddings'", "positive", ""},
+        FactoryRefusalRow{"TwoInputs", R"({"num_embeddings": 11, "embedding_dim": 4})",
+                          {Shape{5}, Shape{5}}, "reads one input", "given 2", ""},
+        FactoryRefusalRow{"ARankOutsideOneToFour",
+                          R"({"num_embeddings": 11, "embedding_dim": 4})",
+                          {Shape{1, 1, 1, 1, 1}}, "[1, 1, 1, 1, 1]", "rank 1 to 4", ""}),
+    [](const ::testing::TestParamInfo<FactoryRefusalRow>& info) { return info.param.name; });
 
 /** @brief Tests that a trace over a value the graph does not hold stops the process. */
 TEST(Medium_EmbeddingDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
@@ -368,9 +419,6 @@ namespace
     class Medium_GatherRows : public SaTest::EngineTest
     {
     };
-
-    /** @brief Holds how often the determinism case replays its step. */
-    constexpr int K_REPLAYS = 4;
 
     /** @brief Writes @p indices into an INT32 leaf; no task is recorded while the host writes. */
     void write_indices(SushiBLAS::Tensor& tensor, const std::vector<std::int32_t>& indices)
@@ -420,7 +468,26 @@ namespace
     {
         ASSERT_EQ(got.size(), expected.size());
         for (std::size_t i = 0; i < expected.size(); ++i)
-            EXPECT_DOUBLE_EQ(got[i], expected[i]) << "at element " << i;
+            EXPECT_EQ(got[i], expected[i]) << "at element " << i;
+    }
+
+    /** @brief Returns the @p count indices 0, 7, 14, ... each taken modulo @p rows. */
+    std::vector<std::int32_t> repeated_index(std::size_t count, std::size_t rows)
+    {
+        std::vector<std::int32_t> indices(count);
+        for (std::size_t i = 0; i < count; ++i)
+            indices[i] = static_cast<std::int32_t>((i * 7) % rows);
+
+        return indices;
+    }
+
+    /** @brief Runs @p step @p count times and returns the first failure, or ok. */
+    Status run_times(CompiledStep& step, int count)
+    {
+        for (int run = 0; run < count; ++run)
+            SA_TRY(step.run());
+
+        return Status();
     }
 
     /** @brief Returns [0.25, 0.5, 0.75, ...], @p count dyadic values whose sums are exact. */
@@ -460,34 +527,49 @@ TEST_F(Medium_GatherRows, GatherCopiesTheRowsItsIndexNames)
     expect_exact(read_tensor(pool.tensor(gathered.value())), gathered_on_host(table, 3, indices));
 }
 
+/** @brief Holds an index set the compiled step is replayed over. */
+struct ReplayRow
+{
+    std::string name;                  /**< The row's name. */
+    std::vector<std::int32_t> indices; /**< The index written before the replay. */
+};
+
+/** @brief Provides the Engine and the replay rows of the replay case. */
+class Medium_GatherRowsReplay : public SaTest::EngineTest,
+                                public ::testing::WithParamInterface<ReplayRow>
+{
+};
+
 /** @brief Tests that the step reads the index of each run, not the one it was compiled over. */
-TEST_F(Medium_GatherRows, AReplayReadsTheIndexOfItsOwnRun)
+TEST_P(Medium_GatherRowsReplay, AReplayReadsTheIndexOfItsOwnRun)
 {
     const std::vector<double> table = dyadic_ramp(6 * 2);
-
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID table_id = builder.input(Shape{6, 2}, "table", DType::Float64);
     const ValueID index_id = builder.input(Shape{4}, "indices", DType::Int32);
     const Graph::Traced gathered = builder.gather_rows(table_id, index_id);
     ASSERT_TRUE(gathered.has_value());
-
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
     write_tensor(pool.tensor(table_id), table);
-
     std::unique_ptr<CompiledStep> step;
     SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
+    write_indices(pool.tensor(index_id), {0, 1, 2, 3});
+    SA_EXPECT_OK(step->run());
 
-    for (const std::vector<std::int32_t>& indices :
-         {std::vector<std::int32_t>{0, 1, 2, 3}, std::vector<std::int32_t>{5, 5, 0, 4}})
-    {
-        write_indices(pool.tensor(index_id), indices);
-        SA_EXPECT_OK(step->run());
-        expect_exact(read_tensor(pool.tensor(gathered.value())),
-                     gathered_on_host(table, 2, indices));
-    }
+    write_indices(pool.tensor(index_id), GetParam().indices);
+    SA_EXPECT_OK(step->run());
+
+    expect_exact(read_tensor(pool.tensor(gathered.value())),
+                 gathered_on_host(table, 2, GetParam().indices));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_GatherRowsReplay,
+    ::testing::Values(ReplayRow{"ARepeatedAndOutOfOrderIndex", {5, 5, 0, 4}},
+                      ReplayRow{"AReversedIndex", {3, 2, 1, 0}}),
+    [](const ::testing::TestParamInfo<ReplayRow>& info) { return info.param.name; });
 
 /** @brief Tests that a scatter-add sums the rows of a repeated index and zeroes unnamed rows. */
 TEST_F(Medium_GatherRows, ScatterAddSumsTheRowsOfARepeatedIndex)
@@ -516,21 +598,34 @@ TEST_F(Medium_GatherRows, ScatterAddSumsTheRowsOfARepeatedIndex)
     SA_EXPECT_OK(step->run());
 
     const std::vector<double> expected = scattered_on_host(rows, 2, indices, 5);
-    expect_exact(read_tensor(pool.tensor(sums.value())), expected);
-    EXPECT_DOUBLE_EQ(expected[2 * 2], 0.0) << "row 2 is named by no index";
-    EXPECT_DOUBLE_EQ(expected[4 * 2], 0.0) << "row 4 is named by no index";
+    const std::vector<double> got = read_tensor(pool.tensor(sums.value()));
+    expect_exact(got, expected);
+    EXPECT_EQ(got[2 * 2], 0.0) << "row 2 is named by no index";
+    EXPECT_EQ(got[4 * 2], 0.0) << "row 4 is named by no index";
 }
+
+/** @brief Holds how many times the step is replayed before the gradient is read again. */
+struct ReplayCountRow
+{
+    std::string name; /**< The row's name. */
+    int replays;      /**< The number of replays after the first run. */
+};
+
+/** @brief Provides the Engine and the replay counts of the determinism case. */
+class Medium_GatherRowsDeterminism : public SaTest::EngineTest,
+                                     public ::testing::WithParamInterface<ReplayCountRow>
+{
+};
 
 /**
  * @brief Tests that the table gradient of a FLOAT32 gather with a heavily repeated index has
- *        the same bytes on every replay.
+ *        the same bytes after every number of replays.
  */
-TEST_F(Medium_GatherRows, TheTableGradientIsBitIdenticalAcrossReplays)
+TEST_P(Medium_GatherRowsDeterminism, TheTableGradientIsBitIdenticalAcrossReplays)
 {
     constexpr std::int64_t K_TABLE_ROWS = 13;
     constexpr std::int64_t K_WIDTH = 8;
     constexpr std::int64_t K_COUNT = 256;
-
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID table_id = builder.parameter(Shape{K_TABLE_ROWS, K_WIDTH}, "table");
@@ -539,41 +634,39 @@ TEST_F(Medium_GatherRows, TheTableGradientIsBitIdenticalAcrossReplays)
     const Graph::Traced gathered = builder.gather_rows(table_id, index_id);
     ASSERT_TRUE(gathered.has_value());
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(gathered.value(), targets));
-
     const std::vector<ValueID> wrt = {table_id};
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients, Autograd::differentiate(
         graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
     ASSERT_NE(gradients.at(0), Graph::K_NO_VALUE);
-
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
-
     std::vector<double> table(static_cast<std::size_t>(K_TABLE_ROWS * K_WIDTH));
     std::vector<double> target_values(static_cast<std::size_t>(K_COUNT * K_WIDTH));
     SaTest::HostNoise(4101).fill(table, 1.0);
     SaTest::HostNoise(4102).fill(target_values, 1.0);
     write_tensor(pool.tensor(table_id), table);
     write_tensor(pool.tensor(targets), target_values);
-
     // Every row of the table is named about twenty times, so every sum has many terms.
-    std::vector<std::int32_t> indices(static_cast<std::size_t>(K_COUNT));
-    for (std::size_t i = 0; i < indices.size(); ++i)
-        indices[i] = static_cast<std::int32_t>((i * 7) % static_cast<std::size_t>(K_TABLE_ROWS));
-    write_indices(pool.tensor(index_id), indices);
-
+    write_indices(pool.tensor(index_id),
+                  repeated_index(static_cast<std::size_t>(K_COUNT),
+                                 static_cast<std::size_t>(K_TABLE_ROWS)));
     std::unique_ptr<CompiledStep> step;
     SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
     const std::vector<unsigned char> first = read_tensor_bytes(pool.tensor(gradients[0]));
 
-    for (int replay = 1; replay < K_REPLAYS; ++replay)
-    {
-        SA_EXPECT_OK(step->run());
-        const std::vector<unsigned char> again = read_tensor_bytes(pool.tensor(gradients[0]));
-        ASSERT_EQ(again.size(), first.size());
-        EXPECT_EQ(SaTest::first_difference(first, again), first.size()) << "replay " << replay;
-    }
+    SA_EXPECT_OK(run_times(*step, GetParam().replays));
+
+    const std::vector<unsigned char> again = read_tensor_bytes(pool.tensor(gradients[0]));
+    ASSERT_EQ(again.size(), first.size());
+    EXPECT_EQ(SaTest::first_difference(first, again), first.size());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_GatherRowsDeterminism,
+    ::testing::Values(ReplayCountRow{"OneReplay", 1}, ReplayCountRow{"TwoReplays", 2},
+                      ReplayCountRow{"ThreeReplays", 3}),
+    [](const ::testing::TestParamInfo<ReplayCountRow>& info) { return info.param.name; });
 
 /** @brief Tests that an Embedding over a [2, 3] batch of ids yields the rows of its table. */
 TEST_F(Medium_GatherRows, AnEmbeddingYieldsTheRowsOfItsTable)

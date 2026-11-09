@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
@@ -65,6 +66,23 @@ namespace
     const Graph::Node& producer_of(const Graph::Graph& graph, Graph::ValueID value)
     {
         return graph.node(graph.value(value).producer);
+    }
+
+    /** @brief Traces two Dropout sites of a fresh training trace and returns their seeds. */
+    std::vector<std::uint64_t> site_seeds()
+    {
+        Dropout layer{};
+        layer.rate = 0.5;
+        Graph::Graph graph;
+        const Graph::GraphBuilder builder(graph);
+        const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
+        const Trace training = Trace::training(builder, NN::discard_updates(), K_TRACE_SEED);
+        const Graph::ValueID first = NN::trace_layer(layer, training, x);
+        const Graph::ValueID second = NN::trace_layer(layer, training, first);
+        SA_EXPECT_OK(training.status());
+
+        return {Graph::dropout_seed(producer_of(graph, first).attributes),
+                Graph::dropout_seed(producer_of(graph, second).attributes)};
     }
 }
 
@@ -131,28 +149,20 @@ TEST(Small_Dropout, ARateOfZeroEmitsNothingInTraining)
     EXPECT_EQ(training.claim_random_site(), 0u);
 }
 
-/** @brief Tests that two sites of a trace get seeds 0 and 1 of its seed, on every trace of it. */
+/** @brief Tests that two sites of a trace get seeds 0 and 1 of its seed. */
 TEST(Small_Dropout, EachSiteOfATraceGetsItsOwnSeed)
 {
-    Dropout layer{};
-    layer.rate = 0.5;
+    const std::vector<std::uint64_t> seeds = site_seeds();
 
-    for (int attempt = 0; attempt < 2; ++attempt)
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-        const Trace training = Trace::training(builder, NN::discard_updates(), K_TRACE_SEED);
+    ASSERT_EQ(seeds.size(), 2u);
+    EXPECT_EQ(seeds[0], Graph::dropout_site_seed(K_TRACE_SEED, 0));
+    EXPECT_EQ(seeds[1], Graph::dropout_site_seed(K_TRACE_SEED, 1));
+}
 
-        const Graph::ValueID first = NN::trace_layer(layer, training, x);
-        const Graph::ValueID second = NN::trace_layer(layer, training, first);
-
-        SA_EXPECT_OK(training.status());
-        EXPECT_EQ(Graph::dropout_seed(producer_of(graph, first).attributes),
-                  Graph::dropout_site_seed(K_TRACE_SEED, 0));
-        EXPECT_EQ(Graph::dropout_seed(producer_of(graph, second).attributes),
-                  Graph::dropout_site_seed(K_TRACE_SEED, 1));
-    }
+/** @brief Tests that a second trace of the same seed gives the sites the same seeds. */
+TEST(Small_Dropout, ASecondTraceOfTheSameSeedRepeatsTheSiteSeeds)
+{
+    EXPECT_EQ(site_seeds(), site_seeds());
 }
 
 /** @brief Tests that a training trace given no seed has seed 0, and an evaluation trace too. */
@@ -167,29 +177,42 @@ TEST(Small_Dropout, ATraceWithoutAStatedSeedHasSeedZero)
     EXPECT_EQ(Trace::evaluation(builder).seed(), 0u);
 }
 
-/** @brief Tests that a rate of one, a negative rate and a NaN are each refused by both forms. */
-TEST(Small_Dropout, ARateOutsideItsIntervalFails)
+/** @brief Holds a rate outside [0, 1). */
+struct RateRow
+{
+    std::string name; /**< The row's name. */
+    double rate;      /**< The rate both forms refuse. */
+};
+
+/** @brief Runs the rate refusal over each rate outside its interval. */
+class Small_DropoutRate : public ::testing::TestWithParam<RateRow>
+{
+};
+
+/** @brief Tests that both forms refuse the rate and return their input. */
+TEST_P(Small_DropoutRate, ARateOutsideItsIntervalFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
+    Dropout layer{};
+    layer.rate = GetParam().rate;
+    const Trace training = Trace::training(builder, NN::discard_updates());
+    const Trace evaluation = Trace::evaluation(builder);
 
-    for (const double rate : {1.0, -0.1, std::numeric_limits<double>::quiet_NaN()})
-    {
-        Dropout layer{};
-        layer.rate = rate;
+    EXPECT_EQ(layer.trace_training(training, x), x);
+    EXPECT_EQ(layer.trace_evaluation(evaluation, x), x);
 
-        const Trace training = Trace::training(builder, NN::discard_updates());
-        const Trace evaluation = Trace::evaluation(builder);
-        EXPECT_EQ(layer.trace_training(training, x), x);
-        EXPECT_EQ(layer.trace_evaluation(evaluation, x), x);
-
-        SA_EXPECT_FAILURE(training.status(), StatusCode::InvalidDescription, "rate in [0, 1)");
-        SA_EXPECT_FAILURE(evaluation.status(), StatusCode::InvalidDescription, "rate in [0, 1)");
-    }
-
+    SA_EXPECT_FAILURE(training.status(), StatusCode::InvalidDescription, "rate in [0, 1)");
+    SA_EXPECT_FAILURE(evaluation.status(), StatusCode::InvalidDescription, "rate in [0, 1)");
     EXPECT_TRUE(graph.has_refusal());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DropoutRate,
+    ::testing::Values(RateRow{"One", 1.0}, RateRow{"Negative", -0.1},
+                      RateRow{"NaN", std::numeric_limits<double>::quiet_NaN()}),
+    [](const ::testing::TestParamInfo<RateRow>& info) { return info.param.name; });
 
 /** @brief Tests that output_shape returns the per-sample shape it is given. */
 TEST(Small_Dropout, OutputShapeIsTheInputShape)
@@ -217,23 +240,41 @@ TEST(Small_Dropout, TheFactoryReadsTheRate)
     EXPECT_EQ(node->ports()[0].shape, (Shape{6, 4}));
 }
 
-/** @brief Tests that the factory refuses no rate, a rate of one, a stray key and two inputs. */
-TEST(Small_Dropout, TheFactoryRefusesARowThatDoesNotFit)
+/** @brief Holds a factory row that does not fit and the substrings of the refusal. */
+struct FactoryRefusalRow
 {
-    const Shape input{6, 4};
-    const Shape pair[] = {Shape{4}, Shape{4}};
-    const Config::Value good = require_value(Config::parse_json(R"({"rate": 0.1})", "<test>"));
-    const Config::Value absent = require_value(Config::parse_json("{}", "<test>"));
-    const Config::Value whole = require_value(Config::parse_json(R"({"rate": 1.0})", "<test>"));
-    const Config::Value stray =
-        require_value(Config::parse_json(R"({"rate": 0.1, "seed": 3})", "<test>"));
+    std::string name;   /**< The row's name. */
+    std::string json;   /**< The attribute row, as JSON. */
+    bool two_inputs;    /**< Whether the factory is given two inputs instead of one. */
+    std::string first;  /**< A substring the message holds. */
+    std::string second; /**< A second substring the message holds. */
+    std::string third;  /**< A third substring the message holds; empty for none. */
+};
 
-    SA_EXPECT_FAILURE(NN::make_dropout_node(NN::ShapeSpan(&input, 1), absent, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'rate'", "absent");
-    SA_EXPECT_FAILURE(NN::make_dropout_node(NN::ShapeSpan(&input, 1), whole, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'rate'", "[0, 1)");
-    SA_EXPECT_FAILURE(NN::make_dropout_node(NN::ShapeSpan(&input, 1), stray, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'seed'");
-    SA_EXPECT_FAILURE(NN::make_dropout_node(NN::ShapeSpan(pair, 2), good, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "reads one input", "given 2");
+/** @brief Runs the factory refusal over each row that does not fit. */
+class Small_DropoutFactoryRefusal : public ::testing::TestWithParam<FactoryRefusalRow>
+{
+};
+
+/** @brief Tests that the factory refuses the row and names the context and the cause. */
+TEST_P(Small_DropoutFactoryRefusal, TheFactoryRefuses)
+{
+    const FactoryRefusalRow& row = GetParam();
+    const Shape inputs[] = {Shape{6, 4}, Shape{6, 4}};
+    const Config::Value attributes = require_value(Config::parse_json(row.json, "<test>"));
+
+    SA_EXPECT_FAILURE(
+        NN::make_dropout_node(NN::ShapeSpan(inputs, row.two_inputs ? 2 : 1), attributes,
+                              "layer 3"),
+        StatusCode::InvalidDescription, "layer 3", row.first, row.second, row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DropoutFactoryRefusal,
+    ::testing::Values(
+        FactoryRefusalRow{"AnAbsentRate", "{}", false, "'rate'", "absent", ""},
+        FactoryRefusalRow{"ARateOfOne", R"({"rate": 1.0})", false, "'rate'", "[0, 1)", ""},
+        FactoryRefusalRow{"AStrayKey", R"({"rate": 0.1, "seed": 3})", false, "'seed'", "", ""},
+        FactoryRefusalRow{"TwoInputs", R"({"rate": 0.1})", true, "reads one input", "given 2",
+                          ""}),
+    [](const ::testing::TestParamInfo<FactoryRefusalRow>& info) { return info.param.name; });
