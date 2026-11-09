@@ -32,12 +32,14 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
 #include <support/tolerance.hpp>
 
 namespace
 {
     using SushiAI::Vision::Detect::Free::expect_distances;
+    using SushiAI::Test::near_reference;
     using SushiAI::Vision::Detect::Free::fill_distribution_projection;
 
     /** @brief Holds the bins per side of the hand cases. */
@@ -72,10 +74,8 @@ TEST(Small_DetectDistributionExpectation, EachSideIsTheMeanOfItsBins)
 
     SA_EXPECT_OK(expect_distances(logits, K_BINS, distances));
 
-    EXPECT_NEAR(distances[0], 1.5f, K_EXPECTATION_TOLERANCE);
-    EXPECT_NEAR(distances[1], 2.0f, K_EXPECTATION_TOLERANCE);
-    EXPECT_NEAR(distances[2], 1.0f, K_EXPECTATION_TOLERANCE);
-    EXPECT_NEAR(distances[3], 1.5f, K_EXPECTATION_TOLERANCE);
+    EXPECT_TRUE(near_reference(distances, std::vector<float>{1.5f, 2.0f, 1.0f, 1.5f},
+                               K_EXPECTATION_TOLERANCE));
 }
 
 /** @brief Tests that one bin per side copies the logits unchanged. */
@@ -118,4 +118,15 @@ TEST(Small_DetectDistributionExpectation, RefusesANonFiniteLogitWithItsIndex)
 
     SA_EXPECT_FAILURE(expect_distances(logits, K_BINS, distances),
                       SushiAI::StatusCode::InvalidDescription, "bin logit 6", "finite");
+}
+
+/** @brief Tests that a bin count below 1 is refused, naming the count. */
+TEST(Small_DetectDistributionExpectation, ABinCountBelowOneIsRefused)
+{
+    const std::vector<float> logits(16, 0.0f);
+    std::vector<float> distances(4, 0.0f);
+
+    SA_EXPECT_FAILURE(expect_distances(logits, 0, distances),
+                      SushiAI::StatusCode::InvalidDescription, "reg_max must be positive",
+                      "got 0");
 }

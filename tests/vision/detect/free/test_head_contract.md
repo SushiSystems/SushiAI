@@ -3,23 +3,15 @@
 
 Suites: `Small_DetectFreeHeadContract`.
 
-Tests the names, the bias constants, `detect_port_name` and `detect_class_bias` of
-`free/head_contract.hpp`, through `Vision::Detect::Free`. The re-export of the same names in
+Tests `detect_port_name` and `detect_class_bias` of `free/head_contract.hpp`, through
+`Vision::Detect::Free`. The cases that compared the name and bias constants with literals are
+deleted: the names are checked through built ports in `tests/vision/blocks/test_detect_head.cpp`,
+and the bias constants through `detect_class_bias` below. The re-export of the same names in
 `Vision::Blocks` is pinned by `tests/vision/blocks/test_detect_head.cpp`. The file needs no device.
 
 ## K_BIAS_TOLERANCE
 
-`K_BIAS_TOLERANCE` is 1e-12, the bound on a class bias against the value computed apart.
-
-## TheNamesEqualTheLiteralsOfTheCheckpoints
-
-The copies are "one2many" and "one2one", the roles "boxes" and "scores", and the branches "cv2",
-"cv3", "one2one_cv2" and "one2one_cv3".
-
-## TheBiasConstantsAreTheReferenceValues
-
-The last convolution's index is 2, the box bias 1, the objects per image 5 and the reference image
-side 640.
+`K_BIAS_TOLERANCE` is 16384 u, where u is the double unit roundoff, the bound on a class bias against the value computed apart.
 
 ## ThePortNameJoinsCopyLevelAndRole
 

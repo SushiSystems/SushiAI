@@ -3,20 +3,21 @@
 
 Box decoding and encoding, the two box formats and the IoU forms.
 
-Suites: `Medium_DetectBoxes`.
+Suites: `Small_DetectBoxes`, `Medium_DetectBoxes` and `Medium_DetectBoxesRoundTrip`.
 
 Tests box decoding and encoding, the two box formats and the IoU forms.
 
-This file needs no device. `Medium_DetectBoxes` covers `modules/vision/detect/include/SushiAI/vision/detect/free/box_coding.hpp`,
+This file needs no device. `Small_DetectBoxes`, `Medium_DetectBoxes` and `Medium_DetectBoxesRoundTrip` cover `modules/vision/detect/include/SushiAI/vision/detect/free/box_coding.hpp`,
 `modules/vision/detect/include/SushiAI/vision/detect/box_format.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/iou.hpp`. The hand cases
 write the expected value as the arithmetic that produces it. Three cases read `forward.sacp`
-and report themselves skipped when the file is absent.
+and report themselves skipped when the file is absent: the two decodes and one row of the round trip.
 
 ## Tolerances
 
-`K_EXACT` is 0, for values float32 holds exactly. `K_DECODE_TOLERANCE` is 1.3e-4, two float32
-steps at 640, for a decoded box in pixels. `K_ROUND_TRIP_TOLERANCE` is 1.6e-5, two steps at 80,
-for a decode followed by an encode in grid units. `K_IOU_TOLERANCE` is 1e-6, eight float32
+Values float32 holds exactly are compared with equality. `K_DECODE_TOLERANCE` is 4096 u, two
+float32 steps at 640, for a decoded box in pixels, where u is the float unit roundoff.
+`K_ROUND_TRIP_TOLERANCE` is 512 u, two steps at 80, for a decode followed by an encode in grid
+units. `K_IOU_TOLERANCE` is 1e-6, eight float32
 steps at 1.
 
 ## K_REFERENCE_ANCHORS and K_REFERENCE_LEVELS
@@ -49,12 +50,10 @@ string, or the reason a level could not be read.
 Two anchor points and four rows of distances decode as two images: rows 2 and 3 use points 0
 and 1 again.
 
-## EncodeInvertsDecode
-
-`encode_distances` of the boxes `decode_xyxy` writes returns the three rows of distances at
-tolerance 0.
-
 ## ScalesEachBoxByItsAnchorStride
+
+The four hand cases from `DecodesDistancesToCorners` to here run in `Small_DetectBoxes`, and compare
+with equality.
 
 `scale_boxes` multiplies all four values of a row by its anchor's stride: the row (1, 2, 3, 4)
 becomes (8, 16, 24, 32) at stride 8 and (16, 32, 48, 64) at stride 16.
@@ -80,10 +79,14 @@ is absent.
 The raw one-to-one boxes, decoded with `decode_xyxy` and scaled, equal `one2one.decoded.boxes`
 within `K_DECODE_TOLERANCE`. The case is skipped when `forward.sacp` is absent.
 
-## EncodeInvertsTheDecodeOfTheReferenceBoxes
+## EncodeInvertsDecode
 
-Encoding the decode of the raw one-to-one boxes returns them within `K_ROUND_TRIP_TOLERANCE`.
-The case is skipped when `forward.sacp` is absent.
+In `Medium_DetectBoxesRoundTrip`, over two rows. `encode_distances` of the boxes `decode_xyxy`
+writes returns the distances. `HandValues` holds six hand anchors whose distances float32 holds
+exactly, so the largest error allowed is 0. `ReferenceBoxes` holds the raw one-to-one boxes of
+`forward.sacp` over the 8400 anchors, allowed `K_ROUND_TRIP_TOLERANCE`, and the row is skipped
+when `forward.sacp` is absent. The two rows are one promise; the earlier case that ran only the
+reference input is merged into the second.
 
 ## IdenticalBoxesScoreOne
 

@@ -10,21 +10,50 @@ without loss and refuse what the section does not allow. This file needs no devi
 A task whose floats no short decimal states is written, printed as JSON, read back and equals
 the original bit for bit.
 
-## ASectionReadsFieldByFieldAndWritesBack
+## ASectionReadsFieldByField
 
-The full section `K_FULL_SECTION` reads into the expected fields and writes back to the same
-JSON text.
+The full section `K_FULL_SECTION` reads into the expected fields.
+
+## ASectionWritesBackToTheSameJson
+
+The task read from `K_FULL_SECTION` writes back to the same JSON text.
 
 ## AnAbsentAssignmentKeepsTheBranchPresets
 
 A section without `assignment` keeps both branch presets; one-to-one is top 7 then 1.
 
-## RefusesTheTypeAndKeysItDoesNotKnow
+## AnIoUSectionKeepsTheDefaultDistanceExponent
 
-Another type, an unknown key (`strides`), a missing `threshold` and a branch without `top_k2`
-are refused, each naming the key.
+The same section, under `iou`, reads the default distance exponent.
 
-## RefusesValuesOutOfRange
+## RefusesAnotherType
 
-A score threshold of 1.5, an exponent under `iou`, a `top_k2` above `top_k` and a negative
-`beta` are refused, each naming the key.
+A type other than `anchor_free_detection` is refused, naming `type` and the type it wants.
+
+## RefusesAnUnknownKey
+
+An unknown key (`strides`) is refused, naming it.
+
+## RefusesAMissingThreshold
+
+A suppression without `threshold` is refused, naming it.
+
+## RefusesAMissingTopK2
+
+A branch without `top_k2` is refused, naming it.
+
+## RefusesAScoreThresholdOutOfRange
+
+A score threshold of 1.5 is refused, naming the key and the value.
+
+## RefusesADistanceExponentOnIoU
+
+A distance exponent under `iou` is refused, naming `distance_exponent` and `iou`.
+
+## RefusesATopK2AboveTopK
+
+A `top_k2` of 8 above a `top_k` of 7 is refused, naming the key and the value.
+
+## RefusesANegativeBetaOnWrite
+
+Writing a task whose one-to-one `beta` is negative is refused, naming `beta`.

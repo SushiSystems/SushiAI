@@ -53,9 +53,6 @@ namespace
 
     using SushiAI::Test::ReferenceTensor;
 
-    /** @brief Holds the tolerance of hand cases whose values float32 represents exactly. */
-    constexpr float K_EXACT = 0.0f;
-
     /**
      * @brief Holds the absolute the tolerance of a decode in pixels: two float32 steps at 640: 4096
      *        times the float unit roundoff, the smallest power of two not tighter than the earlier
@@ -123,10 +120,81 @@ namespace
         return {};
     }
 
+    /** @brief Holds the anchor points and the box distances one round-trip row encodes back. */
+    struct RoundTripInput
+    {
+        std::string missing;            /**< Why the input is absent, or empty. */
+        std::vector<float> points;      /**< Anchor points, `[N, 2]`. */
+        std::vector<float> distances;   /**< Distances, `[N, 4]`. */
+    };
+
+    /** @brief Names a round-trip row: its inputs and the largest error it allows. */
+    struct RoundTripRow
+    {
+        const char* name;                 /**< Names the row. */
+        RoundTripInput (*load)();         /**< Reads the inputs of the row. */
+        float largest_error;              /**< The largest absolute error allowed. */
+    };
+
+    /** @brief Returns six hand anchors with distances float32 holds exactly. */
+    RoundTripInput load_hand_input()
+    {
+        return {{},
+                {0.5f, 0.5f, 1.5f, 0.5f, 0.5f, 1.5f},
+                {0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 0.0f, 0.5f, 3.0f, 1.5f, 1.5f, 0.0f, 4.0f}};
+    }
+
+    /** @brief Returns the 8400 anchors of the reference grid and its raw one-to-one boxes. */
+    RoundTripInput load_reference_input()
+    {
+        RoundTripInput input;
+        ReferenceFile forward(SA_TEST_FIXTURE_DIR, "yolo26/forward.sacp");
+        if (!forward.is_present())
+        {
+            input.missing = forward.reason();
+            return input;
+        }
+
+        input.missing = join_raw_boxes(forward, "one2one", input.distances);
+        input.points = make_reference_grid().points;
+        return input;
+    }
+
+    /** @brief Holds the rows of the round trip: hand values, then the reference's raw boxes. */
+    const RoundTripRow K_ROUND_TRIP_ROWS[] = {
+        {"HandValues", &load_hand_input, 0.0f},
+        {"ReferenceBoxes", &load_reference_input, K_ROUND_TRIP_TOLERANCE}};
+
+    /** @brief Returns the largest absolute difference between @p actual and @p expected. */
+    float largest_difference(const std::vector<float>& actual, const std::vector<float>& expected)
+    {
+        float largest = 0.0f;
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            largest = std::fmax(largest, std::fabs(actual[i] - expected[i]));
+
+        return largest;
+    }
+
+    /** @brief Runs a round-trip row; skipped when the row's inputs are absent. */
+    class Medium_DetectBoxesRoundTrip : public ::testing::TestWithParam<RoundTripRow>
+    {
+        protected:
+            /** @brief Reads the inputs of the row, and skips the case naming what is missing. */
+            void SetUp() override
+            {
+                input_ = GetParam().load();
+                if (!input_.missing.empty())
+                    GTEST_SKIP() << input_.missing;
+            }
+
+            /** @brief Holds the inputs of the row. */
+            RoundTripInput input_;
+    };
+
 } // namespace
 
 /** @brief Tests that decoding subtracts left and top from the point and adds right and bottom. */
-TEST(Medium_DetectBoxes, DecodesDistancesToCorners)
+TEST(Small_DetectBoxes, DecodesDistancesToCorners)
 {
     const std::vector<float> points{1.5f, 2.5f};
     const std::vector<float> distances{0.5f, 1.0f, 1.5f, 2.0f};
@@ -134,11 +202,11 @@ TEST(Medium_DetectBoxes, DecodesDistancesToCorners)
     SushiAI::Vision::Detect::Free::decode_xyxy(distances, points, boxes);
 
     const std::vector<float> expected{1.5f - 0.5f, 2.5f - 1.0f, 1.5f + 1.5f, 2.5f + 2.0f};
-    EXPECT_TRUE(near_reference(boxes, expected, K_EXACT));
+    EXPECT_EQ(boxes, expected);
 }
 
 /** @brief Tests that the centre-size decode is the corner decode's midpoint and extent. */
-TEST(Medium_DetectBoxes, DecodesDistancesToCentreAndSize)
+TEST(Small_DetectBoxes, DecodesDistancesToCentreAndSize)
 {
     const std::vector<float> points{1.5f, 2.5f};
     const std::vector<float> distances{0.5f, 1.0f, 1.5f, 2.0f};
@@ -147,11 +215,11 @@ TEST(Medium_DetectBoxes, DecodesDistancesToCentreAndSize)
 
     const std::vector<float> expected{(1.0f + 3.0f) / 2.0f, (1.5f + 4.5f) / 2.0f, 3.0f - 1.0f,
                                       4.5f - 1.5f};
-    EXPECT_TRUE(near_reference(boxes, expected, K_EXACT));
+    EXPECT_EQ(boxes, expected);
 }
 
 /** @brief Tests that the anchor points repeat for every image of a batch. */
-TEST(Medium_DetectBoxes, RepeatsTheAnchorPointsForEachImage)
+TEST(Small_DetectBoxes, RepeatsTheAnchorPointsForEachImage)
 {
     const std::vector<float> points{0.5f, 0.5f, 1.5f, 0.5f};
     const std::vector<float> distances{0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f,
@@ -161,25 +229,11 @@ TEST(Medium_DetectBoxes, RepeatsTheAnchorPointsForEachImage)
 
     const std::vector<float> expected{0.0f, 0.0f, 1.0f, 1.0f, 0.5f, 0.5f, 2.5f, 0.5f,
                                       0.5f, 0.5f, 2.5f, 2.5f, 1.0f, 0.0f, 3.0f, 2.0f};
-    EXPECT_TRUE(near_reference(boxes, expected, K_EXACT));
-}
-
-/** @brief Tests that encoding a decoded box returns the distances it was decoded from. */
-TEST(Medium_DetectBoxes, EncodeInvertsDecode)
-{
-    const std::vector<float> points{0.5f, 0.5f, 1.5f, 0.5f, 0.5f, 1.5f};
-    const std::vector<float> distances{0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 0.0f,
-                                       0.5f,  3.0f, 1.5f,  1.5f, 0.0f, 4.0f};
-    std::vector<float> boxes(12);
-    std::vector<float> recovered(12);
-    SushiAI::Vision::Detect::Free::decode_xyxy(distances, points, boxes);
-    SushiAI::Vision::Detect::Free::encode_distances(points, boxes, recovered);
-
-    EXPECT_TRUE(near_reference(recovered, distances, K_EXACT));
+    EXPECT_EQ(boxes, expected);
 }
 
 /** @brief Tests that scaling multiplies all four values of a box by its anchor's stride. */
-TEST(Medium_DetectBoxes, ScalesEachBoxByItsAnchorStride)
+TEST(Small_DetectBoxes, ScalesEachBoxByItsAnchorStride)
 {
     const std::vector<float> boxes{1.0f, 2.0f, 3.0f, 4.0f, 1.0f, 2.0f, 3.0f, 4.0f};
     const std::vector<float> strides{8.0f, 16.0f};
@@ -187,7 +241,7 @@ TEST(Medium_DetectBoxes, ScalesEachBoxByItsAnchorStride)
     SushiAI::Vision::Detect::Free::scale_boxes(boxes, strides, scaled);
 
     const std::vector<float> expected{8.0f, 16.0f, 24.0f, 32.0f, 16.0f, 32.0f, 48.0f, 64.0f};
-    EXPECT_TRUE(near_reference(scaled, expected, K_EXACT));
+    EXPECT_EQ(scaled, expected);
 }
 
 /** @brief Tests that rows which do not cover the anchors a whole number of times are refused. */
@@ -234,19 +288,20 @@ TEST(Medium_DetectBoxes, ReproducesTheReferenceOneToOneDecode)
     EXPECT_TRUE(near_reference(boxes, reference.floats(), K_DECODE_TOLERANCE));
 }
 
-/** @brief Tests that encoding the decode of the reference's raw boxes returns the raw boxes. */
-TEST(Medium_DetectBoxes, EncodeInvertsTheDecodeOfTheReferenceBoxes)
+/** @brief Tests that encoding a decoded box returns the distances it was decoded from. */
+TEST_P(Medium_DetectBoxesRoundTrip, EncodeInvertsDecode)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
-    std::vector<float> raw;
-    const std::string missing = join_raw_boxes(forward, "one2one", raw);
-    ASSERT_TRUE(missing.empty()) << missing;
+    std::vector<float> boxes(input_.distances.size());
+    std::vector<float> recovered(input_.distances.size());
+    SushiAI::Vision::Detect::Free::decode_xyxy(input_.distances, input_.points, boxes);
+    SushiAI::Vision::Detect::Free::encode_distances(input_.points, boxes, recovered);
 
-    const ReferenceGrid grid = make_reference_grid();
-    std::vector<float> boxes(raw.size());
-    std::vector<float> recovered(raw.size());
-    SushiAI::Vision::Detect::Free::decode_xyxy(raw, grid.points, boxes);
-    SushiAI::Vision::Detect::Free::encode_distances(grid.points, boxes, recovered);
-
-    EXPECT_TRUE(near_reference(recovered, raw, K_ROUND_TRIP_TOLERANCE));
+    EXPECT_LE(largest_difference(recovered, input_.distances), GetParam().largest_error);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_DetectBoxesRoundTrip,
+                         ::testing::ValuesIn(K_ROUND_TRIP_ROWS),
+                         [](const ::testing::TestParamInfo<RoundTripRow>& info)
+                         {
+                             return std::string(info.param.name);
+                         });

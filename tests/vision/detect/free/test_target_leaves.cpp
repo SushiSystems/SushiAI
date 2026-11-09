@@ -43,7 +43,6 @@ namespace
     using SushiAI::Vision::Detect::Free::Assignment;
     using SushiAI::Vision::Detect::Free::build_target_leaves;
     using SushiAI::Vision::Detect::Free::K_MIN_TARGET_SCORES_SUM;
-    using SushiAI::Vision::Detect::Free::K_SAFE_BOX;
     using SushiAI::Vision::Detect::Free::TargetLeaves;
 
     /** @brief Returns an assignment of the given extents in which no anchor is assigned. */
@@ -75,19 +74,6 @@ namespace
         return points;
     }
 } // namespace
-
-/** @brief Tests the safe box, the floor of the score sum and the sum a default leaf set holds. */
-TEST(Small_DetectTargetLeaves, TheSafeBoxIsOneCellAndTheScoreSumStartsAtItsFloor)
-{
-    const TargetLeaves leaves;
-
-    EXPECT_EQ(K_SAFE_BOX[0], 0.0f);
-    EXPECT_EQ(K_SAFE_BOX[1], 0.0f);
-    EXPECT_EQ(K_SAFE_BOX[2], 1.0f);
-    EXPECT_EQ(K_SAFE_BOX[3], 1.0f);
-    EXPECT_EQ(K_MIN_TARGET_SCORES_SUM, 1.0f);
-    EXPECT_EQ(leaves.target_scores_sum[0], K_MIN_TARGET_SCORES_SUM);
-}
 
 /** @brief Tests that every leaf has the row count of the assignment it was built from. */
 TEST(Small_DetectTargetLeaves, EveryLeafHasTheRowsOfTheAssignment)
@@ -124,18 +110,15 @@ TEST(Small_DetectTargetLeaves, RebuildingFromASmallerAssignmentKeepsNoEarlierRow
     const Assignment second = make_idle_assignment(1, 3, 2);
     SA_EXPECT_OK(build_target_leaves(second, {points, strides, 32.0f, 32.0f}, leaves));
 
-    ASSERT_EQ(leaves.box_mask.size(), 12u);
-    for (std::size_t i = 0; i < leaves.box_mask.size(); ++i)
-        EXPECT_EQ(leaves.box_mask[i], 0.0f) << "value " << i;
+    EXPECT_EQ(leaves.box_mask, std::vector<float>(12, 0.0f));
     EXPECT_EQ(leaves.target_scores_sum[0], K_MIN_TARGET_SCORES_SUM);
 }
 
-/** @brief Tests that geometry of another anchor count and an image without size are refused. */
-TEST(Small_DetectTargetLeaves, RefusesGeometryOfAnotherAnchorCountAndNoImageSize)
+/** @brief Tests that geometry of another anchor count is refused, naming the expected extents. */
+TEST(Small_DetectTargetLeaves, RefusesGeometryOfAnotherAnchorCount)
 {
     const Assignment assignment = make_idle_assignment(1, 3, 2);
     const std::vector<float> points = make_points(3);
-    const std::vector<float> strides(3, 8.0f);
     const std::vector<float> short_strides(2, 8.0f);
     TargetLeaves leaves;
 
@@ -143,6 +126,16 @@ TEST(Small_DetectTargetLeaves, RefusesGeometryOfAnotherAnchorCountAndNoImageSize
                                           leaves),
                       StatusCode::InvalidDescription, "[3, 2] anchor points and [3] strides",
                       "got 6 and 2 values");
+}
+
+/** @brief Tests that an image size that is not positive is refused. */
+TEST(Small_DetectTargetLeaves, RefusesNoImageSize)
+{
+    const Assignment assignment = make_idle_assignment(1, 3, 2);
+    const std::vector<float> points = make_points(3);
+    const std::vector<float> strides(3, 8.0f);
+    TargetLeaves leaves;
+
     SA_EXPECT_FAILURE(build_target_leaves(assignment, {points, strides, 0.0f, 32.0f}, leaves),
                       StatusCode::InvalidDescription, "positive image size");
 }

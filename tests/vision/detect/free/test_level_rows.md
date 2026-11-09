@@ -11,10 +11,10 @@ This file needs no device. The cases of `Small_DetectLevelRows` in
 from a counting array, and the two refusals. Their joined array starts at zero, so a join that
 also wrote zeros elsewhere would pass them. This file closes that gap and checks the round trip.
 
-## K_EXACT, K_UNTOUCHED and expect_values
+## K_UNTOUCHED and expect_values
 
-`K_EXACT` is the tolerance 0 of a copied value. `K_UNTOUCHED` is -7, a value no join of these
-cases writes. `expect_values` compares two arrays value for value.
+`K_UNTOUCHED` is -7, a value no join of these cases writes. `expect_values` compares two arrays
+value for value with equality, since a copied value is exact.
 
 ## AJoinKeepsTheRowsOfOtherLevels
 

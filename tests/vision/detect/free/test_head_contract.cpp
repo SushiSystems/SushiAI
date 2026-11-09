@@ -46,28 +46,6 @@ namespace
     constexpr double K_BIAS_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 } // namespace
 
-/** @brief Tests that the copy, role and branch names equal the literals checkpoints carry. */
-TEST(Small_DetectFreeHeadContract, TheNamesEqualTheLiteralsOfTheCheckpoints)
-{
-    EXPECT_EQ(K_DETECT_ONE_TO_MANY, "one2many");
-    EXPECT_EQ(K_DETECT_ONE_TO_ONE, "one2one");
-    EXPECT_EQ(K_DETECT_BOXES, "boxes");
-    EXPECT_EQ(K_DETECT_SCORES, "scores");
-    EXPECT_EQ(K_DETECT_BOX_BRANCH, "cv2");
-    EXPECT_EQ(K_DETECT_CLASS_BRANCH, "cv3");
-    EXPECT_EQ(K_DETECT_ONE_TO_ONE_BOX_BRANCH, "one2one_cv2");
-    EXPECT_EQ(K_DETECT_ONE_TO_ONE_CLASS_BRANCH, "one2one_cv3");
-}
-
-/** @brief Tests that the bias constants are the ones the class bias formula reads. */
-TEST(Small_DetectFreeHeadContract, TheBiasConstantsAreTheReferenceValues)
-{
-    EXPECT_EQ(K_DETECT_LAST_CONV_INDEX, std::size_t{2});
-    EXPECT_EQ(K_DETECT_BOX_BIAS, 1.0);
-    EXPECT_EQ(K_DETECT_OBJECTS_PER_IMAGE, 5.0);
-    EXPECT_EQ(K_DETECT_REFERENCE_IMAGE_SIDE, 640.0);
-}
-
 /** @brief Tests that a port name joins the copy, the level and the role with dots. */
 TEST(Small_DetectFreeHeadContract, ThePortNameJoinsCopyLevelAndRole)
 {
