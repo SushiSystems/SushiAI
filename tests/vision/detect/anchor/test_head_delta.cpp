@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include "anchor_delta_support.hpp"
@@ -312,6 +313,51 @@ namespace
         head.set_box(0, {0.2, -0.3, 0.15, -0.1});
         return head;
     }
+
+    /**
+     * @brief Expects the 12 slots of the two-match case to hold the deltas of two assigned slots.
+     *
+     * The assigned slots take an objectness delta of 0.5, the second class delta 1 and the rest of
+     * the head -0.5 and 0; only the best slot records its truth row and class.
+     */
+    void expect_two_slots_assigned(const IoUCase& head, std::size_t best, std::size_t further)
+    {
+        for (std::size_t position = 0; position < 12; ++position)
+        {
+            const bool assigned = position == best || position == further;
+            EXPECT_NEAR(head.delta(position, K_OBJECTNESS), assigned ? 0.5 : -0.5, K_TOLERANCE);
+            EXPECT_NEAR(head.delta(position, K_FIRST_CLASS), 0.0, K_TOLERANCE);
+            EXPECT_NEAR(head.delta(position, K_FIRST_CLASS + 1), assigned ? 1.0 : 0.0,
+                        K_TOLERANCE);
+            if (!assigned)
+                expect_box(head, position, Quad{});
+
+            EXPECT_EQ(head.result.assigned_row[position], position == best ? 0 : -1);
+            EXPECT_EQ(head.result.assigned_class[position], position == best ? 1 : -1);
+        }
+    }
+
+    /** @brief Clips each component of @p values to @p bound with its sign; returns the count. */
+    std::size_t clip_components(Quad& values, double bound)
+    {
+        std::size_t clipped = 0;
+        for (double& value : values)
+        {
+            if (std::abs(value) > bound)
+            {
+                value = value > 0.0 ? bound : -bound;
+                ++clipped;
+            }
+        }
+        return clipped;
+    }
+
+    /** @brief Expects the four box deltas of the slot at @p position to be finite. */
+    void expect_finite_box(const IoUCase& head, std::size_t position)
+    {
+        for (std::size_t entry = 0; entry < K_BOX_ENTRIES; ++entry)
+            EXPECT_TRUE(std::isfinite(head.delta(position, entry))) << "entry " << entry;
+    }
 } // namespace
 
 /** @brief Tests that two anchors above the match threshold are both assigned and written. */
@@ -332,19 +378,8 @@ TEST(Small_DetectAnchorDeltaIou, TwoAnchorsAboveTheMatchThresholdAreBothAssigned
                expect_logit_delta(head.decode(0, 1, 1), truth, head.raw_box(further), 0.75));
 
     EXPECT_EQ(head.result.assignments, 2);
-    for (std::size_t position = 0; position < 12; ++position)
-    {
-        const bool assigned = position == best || position == further;
-        EXPECT_NEAR(head.delta(position, K_OBJECTNESS), assigned ? 0.5 : -0.5, K_TOLERANCE);
-        EXPECT_NEAR(head.delta(position, K_FIRST_CLASS), 0.0, K_TOLERANCE);
-        EXPECT_NEAR(head.delta(position, K_FIRST_CLASS + 1), assigned ? 1.0 : 0.0, K_TOLERANCE);
-        if (!assigned)
-            expect_box(head, position, Quad{});
-
-        // Only the slot of the best anchor records its truth.
-        EXPECT_EQ(head.result.assigned_row[position], position == best ? 0 : -1);
-        EXPECT_EQ(head.result.assigned_class[position], position == best ? 1 : -1);
-    }
+    // Only the slot of the best anchor records its truth.
+    expect_two_slots_assigned(head, best, further);
 }
 
 /** @brief Tests that the IoU sum takes the IoU of every assigned slot, further ones included. */
@@ -485,15 +520,7 @@ TEST(Small_DetectAnchorDeltaIou, ABoxDeltaBeyondTheBoundIsClipped)
     const std::size_t best = head.position(0, 1, 0);
     Quad expected = expect_logit_delta(head.decode(0, 1, 0), box_of_corners(32.0, 0.0, 64.0, 32.0),
                                      head.raw_box(best), 0.75);
-    std::size_t beyond = 0;
-    for (double& value : expected)
-    {
-        if (std::abs(value) > bound)
-        {
-            value = value > 0.0 ? bound : -bound;
-            ++beyond;
-        }
-    }
+    const std::size_t beyond = clip_components(expected, bound);
     // The case has to hold a component on each side of the bound to show the clip.
     ASSERT_GT(beyond, 0u);
     ASSERT_LT(beyond, K_BOX_ENTRIES);
@@ -511,8 +538,7 @@ TEST(Small_DetectAnchorDeltaIou, ANonFiniteBoxComponentAddsZero)
     ASSERT_TRUE(status_is_ok(head.compute()));
 
     EXPECT_EQ(head.delta(best, K_WIDTH), 0.0f);
-    for (std::size_t entry = 0; entry < K_BOX_ENTRIES; ++entry)
-        EXPECT_TRUE(std::isfinite(head.delta(best, entry))) << "entry " << entry;
+    expect_finite_box(head, best);
     EXPECT_NEAR(head.delta(best, K_OBJECTNESS), 0.5, K_TOLERANCE);
 }
 
@@ -645,6 +671,58 @@ namespace
             EXPECT_NEAR(actual[index], expected[index], K_DELTA_TOLERANCE) << "entry " << index;
     }
 
+    /**
+     * @brief Returns a zero delta of @p head with the objectness entry of the first @p count
+     *        slots set to @p value.
+     */
+    std::vector<float> make_objectness_deltas(const DeltaCase& head, std::size_t count,
+                                              float value)
+    {
+        std::vector<float> deltas(head.head.size(), 0.0f);
+        for (std::size_t position = 0; position < count; ++position)
+            deltas[position * head.entries() + K_OBJECTNESS] = value;
+        return deltas;
+    }
+
+    /** @brief Expects only slot @p assigned of @p count slots to hold truth row 0 and class 1. */
+    void expect_only_slot_assigned(const DeltaCase& head, std::size_t count, std::size_t assigned)
+    {
+        for (std::size_t position = 0; position < count; ++position)
+        {
+            EXPECT_EQ(head.result.assigned_row[position], position == assigned ? 0 : -1);
+            EXPECT_EQ(head.result.assigned_class[position], position == assigned ? 1 : -1);
+        }
+    }
+
+    /** @brief Expects every entry of @p rows to be -1, the mark of a slot with no truth. */
+    void expect_unassigned(const std::vector<std::int64_t>& rows)
+    {
+        for (const std::int64_t row : rows)
+            EXPECT_EQ(row, -1);
+    }
+
+    /** @brief Draws the head's logits from the seeded generator, uniform in (-3, 3). */
+    void fill_seeded_logits(DeltaCase& head)
+    {
+        std::mt19937 generator(K_SEED);
+        std::uniform_real_distribution<float> logits(-3.0f, 3.0f);
+        for (float& value : head.head)
+            value = logits(generator);
+    }
+
+    /** @brief Returns the deltas of an empty truth: @p weight times minus the objectness. */
+    std::vector<float> make_empty_truth_deltas(const DeltaCase& head, double weight)
+    {
+        std::vector<float> expected(head.head.size(), 0.0f);
+        for (std::size_t index = K_OBJECTNESS; index < expected.size(); index += head.entries())
+        {
+            const double objectness =
+                1.0 / (1.0 + std::exp(-static_cast<double>(head.head[index])));
+            expected[index] = static_cast<float>(weight * (0.0 - objectness));
+        }
+        return expected;
+    }
+
 } // namespace
 
 /** @brief Tests that one truth writes its cell and slot with k = (2 - tw * th) * 0.75. */
@@ -670,9 +748,7 @@ TEST(Small_DetectAnchorDelta, OneTruthWritesTheCellAndSlotOfItsBestAnchor)
     ASSERT_TRUE(status_is_ok(head.compute()));
 
     const double k = (2.0 - 0.5 * 0.5) * 0.75;
-    std::vector<float> expected(head.head.size(), 0.0f);
-    for (std::size_t position = 0; position < 12; ++position)
-        expected[position * head.entries() + K_OBJECTNESS] = -0.5f;
+    std::vector<float> expected = make_objectness_deltas(head, 12, -0.5f);
     float* slot = expected.data() + assigned * head.entries();
     slot[K_X] = static_cast<float>(k * (0.5 - 1.0));
     slot[K_Y] = static_cast<float>(k * (0.5 - 0.0));
@@ -684,11 +760,7 @@ TEST(Small_DetectAnchorDelta, OneTruthWritesTheCellAndSlotOfItsBestAnchor)
     expect_deltas(head.result.delta, expected);
 
     EXPECT_EQ(head.result.assignments, 1);
-    for (std::size_t position = 0; position < 12; ++position)
-    {
-        EXPECT_EQ(head.result.assigned_row[position], position == assigned ? 0 : -1);
-        EXPECT_EQ(head.result.assigned_class[position], position == assigned ? 1 : -1);
-    }
+    expect_only_slot_assigned(head, 12, assigned);
 }
 
 /** @brief Tests that the IoU sum takes the IoU of the assigned slot's box with its truth. */
@@ -720,18 +792,12 @@ TEST(Small_DetectAnchorDelta, ATruthWhoseBestAnchorAnotherHeadOwnsAssignsNothing
 
     ASSERT_TRUE(status_is_ok(head.compute()));
 
-    std::vector<float> expected(head.head.size(), 0.0f);
-    for (std::size_t position = 0; position < 4; ++position)
-        expected[position * head.entries() + K_OBJECTNESS] = -0.5f;
-    expect_deltas(head.result.delta, expected);
+    expect_deltas(head.result.delta, make_objectness_deltas(head, 4, -0.5f));
 
     EXPECT_EQ(head.result.assignments, 0);
     EXPECT_EQ(head.result.iou_sum, 0.0);
-    for (std::size_t position = 0; position < 4; ++position)
-    {
-        EXPECT_EQ(head.result.assigned_row[position], -1);
-        EXPECT_EQ(head.result.assigned_class[position], -1);
-    }
+    expect_unassigned(head.result.assigned_row);
+    expect_unassigned(head.result.assigned_class);
 }
 
 /** @brief Tests that the ignore rule needs a class probability above 0.25. */
@@ -809,23 +875,13 @@ TEST(Small_DetectAnchorDelta, AnEmptyTruthListGivesObjectnessDeltasAlone)
     DeltaCase head = make_case({2, 2, 2}, 2, layout, 0);
     head.training.object_weight = 2.0f;
 
-    std::mt19937 generator(K_SEED);
-    std::uniform_real_distribution<float> logits(-3.0f, 3.0f);
-    for (float& value : head.head)
-        value = logits(generator);
+    fill_seeded_logits(head);
 
     ASSERT_TRUE(status_is_ok(head.compute()));
 
-    std::vector<float> expected(head.head.size(), 0.0f);
-    for (std::size_t index = K_OBJECTNESS; index < expected.size(); index += head.entries())
-    {
-        const double objectness = 1.0 / (1.0 + std::exp(-static_cast<double>(head.head[index])));
-        expected[index] = static_cast<float>(2.0 * (0.0 - objectness));
-    }
-    expect_deltas(head.result.delta, expected);
+    expect_deltas(head.result.delta, make_empty_truth_deltas(head, 2.0));
     EXPECT_EQ(head.result.assignments, 0);
-    for (const std::int64_t row : head.result.assigned_row)
-        EXPECT_EQ(row, -1);
+    expect_unassigned(head.result.assigned_row);
 }
 
 /** @brief Tests that a padding row of the truth batch is read as no truth. */
@@ -977,6 +1033,19 @@ namespace
         }
         return made;
     }
+
+    /** @brief Expects the best slot's box deltas to equal @p expected; the near slot's must be 0. */
+    void expect_box_deltas_of_best_slot(const ActivatedCase& head, const Quad& expected)
+    {
+        for (std::size_t entry = 0; entry < K_BOX_ENTRIES; ++entry)
+        {
+            const double bound =
+                K_BOX_ABSOLUTE_TOLERANCE + K_BOX_RELATIVE_TOLERANCE * std::abs(expected[entry]);
+            EXPECT_NEAR(head.delta(K_BEST_SLOT, entry), expected[entry], bound)
+                << "entry " << entry;
+            EXPECT_EQ(head.delta(K_NEAR_SLOT, entry), 0.0) << "entry " << entry;
+        }
+    }
 } // namespace
 
 /** @brief Tests that an ignored slot of IoU 0.8 and objectness 0.3 gets a delta of 0.5. */
@@ -1076,14 +1145,7 @@ TEST(Small_DetectAnchorDeltaActivated, TheBoxDeltaIsTheWeightedGradientWithNoSiz
     const Quad expected = expect_box_delta(head.decode(K_BEST_SLOT), truth_box(), 0.75);
     // A width gradient this large would show a factor on the width entry.
     ASSERT_GT(std::abs(expected[K_WIDTH]), K_WIDTH_GRADIENT_FLOOR);
-    for (std::size_t entry = 0; entry < K_BOX_ENTRIES; ++entry)
-    {
-        const double bound =
-            K_BOX_ABSOLUTE_TOLERANCE + K_BOX_RELATIVE_TOLERANCE * std::abs(expected[entry]);
-        EXPECT_NEAR(head.delta(K_BEST_SLOT, entry), expected[entry], bound)
-            << "entry " << entry;
-        EXPECT_EQ(head.delta(K_NEAR_SLOT, entry), 0.0) << "entry " << entry;
-    }
+    expect_box_deltas_of_best_slot(head, expected);
 }
 
 /** @brief Tests that the class deltas read the published entries as probabilities. */
@@ -1112,9 +1174,9 @@ namespace
     using Box = std::array<float, 4>;
 
     /**
-     * @brief Holds the absolute the tolerance of the hand cases, relative, with the same value as
-     *        floor: 256 times the float unit roundoff, the smallest power of two not tighter than
-     *        the earlier 1e-5.
+     * @brief Holds the tolerance of the hand cases, used as the absolute floor and as the factor
+     *        of the relative part: 256 times the float unit roundoff, the smallest power of two
+     *        not tighter than the earlier 1e-5.
      */
     constexpr double K_HAND_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
@@ -1235,6 +1297,26 @@ namespace
     {
         EXPECT_NEAR(value, expected, K_HAND_TOLERANCE + K_HAND_TOLERANCE * std::abs(expected));
     }
+
+    /** @brief Expects the four box deltas to equal the dumped ones, each to a relative bound. */
+    void expect_dumped_deltas(const Quad& delta, const Quad& dumped)
+    {
+        for (std::size_t entry = 0; entry < K_BOX_ENTRIES; ++entry)
+            EXPECT_NEAR(delta[entry], dumped[entry], K_DUMP_RELATIVE * std::abs(dumped[entry]))
+                << "entry " << entry;
+    }
+
+    /** @brief Runs the compatible form on the dumped cell the parameter indexes. */
+    class Small_DetectAnchorDeltaDumped : public ::testing::TestWithParam<std::size_t>
+    {
+
+    };
+
+    /** @brief Names a row by the index of its cell. */
+    std::string dumped_cell_name(const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return "Cell" + std::to_string(info.param);
+    }
 } // namespace
 
 /** @brief Tests that options left at their default take the analytic form. */
@@ -1317,44 +1399,22 @@ TEST(Small_DetectAnchorDeltaGradient, TheCompatibleFormSimplifiesTheAspectTerm)
     expect_hand_value(analytic[K_HEIGHT], kept * 1.25 - full * 0.2);
 }
 
-/** @brief Tests the compatible form against the twelve dumped deltas of the report. */
-TEST(Small_DetectAnchorDeltaGradient, TheCompatibleFormReproducesTheDumpedDeltas)
+/** @brief Tests the compatible form against the dumped deltas of one cell of the report. */
+TEST_P(Small_DetectAnchorDeltaDumped, TheCompatibleFormReproducesTheDumpedDeltas)
 {
-    for (std::size_t cell = 0; cell < K_DUMPED_CELLS.size(); ++cell)
-    {
-        const DumpedCell& dumped = K_DUMPED_CELLS[cell];
-        GradientCase head =
-            make_case(dumped.box, dumped.corners, BoxGradient::DarknetCompatible);
-        // The head the cells were dumped from: yolov7-tiny, whose division here is by 1.
-        head.training.box_weight = 0.05f;
-        head.training.max_delta = 2.0f;
-        head.training.thresholds.match_threshold = 0.2f;
-        head.training.objectness_target = ObjectnessTarget::BestIoU;
-
-        SA_ASSERT_OK_AND_ASSIGN(const Quad delta, head.compute());
-
-        EXPECT_NEAR(head.result.iou_sum, dumped.iou, K_DUMP_IOU_TOLERANCE) << "cell " << cell;
-        for (std::size_t entry = 0; entry < K_BOX_ENTRIES; ++entry)
-        {
-            EXPECT_NEAR(delta[entry], dumped.delta[entry],
-                        K_DUMP_RELATIVE * std::abs(dumped.delta[entry]))
-                << "cell " << cell << ", entry " << entry;
-        }
-    }
-}
-
-/** @brief Tests that the analytic form does not give the dumped size deltas. */
-TEST(Small_DetectAnchorDeltaGradient, TheAnalyticFormDepartsFromTheDumpedSizeDeltas)
-{
-    const DumpedCell& dumped = K_DUMPED_CELLS[0];
-    GradientCase head = make_case(dumped.box, dumped.corners, BoxGradient::Analytic);
+    const DumpedCell& dumped = K_DUMPED_CELLS[GetParam()];
+    GradientCase head = make_case(dumped.box, dumped.corners, BoxGradient::DarknetCompatible);
+    // The head the cells were dumped from: yolov7-tiny, whose division here is by 1.
     head.training.box_weight = 0.05f;
+    head.training.max_delta = 2.0f;
+    head.training.thresholds.match_threshold = 0.2f;
+    head.training.objectness_target = ObjectnessTarget::BestIoU;
 
     SA_ASSERT_OK_AND_ASSIGN(const Quad delta, head.compute());
 
-    // The overlap part of the size is halved, which moves both entries by tens of percent.
-    EXPECT_GT(std::abs(delta[K_WIDTH] - dumped.delta[K_WIDTH]),
-              0.1 * std::abs(dumped.delta[K_WIDTH]));
-    EXPECT_GT(std::abs(delta[K_HEIGHT] - dumped.delta[K_HEIGHT]),
-              0.1 * std::abs(dumped.delta[K_HEIGHT]));
+    EXPECT_NEAR(head.result.iou_sum, dumped.iou, K_DUMP_IOU_TOLERANCE);
+    expect_dumped_deltas(delta, dumped.delta);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorDeltaDumped, ::testing::Values(0, 1, 2),
+                         dumped_cell_name);

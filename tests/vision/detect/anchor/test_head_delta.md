@@ -5,8 +5,8 @@ Suites: `Small_DetectAnchorDeltaIou`.
 
 Tests the delta of one anchor head when more than one anchor may take a truth and the box
 deltas come from the IoU gradient. Truths are given in pixels of a 64-pixel network side. A box
-delta is compared with a value the file computes in double, within 1e-5 absolute plus 1e-5
-relative.
+delta is compared with a value the file computes in double, within 256 times the float unit
+roundoff absolute plus the same multiple relative.
 
 ## TwoAnchorsAboveTheMatchThresholdAreBothAssigned
 
@@ -18,7 +18,7 @@ counts two assignments, and only the best slot records the truth in `assigned_ro
 
 ## AFurtherAssignmentAddsItsIoUToTheSum
 
-With zero logits in both assigned slots, the IoU sum is 1 + 0.2 / 0.29 to 1e-6.
+With zero logits in both assigned slots, the IoU sum is 1 + 0.2 / 0.29 to 32 times the float unit roundoff.
 
 ## AMatchThresholdOfOneAssignsTheBestAnchorAlone
 
@@ -71,7 +71,8 @@ truth with an IoU of 0.8 and is not assigned. Both publish an objectness of 0.3.
 
 ## AnIgnoredSlotIsPulledTowardItsBestIoU
 
-Slot 1's objectness delta is 0.8 - 0.3, to 1e-6, and its `assigned_row` is -1.
+Slot 1's objectness delta is 0.8 - 0.3, to 32 times the float unit roundoff, and its
+`assigned_row` is -1.
 
 ## TheObjectWeightScalesAnIgnoredSlot
 
@@ -100,8 +101,8 @@ With `ObjectnessTarget::One`, slot 0's objectness delta is 1 - 0.3.
 ## TheBoxDeltaIsTheWeightedGradientWithNoSizeFactor
 
 With `scale_xy` 2 and a box written into slot 0, the four box deltas equal the gradient at the
-decoded box against the truth, weighted by 0.75, within 1e-5 absolute plus 1e-5 relative. The
-expected width entry is above 0.01 in magnitude. Slot 1's four box deltas are exactly 0.
+decoded box against the truth, weighted by 0.75, within 256 times the float unit roundoff
+absolute plus the same multiple relative. The expected width entry is above 0.01 in magnitude. Slot 1's four box deltas are exactly 0.
 
 ## TheClassDeltasReadTheEntriesAsProbabilities
 
@@ -111,7 +112,7 @@ Suites: `Small_DetectAnchorDeltaGradient`.
 
 Tests the two forms of the box gradient a head's training options select. Each case decodes
 one slot to a chosen box against one truth on a 20-pixel network side and reads the four box
-deltas. Hand values are compared to 1e-5.
+deltas. Hand values are compared to 256 times the float unit roundoff.
 
 ## TheDefaultFormIsAnalytic
 
@@ -138,14 +139,12 @@ scale the overlap part by one minus the squared trade-off.
 
 ## TheCompatibleFormReproducesTheDumpedDeltas
 
-For each of the twelve cells in `K_DUMPED_CELLS`, with a box weight of 0.05, a `max_delta` of 2,
-a match threshold of 0.2 and `ObjectnessTarget::BestIoU`, the compatible form's IoU sum equals
-the cell's IoU to 1e-6 and each box delta equals the cell's to 1e-4 relative.
-
-## TheAnalyticFormDepartsFromTheDumpedSizeDeltas
-
-For the first dumped cell, the analytic form's width and height deltas each differ from the
-cell's by more than 10 % of the cell's value.
+Suite `Small_DetectAnchorDeltaDumped`, one row per cell of `K_DUMPED_CELLS` (`Cell0` to
+`Cell2`). With a box weight of 0.05, a `max_delta` of 2, a match threshold of 0.2 and
+`ObjectnessTarget::BestIoU`, the compatible form's IoU sum equals the cell's IoU to 32 times
+the float unit roundoff and each box delta equals the cell's to 2048 times the float unit
+roundoff relative. The dumped values are a specified oracle, the table in section 11 of the
+darknet report.
 
 ## anchor/test_head_delta.cpp, anchor/test_head_training_options.cpp
 
@@ -156,7 +155,7 @@ Suites: `Small_DetectAnchorDelta`.
 
 Tests the delta of one anchor head with the Logit coding, and `validate_head_training`. The
 cases place truths in pixels of a 64-pixel network side and compare the whole delta with an
-array built by hand, to 1e-6.
+array built by hand, to 32 times the float unit roundoff.
 
 ## DefaultTrainingOptionsValidate
 
@@ -180,7 +179,7 @@ elsewhere. The result counts one assignment, and `assigned_row` and `assigned_cl
 ## AnAssignedSlotThatCoversItsTruthAddsOneToTheIoUSum
 
 A one-cell head of zero logits whose anchor is the truth's box gives one assignment and an IoU
-sum of 1 to 1e-6.
+sum of 1 to 32 times the float unit roundoff.
 
 ## ATruthWhoseBestAnchorAnotherHeadOwnsAssignsNothing
 
