@@ -1,7 +1,7 @@
 # tests/layers/nn/test_module_list.cpp
 
 
-Suites: `Small_ModuleList`, `Small_ModuleListDeathTest`.
+Suites: `Small_ModuleList`, `Small_ModuleListEnumeration`, `Medium_ModuleListDeathTest`.
 
 Tests ModuleList: its storage, its index names and its place in the state walk.
 
@@ -26,29 +26,26 @@ a parameter.
 
 `parameter_names` collects what `NN::for_each_parameter` yields as "name:extents" strings.
 
+## append_linears and the enumerations
+
+`append_linears` appends a count of 4 to 4 layers to a list; the growing case uses it in place of a loop in its
+body. `through_begin_and_end` and `through_visit_children` return a list's children with their indices.
+
 ## read_past_the_end
 
 `read_past_the_end` builds a list of two layers and reads `list[2]`. It is the statement of
 the death test.
-
-## ANewListIsEmpty
-
-A new list has size 0, `visit_children` calls its visitor zero times, and `begin()` equals
-`end()`.
 
 ## PushBackAppendsInOrder
 
 After two `push_back` calls the size is 2, element 0 has 8 output features and element 1
 has 3. Indexing a const reference to the list reads element 1's 8 input features.
 
-## IterationFollowsIndexOrder
+## Small_ModuleListEnumeration.ChildrenComeInIndexOrder
 
-A range-for over three layers reads the output widths 8, 3 and 1.
-
-## VisitChildrenPairsEachChildWithItsIndex
-
-`visit_children` over two layers passes the indices 0 and 1 with the addresses of `list[0]` and
-`list[1]`.
+Two rows, `ThroughBeginAndEnd` and `ThroughVisitChildren`. A list of three layers hands out each
+child with its index, 0, 1 and 2, in index order, and each child is the one `operator[]` returns at
+that index.
 
 ## TheWalkNamesChildrenByIndex
 
@@ -74,5 +71,5 @@ graph, and its bias keeps its leaf in the graph.
 
 ## AnIndexPastTheEndIsFatal
 
-The case is in the suite `Small_ModuleListDeathTest`. `list[2]` on a list of two stops the
+The case is in the suite `Medium_ModuleListDeathTest`, because a death test starts a child process. `list[2]` on a list of two stops the
 process with a report containing "index 2" and "holds 2 children".

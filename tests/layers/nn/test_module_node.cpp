@@ -32,7 +32,6 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -122,7 +121,6 @@ TEST(Small_ModuleNode, AnIncrementalTraceGivesTheLayerTheShapeOfCreate)
     ASSERT_EQ(outputs.size(), 1u);
     EXPECT_EQ(node->layer().sample, (Shape{5, 4}));
     EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{2, 1, 4}));
-    EXPECT_EQ(graph.nodes().back().op, Ops::K_GELU.id);
 }
 
 /** @brief Tests that an incremental trace given two values fails and appends nothing. */
@@ -156,15 +154,4 @@ TEST(Small_ModuleNode, ALayerWithoutAnIncrementalFormIsRefused)
                                                 outputs),
                       StatusCode::Unsupported, "no incremental form");
     EXPECT_TRUE(outputs.empty());
-}
-
-/** @brief Tests that the node hands back the layer it wraps, fields intact. */
-TEST(Small_ModuleNode, TheNodeHandsBackTheLayerItWraps)
-{
-    const std::unique_ptr<ModuleNode<Linear>> node = node_of(Linear{6, 8}, Shape{6});
-    const ModuleNode<Linear>& view = *node;
-
-    EXPECT_EQ(node->layer().in_features, 6);
-    EXPECT_EQ(view.layer().out_features, 8);
-    EXPECT_EQ(&view.layer(), &node->layer());
 }

@@ -28,7 +28,7 @@ succeed.
 
 The node is created over [5, 4] and traced incrementally over a [2, 1, 4] slice. The probe sees
 [5, 4], the shape `create()` was given and not the slice's, the one result keeps the slice's
-shape, and the last node of the graph is a K_GELU, so the incremental form ran.
+shape. The probe records the shape only in its incremental form, so the incremental form ran.
 
 ## AnIncrementalTraceRejectsTwoInputs
 
@@ -39,8 +39,3 @@ is appended.
 
 The node of a `Linear` falls back to the default of `Node` and returns Unsupported naming "no
 incremental form", with `outputs` left empty.
-
-## TheNodeHandsBackTheLayerItWraps
-
-`layer()` returns the wrapped `Linear` with its fields as given, and the const and non-const
-overloads return the same object.

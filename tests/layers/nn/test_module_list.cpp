@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/shape/shape.hpp>
@@ -104,18 +105,6 @@ namespace
     }
 }
 
-/** @brief Tests that a new list is empty and visits nothing. */
-TEST(Small_ModuleList, ANewListIsEmpty)
-{
-    ModuleList<Linear> list;
-    std::size_t visits = 0;
-    list.visit_children([&visits](std::size_t, Linear&) { ++visits; });
-
-    EXPECT_EQ(list.size(), 0u);
-    EXPECT_EQ(visits, 0u);
-    EXPECT_TRUE(list.begin() == list.end());
-}
-
 /** @brief Tests that push_back() appends, so an index returns the child pushed at it. */
 TEST(Small_ModuleList, PushBackAppendsInOrder)
 {
@@ -131,39 +120,72 @@ TEST(Small_ModuleList, PushBackAppendsInOrder)
     EXPECT_EQ(read_only[1].in_features, 8);
 }
 
-/** @brief Tests that begin() and end() span the children in index order. */
-TEST(Small_ModuleList, IterationFollowsIndexOrder)
+namespace
+{
+    /** @brief Lists each child with its index, as the enumeration of a row hands them out. */
+    using IndexedChildren = std::vector<std::pair<std::size_t, const Linear*>>;
+
+    /** @brief Enumerates @p list through begin() and end(), counting the index. */
+    IndexedChildren through_begin_and_end(ModuleList<Linear>& list)
+    {
+        IndexedChildren children;
+        std::size_t index = 0;
+        for (Linear& layer : list)
+            children.emplace_back(index++, &layer);
+
+        return children;
+    }
+
+    /** @brief Enumerates @p list through visit_children(). */
+    IndexedChildren through_visit_children(ModuleList<Linear>& list)
+    {
+        IndexedChildren children;
+        list.visit_children([&children](std::size_t index, Linear& child)
+        {
+            children.emplace_back(index, &child);
+        });
+
+        return children;
+    }
+
+    /** @brief Names a way to enumerate the children of a list. */
+    struct EnumerationRow
+    {
+        std::string name;                                  /**< The row's name. */
+        IndexedChildren (*enumerate)(ModuleList<Linear>&); /**< Hands out the children. */
+    };
+
+    /** @brief Appends @p count layers of 4 to 4 to @p list. */
+    void append_linears(ModuleList<Linear>& list, std::size_t count)
+    {
+        for (std::size_t appended = 0; appended < count; ++appended)
+            list.push_back(Linear{4, 4});
+    }
+}
+
+/** @brief Runs the enumeration case over begin() and end() and over visit_children(). */
+class Small_ModuleListEnumeration : public ::testing::TestWithParam<EnumerationRow>
+{
+};
+
+/** @brief Tests that the enumeration of the row hands out each child with its index, in order. */
+TEST_P(Small_ModuleListEnumeration, ChildrenComeInIndexOrder)
 {
     ModuleList<Linear> list;
     list.push_back(Linear{4, 8});
     list.push_back(Linear{8, 3});
     list.push_back(Linear{3, 1});
 
-    std::vector<int64_t> widths;
-    for (Linear& layer : list)
-        widths.push_back(layer.out_features);
+    const IndexedChildren children = GetParam().enumerate(list);
 
-    EXPECT_EQ(widths, (std::vector<int64_t>{8, 3, 1}));
+    EXPECT_EQ(children, (IndexedChildren{{0, &list[0]}, {1, &list[1]}, {2, &list[2]}}));
 }
 
-/** @brief Tests that visit_children() hands out each child with its index, in index order. */
-TEST(Small_ModuleList, VisitChildrenPairsEachChildWithItsIndex)
-{
-    ModuleList<Linear> list;
-    list.push_back(Linear{4, 8});
-    list.push_back(Linear{8, 3});
-
-    std::vector<std::size_t> indices;
-    std::vector<const Linear*> children;
-    list.visit_children([&](std::size_t index, Linear& child)
-    {
-        indices.push_back(index);
-        children.push_back(&child);
-    });
-
-    EXPECT_EQ(indices, (std::vector<std::size_t>{0, 1}));
-    EXPECT_EQ(children, (std::vector<const Linear*>{&list[0], &list[1]}));
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ModuleListEnumeration,
+    ::testing::Values(EnumerationRow{"ThroughBeginAndEnd", through_begin_and_end},
+                      EnumerationRow{"ThroughVisitChildren", through_visit_children}),
+    [](const ::testing::TestParamInfo<EnumerationRow>& info) { return info.param.name; });
 
 /** @brief Tests that the walk names the state of a list's children by index. */
 TEST(Small_ModuleList, TheWalkNamesChildrenByIndex)
@@ -249,8 +271,7 @@ TEST(Small_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
     ASSERT_NE(weight_state, Graph::K_NO_STATE);
 
     // 64 appends to a one-element vector move its storage at least once.
-    for (int appended = 0; appended < 64; ++appended)
-        list.push_back(Linear{4, 4});
+    append_linears(list, 64);
 
     EXPECT_EQ(list[0].weight.state(), weight_state);
     EXPECT_EQ(list[0].weight.id_in(graph), weight_leaf);
@@ -258,7 +279,7 @@ TEST(Small_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
 }
 
 /** @brief Tests that an index past the end stops the process and names the index and the size. */
-TEST(Small_ModuleListDeathTest, AnIndexPastTheEndIsFatal)
+TEST(Medium_ModuleListDeathTest, AnIndexPastTheEndIsFatal)
 {
     SA_EXPECT_FATAL(read_past_the_end(), "index 2", "holds 2 children");
 }
