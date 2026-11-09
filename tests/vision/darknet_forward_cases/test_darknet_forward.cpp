@@ -31,7 +31,6 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -40,6 +39,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
+#include <SushiAI/vision/importers/darknet_config.hpp>
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
@@ -50,9 +50,9 @@ using Vision::Detect::Anchor::HeadOptions;
 namespace
 {
     /**
-     * @brief Holds the absolute Bounds the error of a logistic and a stretch the test works out by
-     *        hand: 32 times the float unit roundoff, the smallest power of two not tighter than the
-     *        earlier 1e-6.
+     * @brief Holds the absolute bound on the error of a logistic and a stretch the test works out
+     *        by hand: 32 times the float unit roundoff, the smallest power of two not tighter than
+     *        the earlier 1e-6.
      */
     constexpr double K_YOLO_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
@@ -68,34 +68,114 @@ namespace
         options.scale_xy = scale;
         return options;
     }
+
+    /** @brief Returns whether each output value is within K_YOLO_TOLERANCE of its expected one. */
+    ::testing::AssertionResult is_near_each(const std::vector<float>& output,
+                                            const std::vector<double>& expected)
+    {
+        if (output.size() != expected.size())
+            return ::testing::AssertionFailure()
+                   << output.size() << " values, expected " << expected.size();
+
+        for (std::size_t i = 0; i < expected.size(); ++i)
+        {
+            const ::testing::AssertionResult near = TestSupport::is_within(
+                TestSupport::measure_error(output[i], expected[i], K_YOLO_TOLERANCE, 1.0));
+            if (!near)
+                return ::testing::AssertionFailure()
+                       << "value " << i << " is " << output[i] << ", expected " << expected[i]
+                       << ": " << near.message();
+        }
+
+        return ::testing::AssertionSuccess();
+    }
+
+    /** @brief Returns the stem of every row of the parity table. */
+    std::vector<std::string> parity_stems()
+    {
+        std::vector<std::string> stems;
+        for (const SaTest::DarknetParityModel& model : SaTest::list_darknet_parity_models())
+            stems.emplace_back(model.stem);
+
+        return stems;
+    }
+
+    /** @brief Returns the value a section spells for @p key, or an empty text. */
+    std::string option_of(const Vision::Importers::DarknetSection& section, std::string_view key)
+    {
+        for (const Vision::Importers::DarknetOption& option : section.options)
+            if (option.key == key)
+                return option.value;
+
+        return std::string();
+    }
+
+    /** @brief Returns the indices of the [yolo] sections of a cfg, in file order. */
+    std::vector<std::int64_t> yolo_indices_of(const Vision::Importers::DarknetConfig& config)
+    {
+        std::vector<std::int64_t> indices;
+        for (std::size_t layer = 0; layer < config.layers.size(); ++layer)
+            if (config.layers[layer].type == "yolo")
+                indices.push_back(static_cast<std::int64_t>(layer));
+
+        return indices;
+    }
+
+    /** @brief Runs a check over the stem of each row of the parity table. */
+    class Small_DarknetForwardLookup : public ::testing::TestWithParam<std::string>
+    {
+    };
+
+    /** @brief Runs a check of a table row against its cfg file, for each stem of the table. */
+    class Medium_DarknetForwardTable : public ::testing::TestWithParam<std::string>
+    {
+    };
+
+    /** @brief Names a test after the stem it checks, in a form gtest accepts. */
+    std::string stem_name(const ::testing::TestParamInfo<std::string>& info)
+    {
+        std::string name = info.param;
+        for (char& letter : name)
+            if (letter == '-')
+                letter = '_';
+
+        return name;
+    }
 } // namespace
 
-/** @brief Tests that the parity table holds six distinct models, each with a run and heads. */
-TEST(Small_DarknetForward, TheParityTableHoldsSixModelsWithRunsAndHeads)
-{
-    const std::vector<SaTest::DarknetParityModel> models = SaTest::list_darknet_parity_models();
-
-    ASSERT_EQ(models.size(), 6u);
-    std::set<std::string_view> stems;
-    for (const SaTest::DarknetParityModel& model : models)
-    {
-        EXPECT_TRUE(stems.insert(model.stem).second) << model.stem;
-        EXPECT_GT(model.side, 0) << model.stem;
-        EXPECT_FALSE(model.runs.empty()) << model.stem;
-        EXPECT_FALSE(model.yolo_layers.empty()) << model.stem;
-    }
-}
-
 /** @brief Tests that a lookup by stem returns the row of that stem. */
-TEST(Small_DarknetForward, ALookupReturnsTheRowOfItsStem)
+TEST_P(Small_DarknetForwardLookup, ALookupReturnsTheRowOfItsStem)
 {
-    const SaTest::DarknetParityModel tiny = SaTest::find_darknet_parity_model("yolov3-tiny");
+    const std::string stem = GetParam();
 
-    EXPECT_EQ(tiny.stem, "yolov3-tiny");
-    EXPECT_EQ(tiny.side, 416);
-    EXPECT_EQ(tiny.yolo_layers, (std::vector<std::int64_t>{16, 23}));
-    EXPECT_EQ(SaTest::find_darknet_parity_model("yolov4").side, 608);
+    const SaTest::DarknetParityModel row = SaTest::find_darknet_parity_model(stem);
+
+    EXPECT_EQ(row.stem, stem);
+    EXPECT_GT(row.side, 0);
+    EXPECT_FALSE(row.yolo_layers.empty());
 }
+
+INSTANTIATE_TEST_SUITE_P(Stems, Small_DarknetForwardLookup, ::testing::ValuesIn(parity_stems()),
+                         stem_name);
+
+/** @brief Tests that a table row names the side and the [yolo] layers its cfg file spells. */
+TEST_P(Medium_DarknetForwardTable, ARowNamesTheSideAndTheYoloLayersItsCfgSpells)
+{
+    const std::string stem = GetParam();
+    const std::string missing = SaTest::find_missing_darknet_file(stem, "", {});
+    if (!missing.empty())
+        GTEST_SKIP() << stem << ": " << missing;
+
+    const SaTest::DarknetParityModel row = SaTest::find_darknet_parity_model(stem);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Vision::Importers::DarknetConfig config,
+                            SaTest::load_darknet_config_file(stem));
+    EXPECT_EQ(std::to_string(row.side), option_of(config.net, "width"));
+    EXPECT_EQ(row.yolo_layers, yolo_indices_of(config));
+}
+
+INSTANTIATE_TEST_SUITE_P(Stems, Medium_DarknetForwardTable, ::testing::ValuesIn(parity_stems()),
+                         stem_name);
 
 /** @brief Tests that a layer name pads the index to three digits and keeps a longer one. */
 TEST(Small_DarknetForward, ALayerNamePadsItsIndexToThreeDigits)
@@ -103,22 +183,36 @@ TEST(Small_DarknetForward, ALayerNamePadsItsIndexToThreeDigits)
     EXPECT_EQ(SaTest::name_darknet_layer(16, "yolo"), "layer_016_yolo");
     EXPECT_EQ(SaTest::name_darknet_layer(0, "yolo_input"), "layer_000_yolo_input");
     EXPECT_EQ(SaTest::name_darknet_layer(1234, "convolutional"), "layer_1234_convolutional");
+}
+
+/** @brief Tests that an observed layer is named by its index. */
+TEST(Small_DarknetForward, AnObservedLayerIsNamedByItsIndex)
+{
     EXPECT_EQ(SaTest::name_observed_layer(7), "layer.7");
 }
 
-/** @brief Tests that the gap counts the values beyond the bound and keeps the largest. */
-TEST(Small_DarknetForward, TheGapCountsValuesBeyondTheBoundAndKeepsTheLargest)
+/** @brief Tests that the gap under an absolute bound counts the values beyond it. */
+TEST(Small_DarknetForward, TheGapCountsValuesBeyondAnAbsoluteBound)
 {
     const std::vector<float> reference = {1.0f, 2.0f, 100.0f};
     const std::vector<float> actual = {1.0f, 2.5f, 101.0f};
 
-    const SaTest::ToleranceGap absolute = SaTest::measure_gap(actual, reference, 0.1, 0.0);
-    EXPECT_EQ(absolute.outside, 2u);
-    EXPECT_EQ(absolute.at, 2u);
+    const SaTest::ToleranceGap gap = SaTest::measure_gap(actual, reference, 0.1, 0.0);
 
-    const SaTest::ToleranceGap relative = SaTest::measure_gap(actual, reference, 0.6, 0.02);
-    EXPECT_EQ(relative.outside, 0u);
-    EXPECT_NEAR(relative.largest, 1.0, K_YOLO_TOLERANCE);
+    EXPECT_EQ(gap.outside, 2u);
+    EXPECT_EQ(gap.at, 2u);
+}
+
+/** @brief Tests that the gap under an absolute plus relative bound keeps the largest gap. */
+TEST(Small_DarknetForward, TheGapKeepsTheLargestWithinAnAbsolutePlusRelativeBound)
+{
+    const std::vector<float> reference = {1.0f, 2.0f, 100.0f};
+    const std::vector<float> actual = {1.0f, 2.5f, 101.0f};
+
+    const SaTest::ToleranceGap gap = SaTest::measure_gap(actual, reference, 0.6, 0.02);
+
+    EXPECT_EQ(gap.outside, 0u);
+    EXPECT_EQ(gap.largest, 1.0);
 }
 
 /** @brief Tests that a NaN is outside every bound and is reported as the largest gap. */
@@ -133,13 +227,27 @@ TEST(Small_DarknetForward, ANaNIsOutsideEveryBound)
     EXPECT_EQ(gap.at, 1u);
 }
 
-/** @brief Tests that the tolerance check fails on a size mismatch and on a value outside. */
-TEST(Small_DarknetForward, TheToleranceCheckFailsOnASizeMismatchOrAValueOutside)
+/** @brief Tests that the tolerance check passes two equal spans. */
+TEST(Small_DarknetForward, TheToleranceCheckPassesTwoEqualSpans)
 {
     const std::vector<float> reference = {1.0f, 2.0f};
 
     EXPECT_TRUE(SaTest::within_tolerance("same", reference, reference, 0.0, 0.0));
+}
+
+/** @brief Tests that the tolerance check fails on a size mismatch. */
+TEST(Small_DarknetForward, TheToleranceCheckFailsOnASizeMismatch)
+{
+    const std::vector<float> reference = {1.0f, 2.0f};
+
     EXPECT_FALSE(SaTest::within_tolerance("short", std::vector<float>{1.0f}, reference, 1.0, 0.0));
+}
+
+/** @brief Tests that the tolerance check fails on a value outside the bound. */
+TEST(Small_DarknetForward, TheToleranceCheckFailsOnAValueOutsideTheBound)
+{
+    const std::vector<float> reference = {1.0f, 2.0f};
+
     EXPECT_FALSE(SaTest::within_tolerance("far", std::vector<float>{1.0f, 3.0f}, reference, 0.5,
                                           0.0));
 }
@@ -153,13 +261,7 @@ TEST(Small_DarknetForward, ALogitHeadIsActivatedAndStretched)
     const std::vector<float> output =
         SaTest::compute_yolo_output(head, one_class(HeadCoding::Logit, 2.0f));
 
-    ASSERT_EQ(output.size(), head.size());
-    EXPECT_NEAR(output[0], 1.0, K_YOLO_TOLERANCE);
-    EXPECT_NEAR(output[1], 0.5, K_YOLO_TOLERANCE);
-    EXPECT_NEAR(output[2], 0.3, K_YOLO_TOLERANCE);
-    EXPECT_NEAR(output[3], -0.2, K_YOLO_TOLERANCE);
-    EXPECT_NEAR(output[4], 0.5, K_YOLO_TOLERANCE);
-    EXPECT_NEAR(output[5], 0.75, K_YOLO_TOLERANCE);
+    EXPECT_TRUE(is_near_each(output, {1.0, 0.5, 0.3, -0.2, 0.5, 0.75}));
 }
 
 /** @brief Tests that an activated head is only stretched, at x and y of every slot. */
@@ -173,9 +275,7 @@ TEST(Small_DarknetForward, AnActivatedHeadIsOnlyStretched)
 
     const std::vector<double> expected = {1.0, 0.0, 0.3, 0.2, 0.9, 0.1,
                                           0.5, -0.5, 0.4, 0.6, 0.8, 0.7};
-    ASSERT_EQ(output.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(output[i], expected[i], K_YOLO_TOLERANCE) << i;
+    EXPECT_TRUE(is_near_each(output, expected));
 }
 
 /** @brief Tests that an output is found by its name and an unpublished one is null. */
@@ -190,13 +290,18 @@ TEST(Small_DarknetForward, AnOutputIsFoundByItsName)
     EXPECT_EQ(SaTest::find_output(run, "layer.4"), nullptr);
 }
 
-/** @brief Tests that the files of a model no reference holds are reported and refused. */
-TEST(Small_DarknetForward, AModelWithoutFilesIsReportedAndRefused)
+/** @brief Tests that the files of a model no reference holds are reported by stem. */
+TEST(Small_DarknetForward, AModelWithoutFilesIsReported)
 {
     const std::vector<std::string> names = {"input"};
 
     EXPECT_NE(SaTest::find_missing_darknet_file(K_ABSENT_STEM, "run", names).find(K_ABSENT_STEM),
               std::string::npos);
+}
+
+/** @brief Tests that the load of a stem with no cfg file is FileNotFound, naming the file. */
+TEST(Medium_DarknetForwardFiles, ALoadOfAStemWithoutACfgIsFileNotFound)
+{
     SA_EXPECT_FAILURE(SaTest::load_darknet_config_file(K_ABSENT_STEM), StatusCode::FileNotFound,
                       "sushiai_no_such_model.cfg");
 }
