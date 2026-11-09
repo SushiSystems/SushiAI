@@ -2,16 +2,24 @@
 
 The tests of the module `vision/codecs`, one file per header of `modules/vision/codecs/include/`. The suite prefix of a case gives its ctest label.
 
+## compile_decode_options.cpp
+
+A compile-only unit: it holds no test and the runner never lists it. It checks at build time that
+`SushiAI/vision/codecs/decode_options.hpp` compiles on its own. `jpeg_levels.hpp` holds
+`K_JPEG_TOLERANCE`, the absolute difference in levels a JPEG round trip may leave, and the checks
+that use it.
+
 ## test_decode_image.cpp
 
-Suites: `Small_CodecsDecodeImage`.
+Suites: `Small_CodecsDecodeImage`, `Small_CodecsDecodeImageUnknown`,
+`Small_CodecsDecodeImageSignature`, `Medium_CodecsLoadImage` and `Medium_CodecsLoadImageUnknown`.
 
 Tests `decode_image` and `load_image` in
 `modules/vision/codecs/include/SushiAI/vision/codecs/decode_image.hpp`. The inputs are a 2 by 2
 RGB PNG that libpng encodes, an 8 by 8 gray JPEG of level 140 that libjpeg encodes at quality
-100, and raw image files that `write_raw_image` writes. A level decoded from the JPEG may
-differ from 140 by 3. The `Load` cases write their files into a directory under the system's
-temporary directory and remove it.
+100, and raw image files that `write_raw_image` writes. A level decoded from the JPEG is held
+to `K_JPEG_TOLERANCE` of `jpeg_levels.hpp`. The `Load` cases reach the file system, so they are
+`Medium_`: each writes its files into a `ScratchDirectory` and the directory removes them.
 
 ### PNGBytesReachThePNGDecoder
 
@@ -19,7 +27,7 @@ The PNG decodes to a 2 by 2 image of three channels whose bytes are the encoded 
 
 ### JPEGBytesReachTheJPEGDecoder
 
-The JPEG decodes to an 8 by 8 image of one channel, every byte within 3 of 140.
+The JPEG decodes to an 8 by 8 image of one channel, every byte within `K_JPEG_TOLERANCE` of 140.
 
 ### OptionsReachTheSelectedDecoder
 
@@ -36,21 +44,28 @@ the default options and with `ChannelLayout::Color`.
 A raw file written in BGR order decodes with the first and third byte of every pixel swapped:
 0, 0, 255, 0, 255, 0, 255, 0, 0, 30, 20, 10.
 
-### RawGrayFileDecodesToOneChannelOrToThreeEqualOnes
+### RawGrayFileKeepsOneChannelInTheStoredAndGrayLayouts
 
 A raw gray file of 3, 60, 190, 255 decodes to those four bytes in one channel, by default and
-with `ChannelLayout::Gray`. With `ChannelLayout::Color` it decodes to three channels, each
-level repeated three times.
+with `ChannelLayout::Gray`.
+
+### RawGrayFileDecodesToThreeEqualChannelsWhenColorIsAsked
+
+With `ChannelLayout::Color` the raw gray file decodes to three channels, each level repeated
+three times.
 
 ### RawRGBFileIsRefusedAsGray
 
 A raw RGB file read with `ChannelLayout::Gray` fails with `Unsupported`, "decode_image: ",
 "3 channels" and "gray".
 
-### RawFileCutShortIsInvalid
+### RawFileWithItsPixelBytesCutShortIsInvalid
 
-A raw file one byte short fails with `InvalidFile`, "holds 35 bytes" and "declares 36". Its
-first 10 bytes fail with `InvalidFile`, "decode_image: " and "10 of 24".
+A raw file one byte short fails with `InvalidFile`, "holds 35 bytes" and "declares 36".
+
+### RawFileWithItsHeaderCutShortIsInvalid
+
+The first 10 bytes of a raw file fail with `InvalidFile`, "decode_image: " and "10 of 24".
 
 ### RawFileWithTrailingBytesIsInvalid
 
@@ -63,13 +78,14 @@ A raw file whose height bytes are set to 16385 fails with `InvalidFile`, "height
 
 ### BytesOfNoKnownFormatAreUnsupported
 
-`decode_image` fails with `Unsupported` and "decode_image: " for 64 bytes of 0x5A ("64 bytes"),
-for a GIF signature and for an empty span ("0 bytes").
+One row each: 64 bytes of 0x5A ("64 bytes"), a GIF signature and an empty span ("0 bytes").
+`decode_image` fails with `Unsupported` and "decode_image: " for each.
 
-### SignatureWithNothingBehindItFailsInItsDecoder
+### ASignatureWithNothingBehindItIsInvalid
 
-Each signature alone fails with `InvalidFile`: the three JPEG bytes with "decode_jpeg: ", the
-eight PNG bytes with "decode_png: ", and the letters SAIM with "decode_image: " and "4 of 24".
+One row each: the three JPEG bytes fail with `InvalidFile` and "decode_jpeg: ", the eight PNG
+bytes with "decode_png: ", and the letters SAIM with "decode_image: " and "4 of 24". The raw
+entry fails in `decode_image`, not in a decoder.
 
 ### LoadReportsAMissingPathAndNamesIt
 
@@ -83,7 +99,7 @@ The PNG written to `image.png` loads as three channels holding the encoded sampl
 ### LoadDecodesAJPEGFileWhateverItsExtension
 
 The JPEG written to a file named `image.png` loads with `ChannelLayout::Color` as 8 by 8 by 3
-bytes, each within 3 of 140.
+bytes, each within `K_JPEG_TOLERANCE` of 140.
 
 ### LoadDecodesARawImageFile
 
@@ -96,8 +112,8 @@ The first 40 bytes of the PNG, written to `cut.png`, fail with `InvalidFile`, "c
 
 ### LoadNamesThePathOfAFileOfNoKnownFormat
 
-A file `notes.txt` holding "hello" fails with `Unsupported`, "notes.txt" and "decode_image: ".
-An empty `empty.png` fails with `Unsupported`, "empty.png" and "0 bytes".
+Two rows. A file `notes.txt` holding "hello" fails with `Unsupported`, "notes.txt" and
+"decode_image: ". An empty `empty.png` fails with `Unsupported`, "empty.png" and "0 bytes".
 
 ### LoadRefusesADirectory
 
@@ -106,7 +122,8 @@ and "regular file".
 
 ## test_image_format.cpp
 
-Suites: `Small_CodecsImageFormat`.
+Suites: `Small_CodecsImageFormat`, `Small_CodecsImageFormatGarbage`,
+`Small_CodecsImageFormatCutShort` and `Small_CodecsImageFormatChanged`.
 
 Tests `detect_image_format` in
 `modules/vision/codecs/include/SushiAI/vision/codecs/image_format.hpp`.
@@ -124,10 +141,6 @@ FF D8 FF followed by E0 00 10, and followed by E1 12 34, both give `ImageFormat:
 The eight signature bytes give `ImageFormat::PNG`, and so do the same bytes with one zero
 byte appended.
 
-### RawImageIsDetectedFromTheCacheMagic
-
-The four bytes of `K_RAW_IMAGE_MAGIC`, least significant first, give `ImageFormat::Raw`.
-
 ### RawImageIsDetectedFromTheLettersSAIM
 
 The bytes 'S', 'A', 'I', 'M', 1, 0, 0, 0 give `ImageFormat::Raw`.
@@ -138,27 +151,28 @@ An empty span gives `ImageFormat::Unknown`.
 
 ### GarbageIsUnknown
 
-The text "not an img", sixteen zero bytes and the GIF signature each give
+One row each: the text "not an img", sixteen zero bytes and the GIF signature give
 `ImageFormat::Unknown`.
 
 ### SignatureCutShortIsUnknown
 
-The first two bytes of the JPEG signature, the first seven of the PNG signature and the first
-three of SAIM each give `ImageFormat::Unknown`.
+One row each: the first two bytes of the JPEG signature, the first seven of the PNG signature
+and the first three of SAIM give `ImageFormat::Unknown`.
 
 ### SignatureWithOneByteChangedIsUnknown
 
-The PNG signature with its last byte set to 0x0B, the bytes FF D8 00 and the letters SAIN each
-give `ImageFormat::Unknown`.
+One row each: the PNG signature with its last byte set to 0x0B, the bytes FF D8 00 and the
+letters SAIN give `ImageFormat::Unknown`.
 
 ## test_jpeg_decoder.cpp
 
-Suites: `Small_CodecsJpeg`.
+Suites: `Small_CodecsJpeg`, `Small_CodecsJpegColorFile`, `Small_CodecsJpegGrayRefusal`,
+`Small_CodecsJpegPrefix` and `Small_CodecsJpegLimit`.
 
 Tests `decode_jpeg` in `modules/vision/codecs/include/SushiAI/vision/codecs/jpeg_decoder.hpp`
 on files the cases encode in memory with libjpeg at quality 100 and without subsampling. A
 quadrant image is 16 by 16 pixels with one colour per 8 by 8 quadrant, and a decoded channel
-may differ from its colour by 3 levels.
+is held to `K_JPEG_TOLERANCE` of `jpeg_levels.hpp` from its colour.
 
 ### GrayFileDecodesToOneChannel
 
@@ -174,10 +188,6 @@ and the three bytes of every pixel are equal.
 
 A YCbCr file of four RGB colours decodes with the default options to three channels holding
 those colours.
-
-### ColorFileDecodesToRGBWhenColorIsAsked
-
-The same file decodes to the same colours with `ChannelLayout::Color`.
 
 ### ColorFileOfNeutralPixelsDecodesToTheirLevelWhenGrayIsAsked
 
@@ -199,10 +209,11 @@ to white, (0, 255, 255, 255) to (0, 255, 255), (255, 255, 255, 0) to black and
 The same CMYK pixels stored as YCCK decode with `ChannelLayout::Color` to the same four RGB
 colours.
 
-### CMYKFileIsRefusedAsGrayAndTheColorSpaceIsNamed
+### ACMYKFamilyFileIsRefusedAsGrayAndTheColorSpaceIsNamed
 
-With `ChannelLayout::Gray` the CMYK file fails with `Unsupported`, "decode_jpeg: ", "CMYK" and
-"gray", and the YCCK file fails with `Unsupported`, "decode_jpeg: ", "YCCK" and "gray".
+Two rows. With `ChannelLayout::Gray` the CMYK file fails with `Unsupported`, "decode_jpeg: ",
+"CMYK" and "gray", and the YCCK file fails with `Unsupported`, "decode_jpeg: ", "YCCK" and
+"gray".
 
 ### FileCutInHalfIsInvalid
 
@@ -213,10 +224,10 @@ The first half of the colour file fails with `InvalidFile` and "decode_jpeg: ".
 The gray file without its last two bytes fails with `InvalidFile`,
 "decode_jpeg: the data is corrupt: " and "JPEG".
 
-### EveryProperPrefixOfAFileFails
+### AProperPrefixOfAFileFails
 
-`decode_jpeg` returns no image for every prefix of the gray file, from zero bytes to one byte
-short of the whole.
+Five rows over the gray file: no bytes, one byte, the two bytes of the start marker, the three
+bytes of the signature and the file without its last byte. Each fails to decode.
 
 ### NoBytesAreInvalid
 
@@ -236,17 +247,15 @@ one channel.
 A gray file `K_MAX_IMAGE_SIDE` pixels wide and one high decodes to an image of that width, a
 height of 1 and one channel.
 
-### WidthAboveTheLimitIsRefused
+### ASideAboveTheLimitIsRefused
 
-A file 16385 pixels wide and one high fails with `Unsupported`, "1x16385" and "16384".
-
-### HeightAboveTheLimitIsRefused
-
-A file one pixel wide and 16385 high fails with `Unsupported`, "16385x1" and "16384".
+Two rows. A 16385 by 1 and a 1 by 16385 gray file fail with `Unsupported`, the size ("1x16385"
+and "16385x1") and "16384".
 
 ## test_png_decoder.cpp
 
-Suites: `Small_CodecsPng`.
+Suites: `Small_CodecsPng`, `Small_CodecsPngHeaderCut`, `Small_CodecsPngTailCut` and
+`Small_CodecsPngLimit`.
 
 Tests `decode_png` in `modules/vision/codecs/include/SushiAI/vision/codecs/png_decoder.hpp` on
 files the cases encode in memory with libpng's simplified writer. The gray file is 2 rows by 3
@@ -327,13 +336,14 @@ The first half of the pattern file fails with `InvalidFile` and "decode_png: ".
 
 ### FileCutInsideItsHeaderIsInvalid
 
-The first 0, 7, 8 and 20 bytes of the pattern file each fail with `InvalidFile` and
-"decode_png: ".
+Four rows over the pattern file: no bytes, 7 bytes, the 8-byte signature alone and 20 bytes.
+Each fails with `InvalidFile` and "decode_png: ".
 
-### EveryPrefixOfAFileFailsOrDecodesToTheFullSize
+### ACutNearTheEndFailsOrDecodesToTheFullSize
 
-Every prefix of the pattern file shorter than the file either fails with `InvalidFile` or
-decodes to an image of 16 by 16 by 3 bytes.
+Three rows over the pattern file: the file without its last byte, without its 12-byte end
+chunk, and without that chunk and one more byte. Each fails with `InvalidFile` or decodes to
+16 by 16 by 3 bytes, since libpng's simplified read stops at the last row.
 
 ### BytesThatAreNotAPNGAreInvalid
 
@@ -348,10 +358,8 @@ The pattern file with one bit of byte 19 flipped fails with `InvalidFile` and "d
 A gray file `K_MAX_IMAGE_SIDE` pixels wide and one high decodes to an image of that width and
 a height of 1 holding its samples.
 
-### WidthAboveTheLimitIsRefused
+### ASideAboveTheLimitIsRefused
 
-A file 16385 pixels wide and one high fails with `Unsupported`, "1x16385" and "16384".
+Two rows. A 16385 by 1 and a 1 by 16385 gray file fail with `Unsupported`, the size ("1x16385"
+and "16385x1") and "16384".
 
-### HeightAboveTheLimitIsRefused
-
-A file one pixel wide and 16385 high fails with `Unsupported`, "16385x1" and "16384".

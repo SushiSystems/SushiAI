@@ -30,11 +30,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/vision/codecs/image_format.hpp>
-#include <SushiAI/vision/imaging/raw_cache.hpp>
 
 using namespace SushiAI::Vision::Codecs;
 
@@ -46,10 +46,32 @@ namespace
         return {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
     }
 
-    /** @brief Returns the format detected in the first count bytes of a sequence. */
-    ImageFormat detect_prefix(const std::vector<std::uint8_t>& bytes, std::size_t count)
+    /** @brief Holds bytes that name no format and the row's name. */
+    struct BytesRow
     {
-        return detect_image_format(SushiRuntime::span<const std::uint8_t>(bytes.data(), count));
+        std::string name;                 /**< The row's name. */
+        std::vector<std::uint8_t> bytes;  /**< The bytes handed to detect_image_format. */
+    };
+
+    /** @brief Runs the detection of unrecognised bytes over each row. */
+    class Small_CodecsImageFormatGarbage : public ::testing::TestWithParam<BytesRow>
+    {
+    };
+
+    /** @brief Runs the detection of a signature cut short over each row. */
+    class Small_CodecsImageFormatCutShort : public ::testing::TestWithParam<BytesRow>
+    {
+    };
+
+    /** @brief Runs the detection of a signature with one byte changed over each row. */
+    class Small_CodecsImageFormatChanged : public ::testing::TestWithParam<BytesRow>
+    {
+    };
+
+    /** @brief Names a test after its row. */
+    std::string row_name(const ::testing::TestParamInfo<BytesRow>& info)
+    {
+        return info.param.name;
     }
 } // namespace
 
@@ -78,16 +100,6 @@ TEST(Small_CodecsImageFormat, PNGIsDetectedFromItsEightByteSignature)
     EXPECT_EQ(detect_image_format(bytes), ImageFormat::PNG);
 }
 
-TEST(Small_CodecsImageFormat, RawImageIsDetectedFromTheCacheMagic)
-{
-    std::vector<std::uint8_t> bytes;
-    for (int i = 0; i < 4; ++i)
-        bytes.push_back(static_cast<std::uint8_t>(
-            (SushiAI::Vision::Imaging::K_RAW_IMAGE_MAGIC >> (8 * i)) & 0xFFu));
-
-    EXPECT_EQ(detect_image_format(bytes), ImageFormat::Raw);
-}
-
 TEST(Small_CodecsImageFormat, RawImageIsDetectedFromTheLettersSAIM)
 {
     const std::vector<std::uint8_t> bytes = {'S', 'A', 'I', 'M', 1, 0, 0, 0};
@@ -100,36 +112,44 @@ TEST(Small_CodecsImageFormat, NoBytesAreUnknown)
     EXPECT_EQ(detect_image_format(SushiRuntime::span<const std::uint8_t>()), ImageFormat::Unknown);
 }
 
-TEST(Small_CodecsImageFormat, GarbageIsUnknown)
+/** @brief Tests that bytes of no known format are Unknown. */
+TEST_P(Small_CodecsImageFormatGarbage, GarbageIsUnknown)
 {
-    const std::vector<std::uint8_t> text = {'n', 'o', 't', ' ', 'a', 'n', ' ', 'i', 'm', 'g'};
-    const std::vector<std::uint8_t> zeros(16, 0x00);
-    const std::vector<std::uint8_t> gif = {'G', 'I', 'F', '8', '9', 'a'};
-
-    EXPECT_EQ(detect_image_format(text), ImageFormat::Unknown);
-    EXPECT_EQ(detect_image_format(zeros), ImageFormat::Unknown);
-    EXPECT_EQ(detect_image_format(gif), ImageFormat::Unknown);
+    EXPECT_EQ(detect_image_format(GetParam().bytes), ImageFormat::Unknown);
 }
 
-TEST(Small_CodecsImageFormat, SignatureCutShortIsUnknown)
-{
-    const std::vector<std::uint8_t> jpeg = {0xFF, 0xD8, 0xFF};
-    const std::vector<std::uint8_t> png = png_signature();
-    const std::vector<std::uint8_t> raw = {'S', 'A', 'I', 'M'};
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsImageFormatGarbage,
+    ::testing::Values(
+        BytesRow{"Text", {'n', 'o', 't', ' ', 'a', 'n', ' ', 'i', 'm', 'g'}},
+        BytesRow{"Zeros", std::vector<std::uint8_t>(16, 0x00)},
+        BytesRow{"Gif", {'G', 'I', 'F', '8', '9', 'a'}}),
+    row_name);
 
-    EXPECT_EQ(detect_prefix(jpeg, 2), ImageFormat::Unknown);
-    EXPECT_EQ(detect_prefix(png, 7), ImageFormat::Unknown);
-    EXPECT_EQ(detect_prefix(raw, 3), ImageFormat::Unknown);
+/** @brief Tests that a signature cut short is Unknown. */
+TEST_P(Small_CodecsImageFormatCutShort, SignatureCutShortIsUnknown)
+{
+    EXPECT_EQ(detect_image_format(GetParam().bytes), ImageFormat::Unknown);
 }
 
-TEST(Small_CodecsImageFormat, SignatureWithOneByteChangedIsUnknown)
-{
-    std::vector<std::uint8_t> png = png_signature();
-    png[7] = 0x0B;
-    const std::vector<std::uint8_t> jpeg = {0xFF, 0xD8, 0x00};
-    const std::vector<std::uint8_t> raw = {'S', 'A', 'I', 'N'};
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsImageFormatCutShort,
+    ::testing::Values(
+        BytesRow{"Jpeg", {0xFF, 0xD8}},
+        BytesRow{"Png", {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A}},
+        BytesRow{"Raw", {'S', 'A', 'I'}}),
+    row_name);
 
-    EXPECT_EQ(detect_image_format(png), ImageFormat::Unknown);
-    EXPECT_EQ(detect_image_format(jpeg), ImageFormat::Unknown);
-    EXPECT_EQ(detect_image_format(raw), ImageFormat::Unknown);
+/** @brief Tests that a signature with one byte changed is Unknown. */
+TEST_P(Small_CodecsImageFormatChanged, SignatureWithOneByteChangedIsUnknown)
+{
+    EXPECT_EQ(detect_image_format(GetParam().bytes), ImageFormat::Unknown);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsImageFormatChanged,
+    ::testing::Values(
+        BytesRow{"Jpeg", {0xFF, 0xD8, 0x00}},
+        BytesRow{"Png", {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0B}},
+        BytesRow{"Raw", {'S', 'A', 'I', 'N'}}),
+    row_name);

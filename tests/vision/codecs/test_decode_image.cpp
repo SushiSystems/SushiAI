@@ -38,29 +38,30 @@
 #include <png.h>
 #include <sstream>
 #include <string>
-#include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
+#include <support/tolerance.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/scratch_files/scratch_directory.hpp>
 #include <SushiAI/vision/codecs/decode_image.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
+#include "jpeg_levels.hpp"
 
 using namespace SushiAI::Vision::Codecs;
 using SushiAI::StatusCode;
+using SushiAI::Test::ScratchDirectory;
+using SushiAI::Test::every_level_within_jpeg_tolerance;
 using SushiAI::Vision::Imaging::ChannelOrder;
 using SushiAI::Vision::Imaging::Image;
 using SushiAI::Vision::Imaging::ImageSize;
 
 namespace
 {
-    /** @brief Holds the absolute difference a level decoded from a JPEG may have, in levels. */
-    constexpr int K_JPEG_TOLERANCE = 3;
-
     /** @brief Holds the gray level of every pixel of gray_jpeg. */
     constexpr std::uint8_t K_JPEG_LEVEL = 140;
 
@@ -158,58 +159,17 @@ namespace
         return options;
     }
 
-    /** @brief Owns a directory under the system's temporary directory for one test. */
-    class ScratchDirectory final
+    /** @brief Creates the directory and writes bytes to a file in it; returns the file's path. */
+    std::filesystem::path write_into(const ScratchDirectory& directory, const char* name,
+                                     const std::vector<std::uint8_t>& bytes)
     {
-        public:
-            /** @brief Creates the directory empty. */
-            explicit ScratchDirectory(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
-            {
-                std::filesystem::remove_all(path_);
-                std::filesystem::create_directories(path_);
-            }
-
-            /** @brief Removes the directory and what it holds. */
-            ~ScratchDirectory()
-            {
-                std::error_code ignored;
-                std::filesystem::remove_all(path_, ignored);
-            }
-
-            /** @brief Forbids a copy, which would remove the directory twice. */
-            ScratchDirectory(const ScratchDirectory&) = delete;
-
-            /** @brief Forbids copy assignment. */
-            ScratchDirectory& operator=(const ScratchDirectory&) = delete;
-
-            /** @brief Forbids a move, which would leave two owners of one path. */
-            ScratchDirectory(ScratchDirectory&&) = delete;
-
-            /** @brief Forbids move assignment. */
-            ScratchDirectory& operator=(ScratchDirectory&&) = delete;
-
-            /** @brief Writes bytes to a file in the directory and returns its path. */
-            std::filesystem::path write(const char* name,
-                                        const std::vector<std::uint8_t>& bytes) const
-            {
-                const std::filesystem::path file = path_ / name;
-                std::ofstream out(file, std::ios::binary | std::ios::trunc);
-                out.write(reinterpret_cast<const char*>(bytes.data()),
-                          static_cast<std::streamsize>(bytes.size()));
-                return file;
-            }
-
-            /** @brief Returns the path a file of the given name has in the directory. */
-            std::filesystem::path file(const char* name) const { return path_ / name; }
-
-            /** @brief Returns the directory's own path. */
-            const std::filesystem::path& path() const noexcept { return path_; }
-
-        private:
-            /// @brief Holds the directory's path.
-            std::filesystem::path path_;
-    };
+        std::filesystem::create_directories(directory.path());
+        const std::filesystem::path file = directory.path() / name;
+        std::ofstream out(file, std::ios::binary | std::ios::trunc);
+        out.write(reinterpret_cast<const char*>(bytes.data()),
+                  static_cast<std::streamsize>(bytes.size()));
+        return file;
+    }
 } // namespace
 
 TEST(Small_CodecsDecodeImage, PNGBytesReachThePNGDecoder)
@@ -229,8 +189,7 @@ TEST(Small_CodecsDecodeImage, JPEGBytesReachTheJPEGDecoder)
     ASSERT_EQ(image.height(), 8);
     ASSERT_EQ(image.width(), 8);
     ASSERT_EQ(image.channels(), 1);
-    for (std::size_t i = 0; i < image.byte_count(); ++i)
-        EXPECT_NEAR(image.data()[i], K_JPEG_LEVEL, K_JPEG_TOLERANCE) << i;
+    EXPECT_TRUE(every_level_within_jpeg_tolerance(image, K_JPEG_LEVEL));
 }
 
 TEST(Small_CodecsDecodeImage, OptionsReachTheSelectedDecoder)
@@ -269,19 +228,27 @@ TEST(Small_CodecsDecodeImage, RawBGRFileDecodesToRGB)
               (std::vector<std::uint8_t>{0, 0, 255, 0, 255, 0, 255, 0, 0, 30, 20, 10}));
 }
 
-TEST(Small_CodecsDecodeImage, RawGrayFileDecodesToOneChannelOrToThreeEqualOnes)
+TEST(Small_CodecsDecodeImage, RawGrayFileKeepsOneChannelInTheStoredAndGrayLayouts)
 {
     const std::vector<std::uint8_t> file = raw_file(K_GRAY_SAMPLES, 1, ChannelOrder::Gray);
 
     SA_ASSERT_OK_AND_ASSIGN(const Image stored, decode_image(file, DecodeOptions{}));
     SA_ASSERT_OK_AND_ASSIGN(const Image gray,
                             decode_image(file, layout_options(ChannelLayout::Gray)));
-    SA_ASSERT_OK_AND_ASSIGN(const Image color,
-                            decode_image(file, layout_options(ChannelLayout::Color)));
 
     EXPECT_EQ(stored.channels(), 1);
     EXPECT_EQ(bytes_of(stored), K_GRAY_SAMPLES);
+    EXPECT_EQ(gray.channels(), 1);
     EXPECT_EQ(bytes_of(gray), K_GRAY_SAMPLES);
+}
+
+TEST(Small_CodecsDecodeImage, RawGrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
+{
+    const std::vector<std::uint8_t> file = raw_file(K_GRAY_SAMPLES, 1, ChannelOrder::Gray);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Image color,
+                            decode_image(file, layout_options(ChannelLayout::Color)));
+
     EXPECT_EQ(color.channels(), 3);
     EXPECT_EQ(bytes_of(color), (std::vector<std::uint8_t>{3, 3, 3, 60, 60, 60, 190, 190, 190,
                                                           255, 255, 255}));
@@ -295,14 +262,20 @@ TEST(Small_CodecsDecodeImage, RawRGBFileIsRefusedAsGray)
                       StatusCode::Unsupported, "decode_image: ", "3 channels", "gray");
 }
 
-TEST(Small_CodecsDecodeImage, RawFileCutShortIsInvalid)
+TEST(Small_CodecsDecodeImage, RawFileWithItsPixelBytesCutShortIsInvalid)
 {
     const std::vector<std::uint8_t> file = raw_file(K_RGB_SAMPLES, 3, ChannelOrder::RGB);
     const SushiRuntime::span<const std::uint8_t> short_pixels(file.data(), file.size() - 1);
-    const SushiRuntime::span<const std::uint8_t> short_header(file.data(), 10);
 
     SA_EXPECT_FAILURE(decode_image(short_pixels, DecodeOptions{}), StatusCode::InvalidFile,
                       "holds 35 bytes", "declares 36");
+}
+
+TEST(Small_CodecsDecodeImage, RawFileWithItsHeaderCutShortIsInvalid)
+{
+    const std::vector<std::uint8_t> file = raw_file(K_RGB_SAMPLES, 3, ChannelOrder::RGB);
+    const SushiRuntime::span<const std::uint8_t> short_header(file.data(), 10);
+
     SA_EXPECT_FAILURE(decode_image(short_header, DecodeOptions{}), StatusCode::InvalidFile,
                       "decode_image: ", "10 of 24");
 }
@@ -327,44 +300,97 @@ TEST(Small_CodecsDecodeImage, RawFileWithASideAboveTheLimitIsInvalidBeforeAnyAll
                       "height 16385", "16384");
 }
 
-TEST(Small_CodecsDecodeImage, BytesOfNoKnownFormatAreUnsupported)
+namespace
 {
-    const std::vector<std::uint8_t> garbage(64, 0x5A);
-    const std::vector<std::uint8_t> gif = {'G', 'I', 'F', '8', '9', 'a', 0, 0};
+    /** @brief Holds bytes no decoder owns and the words of the refusal they get. */
+    struct UnknownRow
+    {
+        std::string name;                 /**< The row's name. */
+        std::vector<std::uint8_t> bytes;  /**< The bytes handed to decode_image. */
+        std::string detail;               /**< A phrase the refusal holds. */
+    };
 
-    SA_EXPECT_FAILURE(decode_image(garbage, DecodeOptions{}), StatusCode::Unsupported,
-                      "decode_image: ", "64 bytes");
-    SA_EXPECT_FAILURE(decode_image(gif, DecodeOptions{}), StatusCode::Unsupported,
-                      "decode_image: ");
-    SA_EXPECT_FAILURE(decode_image(SushiRuntime::span<const std::uint8_t>(), DecodeOptions{}),
-                      StatusCode::Unsupported, "decode_image: ", "0 bytes");
+    /** @brief Runs the refusal of unknown bytes over each row. */
+    class Small_CodecsDecodeImageUnknown : public ::testing::TestWithParam<UnknownRow>
+    {
+    };
+
+    /** @brief Holds a signature with nothing behind it and the refusal it gets. */
+    struct SignatureRow
+    {
+        std::string name;                 /**< The row's name. */
+        std::vector<std::uint8_t> bytes;  /**< The signature alone. */
+        std::string owner;                /**< The function whose message the refusal starts with. */
+        std::string detail;               /**< A second phrase the refusal holds. */
+    };
+
+    /** @brief Runs the refusal of a bare signature over each row. */
+    class Small_CodecsDecodeImageSignature : public ::testing::TestWithParam<SignatureRow>
+    {
+    };
+
+    /** @brief Holds a file that no decoder takes, written under a name, and what its load says. */
+    struct UnreadableRow
+    {
+        std::string name;                 /**< The row's name. */
+        std::string file;                 /**< The name the file is written under. */
+        std::vector<std::uint8_t> bytes;  /**< The file's content. */
+        std::string detail;               /**< A phrase the refusal holds. */
+    };
+
+    /** @brief Runs the load of a file of no known format over each row. */
+    class Medium_CodecsLoadImageUnknown : public ::testing::TestWithParam<UnreadableRow>
+    {
+    };
+} // namespace
+
+/** @brief Tests that bytes of no known format are Unsupported, naming the function. */
+TEST_P(Small_CodecsDecodeImageUnknown, BytesOfNoKnownFormatAreUnsupported)
+{
+    const UnknownRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(decode_image(row.bytes, DecodeOptions{}), StatusCode::Unsupported,
+                      "decode_image: ", row.detail);
 }
 
-TEST(Small_CodecsDecodeImage, SignatureWithNothingBehindItFailsInItsDecoder)
-{
-    const std::vector<std::uint8_t> jpeg = {0xFF, 0xD8, 0xFF};
-    const std::vector<std::uint8_t> png = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-    const std::vector<std::uint8_t> raw = {'S', 'A', 'I', 'M'};
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsDecodeImageUnknown,
+    ::testing::Values(UnknownRow{"Garbage", std::vector<std::uint8_t>(64, 0x5A), "64 bytes"},
+                      UnknownRow{"Gif", {'G', 'I', 'F', '8', '9', 'a', 0, 0}, "decode_image: "},
+                      UnknownRow{"NoBytes", {}, "0 bytes"}),
+    [](const ::testing::TestParamInfo<UnknownRow>& info) { return info.param.name; });
 
-    SA_EXPECT_FAILURE(decode_image(jpeg, DecodeOptions{}), StatusCode::InvalidFile,
-                      "decode_jpeg: ");
-    SA_EXPECT_FAILURE(decode_image(png, DecodeOptions{}), StatusCode::InvalidFile, "decode_png: ");
-    SA_EXPECT_FAILURE(decode_image(raw, DecodeOptions{}), StatusCode::InvalidFile,
-                      "decode_image: ", "4 of 24");
+/** @brief Tests that a signature with nothing behind it is InvalidFile, from its owner. */
+TEST_P(Small_CodecsDecodeImageSignature, ASignatureWithNothingBehindItIsInvalid)
+{
+    const SignatureRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(decode_image(row.bytes, DecodeOptions{}), StatusCode::InvalidFile, row.owner,
+                      row.detail);
 }
 
-TEST(Small_CodecsDecodeImage, LoadReportsAMissingPathAndNamesIt)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsDecodeImageSignature,
+    ::testing::Values(SignatureRow{"Jpeg", {0xFF, 0xD8, 0xFF}, "decode_jpeg: ", ""},
+                      SignatureRow{"Png",
+                                   {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
+                                   "decode_png: ",
+                                   ""},
+                      SignatureRow{"Raw", {'S', 'A', 'I', 'M'}, "decode_image: ", "4 of 24"}),
+    [](const ::testing::TestParamInfo<SignatureRow>& info) { return info.param.name; });
+
+TEST(Medium_CodecsLoadImage, LoadReportsAMissingPathAndNamesIt)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_missing");
 
-    SA_EXPECT_FAILURE(load_image(directory.file("absent.png"), DecodeOptions{}),
+    SA_EXPECT_FAILURE(load_image(directory.path() / "absent.png", DecodeOptions{}),
                       StatusCode::FileNotFound, "absent.png", "load_image: ");
 }
 
-TEST(Small_CodecsDecodeImage, LoadDecodesAPNGFile)
+TEST(Medium_CodecsLoadImage, LoadDecodesAPNGFile)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_png");
-    const std::filesystem::path path = directory.write("image.png", rgb_png());
+    const std::filesystem::path path = write_into(directory, "image.png", rgb_png());
 
     SA_ASSERT_OK_AND_ASSIGN(const Image image, load_image(path, DecodeOptions{}));
 
@@ -372,25 +398,24 @@ TEST(Small_CodecsDecodeImage, LoadDecodesAPNGFile)
     EXPECT_EQ(bytes_of(image), K_RGB_SAMPLES);
 }
 
-TEST(Small_CodecsDecodeImage, LoadDecodesAJPEGFileWhateverItsExtension)
+TEST(Medium_CodecsLoadImage, LoadDecodesAJPEGFileWhateverItsExtension)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_jpeg");
-    const std::filesystem::path path = directory.write("image.png", gray_jpeg());
+    const std::filesystem::path path = write_into(directory, "image.png", gray_jpeg());
 
     SA_ASSERT_OK_AND_ASSIGN(const Image image,
                             load_image(path, layout_options(ChannelLayout::Color)));
 
     ASSERT_EQ(image.channels(), 3);
     ASSERT_EQ(image.byte_count(), 8u * 8u * 3u);
-    for (std::size_t i = 0; i < image.byte_count(); ++i)
-        EXPECT_NEAR(image.data()[i], K_JPEG_LEVEL, K_JPEG_TOLERANCE) << i;
+    EXPECT_TRUE(every_level_within_jpeg_tolerance(image, K_JPEG_LEVEL));
 }
 
-TEST(Small_CodecsDecodeImage, LoadDecodesARawImageFile)
+TEST(Medium_CodecsLoadImage, LoadDecodesARawImageFile)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_raw");
     const std::filesystem::path path =
-        directory.write("image.saim", raw_file(K_GRAY_SAMPLES, 1, ChannelOrder::Gray));
+        write_into(directory, "image.saim", raw_file(K_GRAY_SAMPLES, 1, ChannelOrder::Gray));
 
     SA_ASSERT_OK_AND_ASSIGN(const Image image, load_image(path, DecodeOptions{}));
 
@@ -398,31 +423,36 @@ TEST(Small_CodecsDecodeImage, LoadDecodesARawImageFile)
     EXPECT_EQ(bytes_of(image), K_GRAY_SAMPLES);
 }
 
-TEST(Small_CodecsDecodeImage, LoadNamesThePathOfAFileItsDecoderRejects)
+TEST(Medium_CodecsLoadImage, LoadNamesThePathOfAFileItsDecoderRejects)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_corrupt");
     std::vector<std::uint8_t> bytes = rgb_png();
     ASSERT_GT(bytes.size(), 40u);
     bytes.resize(40);
-    const std::filesystem::path path = directory.write("cut.png", bytes);
+    const std::filesystem::path path = write_into(directory, "cut.png", bytes);
 
     SA_EXPECT_FAILURE(load_image(path, DecodeOptions{}), StatusCode::InvalidFile, "cut.png",
                       "decode_png: ");
 }
 
-TEST(Small_CodecsDecodeImage, LoadNamesThePathOfAFileOfNoKnownFormat)
+/** @brief Tests that the load of a file of no known format is Unsupported, naming the path. */
+TEST_P(Medium_CodecsLoadImageUnknown, LoadNamesThePathOfAFileOfNoKnownFormat)
 {
+    const UnreadableRow& row = GetParam();
     const ScratchDirectory directory("sushiai_unit_codecs_load_unknown");
-    const std::filesystem::path text = directory.write("notes.txt", {'h', 'e', 'l', 'l', 'o'});
-    const std::filesystem::path empty = directory.write("empty.png", {});
+    const std::filesystem::path path = write_into(directory, row.file.c_str(), row.bytes);
 
-    SA_EXPECT_FAILURE(load_image(text, DecodeOptions{}), StatusCode::Unsupported, "notes.txt",
-                      "decode_image: ");
-    SA_EXPECT_FAILURE(load_image(empty, DecodeOptions{}), StatusCode::Unsupported, "empty.png",
-                      "0 bytes");
+    SA_EXPECT_FAILURE(load_image(path, DecodeOptions{}), StatusCode::Unsupported, row.file,
+                      "decode_image: ", row.detail);
 }
 
-TEST(Small_CodecsDecodeImage, LoadRefusesADirectory)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_CodecsLoadImageUnknown,
+    ::testing::Values(UnreadableRow{"Text", "notes.txt", {'h', 'e', 'l', 'l', 'o'}, "5 bytes"},
+                      UnreadableRow{"Empty", "empty.png", {}, "0 bytes"}),
+    [](const ::testing::TestParamInfo<UnreadableRow>& info) { return info.param.name; });
+
+TEST(Medium_CodecsLoadImage, LoadRefusesADirectory)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_directory");
 

@@ -28,10 +28,11 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <png.h>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -161,6 +162,74 @@ namespace
 
         return encode_png(PNGSource{PNG_FORMAT_RGB, 16, 16, samples.data()});
     }
+
+    /** @brief Returns the samples with each one repeated for @p channels channels. */
+    std::vector<std::uint8_t> repeated(const std::vector<std::uint8_t>& samples,
+                                       std::size_t channels)
+    {
+        std::vector<std::uint8_t> out;
+        out.reserve(samples.size() * channels);
+        for (const std::uint8_t sample : samples)
+            out.insert(out.end(), channels, sample);
+
+        return out;
+    }
+
+    /** @brief Returns the RGB triple K_PALETTE holds for each index of K_INDICES. */
+    std::vector<std::uint8_t> palette_colors()
+    {
+        std::vector<std::uint8_t> out;
+        out.reserve(3 * K_INDICES.size());
+        for (const std::uint8_t index : K_INDICES)
+            out.insert(out.end(), K_PALETTE.begin() + 3 * index, K_PALETTE.begin() + 3 * index + 3);
+
+        return out;
+    }
+
+    /** @brief Returns whether a decode failed as InvalidFile or gave the full 16 by 16 RGB size. */
+    ::testing::AssertionResult is_invalid_or_full_size(const SushiAI::Result<Image>& decoded)
+    {
+        if (!decoded.has_value())
+            return decoded.status().code() == StatusCode::InvalidFile
+                       ? ::testing::AssertionSuccess()
+                       : ::testing::AssertionFailure() << "the failure is not InvalidFile";
+
+        return decoded.value().byte_count() == 16u * 16u * 3u
+                   ? ::testing::AssertionSuccess()
+                   : ::testing::AssertionFailure()
+                         << "decoded " << decoded.value().byte_count() << " bytes";
+    }
+
+    /** @brief Holds how much of a file a prefix keeps. */
+    struct PrefixRow
+    {
+        std::string name;    /**< The row's name. */
+        std::size_t kept;    /**< The most bytes the prefix keeps. */
+        std::size_t lost;    /**< The bytes cut from the end of the file. */
+    };
+
+    /** @brief Runs the decode of a prefix cut inside the header over each row. */
+    class Small_CodecsPngHeaderCut : public ::testing::TestWithParam<PrefixRow>
+    {
+    };
+
+    /** @brief Runs the decode of a prefix cut near the end over each row. */
+    class Small_CodecsPngTailCut : public ::testing::TestWithParam<PrefixRow>
+    {
+    };
+
+    /** @brief Holds a side one past the limit, on one axis, and the size the refusal names. */
+    struct LimitRow
+    {
+        std::string name;      /**< The row's name. */
+        bool is_width;         /**< Whether the long side is the width. */
+        std::string size;      /**< The size the refusal names. */
+    };
+
+    /** @brief Runs the refusal of a side above the limit over each axis. */
+    class Small_CodecsPngLimit : public ::testing::TestWithParam<LimitRow>
+    {
+    };
 } // namespace
 
 TEST(Small_CodecsPng, GrayFileDecodesToItsStoredSamples)
@@ -178,11 +247,8 @@ TEST(Small_CodecsPng, GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
     SA_ASSERT_OK_AND_ASSIGN(const Image image,
                             decode_png(gray_png(), layout_options(ChannelLayout::Color)));
 
-    ASSERT_EQ(image.channels(), 3);
-    ASSERT_EQ(image.byte_count(), 18u);
-    for (std::size_t pixel = 0; pixel < K_GRAY_SAMPLES.size(); ++pixel)
-        for (std::size_t channel = 0; channel < 3; ++channel)
-            EXPECT_EQ(image.data()[3 * pixel + channel], K_GRAY_SAMPLES[pixel]) << pixel;
+    EXPECT_EQ(image.channels(), 3);
+    EXPECT_EQ(bytes_of(image), repeated(K_GRAY_SAMPLES, 3));
 }
 
 TEST(Small_CodecsPng, ColorFileDecodesToItsStoredSamplesInRGBOrder)
@@ -279,12 +345,8 @@ TEST(Small_CodecsPng, PaletteFileDecodesToItsPaletteColorsByDefault)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_png(palette_png(), DecodeOptions{}));
 
-    ASSERT_EQ(image.channels(), 3);
-    ASSERT_EQ(image.byte_count(), 3 * K_INDICES.size());
-    for (std::size_t pixel = 0; pixel < K_INDICES.size(); ++pixel)
-        for (std::size_t channel = 0; channel < 3; ++channel)
-            EXPECT_EQ(image.data()[3 * pixel + channel], K_PALETTE[3 * K_INDICES[pixel] + channel])
-                << "pixel " << pixel << ", channel " << channel;
+    EXPECT_EQ(image.channels(), 3);
+    EXPECT_EQ(bytes_of(image), palette_colors());
 }
 
 TEST(Small_CodecsPng, PaletteFileReadAsGrayIsAConversionAndNotItsIndices)
@@ -345,36 +407,38 @@ TEST(Small_CodecsPng, FileCutInHalfIsInvalid)
     SA_EXPECT_FAILURE(decode_png(half, DecodeOptions{}), StatusCode::InvalidFile, "decode_png: ");
 }
 
-TEST(Small_CodecsPng, FileCutInsideItsHeaderIsInvalid)
+/** @brief Tests that a file cut inside its signature or header is InvalidFile. */
+TEST_P(Small_CodecsPngHeaderCut, FileCutInsideItsHeaderIsInvalid)
 {
     const std::vector<std::uint8_t> file = pattern_png();
     ASSERT_GT(file.size(), 20u);
+    const SushiRuntime::span<const std::uint8_t> prefix(file.data(), GetParam().kept);
 
-    for (std::size_t count : {std::size_t{0}, std::size_t{7}, std::size_t{8}, std::size_t{20}})
-    {
-        const SushiRuntime::span<const std::uint8_t> prefix(file.data(), count);
-        SA_EXPECT_FAILURE(decode_png(prefix, DecodeOptions{}), StatusCode::InvalidFile,
-                          "decode_png: ")
-            << count << " bytes";
-    }
+    SA_EXPECT_FAILURE(decode_png(prefix, DecodeOptions{}), StatusCode::InvalidFile, "decode_png: ");
 }
 
-TEST(Small_CodecsPng, EveryPrefixOfAFileFailsOrDecodesToTheFullSize)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsPngHeaderCut,
+    ::testing::Values(PrefixRow{"NoBytes", 0, 0}, PrefixRow{"SevenBytes", 7, 0},
+                      PrefixRow{"TheSignatureAlone", 8, 0}, PrefixRow{"TwentyBytes", 20, 0}),
+    [](const ::testing::TestParamInfo<PrefixRow>& info) { return info.param.name; });
+
+/** @brief Tests that a prefix cut near the end fails as InvalidFile or decodes to the full size. */
+TEST_P(Small_CodecsPngTailCut, ACutNearTheEndFailsOrDecodesToTheFullSize)
 {
+    const PrefixRow& row = GetParam();
     const std::vector<std::uint8_t> file = pattern_png();
+    const SushiRuntime::span<const std::uint8_t> prefix(file.data(), file.size() - row.lost);
 
-    for (std::size_t count = 0; count < file.size(); ++count)
-    {
-        const SushiRuntime::span<const std::uint8_t> prefix(file.data(), count);
-        const SushiAI::Result<Image> decoded = decode_png(prefix, DecodeOptions{});
-
-        // libpng's simplified read stops at the last row, so a cut after it can pass.
-        if (decoded.has_value())
-            EXPECT_EQ(decoded.value().byte_count(), 16u * 16u * 3u) << count << " bytes";
-        else
-            EXPECT_EQ(decoded.status().code(), StatusCode::InvalidFile) << count << " bytes";
-    }
+    // libpng's simplified read stops at the last row, so a cut after it can pass.
+    EXPECT_TRUE(is_invalid_or_full_size(decode_png(prefix, DecodeOptions{})));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsPngTailCut,
+    ::testing::Values(PrefixRow{"OneByteShort", 0, 1}, PrefixRow{"TheEndChunkMissing", 0, 12},
+                      PrefixRow{"TheEndChunkAndOneByteMissing", 0, 13}),
+    [](const ::testing::TestParamInfo<PrefixRow>& info) { return info.param.name; });
 
 TEST(Small_CodecsPng, BytesThatAreNotAPNGAreInvalid)
 {
@@ -407,24 +471,22 @@ TEST(Small_CodecsPng, SideAtTheLimitDecodes)
     EXPECT_EQ(bytes_of(image), samples);
 }
 
-TEST(Small_CodecsPng, WidthAboveTheLimitIsRefused)
+/** @brief Tests that a side above the limit is refused, naming the size and the limit. */
+TEST_P(Small_CodecsPngLimit, ASideAboveTheLimitIsRefused)
 {
+    const LimitRow& row = GetParam();
     const std::uint32_t side = static_cast<std::uint32_t>(K_MAX_IMAGE_SIDE) + 1;
     const std::vector<std::uint8_t> samples(side, 9);
-    const std::vector<std::uint8_t> file =
-        encode_png(PNGSource{PNG_FORMAT_GRAY, side, 1, samples.data()});
+    const std::vector<std::uint8_t> file = encode_png(
+        PNGSource{PNG_FORMAT_GRAY, row.is_width ? side : 1, row.is_width ? 1 : side,
+                  samples.data()});
 
-    SA_EXPECT_FAILURE(decode_png(file, DecodeOptions{}), StatusCode::Unsupported, "1x16385",
+    SA_EXPECT_FAILURE(decode_png(file, DecodeOptions{}), StatusCode::Unsupported, row.size,
                       "16384");
 }
 
-TEST(Small_CodecsPng, HeightAboveTheLimitIsRefused)
-{
-    const std::uint32_t side = static_cast<std::uint32_t>(K_MAX_IMAGE_SIDE) + 1;
-    const std::vector<std::uint8_t> samples(side, 9);
-    const std::vector<std::uint8_t> file =
-        encode_png(PNGSource{PNG_FORMAT_GRAY, 1, side, samples.data()});
-
-    SA_EXPECT_FAILURE(decode_png(file, DecodeOptions{}), StatusCode::Unsupported, "16385x1",
-                      "16384");
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_CodecsPngLimit,
+                         ::testing::Values(LimitRow{"Width", true, "1x16385"},
+                                           LimitRow{"Height", false, "16385x1"}),
+                         [](const ::testing::TestParamInfo<LimitRow>& info)
+                         { return info.param.name; });

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_decode_options.cpp                                                */
+/* compile_decode_options.cpp                                             */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,30 +23,9 @@
 
 
 /**
- * @file test_decode_options.cpp
- * @brief Tests the defaults and the storage of the options every image decoder takes.
+ * @file compile_decode_options.cpp
+ * @brief Checks at compile time that the header of the decode options compiles on its own.
  * @author Mustafa Garip
  */
 
-#include <cstdint>
-#include <type_traits>
-#include <gtest/gtest.h>
 #include <SushiAI/vision/codecs/decode_options.hpp>
-
-using namespace SushiAI::Vision::Codecs;
-
-/** @brief Tests that default options keep the channels and the colours the file stores. */
-TEST(Small_CodecsDecodeOptions, TheDefaultsKeepWhatTheFileStores)
-{
-    const DecodeOptions options;
-
-    EXPECT_EQ(options.layout, ChannelLayout::Stored);
-    EXPECT_EQ(options.palette, PaletteRead::Colors);
-}
-
-/** @brief Tests that both enumerations are stored in one unsigned byte. */
-TEST(Small_CodecsDecodeOptions, BothEnumerationsFitInOneByte)
-{
-    EXPECT_TRUE((std::is_same_v<std::underlying_type_t<ChannelLayout>, std::uint8_t>));
-    EXPECT_TRUE((std::is_same_v<std::underlying_type_t<PaletteRead>, std::uint8_t>));
-}

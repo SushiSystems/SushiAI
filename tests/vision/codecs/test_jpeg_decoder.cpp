@@ -28,12 +28,14 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <jpeglib.h>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -43,20 +45,17 @@
 #include <SushiAI/vision/codecs/decode_options.hpp>
 #include <SushiAI/vision/codecs/jpeg_decoder.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
+#include "jpeg_levels.hpp"
 
 using namespace SushiAI::Vision::Codecs;
 using SushiAI::StatusCode;
+using SushiAI::Test::every_level_within_jpeg_tolerance;
+using SushiAI::Test::level_within_jpeg_tolerance;
 using SushiAI::Vision::Imaging::Image;
 using SushiAI::Vision::Imaging::K_MAX_IMAGE_SIDE;
 
 namespace
 {
-    /**
-     * @brief Holds the absolute difference per channel a decoded level may have, in levels; a
-     *        count of codec levels, not a rounding bound.
-     */
-    constexpr int K_JPEG_TOLERANCE = 3;
-
     /** @brief Holds the side of a quadrant image: four blocks of 8 by 8 pixels. */
     constexpr std::uint32_t K_QUADRANT_SIDE = 16;
 
@@ -222,12 +221,77 @@ namespace
                 for (std::int32_t channel = 0; channel < channels; ++channel)
                 {
                     const std::size_t at = static_cast<std::size_t>(channel);
-                    EXPECT_NEAR(row[x * static_cast<std::uint32_t>(channels) + at],
-                                expected[quadrant_of(y, x)][at], K_JPEG_TOLERANCE)
+                    EXPECT_TRUE(level_within_jpeg_tolerance(
+                        row[x * static_cast<std::uint32_t>(channels) + at],
+                        expected[quadrant_of(y, x)][at]))
                         << "row " << y << ", column " << x << ", channel " << channel;
                 }
         }
     }
+
+    /** @brief Returns whether the three channels of every pixel of a colour image are equal. */
+    ::testing::AssertionResult every_pixel_has_equal_channels(const Image& image)
+    {
+        for (std::size_t pixel = 0; pixel < image.byte_count() / 3; ++pixel)
+        {
+            const std::uint8_t* at = image.data() + 3 * pixel;
+            if (at[0] != at[1] || at[0] != at[2])
+                return ::testing::AssertionFailure() << "pixel " << pixel << " differs per channel";
+        }
+
+        return ::testing::AssertionSuccess();
+    }
+
+    /** @brief Holds a decode of the colour file: the layout asked and the row's name. */
+    struct LayoutRow
+    {
+        std::string name;      /**< The row's name. */
+        ChannelLayout layout;  /**< The layout the options ask for. */
+    };
+
+    /** @brief Runs the decode of the colour file over each layout that keeps three channels. */
+    class Small_CodecsJpegColorFile : public ::testing::TestWithParam<LayoutRow>
+    {
+    };
+
+    /** @brief Holds a CMYK-family storage and the colour space its refusal names. */
+    struct SpaceRow
+    {
+        std::string name;    /**< The row's name. */
+        J_COLOR_SPACE stored;  /**< The colour space the file stores. */
+        std::string space;   /**< The name the refusal holds. */
+    };
+
+    /** @brief Runs the refusal of a CMYK-family file asked as gray over each row. */
+    class Small_CodecsJpegGrayRefusal : public ::testing::TestWithParam<SpaceRow>
+    {
+    };
+
+    /** @brief Holds how much of a file a prefix keeps. */
+    struct PrefixRow
+    {
+        std::string name;    /**< The row's name. */
+        std::size_t kept;    /**< The most bytes the prefix keeps. */
+        std::size_t lost;    /**< The bytes cut from the end of the file. */
+    };
+
+    /** @brief Runs the decode of a proper prefix of a file over each row. */
+    class Small_CodecsJpegPrefix : public ::testing::TestWithParam<PrefixRow>
+    {
+    };
+
+    /** @brief Holds a side one past the limit, on one axis, and the size the refusal names. */
+    struct LimitRow
+    {
+        std::string name;      /**< The row's name. */
+        bool is_width;         /**< Whether the long side is the width. */
+        std::string size;      /**< The size the refusal names. */
+    };
+
+    /** @brief Runs the refusal of a side above the limit over each axis. */
+    class Small_CodecsJpegLimit : public ::testing::TestWithParam<LimitRow>
+    {
+    };
 
     /** @brief Returns a quadrant set whose pixels repeat one channel of another set three times. */
     Quadrants repeated(const Quadrants& gray)
@@ -253,28 +317,23 @@ TEST(Small_CodecsJpeg, GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
                             decode_jpeg(gray_jpeg(), layout_options(ChannelLayout::Color)));
 
     expect_quadrants(image, repeated(K_GRAY_QUADRANTS), 3);
-    for (std::size_t pixel = 0; pixel < image.byte_count() / 3; ++pixel)
-    {
-        EXPECT_EQ(image.data()[3 * pixel], image.data()[3 * pixel + 1]) << pixel;
-        EXPECT_EQ(image.data()[3 * pixel], image.data()[3 * pixel + 2]) << pixel;
-    }
+    EXPECT_TRUE(every_pixel_has_equal_channels(image));
 }
 
-TEST(Small_CodecsJpeg, ColorFileDecodesToRGB)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const Image image,
-                            decode_jpeg(color_jpeg(K_RGB_QUADRANTS), DecodeOptions{}));
-
-    expect_quadrants(image, K_RGB_QUADRANTS, 3);
-}
-
-TEST(Small_CodecsJpeg, ColorFileDecodesToRGBWhenColorIsAsked)
+/** @brief Tests that the colour file decodes to RGB when the layout is stored or colour. */
+TEST_P(Small_CodecsJpegColorFile, ColorFileDecodesToRGB)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_jpeg(color_jpeg(K_RGB_QUADRANTS),
-                                                           layout_options(ChannelLayout::Color)));
+                                                           layout_options(GetParam().layout)));
 
     expect_quadrants(image, K_RGB_QUADRANTS, 3);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsJpegColorFile,
+    ::testing::Values(LayoutRow{"Stored", ChannelLayout::Stored},
+                      LayoutRow{"ColorAsked", ChannelLayout::Color}),
+    [](const ::testing::TestParamInfo<LayoutRow>& info) { return info.param.name; });
 
 TEST(Small_CodecsJpeg, ColorFileOfNeutralPixelsDecodesToTheirLevelWhenGrayIsAsked)
 {
@@ -313,16 +372,22 @@ TEST(Small_CodecsJpeg, YCCKFileDecodesToRGB)
     expect_quadrants(image, K_CMYK_AS_RGB, 3);
 }
 
-TEST(Small_CodecsJpeg, CMYKFileIsRefusedAsGrayAndTheColorSpaceIsNamed)
+/** @brief Tests that a CMYK-family file asked as gray is Unsupported, naming its space. */
+TEST_P(Small_CodecsJpegGrayRefusal, ACMYKFamilyFileIsRefusedAsGrayAndTheColorSpaceIsNamed)
 {
-    const std::vector<std::uint8_t> cmyk = quadrant_jpeg(K_CMYK_QUADRANTS, JCS_CMYK, JCS_CMYK, 4);
-    const std::vector<std::uint8_t> ycck = quadrant_jpeg(K_CMYK_QUADRANTS, JCS_CMYK, JCS_YCCK, 4);
+    const SpaceRow& row = GetParam();
+    const std::vector<std::uint8_t> file =
+        quadrant_jpeg(K_CMYK_QUADRANTS, JCS_CMYK, row.stored, 4);
 
-    SA_EXPECT_FAILURE(decode_jpeg(cmyk, layout_options(ChannelLayout::Gray)),
-                      StatusCode::Unsupported, "decode_jpeg: ", "CMYK", "gray");
-    SA_EXPECT_FAILURE(decode_jpeg(ycck, layout_options(ChannelLayout::Gray)),
-                      StatusCode::Unsupported, "decode_jpeg: ", "YCCK", "gray");
+    SA_EXPECT_FAILURE(decode_jpeg(file, layout_options(ChannelLayout::Gray)),
+                      StatusCode::Unsupported, "decode_jpeg: ", row.space, "gray");
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_CodecsJpegGrayRefusal,
+                         ::testing::Values(SpaceRow{"Cmyk", JCS_CMYK, "CMYK"},
+                                           SpaceRow{"Ycck", JCS_YCCK, "YCCK"}),
+                         [](const ::testing::TestParamInfo<SpaceRow>& info)
+                         { return info.param.name; });
 
 TEST(Small_CodecsJpeg, FileCutInHalfIsInvalid)
 {
@@ -343,18 +408,25 @@ TEST(Small_CodecsJpeg, FileWithoutItsEndMarkerIsInvalidAndCarriesTheLibraryMessa
                       "decode_jpeg: the data is corrupt: ", "JPEG");
 }
 
-TEST(Small_CodecsJpeg, EveryProperPrefixOfAFileFails)
+/** @brief Tests that a proper prefix of a file fails to decode. */
+TEST_P(Small_CodecsJpegPrefix, AProperPrefixOfAFileFails)
 {
+    const PrefixRow& row = GetParam();
     const std::vector<std::uint8_t> file = gray_jpeg();
+    const std::size_t count = std::min(row.kept, file.size() - row.lost);
+    const SushiRuntime::span<const std::uint8_t> prefix(file.data(), count);
 
-    for (std::size_t count = 0; count < file.size(); ++count)
-    {
-        const SushiRuntime::span<const std::uint8_t> prefix(file.data(), count);
-        const SushiAI::Result<Image> decoded = decode_jpeg(prefix, DecodeOptions{});
+    const SushiAI::Result<Image> decoded = decode_jpeg(prefix, DecodeOptions{});
 
-        EXPECT_FALSE(decoded.has_value()) << count << " of " << file.size() << " bytes";
-    }
+    EXPECT_FALSE(decoded.has_value()) << count << " of " << file.size() << " bytes";
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_CodecsJpegPrefix,
+    ::testing::Values(PrefixRow{"NoBytes", 0, 0}, PrefixRow{"OneByte", 1, 0},
+                      PrefixRow{"TheStartMarker", 2, 0}, PrefixRow{"TheSignature", 3, 0},
+                      PrefixRow{"OneByteShort", SIZE_MAX, 1}),
+    [](const ::testing::TestParamInfo<PrefixRow>& info) { return info.param.name; });
 
 TEST(Small_CodecsJpeg, NoBytesAreInvalid)
 {
@@ -395,24 +467,22 @@ TEST(Small_CodecsJpeg, SideAtTheLimitDecodes)
     EXPECT_EQ(image.channels(), 1);
 }
 
-TEST(Small_CodecsJpeg, WidthAboveTheLimitIsRefused)
+/** @brief Tests that a side above the limit is refused, naming the size and the limit. */
+TEST_P(Small_CodecsJpegLimit, ASideAboveTheLimitIsRefused)
 {
+    const LimitRow& row = GetParam();
     const std::uint32_t side = static_cast<std::uint32_t>(K_MAX_IMAGE_SIDE) + 1;
     const std::vector<std::uint8_t> samples(side, 77);
-    const std::vector<std::uint8_t> file =
-        encode_jpeg(JPEGSource{JCS_GRAYSCALE, JCS_GRAYSCALE, 1, side, 1, samples.data()});
+    const std::vector<std::uint8_t> file = encode_jpeg(
+        JPEGSource{JCS_GRAYSCALE, JCS_GRAYSCALE, 1, row.is_width ? side : 1,
+                   row.is_width ? 1 : side, samples.data()});
 
-    SA_EXPECT_FAILURE(decode_jpeg(file, DecodeOptions{}), StatusCode::Unsupported, "1x16385",
+    SA_EXPECT_FAILURE(decode_jpeg(file, DecodeOptions{}), StatusCode::Unsupported, row.size,
                       "16384");
 }
 
-TEST(Small_CodecsJpeg, HeightAboveTheLimitIsRefused)
-{
-    const std::uint32_t side = static_cast<std::uint32_t>(K_MAX_IMAGE_SIDE) + 1;
-    const std::vector<std::uint8_t> samples(side, 77);
-    const std::vector<std::uint8_t> file =
-        encode_jpeg(JPEGSource{JCS_GRAYSCALE, JCS_GRAYSCALE, 1, 1, side, samples.data()});
-
-    SA_EXPECT_FAILURE(decode_jpeg(file, DecodeOptions{}), StatusCode::Unsupported, "16385x1",
-                      "16384");
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_CodecsJpegLimit,
+                         ::testing::Values(LimitRow{"Width", true, "1x16385"},
+                                           LimitRow{"Height", false, "16385x1"}),
+                         [](const ::testing::TestParamInfo<LimitRow>& info)
+                         { return info.param.name; });
