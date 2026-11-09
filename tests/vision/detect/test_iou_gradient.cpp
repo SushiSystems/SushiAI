@@ -33,6 +33,8 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/detect/iou_gradient.hpp>
 #include <support/tolerance.hpp>
@@ -93,6 +95,7 @@ namespace
     /** @brief Holds one dumped cell: its two boxes and the four box deltas stored there. */
     struct DumpedCell
     {
+        std::string name; /**< The row's name. */
         Box box;    /**< The decoded prediction of the slot. */
         Box target; /**< The truth row assigned to it. */
         Quad delta; /**< The box entries of the delta, gradient times the box weight. */
@@ -105,16 +108,58 @@ namespace
      * `layer_098_yolo_boxes`, `layer_094_yolo_boxes` and `truth` of `references/yolov7_tiny`.
      */
     const std::array<DumpedCell, 3> K_DUMPED_CELLS{{
-        {{0.4971627f, 0.516425252f, 0.814291656f, 0.940165877f},
+        {"Layer98Cell",
+         {0.4971627f, 0.516425252f, 0.814291656f, 0.940165877f},
          {0.5f, 0.5f, 0.400000006f, 0.600000024f},
          {0.000183408672, -0.00106176059, -0.0385336503, -0.0332950354}},
-        {{0.760803103f, 0.716585577f, 0.483656645f, 0.553600848f},
+        {"Layer94Cell",
+         {0.760803103f, 0.716585577f, 0.483656645f, 0.553600848f},
          {0.699999988f, 0.75f, 0.300000012f, 0.200000003f},
          {-0.0112515502, 0.0061833025, -0.04532497, -0.0397488885}},
-        {{0.259860605f, 0.294024527f, 0.236384213f, 0.275245309f},
+        {"ThirdCell",
+         {0.259860605f, 0.294024527f, 0.236384213f, 0.275245309f},
          {0.25f, 0.300000012f, 0.100000001f, 0.150000006f},
          {-0.00749072898, 0.00453934958, -0.097358264, -0.0835391209}},
     }};
+
+    /** @brief Holds a box, a truth box and the name of their row. */
+    struct PairRow
+    {
+        std::string name; /**< The row's name. */
+        Box box;          /**< The prediction. */
+        Box target;       /**< The truth. */
+    };
+
+    /** @brief Holds a gradient form and the name of its row. */
+    struct FormRow
+    {
+        std::string name;         /**< The row's name. */
+        Detect::BoxGradient form; /**< The form of the gradient. */
+    };
+
+    /** @brief Runs the analytic form against the difference on one pair. */
+    class Small_DetectIouGradientAnalytic : public ::testing::TestWithParam<PairRow>
+    {
+
+    };
+
+    /** @brief Runs the fixed trade-off form against the difference on one pair. */
+    class Small_DetectIouGradientFixed : public ::testing::TestWithParam<PairRow>
+    {
+
+    };
+
+    /** @brief Runs the compatible form against one dumped cell. */
+    class Small_DetectIouGradientDumped : public ::testing::TestWithParam<DumpedCell>
+    {
+
+    };
+
+    /** @brief Runs one form on two boxes that are one point. */
+    class Small_DetectIouGradientPoint : public ::testing::TestWithParam<FormRow>
+    {
+
+    };
 
     /** @brief Holds a 64-bit linear congruential sequence of numbers in [0, 1). */
     struct UnitSequence
@@ -291,58 +336,94 @@ namespace
         EXPECT_NEAR(static_cast<double>(value), expected,
                     K_HAND_TOLERANCE + K_HAND_TOLERANCE * std::abs(expected));
     }
+
+    /** @brief Expects one entry of the compatible gradient to equal its dumped delta. */
+    void expect_dumped_entry(const Box& gradient, const DumpedCell& cell, std::size_t entry)
+    {
+        EXPECT_NEAR(static_cast<double>(gradient[entry]) * K_DUMP_BOX_WEIGHT, cell.delta[entry],
+                    K_DUMP_RELATIVE * std::abs(cell.delta[entry]))
+            << "entry " << entry;
+    }
+
+    /** @brief Returns the seeded pairs that sit on no kink of the measure, one row each. */
+    std::vector<PairRow> make_seeded_rows()
+    {
+        UnitSequence sequence;
+        std::vector<PairRow> rows;
+        while (rows.size() < static_cast<std::size_t>(K_PAIR_COUNT))
+        {
+            Box pair[2];
+            for (Box& box : pair)
+            {
+                box[0] = static_cast<float>(0.2 + 0.6 * sequence.next());
+                box[1] = static_cast<float>(0.2 + 0.6 * sequence.next());
+                box[2] = static_cast<float>(0.1 + 0.4 * sequence.next());
+                box[3] = static_cast<float>(0.1 + 0.4 * sequence.next());
+            }
+            if (is_away_from_kinks(pair[0], pair[1]))
+                rows.push_back({"SeededPair" + std::to_string(rows.size()), pair[0], pair[1]});
+        }
+        return rows;
+    }
+
+    /** @brief Names a pair row by its name field. */
+    std::string pair_name(const ::testing::TestParamInfo<PairRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a dumped cell by its name field. */
+    std::string cell_name(const ::testing::TestParamInfo<DumpedCell>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a form row by its name field. */
+    std::string form_name(const ::testing::TestParamInfo<FormRow>& info)
+    {
+        return info.param.name;
+    }
 } // namespace
 
-/** @brief Tests the analytic form on boxes that overlap without one holding the other. */
-TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnOverlappingBoxes)
+/**
+ * @brief Tests the analytic form against the central difference of the measure.
+ *
+ * The hand rows are pairs that overlap without one holding the other, pairs apart along one axis
+ * and along both, and a box inside its truth and one around it. The seeded rows are 100 pairs
+ * that sit on no kink of the measure.
+ */
+TEST_P(Small_DetectIouGradientAnalytic, MatchesTheDifference)
 {
-    expect_analytic_matches_difference({0.45f, 0.55f, 0.3f, 0.2f}, {0.55f, 0.52f, 0.42f, 0.6f});
-    expect_analytic_matches_difference({0.6f, 0.4f, 0.25f, 0.35f}, {0.5f, 0.5f, 0.3f, 0.3f});
+    expect_analytic_matches_difference(GetParam().box, GetParam().target);
 }
 
-/** @brief Tests the analytic form on boxes apart along one axis and along both. */
-TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnDisjointBoxes)
-{
-    expect_analytic_matches_difference({0.2f, 0.45f, 0.2f, 0.3f}, {0.7f, 0.5f, 0.25f, 0.22f});
-    expect_analytic_matches_difference({0.2f, 0.2f, 0.15f, 0.25f}, {0.7f, 0.75f, 0.3f, 0.2f});
-}
+INSTANTIATE_TEST_SUITE_P(
+    Hand, Small_DetectIouGradientAnalytic,
+    ::testing::Values(
+        PairRow{"OverlappingBoxesFirst", {0.45f, 0.55f, 0.3f, 0.2f}, {0.55f, 0.52f, 0.42f, 0.6f}},
+        PairRow{"OverlappingBoxesSecond", {0.6f, 0.4f, 0.25f, 0.35f}, {0.5f, 0.5f, 0.3f, 0.3f}},
+        PairRow{"DisjointAlongOneAxis", {0.2f, 0.45f, 0.2f, 0.3f}, {0.7f, 0.5f, 0.25f, 0.22f}},
+        PairRow{"DisjointAlongBothAxes", {0.2f, 0.2f, 0.15f, 0.25f}, {0.7f, 0.75f, 0.3f, 0.2f}},
+        PairRow{"ABoxInsideItsTruth", {0.52f, 0.47f, 0.2f, 0.1f}, {0.5f, 0.5f, 0.4f, 0.45f}},
+        PairRow{"ABoxAroundItsTruth", {0.5f, 0.5f, 0.6f, 0.5f}, {0.52f, 0.47f, 0.2f, 0.3f}}),
+    pair_name);
 
-/** @brief Tests the analytic form on a box inside its truth and on one around it. */
-TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnNestedBoxes)
-{
-    expect_analytic_matches_difference({0.52f, 0.47f, 0.2f, 0.1f}, {0.5f, 0.5f, 0.4f, 0.45f});
-    expect_analytic_matches_difference({0.5f, 0.5f, 0.6f, 0.5f}, {0.52f, 0.47f, 0.2f, 0.3f});
-}
-
-/** @brief Tests the analytic form on 100 seeded pairs that sit on no kink of the measure. */
-TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnSeededPairs)
-{
-    UnitSequence sequence;
-    int checked = 0;
-    while (checked < K_PAIR_COUNT)
-    {
-        Box pair[2];
-        for (Box& box : pair)
-        {
-            box[0] = static_cast<float>(0.2 + 0.6 * sequence.next());
-            box[1] = static_cast<float>(0.2 + 0.6 * sequence.next());
-            box[2] = static_cast<float>(0.1 + 0.4 * sequence.next());
-            box[3] = static_cast<float>(0.1 + 0.4 * sequence.next());
-        }
-        if (!is_away_from_kinks(pair[0], pair[1]))
-            continue;
-        expect_analytic_matches_difference(pair[0], pair[1]);
-        ++checked;
-    }
-}
+INSTANTIATE_TEST_SUITE_P(Seeded, Small_DetectIouGradientAnalytic,
+                         ::testing::ValuesIn(make_seeded_rows()), pair_name);
 
 /** @brief Tests the fixed trade-off form on overlapping, disjoint and nested pairs. */
-TEST(Small_DetectIouGradient, FixedTradeOffMatchesTheDifferenceWithAFrozenTradeOff)
+TEST_P(Small_DetectIouGradientFixed, MatchesTheDifferenceWithAFrozenTradeOff)
 {
-    expect_fixed_matches_difference({0.45f, 0.55f, 0.3f, 0.2f}, {0.55f, 0.52f, 0.42f, 0.6f});
-    expect_fixed_matches_difference({0.2f, 0.2f, 0.15f, 0.25f}, {0.7f, 0.75f, 0.3f, 0.2f});
-    expect_fixed_matches_difference({0.52f, 0.47f, 0.2f, 0.1f}, {0.5f, 0.5f, 0.4f, 0.45f});
+    expect_fixed_matches_difference(GetParam().box, GetParam().target);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectIouGradientFixed,
+    ::testing::Values(
+        PairRow{"OverlappingBoxes", {0.45f, 0.55f, 0.3f, 0.2f}, {0.55f, 0.52f, 0.42f, 0.6f}},
+        PairRow{"DisjointBoxes", {0.2f, 0.2f, 0.15f, 0.25f}, {0.7f, 0.75f, 0.3f, 0.2f}},
+        PairRow{"NestedBoxes", {0.52f, 0.47f, 0.2f, 0.1f}, {0.5f, 0.5f, 0.4f, 0.45f}}),
+    pair_name);
 
 /** @brief Tests that the fixed form differs from the analytic one when the aspects differ. */
 TEST(Small_DetectIouGradient, FixedTradeOffDropsTheSlopeOfTheTradeOff)
@@ -355,21 +436,21 @@ TEST(Small_DetectIouGradient, FixedTradeOffDropsTheSlopeOfTheTradeOff)
               K_HAND_TOLERANCE);
 }
 
-/** @brief Tests the compatible form against the twelve dumped deltas of the report. */
-TEST(Small_DetectIouGradient, DarknetCompatibleMatchesTheDumpedDeltas)
+/** @brief Tests the compatible form against the four dumped deltas of one cell of the report. */
+TEST_P(Small_DetectIouGradientDumped, DarknetCompatibleMatchesTheDumpedDeltas)
 {
-    for (const DumpedCell& cell : K_DUMPED_CELLS)
-    {
-        const Box gradient =
-            measure_gradient(cell.box, cell.target, Detect::BoxGradient::DarknetCompatible);
-        for (std::size_t entry = 0; entry < cell.delta.size(); ++entry)
-        {
-            EXPECT_NEAR(static_cast<double>(gradient[entry]) * K_DUMP_BOX_WEIGHT, cell.delta[entry],
-                        K_DUMP_RELATIVE * std::abs(cell.delta[entry]))
-                << "entry " << entry;
-        }
-    }
+    const DumpedCell& cell = GetParam();
+    const Box gradient =
+        measure_gradient(cell.box, cell.target, Detect::BoxGradient::DarknetCompatible);
+
+    expect_dumped_entry(gradient, cell, 0);
+    expect_dumped_entry(gradient, cell, 1);
+    expect_dumped_entry(gradient, cell, 2);
+    expect_dumped_entry(gradient, cell, 3);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectIouGradientDumped, ::testing::ValuesIn(K_DUMPED_CELLS),
+                         cell_name);
 
 /** @brief Tests that the compatible form doubles the overlap part of width and height. */
 TEST(Small_DetectIouGradient, DarknetCompatibleDoublesTheSizeSlopeOfTheOverlap)
@@ -427,16 +508,17 @@ TEST(Small_DetectIouGradient, DarknetCompatibleSimplifiesTheAspectTerm)
     expect_hand_value(analytic[3], kept * 1.25 - full * 0.2);
 }
 
-/** @brief Tests that every form writes zeros for two boxes that are one point. */
-TEST(Small_DetectIouGradient, EveryFormIsZeroForTwoBoxesAtOnePoint)
+/** @brief Tests that a form writes zeros for two boxes that are one point. */
+TEST_P(Small_DetectIouGradientPoint, IsZeroForTwoBoxesAtOnePoint)
 {
     const Box point{0.5f, 0.5f, 0.0f, 0.0f};
-    for (const Detect::BoxGradient form :
-         {Detect::BoxGradient::Analytic, Detect::BoxGradient::DarknetCompatible,
-          Detect::BoxGradient::FixedTradeOff})
-    {
-        const Box gradient = measure_gradient(point, point, form);
-        for (const float component : gradient)
-            EXPECT_EQ(component, 0.0f);
-    }
+
+    EXPECT_EQ(measure_gradient(point, point, GetParam().form), (Box{0.0f, 0.0f, 0.0f, 0.0f}));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectIouGradientPoint,
+    ::testing::Values(FormRow{"Analytic", Detect::BoxGradient::Analytic},
+                      FormRow{"DarknetCompatible", Detect::BoxGradient::DarknetCompatible},
+                      FormRow{"FixedTradeOff", Detect::BoxGradient::FixedTradeOff}),
+    form_name);

@@ -1,48 +1,47 @@
 # tests/vision/detect/test_iou_gradient.cpp
 
 
-Suites: `Small_DetectIouGradient`.
+Suites: `Small_DetectIouGradient`, `Small_DetectIouGradientAnalytic`,
+`Small_DetectIouGradientFixed`, `Small_DetectIouGradientDumped` and
+`Small_DetectIouGradientPoint`.
 
 Tests the box gradient declared in
 `modules/vision/detect/include/SushiAI/vision/detect/iou_gradient.hpp` in its three forms,
 `BoxGradient::Analytic`, `BoxGradient::DarknetCompatible` and `BoxGradient::FixedTradeOff`.
-A box is a centre and a size. The analytic form is compared with a central difference of step 1e-6, within 1e-6 relative
-plus 1e-7 absolute. Hand values are compared to 1e-5.
+A box is a centre and a size. The analytic form is compared with a central difference of step
+1e-6, within 32 times the float unit roundoff relative plus 2 times the float unit roundoff
+absolute. Hand values are compared within 256 times the float unit roundoff.
 
-## AnalyticMatchesTheDifferenceOnOverlappingBoxes
+The analytic and fixed forms, the dumped cells and the one-point case run over rows; each row has
+a name that states its input.
 
-The analytic gradient equals the central difference for two pairs of boxes that overlap
-without one holding the other.
+## MatchesTheDifference
 
-## AnalyticMatchesTheDifferenceOnDisjointBoxes
+Suite `Small_DetectIouGradientAnalytic`. The analytic gradient equals the central difference on
+each row. The `Hand` rows are two pairs that overlap without one holding the other, a pair apart
+along one axis and a pair apart along both, and a box inside its target and a box around its
+target. The `Seeded` rows are 100 pairs drawn from a seeded sequence, with centres in [0.2, 0.8]
+and sides in [0.1, 0.5]. A pair that lies near a kink of the measure is drawn again and gets no
+row. The rows are built before the run by `make_seeded_rows`.
 
-The same holds for a pair apart along one axis and a pair apart along both.
+## MatchesTheDifferenceWithAFrozenTradeOff
 
-## AnalyticMatchesTheDifferenceOnNestedBoxes
-
-The same holds for a box inside its target and for a box around its target.
-
-## AnalyticMatchesTheDifferenceOnSeededPairs
-
-The same holds for 100 pairs drawn from a seeded sequence, with centres in [0.2, 0.8] and sides
-in [0.1, 0.5]. A pair that lies near a kink of the measure is drawn again and not counted.
-
-## FixedTradeOffMatchesTheDifferenceWithAFrozenTradeOff
-
-The fixed form equals a central difference of a host measure whose trade-off is computed once,
-at the box under test, and passed as a constant to every shifted evaluation. Pairs: one
-overlapping, one disjoint along both axes, one nested. Tolerances are those of the analytic
-form.
+Suite `Small_DetectIouGradientFixed`. The fixed form equals a central difference of a host
+measure whose trade-off is computed once, at the box under test, and passed as a constant to
+every shifted evaluation. Rows: one overlapping pair, one disjoint along both axes, one nested.
+Tolerances are those of the analytic form.
 
 ## FixedTradeOffDropsTheSlopeOfTheTradeOff
 
 For an overlapping pair of different aspects, the width component of the fixed form differs
-from the analytic one by more than 1e-5.
+from the analytic one by more than the hand tolerance.
 
 ## DarknetCompatibleMatchesTheDumpedDeltas
 
-For each of the twelve cells in `K_DUMPED_CELLS`, the compatible gradient times the box weight
-0.05 equals each of the cell's deltas to 1e-4 relative.
+Suite `Small_DetectIouGradientDumped`. One row for each of the three cells in `K_DUMPED_CELLS`:
+the compatible gradient times the box weight 0.05 equals each of the cell's four deltas within
+2048 times the float unit roundoff, relative. `expect_dumped_entry` states the comparison for one
+entry and the case calls it for the four entries.
 
 ## DarknetCompatibleDoublesTheSizeSlopeOfTheOverlap
 
@@ -59,8 +58,11 @@ compatible y and height components are 0.
 
 For a 0.2 by 0.1 box centred in a 0.4 square, the case computes the aspect term and its
 trade-off in double, with `K_ASPECT_TRADE_OFF_EPS`, and expects the width and height components
-of each form from them.
+of each form from them. The expected values restate the aspect formula, so the oracle is partly
+the formula of the implementation.
 
-## EveryFormIsZeroForTwoBoxesAtOnePoint
+## IsZeroForTwoBoxesAtOnePoint
 
-For two boxes of zero size at one point, every component of every form is exactly 0.
+Suite `Small_DetectIouGradientPoint`. For two boxes of zero size at one point, the gradient of
+each form is exactly zero in all four components. Rows: `Analytic`, `DarknetCompatible` and
+`FixedTradeOff`.
