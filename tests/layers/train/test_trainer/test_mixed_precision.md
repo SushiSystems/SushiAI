@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_mixed_precision.cpp
 
 
-Suites: `Medium_MixedPrecision`.
+Suites: `Medium_MixedPrecision` and `Small_MixedPrecisionGelu`.
 
 This is the device half of AI-4. `tests/core/autograd/test_backward.cpp` pins the graph
 shape with no hardware. This file holds what only a real Engine can answer:
@@ -28,18 +28,23 @@ and the demo answer the same question at the same setting.
 Correctness is the one claim the mixed-precision change can make on this hardware. It is not
 faster here and cannot be.
 
-A zeroed classifier starts at a loss of ln(4). A last loss below half of that shows a model
-that learned something and did not merely run.
+A last loss below half of the first shows a model that learned something and did not merely run.
+The run compiles once, its losses are finite and its accuracy passes 0.75. The first loss being
+ln(C) is `test_convergence.cpp`'s case.
 
-## TheMastersAreFourByteBuffersAndTheCopiesAreTwo
+## TheCopiesAreTwoByteBuffers
 
-The IR says FLOAT32 and HALF, and the test checks that the tensors underneath say the same.
-The two could disagree. The test reads each parameter and gradient slot and requires FLOAT32, and
-it reads each cast destination the pool holds and requires HALF. A planner that sized a slot from
-the wrong dtype would hand out a view that overruns its neighbour.
+The IR says HALF for each cast destination, and the test checks that the tensors underneath say the
+same. The two could disagree. The test requires at least one half cast, and for every one it
+requires that the pool materialised the destination and that the tensor is HALF. A planner that
+sized a slot from the wrong dtype would hand out a view that overruns its neighbour. That the
+master weights and their gradients are FLOAT32 is read after a whole run by `StayFloat32`.
 
-That the step ran at all is the loud half of the check. SushiBLAS refuses a mixed-dtype gemm
-by name, so a graph with a missing conversion could not get this far.
+## AStepOverTheHalfCopiesIsFinite
+
+One step of the mixed run gives a finite loss. That the step ran at all is the loud half of the
+dtype check: SushiBLAS refuses a mixed-dtype gemm by name, so a graph with a missing conversion
+could not get this far.
 
 ## TheTrainerRefusesAGraphItsPolicyDisowns
 
@@ -56,7 +61,7 @@ as one and report an accuracy that is fiction. Nothing throws, nothing is NaN, a
 `build_classifier` lists the logits as observed, so the shipped path cannot reach this. A
 caller running the pass themselves can, and gets an error.
 
-Suites: `Medium_MixedPrecisionRegressions`.
+Suites: `Medium_MixedPrecisionRegressions` and `Medium_MixedPrecisionDtypes`.
 
 Every guarantee in this file fails silently, which is what puts these tests in the regression tier
 and not beside the integration tests. A run that reports success cannot catch any of them.
@@ -88,10 +93,15 @@ The helper reads the parameter dtypes after the run and not before. Fusion and t
 rewrite nodes, and a master weight that survived the passes could still have been swapped for a
 narrow copy by the optimizer wiring.
 
+## StayFloat32
+
+Two rows, `Masters` and `Gradients`. After a mixed run every parameter tensor, or every gradient
+tensor, is FLOAT32. The dtypes are read after the run and not before.
+
 ## TheFP32PolicyIsIndistinguishableFromNoPolicyAtAll
 
 This test is the control, in the strongest form available: zero casts, the same recorded operation
-count, and the same losses to the bit. If the pass ever starts inserting a conversion
+count, and the same list of losses to the bit. If the pass ever starts inserting a conversion
 unconditionally, this test fails before any mixed-precision test can look correct for the wrong
 reason.
 
@@ -104,23 +114,22 @@ this file would notice it.
 
 ## MixedAndSinglePrecisionTrainToTheSamePlace
 
-This test makes the numeric claim, and its tolerance is derived, not tuned until green. fp16
-carries 11 bits of significand, so one rounded value is accurate to about 2^-11 = 4.9e-4 relative.
-A step's loss passes through a handful of rounded values, so a few times that figure is the
-expected deviation.
+This test makes the numeric claim. fp16 carries 11 bits of significand, so one rounded value is
+accurate to about 2^-11 = 4.9e-4 relative, and the bound is 40 such units, about 2e-2. Forty is not
+a rounding count of one pass: a handful of rounded values reach each loss and the updates they steer
+compound over 200 steps. It is a bound on a trajectory.
 
 The measured figure on `sa demo mlp --epochs 8 --batches 16` (a wider model than this one, 128
-steps) was 9.5e-4 relative, at the end of the first epoch. That is the largest loss whose six
-printed decimals still carry enough digits to divide. The test's bound is 2e-2, about twenty times
-the measured figure, and it is a bound and not a measurement. It was chosen so the test survives a
-change of seed or schedule. Passing it says the deviation is under 2e-2 and nothing more precise.
+steps) was 9.5e-4 relative, 2 units, at the end of the first epoch. The bound is twenty times that
+figure, so the test survives a change of seed or schedule. Passing it says the deviation is under 40
+units and nothing more precise.
 
 The test first asserts that both runs learned. Two runs that both diverged would agree and the
 agreement would mean nothing.
 
 ## AGELULayerIsNotFoldedUnderANarrowingPolicy
 
-graph/precision.hpp's rules 2 and 5 meet in this test, and it asserts that they meet consistently.
+graph/precision.hpp's rules 2 and 5 meet in this case, and it asserts that they meet consistently.
 
 Rule 2 says a fused epilogue runs inside the GEMM's kernel in the GEMM's element type, so an
 activation the catalog folds has to compute in the GEMM's type or fusion would change the numbers.
@@ -131,14 +140,18 @@ nothing kept them apart.
 The pass order keeps them apart, and it does so by structure. The cast pass runs before fusion, so
 an activation the policy keeps wide gets a K_CAST between it and the narrowed K_BIAS_ADD, and a chain
 with a conversion in the middle matches no catalog entry. Under fp32 the layer folds whole. Under a
-narrowing policy it falls back to gemm+bias and the GELU runs on its own, as it did before the
-entry existed.
+narrowing policy it falls back to gemm+bias and the GELU runs on its own.
 
-If this test ever sees a gemm+bias+gelu node, an fp16 `x*x*x` is being computed, and nothing else
+If this case ever sees a gemm+bias+gelu node, an fp16 `x*x*x` is being computed, and nothing else
 in the suite would say so.
 
-The test also asserts that fusion did not stop altogether. The bias still folds on both layers, so
-the fallback is the shorter catalog entry and not an unfused graph.
+## TheBiasStillFoldsOnBothLayersUnderANarrowingPolicy
 
-The last assertion is that the K_GELU is still in the graph and still in the master type. That is the
-other half of rule 5 and the reason the fold is refused.
+Fusion does not stop altogether. The bias still folds on both layers, so the fallback is the
+shorter catalog entry and not an unfused graph. The narrowing arm inserted casts, or it proves
+nothing.
+
+## TheGELUOutputStaysFloat32UnderANarrowingPolicy
+
+The K_GELU is still in the graph and its outputs are in the master type. That is the other half of
+rule 5 and the reason the fold is refused.
