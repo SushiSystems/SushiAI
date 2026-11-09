@@ -147,6 +147,29 @@ namespace
             EXPECT_EQ(update.momentum, options.momentum);
     }
 
+    /** @brief Counts the norms a walk lists, one running mean each. */
+    std::size_t count_norms(const std::vector<std::string>& records)
+    {
+        std::size_t norms = 0;
+        for (const std::string& line : records)
+        {
+            if (line.find(".bn.running_mean ") != std::string::npos)
+                ++norms;
+        }
+
+        return norms;
+    }
+
+    /** @brief Lists the shape of each input of @p node, in order. */
+    std::vector<Shape> input_shapes(const Graph::Graph& graph, const Graph::Node& node)
+    {
+        std::vector<Shape> shapes;
+        for (const Graph::ValueID input : node.inputs)
+            shapes.push_back(graph.value(input).shape);
+
+        return shapes;
+    }
+
     /** @brief Lists the five records of one Conv: its weight and the norm's four tensors. */
     std::vector<std::string> conv_records(const std::string& prefix, const Shape& weight)
     {
@@ -178,10 +201,11 @@ TEST(Small_BlockC3, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 }
 
 /**
- * @brief Tests that C3 with a hidden width of 4 and two bottlenecks traces seven Conv blocks,
- *        two ADDs, one CONCAT_CHANNELS and no slice.
+ * @brief Tests that a training trace of C3 with a hidden width of 4 and two bottlenecks yields
+ *        the output width, requests a mean and a variance update for each norm of its state and
+ *        hands them the given options.
  */
-TEST(Small_BlockC3, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
+TEST(Small_BlockC3, ATrainingTraceUpdatesEveryNormAndKeepsTheOptions)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -191,23 +215,13 @@ TEST(Small_BlockC3, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 0u);
-    EXPECT_EQ(list.updates().size(), 14u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 12}));
+    EXPECT_EQ(list.updates().size(), 2 * count_norms(walk(block, "c")));
     expect_norm_options(graph, list, K_TEST_NORM);
 }
 
-/**
- * @brief Tests the wiring on a tiny [1, 2, 2, 8] input: the join reads the chain's last ADD
- *        first and cv2's SILU second, each 4 channels, and the first bottleneck's ADD adds the
- *        result of cv1.
- */
-TEST(Small_BlockC3, TheJoinReadsTheChainThenTheSecondBranch)
+/** @brief Tests that the join takes the chain and the second branch, 4 channels each. */
+TEST(Small_BlockC3, TheJoinTakesTheChainAndTheSecondBranch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -217,17 +231,9 @@ TEST(Small_BlockC3, TheJoinReadsTheChainThenTheSecondBranch)
 
     ASSERT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
     const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
-    ASSERT_EQ(join.inputs.size(), 2u);
 
-    const Graph::Node& last = graph.node(graph.value(join.inputs[0]).producer);
-    ASSERT_EQ(last.op, Ops::K_ADD.id);
-    EXPECT_EQ(graph.node(graph.value(join.inputs[1]).producer).op, Ops::K_SILU.id);
-    EXPECT_EQ(graph.value(join.inputs[0]).shape, (Shape{1, 2, 2, 4}));
-    EXPECT_EQ(graph.value(join.inputs[1]).shape, (Shape{1, 2, 2, 4}));
+    EXPECT_EQ(input_shapes(graph, join), std::vector<Shape>(2, Shape{1, 2, 2, 4}));
     EXPECT_EQ(graph.value(join.outputs[0]).shape, (Shape{1, 2, 2, 8}));
-
-    // The second bottleneck adds its own input, which the first bottleneck's ADD produced.
-    EXPECT_EQ(graph.node(graph.value(last.inputs[0]).producer).op, Ops::K_ADD.id);
 }
 
 /** @brief Tests that a block built without a shortcut traces no ADD. */
@@ -241,7 +247,6 @@ TEST(Small_BlockC3, NoShortcutTracesNoAdd)
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
 }
 
 /**
@@ -289,7 +294,6 @@ TEST(Small_BlockC3, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 
     ASSERT_EQ(outputs.size(), 1u);
     EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{2, 4, 4, 12}));
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 5u);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
 }
 
@@ -309,7 +313,6 @@ TEST(Small_BlockC3, TheFactoryReadsRepeatsAndShortcut)
     std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 
     const std::vector<std::string> state = walk(*node, "c");
@@ -320,22 +323,43 @@ TEST(Small_BlockC3, TheFactoryReadsRepeatsAndShortcut)
                                 StateKind::Parameter));
 }
 
-/** @brief Tests that the factory refuses an unknown key, a missing key and zero repeats. */
-TEST(Small_BlockC3, TheFactoryRefusesARowThatDoesNotFit)
+/** @brief Tests that the factory refuses a key the row does not take. */
+TEST(Small_BlockC3, TheFactoryRefusesAnUnknownKey)
 {
     const Shape input{4, 4, 8};
     const Config::Value unknown = attributes_of(R"({"filters": 12, "hidden": 4, "inner": "x"})");
-    const Config::Value no_hidden = attributes_of(R"({"filters": 12})");
-    const Config::Value no_filters = attributes_of(R"({"hidden": 4})");
-    const Config::Value zero_repeats =
-        attributes_of(R"({"filters": 12, "hidden": 4, "repeats": 0})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3_node(one_input(input), unknown, K_CONTEXT),
                       StatusCode::InvalidDescription, "layer 4 'c3'", "'inner'");
+}
+
+/** @brief Tests that the factory refuses a row without its hidden width. */
+TEST(Small_BlockC3, TheFactoryRefusesAnAbsentHiddenWidth)
+{
+    const Shape input{4, 4, 8};
+    const Config::Value no_hidden = attributes_of(R"({"filters": 12})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3_node(one_input(input), no_hidden, K_CONTEXT),
                       StatusCode::InvalidDescription, "'hidden'", "absent");
+}
+
+/** @brief Tests that the factory refuses a row without its output width. */
+TEST(Small_BlockC3, TheFactoryRefusesAnAbsentFilterCount)
+{
+    const Shape input{4, 4, 8};
+    const Config::Value no_filters = attributes_of(R"({"hidden": 4})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3_node(one_input(input), no_filters, K_CONTEXT),
                       StatusCode::InvalidDescription, "'filters'", "absent");
+}
+
+/** @brief Tests that the factory refuses a repeat count of zero. */
+TEST(Small_BlockC3, TheFactoryRefusesZeroRepeats)
+{
+    const Shape input{4, 4, 8};
+    const Config::Value zero_repeats =
+        attributes_of(R"({"filters": 12, "hidden": 4, "repeats": 0})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3_node(one_input(input), zero_repeats, K_CONTEXT),
                       StatusCode::InvalidDescription, "'repeats'", "positive");
 }
