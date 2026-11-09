@@ -48,8 +48,17 @@ TEST(Small_DetectAssignerConfig, BothPresetsCarryTheClassCount)
     EXPECT_EQ(one_to_one_assigner_config(3, K_STRIDES).num_classes, 3);
 }
 
+/** @brief Tests that both presets take a single stride as stride_val. */
+TEST(Small_DetectAssignerConfig, BothPresetsTakeASingleStrideAsStrideVal)
+{
+    const std::vector<float> one{4.0f};
+
+    EXPECT_EQ(one_to_many_assigner_config(3, one).stride_val, 4.0f);
+    EXPECT_EQ(one_to_one_assigner_config(3, one).stride_val, 4.0f);
+}
+
 /** @brief Tests that both presets refuse a class count of zero or below. */
-TEST(Small_DetectAssignerConfig, BothPresetsRefuseAClassCountBelowOne)
+TEST(Medium_DetectAssignerConfig, BothPresetsRefuseAClassCountBelowOne)
 {
     SA_EXPECT_FATAL(static_cast<void>(one_to_many_assigner_config(0, K_STRIDES)),
                     "positive class count", "got 0");

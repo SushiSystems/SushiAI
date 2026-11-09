@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_assignment.cpp                                                    */
+/* compile_assignment.cpp                                                 */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,30 +22,16 @@
 /**************************************************************************/
 
 /**
- * @file test_assignment.cpp
- * @brief Tests that a default assignment has no extents and holds no targets.
+ * @file compile_assignment.cpp
+ * @brief Checks at compile time that an assignment moves, as the assigner hands it to its caller.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
+#include <type_traits>
 #include <SushiAI/vision/detect/free/assignment.hpp>
 
 namespace
 {
-    using SushiAI::Vision::Detect::Free::Assignment;
+    static_assert(std::is_move_constructible<SushiAI::Vision::Detect::Free::Assignment>::value,
+                  "an assignment holds five arrays and moves out of the function that fills it");
 } // namespace
-
-/** @brief Tests that a default assignment has zero extents and five empty target arrays. */
-TEST(Small_DetectAssignment, ADefaultAssignmentHasNoExtentsAndNoTargets)
-{
-    const Assignment assignment;
-
-    EXPECT_EQ(assignment.batch, 0);
-    EXPECT_EQ(assignment.anchors, 0);
-    EXPECT_EQ(assignment.num_classes, 0);
-    EXPECT_TRUE(assignment.foreground_mask.empty());
-    EXPECT_TRUE(assignment.target_boxes.empty());
-    EXPECT_TRUE(assignment.target_scores.empty());
-    EXPECT_TRUE(assignment.target_labels.empty());
-    EXPECT_TRUE(assignment.target_indices.empty());
-}

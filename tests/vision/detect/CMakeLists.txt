@@ -33,7 +33,6 @@ sushiai_add_test_program(OWNER vision/detect
         free/test_anchors.cpp
         free/test_assigner.cpp
         free/test_assigner_config.cpp
-        free/test_assignment.cpp
         free/test_box_coding.cpp
         free/test_distribution_expectation.cpp
         free/test_distribution_targets.cpp
@@ -44,6 +43,7 @@ sushiai_add_test_program(OWNER vision/detect
         test_average_precision.cpp
         test_batch_average_precision.cpp
         compile_detection_row.cpp
+        free/compile_assignment.cpp
         compile_prediction_shape.cpp
         test_box_format.cpp
         test_detections_nms.cpp
