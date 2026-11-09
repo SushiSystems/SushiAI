@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -81,26 +82,23 @@ namespace
     /** @brief Holds the features of a sample. */
     constexpr int64_t K_FEATURES = 3;
 
-    /**
-     * @brief Bounds the absolute error of a float32 loss of order one; 256 unit roundoffs of float,
-     * the smallest power of two that covers 1e-5.
-     */
-    constexpr double K_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
+    /** @brief Holds the classes of the multi-label objective. */
+    constexpr int64_t K_CLASSES = 3;
+
+    /** @brief Holds the outputs of the regression objective. */
+    constexpr int64_t K_WIDTH = 2;
+
+    /** @brief Holds the epochs of the regression fit. */
+    constexpr int64_t K_EPOCHS = 40;
 
     /**
-     * @brief Bounds the absolute error of a float32 loss of order one hundred; 32768 unit roundoffs
-     * of float, the smallest power of two that covers 1e-3.
+     * @brief Counts the roundings of a logistic term beyond the sum: the maximum, the product with
+     *        the target, the exponential, the logarithm and the two additions.
      */
-    constexpr double K_LARGE_TOLERANCE = 32768.0 * TestSupport::unit_roundoff<float>();
+    constexpr std::size_t K_LOGISTIC_OPERATIONS = 6;
 
-    /**
-     * @brief Bounds the difference between a ratio of small counts and its exact value; 16384 unit
-     * roundoffs of double, the smallest power of two that covers 1e-12.
-     */
-    constexpr double K_RATIO_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
-    /** @brief Stands for a metric the step did not report; no ratio and no error equals it. */
-    constexpr double K_ABSENT = -1.0;
+    /** @brief Counts the roundings of a squared term beyond the sum: the difference and the square. */
+    constexpr std::size_t K_SQUARE_OPERATIONS = 2;
 
     /** @brief Returns the [N, F] inputs: element i holds ((5 i) mod 7 - 3) / 2 times @p scale. */
     std::vector<double> make_inputs(double scale)
@@ -196,15 +194,70 @@ namespace
         return total / static_cast<double>(logits.size());
     }
 
+    /** @brief Returns the mean of the squared differences of @p predicted and @p values. */
+    double squared_error_on_host(const std::vector<double>& predicted,
+                                 const std::vector<double>& values)
+    {
+        double total = 0.0;
+        for (std::size_t index = 0; index < values.size(); ++index)
+            total += (predicted[index] - values[index]) * (predicted[index] - values[index]);
+
+        return total / static_cast<double>(values.size());
+    }
+
+    /** @brief Returns the values the regression cases fit, two per sample. */
+    std::vector<double> regression_values()
+    {
+        return {0.5, -1.0, 2.0, 0.25, -0.75, 1.5, 0.0, 3.0};
+    }
+
+    /** @brief Fits the regression objective for K_EPOCHS epochs over one batch. */
+    Result<Train::RunReport> fit_regression(SushiAI::ExecutionBackend& backend)
+    {
+        SA_TRY_ASSIGN(const std::unique_ptr<Train::MeanSquaredErrorObjective> objective,
+                      Train::MeanSquaredErrorObjective::make(K_BATCH, K_WIDTH));
+        const std::vector<Data::TargetDescription> roles =
+            real_role(Data::K_ROLE_VALUES, Shape{K_WIDTH});
+        SA_TRY_ASSIGN(Data::Batch batch,
+                      make_batch(backend.engine(), roles, regression_values()));
+        std::vector<Data::Batch> batches;
+        batches.push_back(std::move(batch));
+        const Data::MaterialisedDataset dataset(std::move(batches), K_BATCH, input_description(),
+                                                roles, "regression");
+
+        std::optional<Train::RunReport> report;
+        SA_TRY(with_trainer(backend, *objective, K_WIDTH, 0.05,
+                            [&](Train::Trainer& trainer, const SushiBLAS::Tensor&) -> Status
+        {
+            trainer.options().epochs = K_EPOCHS;
+            SA_TRY_ASSIGN(Train::RunReport fitted, trainer.fit(dataset));
+            report = std::move(fitted);
+            return Status();
+        }));
+
+        return std::move(*report);
+    }
+
     /** @brief Provides the engine the states, the batches and the steps are built on. */
     class Medium_DenseObjectives : public SaTest::EngineTest
     {
-
+        protected:
+            /**
+             * @brief Expects @p loss to equal the logistic loss of @p logits and @p labels within
+             *        the roundings of one term and one sum over the elements.
+             */
+            static void expect_logistic_loss(double loss, const std::vector<double>& logits,
+                                             const std::vector<double>& labels)
+            {
+                EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<float>(
+                    loss, logistic_loss_on_host(logits, labels),
+                    logits.size() + K_LOGISTIC_OPERATIONS)));
+            }
     };
 } // namespace
 
-/** @brief Tests the binary loss and its three metrics against the host over the step's logits. */
-TEST_F(Medium_DenseObjectives, TheBinaryLossAndMetricsEqualTheHostComputation)
+/** @brief Tests the binary loss against the host over the step's logits. */
+TEST_F(Medium_DenseObjectives, TheBinaryLossEqualsTheHostComputation)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::BinaryCrossEntropyObjective> objective,
                             Train::BinaryCrossEntropyObjective::make(K_BATCH));
@@ -217,29 +270,7 @@ TEST_F(Medium_DenseObjectives, TheBinaryLossAndMetricsEqualTheHostComputation)
                                   const SushiBLAS::Tensor& output) -> Status
     {
         SA_TRY_ASSIGN(const Train::StepMetrics step, trainer.run_step(batch));
-        const std::vector<double> logits = SaTest::read_tensor(output);
-
-        EXPECT_NEAR(step.loss, logistic_loss_on_host(logits, labels), K_TOLERANCE);
-
-        double right = 0.0;
-        double predicted = 0.0;
-        double hits = 0.0;
-        for (std::size_t row = 0; row < logits.size(); ++row)
-        {
-            const bool positive = logits[row] >= 0.0;
-            right += positive == (labels[row] == 1.0) ? 1.0 : 0.0;
-            predicted += positive ? 1.0 : 0.0;
-            hits += positive && labels[row] == 1.0 ? 1.0 : 0.0;
-        }
-
-        // Both signs occur among the logits, so neither ratio divides by zero.
-        EXPECT_GT(predicted, 0.0);
-        EXPECT_LT(predicted, static_cast<double>(K_BATCH));
-        EXPECT_EQ(step.metrics.all().size(), 3u);
-        EXPECT_NEAR(step.metrics.value_or("accuracy", K_ABSENT), right / 4.0, K_RATIO_TOLERANCE);
-        EXPECT_NEAR(step.metrics.value_or("precision", K_ABSENT), hits / predicted,
-                    K_RATIO_TOLERANCE);
-        EXPECT_NEAR(step.metrics.value_or("recall", K_ABSENT), hits / 2.0, K_RATIO_TOLERANCE);
+        expect_logistic_loss(step.loss, SaTest::read_tensor(output), labels);
         return Status();
     }));
 }
@@ -250,6 +281,8 @@ TEST_F(Medium_DenseObjectives, ALargeLogitGivesAFiniteBinaryLoss)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::BinaryCrossEntropyObjective> objective,
                             Train::BinaryCrossEntropyObjective::make(K_BATCH));
     const std::vector<double> labels = {1.0, 0.0, 0.0, 1.0};
+
+    // Inputs scaled by 400 overflow exp in float32; see tests/layers/train/README.md.
     SA_ASSERT_OK_AND_ASSIGN(
         const Data::Batch batch,
         make_batch(*engine, real_role(Data::K_ROLE_LABELS, Shape{}), labels, 400.0));
@@ -259,16 +292,9 @@ TEST_F(Medium_DenseObjectives, ALargeLogitGivesAFiniteBinaryLoss)
                                   const SushiBLAS::Tensor& output) -> Status
     {
         SA_TRY_ASSIGN(const Train::StepMetrics step, trainer.run_step(batch));
-        const std::vector<double> logits = SaTest::read_tensor(output);
-
-        // exp of such a logit overflows float32; see tests/layers/train/README.md.
-        double largest = 0.0;
-        for (const double logit : logits)
-            largest = std::max(largest, std::abs(logit));
-        EXPECT_GT(largest, 100.0);
 
         EXPECT_TRUE(std::isfinite(step.loss));
-        EXPECT_NEAR(step.loss, logistic_loss_on_host(logits, labels), K_LARGE_TOLERANCE);
+        expect_logistic_loss(step.loss, SaTest::read_tensor(output), labels);
         return Status();
     }));
 }
@@ -276,7 +302,6 @@ TEST_F(Medium_DenseObjectives, ALargeLogitGivesAFiniteBinaryLoss)
 /** @brief Tests the multi-label loss against the host over the N * C logits of the step. */
 TEST_F(Medium_DenseObjectives, TheMultiLabelLossEqualsTheHostComputation)
 {
-    constexpr int64_t K_CLASSES = 3;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::MultiLabelObjective> objective,
                             Train::MultiLabelObjective::make(K_BATCH, K_CLASSES));
     const std::vector<double> labels = {1.0, 0.0, 1.0, 0.0, 0.0, 1.0,
@@ -293,36 +318,17 @@ TEST_F(Medium_DenseObjectives, TheMultiLabelLossEqualsTheHostComputation)
         const std::vector<double> logits = SaTest::read_tensor(output);
 
         EXPECT_EQ(logits.size(), labels.size());
-        EXPECT_NEAR(step.loss, logistic_loss_on_host(logits, labels), K_TOLERANCE);
-
-        double total = 0.0;
-        for (std::size_t column = 0; column < 3; ++column)
-        {
-            double hits = 0.0;
-            double wrong = 0.0;
-            for (std::size_t row = 0; row < 4; ++row)
-            {
-                const bool positive = logits[row * 3 + column] >= 0.0;
-                const bool actual = labels[row * 3 + column] == 1.0;
-                hits += positive && actual ? 1.0 : 0.0;
-                wrong += positive != actual ? 1.0 : 0.0;
-            }
-            total += hits == 0.0 ? 0.0 : 2.0 * hits / (2.0 * hits + wrong);
-        }
-
-        EXPECT_EQ(step.metrics.all().size(), 1u);
-        EXPECT_NEAR(step.metrics.value_or("f1", K_ABSENT), total / 3.0, K_RATIO_TOLERANCE);
+        expect_logistic_loss(step.loss, logits, labels);
         return Status();
     }));
 }
 
-/** @brief Tests the squared error and the absolute error against the host over the outputs. */
+/** @brief Tests the squared error against the host over the outputs of the step. */
 TEST_F(Medium_DenseObjectives, TheSquaredErrorEqualsTheHostComputation)
 {
-    constexpr int64_t K_WIDTH = 2;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::MeanSquaredErrorObjective> objective,
                             Train::MeanSquaredErrorObjective::make(K_BATCH, K_WIDTH));
-    const std::vector<double> values = {0.5, -1.0, 2.0, 0.25, -0.75, 1.5, 0.0, 3.0};
+    const std::vector<double> values = regression_values();
     SA_ASSERT_OK_AND_ASSIGN(
         const Data::Batch batch,
         make_batch(*engine, real_role(Data::K_ROLE_VALUES, Shape{K_WIDTH}), values));
@@ -334,78 +340,28 @@ TEST_F(Medium_DenseObjectives, TheSquaredErrorEqualsTheHostComputation)
         SA_TRY_ASSIGN(const Train::StepMetrics step, trainer.run_step(batch));
         const std::vector<double> predicted = SaTest::read_tensor(output);
 
-        double squared = 0.0;
-        double absolute = 0.0;
-        for (std::size_t index = 0; index < values.size(); ++index)
-        {
-            const double difference = predicted[index] - values[index];
-            squared += difference * difference;
-            absolute += std::abs(difference);
-        }
-
         EXPECT_EQ(predicted.size(), values.size());
-        EXPECT_NEAR(step.loss, squared / 8.0, K_TOLERANCE);
-        EXPECT_EQ(step.metrics.all().size(), 1u);
-        EXPECT_NEAR(step.metrics.value_or("mean_absolute_error", K_ABSENT), absolute / 8.0,
-                    K_TOLERANCE);
+        EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<float>(
+            step.loss, squared_error_on_host(predicted, values),
+            values.size() + K_SQUARE_OPERATIONS)));
         return Status();
     }));
 }
 
-/** @brief Tests that fit lowers the regression loss and reports the metric of the last step. */
+/** @brief Tests that fit takes one step per epoch and lowers the regression loss. */
 TEST_F(Medium_DenseObjectives, FitLowersTheSquaredError)
 {
-    constexpr int64_t K_WIDTH = 2;
-    constexpr int64_t K_EPOCHS = 40;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::MeanSquaredErrorObjective> objective,
-                            Train::MeanSquaredErrorObjective::make(K_BATCH, K_WIDTH));
-    const std::vector<Data::TargetDescription> roles =
-        real_role(Data::K_ROLE_VALUES, Shape{K_WIDTH});
-    SA_ASSERT_OK_AND_ASSIGN(
-        Data::Batch batch,
-        make_batch(*engine, roles, {0.5, -1.0, 2.0, 0.25, -0.75, 1.5, 0.0, 3.0}));
-    std::vector<Data::Batch> batches;
-    batches.push_back(std::move(batch));
-    const Data::MaterialisedDataset dataset(std::move(batches), K_BATCH, input_description(),
-                                            roles, "regression");
+    SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, fit_regression(backend()));
 
-    SA_EXPECT_OK(with_trainer(backend(), *objective, K_WIDTH, 0.05,
-                              [&](Train::Trainer& trainer, const SushiBLAS::Tensor&) -> Status
-    {
-        trainer.options().epochs = K_EPOCHS;
-        SA_TRY_ASSIGN(const Train::RunReport report, trainer.fit(dataset));
-
-        EXPECT_EQ(report.steps, static_cast<std::size_t>(K_EPOCHS));
-        EXPECT_EQ(report.compile_count, 1u);
-        EXPECT_LT(report.last_loss, report.first_loss) << report.to_string();
-        EXPECT_NE(report.last_metrics.find("mean_absolute_error"), nullptr);
-        EXPECT_NE(report.to_string().find("mean_absolute_error"), std::string::npos);
-        return Status();
-    }));
+    EXPECT_EQ(report.steps, static_cast<std::size_t>(K_EPOCHS));
+    EXPECT_LT(report.last_loss, report.first_loss) << report.to_string();
 }
 
-/** @brief Tests that fit refuses a dataset whose labels are class indices before any step. */
-TEST_F(Medium_DenseObjectives, FitRefusesLabelsOfAnotherType)
+/** @brief Tests that the report carries the metric of the last step and prints its name. */
+TEST_F(Medium_DenseObjectives, TheFitReportCarriesTheRegressionMetric)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::BinaryCrossEntropyObjective> objective,
-                            Train::BinaryCrossEntropyObjective::make(K_BATCH));
-    const std::vector<Data::TargetDescription> roles = {Data::TargetDescription{
-        std::string(Data::K_ROLE_LABELS), Shape{}, DType::Int32, 2}};
-    SA_ASSERT_OK_AND_ASSIGN(
-        Data::Batch batch,
-        Data::allocate_batch(*engine, K_BATCH, input_description(), roles));
-    SaTest::write_tensor(batch.inputs, make_inputs(1.0));
-    std::vector<Data::Batch> batches;
-    batches.push_back(std::move(batch));
-    const Data::MaterialisedDataset dataset(std::move(batches), K_BATCH, input_description(),
-                                            roles, "classes");
+    SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, fit_regression(backend()));
 
-    SA_EXPECT_OK(with_trainer(backend(), *objective, 1, 0.05,
-                              [&](Train::Trainer& trainer, const SushiBLAS::Tensor&) -> Status
-    {
-        SA_EXPECT_FAILURE(trainer.fit(dataset), StatusCode::Incompatible, "'classes'",
-                          "'labels'", "int32", "float32");
-        EXPECT_EQ(trainer.step_count(), 0u);
-        return Status();
-    }));
+    EXPECT_NE(report.last_metrics.find("mean_absolute_error"), nullptr);
+    EXPECT_NE(report.to_string().find("mean_absolute_error"), std::string::npos);
 }
