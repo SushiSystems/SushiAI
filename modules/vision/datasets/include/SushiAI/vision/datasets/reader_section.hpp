@@ -54,13 +54,13 @@ namespace SushiAI::Vision::Datasets
         SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context) noexcept;
 
     /**
-     * @brief Builds a ReaderDataset from a section, reading its files through a ByteSource.
-     * @param source Serves the folders, the files and the cache files; null reads the file system.
-     * @param sink Takes the cache files; null writes the file system.
-     * @return What the form without a source returns.
-     * @pre @p engine outlives the dataset. @p source and @p sink, when given, outlive it too.
+     * @brief Builds a ReaderDataset from a section, reading and caching through a storage.
+     * @param storage Serves the folders, the files and the cache files and takes the cache
+     *        files; a null member is the file system.
+     * @return What the form without a storage returns.
+     * @pre @p engine outlives the dataset. What @p storage points at outlives it too.
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> make_reader_dataset(
         SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context,
-        const ByteSource* source, const ByteSink* sink = nullptr) noexcept;
+        DatasetStorage storage) noexcept;
 } // namespace SushiAI::Vision::Datasets

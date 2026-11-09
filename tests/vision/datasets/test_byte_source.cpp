@@ -94,6 +94,17 @@ TEST(Small_DatasetsByteSource, ListNamesTheEntriesOfAFolder)
     EXPECT_EQ(tree, (std::vector<std::filesystem::path>{"data/a.bin", "data/sub/b.bin"}));
 }
 
+/** @brief Tests that remove drops one file, reports whether it held it, and leaves the others. */
+TEST(Small_DatasetsByteSource, RemoveDropsTheFileItNames)
+{
+    MemorySource source = two_files();
+
+    EXPECT_TRUE(source.remove("data/a.bin"));
+    EXPECT_EQ(source.kind_of("data/a.bin"), PathKind::Missing);
+    EXPECT_EQ(source.kind_of("data/sub/b.bin"), PathKind::File);
+    EXPECT_FALSE(source.remove("data/a.bin"));
+}
+
 /** @brief Tests that an absent path is refused with the reader and the path in the message. */
 TEST(Small_DatasetsByteSource, AnAbsentPathIsRefused)
 {

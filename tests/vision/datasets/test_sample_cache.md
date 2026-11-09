@@ -72,7 +72,7 @@ under the old name would be written again.
 ## ACacheFileTheSourceHoldsIsReused
 
 `Small_`. With the cache file in the memory source, `write_sample_cache` reports 0 written, 1
-reused and 0 bytes, and creates no directory.
+reused and 0 bytes, and creates no directory. The source is passed in a `DatasetStorage` with no sink.
 
 ## RefusesOptionsItCannotServe
 

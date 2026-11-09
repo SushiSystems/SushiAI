@@ -274,6 +274,11 @@ namespace SushiAI::Vision::Datasets
         directories_.insert(path);
     }
 
+    bool MemorySource::remove(const std::filesystem::path& path)
+    {
+        return files_.erase(path) != 0;
+    }
+
     PathKind MemorySource::kind_of(const std::filesystem::path& path) const
     {
         if (files_.count(path) != 0)

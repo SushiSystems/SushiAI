@@ -78,4 +78,20 @@ namespace SushiAI::Vision::Datasets
             /** @brief Receives the files. */
             MemorySource* target_;
     };
+
+    /**
+     * @brief Holds where a dataset build reads its files from and writes its cache files to.
+     *
+     * Both null is the file system, which is what a default-constructed value holds. A test
+     * serves the whole build from a MemorySource and a MemorySink over it.
+     * @pre What the value points at outlives every call and every dataset it is passed to.
+     */
+    struct DatasetStorage
+    {
+        /** @brief Serves the folders, the files and the cache files that exist; null is the file system. */
+        const ByteSource* source = nullptr;
+
+        /** @brief Takes the cache files; null is the file system. */
+        const ByteSink* sink = nullptr;
+    };
 } // namespace SushiAI::Vision::Datasets

@@ -63,16 +63,11 @@ namespace SushiAI::Vision::Datasets
         std::string context = "data";
 
         /**
-         * @brief Serves the files and folders the reader opens; null reads the file system.
-         * @pre The source, when given, outlives the call.
+         * @brief Serves the files and folders the reader opens and takes the cache files a
+         *        section's "cache" key writes; a null member is the file system.
+         * @pre What it points at outlives the call.
          */
-        const ByteSource* source = nullptr;
-
-        /**
-         * @brief Takes the cache files a section's "cache" key writes; null writes the file system.
-         * @pre The sink, when given, outlives the call.
-         */
-        const ByteSink* sink = nullptr;
+        DatasetStorage storage;
     };
 
     /**

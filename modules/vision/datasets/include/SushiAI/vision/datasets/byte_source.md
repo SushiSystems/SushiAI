@@ -19,8 +19,8 @@ port in place of a byte span, because one call does not hold what it needs.
 same call returns: `FileNotFound` for a path that names nothing, `InvalidFile` for a path that
 names something else or cannot be read.
 
-`MemorySource` is the in-memory adapter. `add_file(path, bytes)` adds a file and `add_directory(path)`
-a folder that holds none; a folder also exists when a file lies below it. Paths are compared as
+`MemorySource` is the in-memory adapter. `add_file(path, bytes)` adds a file, `remove(path)` drops
+one and says whether it held it, and `add_directory(path)` adds a folder that holds none; a folder also exists when a file lies below it. Paths are compared as
 `std::filesystem::path` compares them, so a test writes the root it passes in the options. The
 file system adapter is `Detail::FileSystemSource` in `source/disk.hpp`. The write side is
 `ByteSink`, described in `byte_sink.md`.

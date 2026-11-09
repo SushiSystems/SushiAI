@@ -4,6 +4,11 @@
 `ByteSink` is the port a writer writes its files through, beside the `ByteSource` it reads. Today
 one writer takes it: `write_sample_cache`. A null sink is the file system.
 
+`DatasetStorage` pairs the two ports in one value, `{source, sink}`, and a null member is the file
+system, so `DatasetStorage{}` is the disk. A dataset build takes it once, as the last argument of
+`write_sample_cache` and of the second `make_reader_dataset`, and `ReaderRequest::storage` carries
+it to the readers. A test passes `DatasetStorage{&files, &sink}` over one `MemorySource`.
+
 | Call | Does |
 | --- | --- |
 | `write(file, bytes, reader)` | Writes a file, makes the folders above it and replaces a file of that name; `InvalidFile` opening with the path when it cannot |

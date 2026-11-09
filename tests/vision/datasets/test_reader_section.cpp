@@ -126,7 +126,8 @@ namespace
             /** @brief Builds the dataset of a section called "data" from the memory source. */
             Result<std::unique_ptr<Data::Dataset>> build_in_memory(const Config::Value& section)
             {
-                return make_reader_dataset(backend.engine(), section, "data", &files, &sink);
+                return make_reader_dataset(backend.engine(), section, "data",
+                                           DatasetStorage{&files, &sink});
             }
 
             /** @brief Parses a section whose root is the root of the memory source. */
@@ -187,6 +188,12 @@ namespace
             void add_text(const std::string& relative, std::string bytes)
             {
                 files.add_file(std::filesystem::path(K_MEMORY_ROOT) / relative, std::move(bytes));
+            }
+
+            /** @brief Removes one file below the root of the memory source. */
+            void remove_text(const std::string& relative)
+            {
+                EXPECT_TRUE(files.remove(std::filesystem::path(K_MEMORY_ROOT) / relative));
             }
 
             /** @brief Adds an image below the root of the memory source as a raw image file. */
@@ -632,7 +639,7 @@ TEST(Small_DatasetsReaderTable, TheCSVRowReadsItsKeysOfTheSection)
 
     ReaderRequest request;
     request.root = "rows_root";
-    request.source = &files;
+    request.storage.source = &files;
     request.section = SaTest::attributes_from(
         R"({"file": "rows/set.csv", "features": ["c"], "targets": ["a", "b"]})");
 
@@ -665,7 +672,7 @@ TEST(Small_DatasetsReaderTable, TheMaskPNGRowPassesTheClassCountAndTheFolders)
     ReaderRequest request;
     request.root = "masks_root";
     request.class_count = 5;
-    request.source = &files;
+    request.storage.source = &files;
     request.section = SaTest::attributes_from(R"({"images": "pictures", "masks": "labels"})");
 
     const ReaderEntry* const row = find_reader("mask_png");
@@ -697,7 +704,7 @@ TEST(Small_DatasetsReaderTable, TheVOCXMLRowPassesTheClassList)
 
     ReaderRequest request;
     request.root = "voc_root";
-    request.source = &files;
+    request.storage.source = &files;
     request.section = SaTest::attributes_from(R"({"class_names": ["cat", "dog"]})");
 
     const ReaderEntry* const row = find_reader("voc_xml");
@@ -715,7 +722,7 @@ TEST(Small_DatasetsReaderTable, TheVOCXMLRowPassesTheDifficultFlag)
 
     ReaderRequest request;
     request.root = "voc_root";
-    request.source = &files;
+    request.storage.source = &files;
     request.section = SaTest::attributes_from(
         R"({"class_names": ["cat", "dog"], "keep_difficult": true})");
 
@@ -1073,9 +1080,9 @@ TEST_F(Small_DatasetsReaderSection, ACacheServesTheBatchesWhenTheSourcesAreGone)
             "batch_size": 2, "input": [4, 4], "max_objects": 2, "classes": 3,
             "cache": "memory_cache")")));
 
-    // A source of no bytes decodes to nothing, so only the cache files can serve the read.
+    // With the images removed, only the cache files can serve the read.
     for (const char* name : {"images/train/a.saim", "images/train/b.saim"})
-        add_text(name, std::string());
+        remove_text(name);
 
     Data::Batch batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));

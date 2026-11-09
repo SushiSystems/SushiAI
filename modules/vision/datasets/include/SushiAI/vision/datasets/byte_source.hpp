@@ -148,6 +148,12 @@ namespace SushiAI::Vision::Datasets
             /** @brief Adds a folder that holds no file, or none yet. */
             void add_directory(const std::filesystem::path& path);
 
+            /**
+             * @brief Removes the file at @p path.
+             * @return True when the source held that file; false when it held none, so nothing changed.
+             */
+            bool remove(const std::filesystem::path& path);
+
             [[nodiscard]] PathKind kind_of(const std::filesystem::path& path) const override;
 
             [[nodiscard]] Result<std::uint64_t> size_of(const std::filesystem::path& file,

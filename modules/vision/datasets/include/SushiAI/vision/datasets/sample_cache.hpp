@@ -77,14 +77,14 @@ namespace SushiAI::Vision::Datasets
     /**
      * @brief Decodes every image file of a list that has no cache file, and writes one.
      *        Stored pixels and masks are left alone.
-     * @param files Serves the images and the cache files that exist; null is the file system.
-     * @param sink Takes the cache files; null is the file system. Must outlive the call.
+     * @param storage Serves the images and the cache files that exist and takes the cache
+     *        files; a null member is the file system. Must outlive the call.
      * @return The counts; InvalidDescription for a negative longest side, or a longest side
      *         over a list with masks; the failure of a decode or of a write.
      */
     [[nodiscard]] Result<SampleCacheReport> write_sample_cache(
         const SampleList& list, const SampleCacheOptions& options,
-        const ByteSource* files = nullptr, const ByteSink* sink = nullptr) noexcept;
+        DatasetStorage storage = {}) noexcept;
 
     /**
      * @brief Returns the list with every image file replaced by its cache file.

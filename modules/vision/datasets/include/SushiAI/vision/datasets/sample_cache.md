@@ -6,7 +6,7 @@
 files replaced by its cache file, so `load_sample_image` reads raw pixels. A file a sample
 reads stored pixels from, and a mask file, are neither cached nor replaced.
 
-`write_sample_cache` takes two last arguments and the other two calls one: `const ByteSource* files`, null for the file system, and, for `write_sample_cache` only, `const ByteSink* sink`, null for the file system. The
+`sample_cache_path` and `use_sample_cache` take a last argument `const ByteSource* files`, null for the file system. `write_sample_cache` takes a `DatasetStorage` (`byte_sink.hpp`), a `source` and a `sink`, each null for the file system. The
 images, their byte counts and modification times (`ByteSource::size_of`, `modified_of`) and the
 question whether a cache file exists (`kind_of`) go through it, so a test serves them from a
 `MemorySource`. The cache files `write_sample_cache` writes go through the sink, which a test

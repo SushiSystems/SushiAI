@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-10 — vision: Replaced the source and sink pair of the dataset build with `DatasetStorage` (`byte_sink.hpp`, `reader_section.hpp`).
+- 2026-11-10 — vision: Added `MemorySource::remove` (`byte_source.hpp`).
 - 2026-11-10 — vision: Added an optional ByteSource to the sample cache calls (`sample_cache.hpp`).
 - 2026-11-10 — vision: Added the form of `make_reader_dataset` that reads through a ByteSource (`reader_section.hpp`).
 - 2026-11-10 — vision: Added `ByteSource::modified_of`, which a MemorySource answers with 0 (`byte_source.hpp`).

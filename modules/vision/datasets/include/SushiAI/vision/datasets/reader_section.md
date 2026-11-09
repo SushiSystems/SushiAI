@@ -5,11 +5,11 @@
 `vision/registration` adds it to a `Data::DatasetRegistry` as the row `reader`, and
 `Config::parse_train` gives that type to a data block that spells `reader` and no `type`.
 
-A second form takes a fourth argument, `const ByteSource* source`, and a fifth, `const ByteSink* sink`, null by default; the first form is the second
-with a null source and sink, which read and write the file system. When a source is given the reader lists and opens its folders and files through it (`ReaderRequest::source`), the
+A second form takes a fourth argument, a `DatasetStorage` (`byte_sink.hpp`) of a `source` and a `sink`; the first form is the second
+with a default `DatasetStorage`, whose null members read and write the file system. When a source is given the reader lists and opens its folders and files through it (`ReaderRequest::storage`), the
 pipeline reads the images through it (`PipelineRequest::source`), and the cache of a section
-that names one is read through it and written through the sink (`ReaderRequest::sink`). A test
-serves the whole dataset from a `MemorySource`, with a `MemorySink` over it for the cache. The registered factory is the form without a source.
+that names one is read through it and written through the sink. A test
+serves the whole dataset from a `MemorySource`, with a `MemorySink` over it for the cache. The registered factory is the form without a storage.
 
 | Key | Kind | Default | Meaning |
 | --- | --- | --- | --- |

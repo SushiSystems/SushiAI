@@ -123,7 +123,7 @@ namespace SushiAI::Vision::Datasets
                 options.root = request.root;
                 options.split = request.split;
                 options.class_count = request.class_count;
-                return request.source != nullptr ? read_yolo_txt(options, *request.source)
+                return request.storage.source != nullptr ? read_yolo_txt(options, *request.storage.source)
                                                  : read_yolo_txt(options);
             });
         }
@@ -136,7 +136,7 @@ namespace SushiAI::Vision::Datasets
                 ImageFolderOptions options;
                 options.root = request.root;
                 options.split = request.split;
-                return request.source != nullptr ? read_image_folder(options, *request.source)
+                return request.storage.source != nullptr ? read_image_folder(options, *request.storage.source)
                                                  : read_image_folder(options);
             });
         }
@@ -149,7 +149,7 @@ namespace SushiAI::Vision::Datasets
                 IDXOptions options;
                 options.root = request.root;
                 options.split = request.split;
-                return request.source != nullptr ? read_idx(options, *request.source)
+                return request.storage.source != nullptr ? read_idx(options, *request.storage.source)
                                                  : read_idx(options);
             });
         }
@@ -173,7 +173,7 @@ namespace SushiAI::Vision::Datasets
                 options.root = request.root;
                 options.split = request.split;
                 options.variant = labels->variant;
-                return request.source != nullptr ? read_cifar(options, *request.source)
+                return request.storage.source != nullptr ? read_cifar(options, *request.storage.source)
                                                  : read_cifar(options);
             });
         }
@@ -261,7 +261,7 @@ namespace SushiAI::Vision::Datasets
 
             return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
             {
-                return request.source != nullptr ? read_coco_json(options, *request.source)
+                return request.storage.source != nullptr ? read_coco_json(options, *request.storage.source)
                                                  : read_coco_json(options);
             });
         }
@@ -282,7 +282,7 @@ namespace SushiAI::Vision::Datasets
 
             return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
             {
-                return request.source != nullptr ? read_voc_xml(options, *request.source)
+                return request.storage.source != nullptr ? read_voc_xml(options, *request.storage.source)
                                                  : read_voc_xml(options);
             });
         }
@@ -310,7 +310,7 @@ namespace SushiAI::Vision::Datasets
 
             return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
             {
-                return request.source != nullptr ? read_mask_png(options, *request.source)
+                return request.storage.source != nullptr ? read_mask_png(options, *request.storage.source)
                                                  : read_mask_png(options);
             });
         }
@@ -331,7 +331,7 @@ namespace SushiAI::Vision::Datasets
 
             return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
             {
-                return request.source != nullptr ? read_csv(options, *request.source)
+                return request.storage.source != nullptr ? read_csv(options, *request.storage.source)
                                                  : read_csv(options);
             });
         }

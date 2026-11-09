@@ -13,6 +13,7 @@ Each test file has a page beside it that says what its cases pin.
 | `test_csv.cpp` | [`test_csv.md`](test_csv.md) |
 | `test_fit_mask.cpp` | [`test_fit_mask.md`](test_fit_mask.md) |
 | `test_byte_sink.cpp` | [`test_byte_sink.md`](test_byte_sink.md) |
+| `test_byte_source.cpp` | [`test_byte_source.md`](test_byte_source.md) |
 | `test_fit_sample.cpp` | [`test_fit_sample.md`](test_fit_sample.md) |
 | `test_idx.cpp` | [`test_idx.md`](test_idx.md) |
 | `test_idx_file.cpp` | [`test_idx_file.md`](test_idx_file.md) |

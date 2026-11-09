@@ -38,6 +38,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
+#include <SushiAI/vision/datasets/byte_sink.hpp>
 #include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/load_sample_image.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
@@ -352,7 +353,7 @@ TEST(Small_DatasetsSampleCache, ACacheFileTheSourceHoldsIsReused)
     files.add_file(target, "cached");
 
     SA_ASSERT_OK_AND_ASSIGN(const SampleCacheReport report,
-                            write_sample_cache(list_of({"images/a.jpg"}), options, &files));
+                            write_sample_cache(list_of({"images/a.jpg"}), options, DatasetStorage{&files}));
 
     EXPECT_EQ(report.written, 0u);
     EXPECT_EQ(report.reused, 1u);

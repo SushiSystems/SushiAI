@@ -220,8 +220,7 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleCacheReport> write_sample_cache(const SampleList& list,
                                                  const SampleCacheOptions& options,
-                                                 const ByteSource* files,
-                                                 const ByteSink* sink) noexcept
+                                                 DatasetStorage storage) noexcept
     {
         SA_FAIL_IF(options.directory.empty(), StatusCode::InvalidDescription,
                    "{}: the cache has no directory", K_CACHE);
@@ -232,7 +231,8 @@ namespace SushiAI::Vision::Datasets
 
         return Detail::at_boundary(K_CACHE, [&]() -> Result<SampleCacheReport>
         {
-            return write_checked(list, options, source_of(files), sink_of(sink));
+            return write_checked(list, options, source_of(storage.source),
+                                 sink_of(storage.sink));
         }, options.directory);
     }
 
