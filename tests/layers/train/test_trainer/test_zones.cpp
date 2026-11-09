@@ -62,7 +62,12 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Medium_TrainerZones : public SaTest::EngineTest {};
+    /** @brief Provides the engine a fit runs on and the index of the period a row checks. */
+    class Medium_TrainerZones : public SaTest::EngineTest,
+                                public ::testing::WithParamInterface<std::size_t>
+    {
+
+    };
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -73,10 +78,11 @@ namespace
 
 } // namespace
 
-TEST_F(Medium_TrainerZones, AFitOfTwoStepsWritesTwoPeriodsWithTheirGroups)
+// A build that compiles every zone away records no period, so it holds no case of this file.
+#if SA_PROFILE_LEVEL >= 1
+/** @brief Tests that each step of a fit writes one period holding the zones of its stages. */
+TEST_P(Medium_TrainerZones, EachStepOfAFitWritesAPeriodWithItsGroups)
 {
-    if (SA_PROFILE_LEVEL < 1)
-        GTEST_SKIP() << "the build compiles every zone away";
     MLP model(NN::Linear{K_FEATURES, 12}, NN::ReLU{}, NN::Linear{12, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
@@ -115,16 +121,20 @@ TEST_F(Medium_TrainerZones, AFitOfTwoStepsWritesTwoPeriodsWithTheirGroups)
     const SushiProfiler::SessionStop stopped = session.stop();
 
     ASSERT_EQ(stopped.record.periods.size(), static_cast<std::size_t>(K_STEPS));
+    const SushiProfiler::PeriodRecord& period = stopped.record.periods[GetParam()];
     const std::map<std::string, std::string> expected = {
         {"data.read", "data"},   {"host.feed", "host"},    {"copy.input", "copy"},
         {"device.run", "device"}, {"host.loss", "host"},   {"host.measure", "host"}};
     // SushiRuntime's own zones of the step's run land in the same period.
     const std::array<std::string_view, 1> runtime = {"Runtime"};
-    for (const SushiProfiler::PeriodRecord& period : stopped.record.periods)
-    {
-        EXPECT_EQ(SaTest::sushiai_zones_of(stopped.record, period), expected)
-            << "period " << period.index;
-        EXPECT_FALSE(SaTest::zones_in_groups(stopped.record, period, runtime).empty())
-            << "period " << period.index;
-    }
+    EXPECT_EQ(SaTest::sushiai_zones_of(stopped.record, period), expected);
+    EXPECT_FALSE(SaTest::zones_in_groups(stopped.record, period, runtime).empty());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Periods, Medium_TrainerZones, ::testing::Values(std::size_t{0}, std::size_t{1}),
+    [](const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return "Period" + std::to_string(info.param);
+    });
+#endif
