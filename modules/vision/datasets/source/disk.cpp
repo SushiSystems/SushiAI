@@ -201,6 +201,21 @@ namespace SushiAI::Vision::Datasets::Detail
         return size_of_file(file, reader);
     }
 
+    Result<std::int64_t> FileSystemSource::modified_of(const std::filesystem::path& file,
+                                                       std::string_view reader) const
+    {
+        SA_TRY(size_of_file(file, reader));
+
+        std::error_code error;
+        const std::filesystem::file_time_type modified =
+            std::filesystem::last_write_time(file, error);
+        SA_FAIL_IF(static_cast<bool>(error), StatusCode::InvalidFile,
+                   "'{}': {}: the modification time cannot be read: {}", display_of(file), reader,
+                   error.message());
+
+        return static_cast<std::int64_t>(modified.time_since_epoch().count());
+    }
+
     Result<std::string> FileSystemSource::read(const std::filesystem::path& file,
                                                std::string_view reader) const
     {
@@ -287,6 +302,13 @@ namespace SushiAI::Vision::Datasets
                    reader);
 
         return static_cast<std::uint64_t>(files_.at(file).size());
+    }
+
+    Result<std::int64_t> MemorySource::modified_of(const std::filesystem::path& file,
+                                                   std::string_view reader) const
+    {
+        SA_TRY(size_of(file, reader));
+        return static_cast<std::int64_t>(0);
     }
 
     Result<std::string> MemorySource::read(const std::filesystem::path& file,

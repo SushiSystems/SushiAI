@@ -1,11 +1,18 @@
 # modules/vision/datasets/include/SushiAI/vision/datasets/sample_cache.hpp
 
 
-`write_sample_cache(list, options)` decodes each image file of a list once with
-`Codecs::load_image` and writes it as a raw image file of `vision/imaging` under
+`write_sample_cache(list, options)` decodes each image file of a list once and writes it as a raw image file of `vision/imaging` under
 `options.directory`. `use_sample_cache(list, options)` returns the list with each of those
 files replaced by its cache file, so `load_sample_image` reads raw pixels. A file a sample
 reads stored pixels from, and a mask file, are neither cached nor replaced.
+
+All three calls take a last argument, `const ByteSource* files`, null for the file system. The
+images, their byte counts and modification times (`ByteSource::size_of`, `modified_of`) and the
+question whether a cache file exists (`kind_of`) go through it, so a test serves them from a
+`MemorySource`. The cache files `write_sample_cache` writes go to the file system whatever the
+source is, because a `ByteSource` only reads; the directory is created when the first file is
+written, so a pass that reuses every file touches no disk. A `MemorySource` gives every file
+the stamp 0, which makes the name of a cache file the same on every platform.
 
 | `SampleCacheOptions` field | Default | Meaning |
 | --- | --- | --- |
@@ -37,7 +44,7 @@ another size than its image, which `fit_mask` refuses.
 | `InvalidDescription` | `write_sample_cache` | No directory; a `longest_side` outside [0, 16384]; a `longest_side` above 0 over a list with masks; a sample that names no file of the list |
 | `FileNotFound` | `use_sample_cache`, `sample_cache_path` | A source that is absent; a source whose cache file is absent |
 | `Unsupported` | `write_sample_cache` | A decoded image of two or four channels |
-| Any other | all | What `Codecs::load_image` returns; what `Imaging::write_raw_image_file` and `Imaging::resize_bilinear` return; `InvalidFile` for what the file system throws |
+| Any other | all | What `Codecs::decode_image` returns for the bytes the source gives; what `Imaging::write_raw_image_file` and `Imaging::resize_bilinear` return; `InvalidFile` for what the file system throws |
 
 Disk size, by estimate and not measured: COCO train2017 has 118 287 images, most of them 640
 pixels on the longer side already, about 280 000 pixels each. At three bytes a pixel that is

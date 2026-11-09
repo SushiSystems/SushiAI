@@ -36,6 +36,7 @@
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/fit_sample.hpp>
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
 
@@ -52,6 +53,12 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Holds the seed of the dataset. */
         std::uint64_t seed = 0;
+
+        /**
+         * @brief Serves the files of the samples to the pipeline; null reads the file system.
+         * @pre The source, when given, outlives the pipeline.
+         */
+        const ByteSource* source = nullptr;
     };
 
     /**

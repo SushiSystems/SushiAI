@@ -254,10 +254,11 @@ namespace SushiAI::Vision::Datasets::Detail
         }
 
         /** @brief Writes the cache files a list lacks and points the list at the cache. */
-        [[nodiscard]] Status cache_samples(const SampleCacheOptions& cache, SampleList& list)
+        [[nodiscard]] Status cache_samples(const SampleCacheOptions& cache, SampleList& list,
+                                           const ByteSource* source)
         {
-            SA_TRY(write_sample_cache(list, cache));
-            SA_TRY_ASSIGN(list, use_sample_cache(std::move(list), cache));
+            SA_TRY(write_sample_cache(list, cache, source));
+            SA_TRY_ASSIGN(list, use_sample_cache(std::move(list), cache, source));
             return Status();
         }
     } // namespace
@@ -268,6 +269,7 @@ namespace SushiAI::Vision::Datasets::Detail
     {
         SA_TRY_ASSIGN(ReaderDatasetOptions options, read_image_options(section, context, task));
         options.name = std::string(reader.name);
+        options.source = request.source;
 
         SA_TRY_ASSIGN(const PipelineEntry* const pipeline_row,
                       read_pipeline_row(section, context));
@@ -275,7 +277,8 @@ namespace SushiAI::Vision::Datasets::Detail
                       read_cache_options(section, context, options.channels));
         SA_TRY_ASSIGN(std::unique_ptr<const SamplePipeline> pipeline,
                       pipeline_row->make(
-                          PipelineRequest{options.fit, options.channels, options.seed}));
+                          PipelineRequest{options.fit, options.channels, options.seed,
+                                          request.source}));
 
         SA_TRY_ASSIGN(ListedSamples listed, read_samples(reader, request, context));
         SA_FAIL_IF(!listed.list.table.values.empty(), StatusCode::InvalidDescription,
@@ -283,7 +286,7 @@ namespace SushiAI::Vision::Datasets::Detail
                    named(context, K_TASK_KEY), task.name, reader.name);
 
         if (cache.has_value())
-            SA_TRY(cache_samples(*cache, listed.list));
+            SA_TRY(cache_samples(*cache, listed.list, request.source));
 
         SA_TRY_ASSIGN(std::unique_ptr<const Collator> collator,
                       task.make_collator(section, context,

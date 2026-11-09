@@ -473,7 +473,8 @@ TEST(Small_VisionRegistration, TheReaderRowHoldsMakeReaderDataset)
 
     const Data::DatasetEntry* const reader = registry.find(Config::K_READER_DATA_TYPE);
     ASSERT_NE(reader, nullptr);
-    EXPECT_EQ(reader->make, &Vision::Datasets::make_reader_dataset);
+    EXPECT_EQ(reader->make,
+              static_cast<Data::DatasetFactory>(&Vision::Datasets::make_reader_dataset));
 }
 
 /** @brief Tests that build_model over register_layers alone fails at the first conv row. */

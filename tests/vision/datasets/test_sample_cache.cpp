@@ -38,6 +38,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/load_sample_image.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/datasets/sample_cache.hpp>
@@ -96,21 +97,12 @@ namespace
         return std::vector<std::uint8_t>(image.data(), image.data() + image.byte_count());
     }
 
-    /** @brief Returns the sixteen hexadecimal digits of the 64-bit FNV-1a hash of a text. */
-    std::string fnv1a_digits(const std::string& text)
+    /** @brief Returns a source that holds the four bytes "abcd" as images/a.jpg. */
+    MemorySource memory_with_one_image()
     {
-        std::uint64_t hash = 14695981039346656037ull;
-        for (const char character : text)
-        {
-            hash ^= static_cast<std::uint8_t>(character);
-            hash *= 1099511628211ull;
-        }
-
-        std::string digits(16, '0');
-        for (std::size_t i = digits.size(); i-- > 0; hash >>= 4)
-            digits[i] = "0123456789abcdef"[hash & 0xF];
-
-        return digits;
+        MemorySource files;
+        files.add_file("images/a.jpg", "abcd");
+        return files;
     }
 
     /** @brief Holds the options and the list of a write_sample_cache the module refuses. */
@@ -274,28 +266,29 @@ TEST(Medium_DatasetsSampleCache, StoredPixelsAndMasksAreLeftAlone)
 }
 
 /** @brief Tests that the name of a cache file follows the source and the options alone. */
-TEST(Medium_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
+TEST(Small_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_names");
-    const std::filesystem::path source = Support::write_raw_image(
-        scratch, "images/a.jpg", Support::uniform_image(ImageSize{2, 2}, 3, 1));
+    const MemorySource files = memory_with_one_image();
+    const std::filesystem::path source = "images/a.jpg";
 
-    SampleCacheOptions options = options_of(scratch);
+    SampleCacheOptions options;
+    options.directory = "cache";
     SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path first,
-                            sample_cache_path(source, options));
+                            sample_cache_path(source, options, &files));
     SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path again,
-                            sample_cache_path(source, options));
+                            sample_cache_path(source, options, &files));
     EXPECT_EQ(first, again);
+    EXPECT_EQ(first.parent_path(), options.directory);
 
     // "a-", sixteen digits of the hash and ".saim".
     EXPECT_EQ(first.filename().string().size(), 2u + 16u + 5u);
 
     options.longest_side = 320;
     SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path reduced,
-                            sample_cache_path(source, options));
+                            sample_cache_path(source, options, &files));
     EXPECT_NE(first, reduced);
 
-    SA_EXPECT_FAILURE(sample_cache_path(scratch.path() / "images/gone.jpg", options),
+    SA_EXPECT_FAILURE(sample_cache_path("images/gone.jpg", options, &files),
                       StatusCode::FileNotFound, "gone.jpg");
 }
 
@@ -303,27 +296,67 @@ TEST(Medium_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
  * @brief Tests that the digits of a cache name are the 64-bit FNV-1a hash of the key text, so a
  *        cache written before the hash moved into its own module is still found.
  *
- * The key holds a modification time that depends on the platform clock, so the case spells the
- * hash out here from the offset basis and prime and checks that spelling against a value
- * computed in Python over "images/a.jpg|1234|5678|320|0".
+ * A memory source gives every file the stamp 0, so the key of images/a.jpg of four bytes at a
+ * longest side of 320 is "images/a.jpg|4|0|320|0". Its hash, ec970685015c5c41, was computed in
+ * Python from the offset basis 14695981039346656037 and the prime 1099511628211.
  */
-TEST(Medium_DatasetsSampleCache, TheNameIsTheFNV1aHashOfTheKeyText)
+TEST(Small_DatasetsSampleCache, TheNameIsTheFNV1aHashOfTheKeyText)
 {
-    ASSERT_EQ(fnv1a_digits("images/a.jpg|1234|5678|320|0"), "a6ebcd0f306993fd");
+    const MemorySource files = memory_with_one_image();
 
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_key");
-    const std::filesystem::path source = Support::write_raw_image(
-        scratch, "images/a.jpg", Support::uniform_image(ImageSize{2, 2}, 3, 1));
-
-    SampleCacheOptions options = options_of(scratch);
+    SampleCacheOptions options;
+    options.directory = "cache";
     options.longest_side = 320;
-    SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path path, sample_cache_path(source, options));
+    SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path path,
+                            sample_cache_path("images/a.jpg", options, &files));
 
-    const std::string key = source.generic_string() + "|" +
-        std::to_string(std::filesystem::file_size(source)) + "|" +
-        std::to_string(std::filesystem::last_write_time(source).time_since_epoch().count()) + "|" +
-        "320|" + std::to_string(static_cast<std::int32_t>(options.layout));
-    EXPECT_EQ(path.filename().string(), "a-" + fnv1a_digits(key) + ".saim");
+    EXPECT_EQ(path.filename().string(), "a-ec970685015c5c41.saim");
+}
+
+/** @brief Tests that a list is pointed at the cache file of its image when the source holds one. */
+TEST(Small_DatasetsSampleCache, AListIsPointedAtTheCacheFileTheSourceHolds)
+{
+    MemorySource files = memory_with_one_image();
+    SampleCacheOptions options;
+    options.directory = "cache";
+    SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path target,
+                            sample_cache_path("images/a.jpg", options, &files));
+    files.add_file(target, "cached");
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList cached,
+                            use_sample_cache(list_of({"images/a.jpg"}), options, &files));
+
+    ASSERT_EQ(cached.files.size(), 1u);
+    EXPECT_EQ(cached.files[0], target);
+}
+
+/** @brief Tests that a list whose image has no cache file in the source is refused. */
+TEST(Small_DatasetsSampleCache, AnImageWithoutACacheFileIsRefused)
+{
+    const MemorySource files = memory_with_one_image();
+    SampleCacheOptions options;
+    options.directory = "cache";
+
+    SA_EXPECT_FAILURE(use_sample_cache(list_of({"images/a.jpg"}), options, &files),
+                      StatusCode::FileNotFound, "images/a.jpg", "sample cache", "changed since");
+}
+
+/** @brief Tests that a pass over images whose cache files exist writes none and reuses each. */
+TEST(Small_DatasetsSampleCache, ACacheFileTheSourceHoldsIsReused)
+{
+    MemorySource files = memory_with_one_image();
+    SampleCacheOptions options;
+    options.directory = "cache";
+    SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path target,
+                            sample_cache_path("images/a.jpg", options, &files));
+    files.add_file(target, "cached");
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleCacheReport report,
+                            write_sample_cache(list_of({"images/a.jpg"}), options, &files));
+
+    EXPECT_EQ(report.written, 0u);
+    EXPECT_EQ(report.reused, 1u);
+    EXPECT_EQ(report.bytes_written, 0u);
 }
 
 /** @brief Tests that a write refuses a cache with no directory, a side out of range or over masks. */

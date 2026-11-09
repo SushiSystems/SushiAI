@@ -91,6 +91,17 @@ namespace SushiAI::Vision::Datasets
                 const std::filesystem::path& file, std::string_view reader) const = 0;
 
             /**
+             * @brief Returns when a regular file last changed, as a count of the source's own ticks.
+             *
+             * Two reads of an unchanged file give one value. A source with no clock gives 0.
+             * @param reader Names the calling reader in a message.
+             * @return The stamp; what size_of returns when the path names no regular file;
+             *         InvalidFile when the stamp cannot be read.
+             */
+            [[nodiscard]] virtual Result<std::int64_t> modified_of(
+                const std::filesystem::path& file, std::string_view reader) const = 0;
+
+            /**
              * @brief Returns every byte of a regular file.
              * @param reader Names the calling reader in a message.
              * @return The bytes; what size_of returns; InvalidFile when the read stops early.
@@ -141,6 +152,10 @@ namespace SushiAI::Vision::Datasets
 
             [[nodiscard]] Result<std::uint64_t> size_of(const std::filesystem::path& file,
                                                         std::string_view reader) const override;
+
+            /** @brief Returns 0 for a file it holds: memory keeps no modification time. */
+            [[nodiscard]] Result<std::int64_t> modified_of(const std::filesystem::path& file,
+                                                           std::string_view reader) const override;
 
             [[nodiscard]] Result<std::string> read(const std::filesystem::path& file,
                                                    std::string_view reader) const override;

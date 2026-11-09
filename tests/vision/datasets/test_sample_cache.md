@@ -1,14 +1,18 @@
 # tests/vision/datasets/test_sample_cache.cpp
 
 
-Suites: `Medium_DatasetsSampleCache` and `Small_DatasetsSampleCacheRefusal`.
+Suites: `Small_DatasetsSampleCache`, `Medium_DatasetsSampleCache` and
+`Small_DatasetsSampleCacheRefusal`.
 
 Tests `write_sample_cache`, `use_sample_cache` and `sample_cache_path` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/sample_cache.hpp`. The source images
-are raw image files the cases write under the system's temporary directory, and the cache is
-the folder `cache` beside them. Those cases are `Medium_`: they write files, and the cache name
-holds the modification time the platform clock gives. The refusals decide on the options before
-any file is examined, so they are `Small_` and name files that never exist.
+of the `Medium_` cases are raw image files they write under the system's temporary directory,
+and the cache is the folder `cache` beside them. Those cases are `Medium_`: they write files,
+and the cache name holds the modification time the platform clock gives. The `Small_` cases
+pass a `MemorySource` as the last argument, which holds `images/a.jpg` as the four bytes
+"abcd" and gives every file the stamp 0, so the name of a cache file is the same on every
+platform and no file is touched. The refusals decide on the options before any file is
+examined, so they are `Small_` and name files that never exist.
 
 ## TheFirstPassWritesAndTheSecondReuses
 
@@ -41,17 +45,34 @@ mask keep their paths and the image's path differs.
 
 ## ANameFollowsTheSourceAndTheOptions
 
-`sample_cache_path` returns the same path twice for one source and one set of options, and its
-file name is 23 characters long. With `longest_side` 320 the path differs. A source that does
-not exist fails with `FileNotFound` and "gone.jpg".
+`Small_`. `sample_cache_path` over the memory source returns the same path twice for one source
+and one set of options, in the cache directory. Its file name is 23 characters long. With
+`longest_side` 320 the path differs. A source the memory source lacks fails with
+`FileNotFound` and "gone.jpg".
 
 ## TheNameIsTheFNV1aHashOfTheKeyText
 
-The digits of the file name equal the 64-bit FNV-1a hash of `<path>|<bytes>|<time>|<side>|<layout>`.
-The case spells the hash out beside the module and checks that spelling against a value computed
-in Python for "images/a.jpg|1234|5678|320|0". The time depends on the platform clock, so the
-value itself cannot be fixed in the case. The name must not change, because a cache written under
-the old name would be written again.
+`Small_`. The digits of the file name equal the 64-bit FNV-1a hash of
+`<path>|<bytes>|<time>|<side>|<layout>`. Over the memory source the key of `images/a.jpg` at
+`longest_side` 320 is "images/a.jpg|4|0|320|0", whose hash, computed in Python from the
+offset basis 14695981039346656037 and the prime 1099511628211, is ec970685015c5c41, so the
+file name is "a-ec970685015c5c41.saim". The name must not change, because a cache written
+under the old name would be written again.
+
+## AListIsPointedAtTheCacheFileTheSourceHolds
+
+`Small_`. With the file `sample_cache_path` names added to the memory source,
+`use_sample_cache` returns the list with that path in place of `images/a.jpg`.
+
+## AnImageWithoutACacheFileIsRefused
+
+`Small_`. Without a cache file in the memory source, `use_sample_cache` fails with
+`FileNotFound`, "images/a.jpg", "sample cache" and "changed since".
+
+## ACacheFileTheSourceHoldsIsReused
+
+`Small_`. With the cache file in the memory source, `write_sample_cache` reports 0 written, 1
+reused and 0 bytes, and creates no directory.
 
 ## RefusesOptionsItCannotServe
 

@@ -156,6 +156,14 @@ namespace SushiAI::Vision::Datasets
                                                                const Config::Value& section,
                                                                std::string_view context) noexcept
     {
+        return make_reader_dataset(engine, section, context, nullptr);
+    }
+
+    Result<std::unique_ptr<Data::Dataset>> make_reader_dataset(SushiBLAS::Engine& engine,
+                                                               const Config::Value& section,
+                                                               std::string_view context,
+                                                               const ByteSource* source) noexcept
+    {
         SA_TRY_ASSIGN(const Config::Value& stated_reader,
                       section.at(Detail::K_READER_KEY, context));
         SA_TRY_ASSIGN(const std::string& reader_name,
@@ -177,7 +185,8 @@ namespace SushiAI::Vision::Datasets
 
         SA_TRY(reject_unread_keys(section, context, *reader, *task));
 
-        SA_TRY_ASSIGN(const ReaderRequest request, read_request(section, context));
+        SA_TRY_ASSIGN(ReaderRequest request, read_request(section, context));
+        request.source = source;
         SA_TRY_ASSIGN(const std::optional<Data::LoaderOptions> loader,
                       read_loader_options(section, context));
         SA_TRY_ASSIGN(std::unique_ptr<Data::Dataset> dataset,

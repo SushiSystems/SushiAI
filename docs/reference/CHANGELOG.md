@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-11-10 — vision: Added an optional ByteSource to the sample cache calls (`sample_cache.hpp`).
+- 2026-11-10 — vision: Added the form of `make_reader_dataset` that reads through a ByteSource (`reader_section.hpp`).
+- 2026-11-10 — vision: Added `ByteSource::modified_of`, which a MemorySource answers with 0 (`byte_source.hpp`).
 - 2026-11-09 — test_tree: Apply the tools records (M40).
 - 2026-11-09 — tools: Added ports with a disk and a memory adapter to the contract, device-source and naming checkers, so their rules run on values (`check_contract.py`, `check_device_sources.py`, `apply_rename.py`).
 - 2026-11-09 — general: Clear the known findings of the shared checkers (RW-149, `a25c0517`).

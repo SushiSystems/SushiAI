@@ -95,6 +95,9 @@ namespace SushiAI::Vision::Datasets::Detail
             [[nodiscard]] Result<std::uint64_t> size_of(const std::filesystem::path& file,
                                                         std::string_view reader) const override;
 
+            [[nodiscard]] Result<std::int64_t> modified_of(const std::filesystem::path& file,
+                                                           std::string_view reader) const override;
+
             [[nodiscard]] Result<std::string> read(const std::filesystem::path& file,
                                                    std::string_view reader) const override;
 

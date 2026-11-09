@@ -10,6 +10,7 @@ port in place of a byte span, because one call does not hold what it needs.
 | --- | --- |
 | `kind_of(path)` | `PathKind::Missing`, `File`, `Directory` or `Other` |
 | `size_of(file, reader)` | The byte count of a regular file |
+| `modified_of(file, reader)` | When a regular file last changed, in the source's own ticks; `MemorySource` gives 0 |
 | `read(file, reader)` | Every byte of a regular file |
 | `read_range(file, offset, count, reader)` | Up to `count` bytes from `offset`; fewer when the file ends first |
 | `list(directory, kind, depth, reader)` | The files or folders in or below a directory, sorted by path |

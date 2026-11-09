@@ -35,6 +35,7 @@
 
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
@@ -62,31 +63,35 @@ namespace SushiAI::Vision::Datasets
     };
 
     /**
-     * @brief Returns the cache file of one image file.
-     *
-     * The name holds a hash of the source path, its byte count, its modification time and
-     * the options, so a source that changed has another cache file. README.md, section
-     * sample_cache.hpp, states the mapping.
+     * @brief Returns the cache file of one image file; README.md, section sample_cache.hpp,
+     *        states the name.
+     * @param files Serves the byte count and modification time of @p source; null is the
+     *        file system. Must outlive the call.
      * @return The path; FileNotFound or InvalidFile when @p source cannot be examined.
      */
     [[nodiscard]] Result<std::filesystem::path> sample_cache_path(
-        const std::filesystem::path& source, const SampleCacheOptions& options) noexcept;
+        const std::filesystem::path& source, const SampleCacheOptions& options,
+        const ByteSource* files = nullptr) noexcept;
 
     /**
      * @brief Decodes every image file of a list that has no cache file, and writes one.
-     *
-     * A file a sample reads stored pixels from, and a mask, are left alone.
+     *        Stored pixels and masks are left alone; files are written to the file system.
+     * @param files Serves the images and the cache files that exist; null is the file system.
      * @return The counts; InvalidDescription for a negative longest side, or a longest side
      *         over a list with masks; the failure of a decode or of a write.
      */
     [[nodiscard]] Result<SampleCacheReport> write_sample_cache(
-        const SampleList& list, const SampleCacheOptions& options) noexcept;
+        const SampleList& list, const SampleCacheOptions& options,
+        const ByteSource* files = nullptr) noexcept;
 
     /**
      * @brief Returns the list with every image file replaced by its cache file.
+     * @param files Serves the images' stamps and tells whether a cache file exists; null is
+     *        the file system. Must outlive the call.
      * @return The list; FileNotFound, naming the image, when its cache file is absent, as
      *         it is after the image changed.
      */
     [[nodiscard]] Result<SampleList> use_sample_cache(SampleList list,
-                                                      const SampleCacheOptions& options);
+                                                      const SampleCacheOptions& options,
+                                                      const ByteSource* files = nullptr);
 } // namespace SushiAI::Vision::Datasets

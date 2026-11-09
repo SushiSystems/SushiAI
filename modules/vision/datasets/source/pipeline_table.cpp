@@ -48,7 +48,7 @@ namespace SushiAI::Vision::Datasets
             const PipelineRequest& request)
         {
             SA_TRY_ASSIGN(std::unique_ptr<FitPipeline> pipeline,
-                          FitPipeline::make(request.fit, request.channels));
+                          FitPipeline::make(request.fit, request.channels, request.source));
 
             return std::unique_ptr<const SamplePipeline>(std::move(pipeline));
         }
@@ -73,6 +73,7 @@ namespace SushiAI::Vision::Datasets
             AugmentOptions options;
             options.image_size = request.fit.size.height;
             options.seed = request.seed;
+            options.source = request.source;
 
             SA_TRY_ASSIGN(std::unique_ptr<AugmentPipeline> pipeline,
                           AugmentPipeline::make(options));

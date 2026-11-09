@@ -2,21 +2,24 @@
 
 
 Suites: `Small_DatasetsReaderTable`, `Small_DatasetsReaderTableKeys`,
-`Small_DatasetsReaderTableKeyKinds`, `Medium_DatasetsReaderTableFiles`,
+`Small_DatasetsReaderTableKeyKinds`,
 `Small_DatasetsTaskTable`, `Small_DatasetsTaskTableStates`, `Small_DatasetsTaskTableCollators`,
 `Small_DatasetsTaskTablePositive`, `Small_DatasetsTaskTablePositiveRefusals`,
-`Small_DatasetsTaskTableIgnoreRefusals`, `Small_DatasetsReaderSectionRefusals` and
-`Medium_DatasetsReaderSection`.
+`Small_DatasetsTaskTableIgnoreRefusals`, `Small_DatasetsReaderSectionRefusals`,
+`Small_DatasetsReaderSection` and `Medium_DatasetsReaderSection`.
 
 Tests `reader_table` and `find_reader`, `task_table` and `find_task`, and
 `make_reader_dataset` in `modules/vision/datasets/include/SushiAI/vision/datasets/`. The section
 suites derive from a bench that owns a `HostExecutionBackend`, so no device and no
 process-wide engine is reached, and that builds the dataset of a section called "data".
 
-A case is `Small_` when a refusal decides it on the values of the section or of the request,
-before a reader lists a file: those cases take a root no test creates. A case that lists files
-or reads a batch from them is `Medium_` and writes them under a directory in the system's
-temporary directory. The YOLO split is two white raw images of 2 rows and 4 columns under
+A case is `Small_` when every value it asserts comes from the section, the request or a
+`MemorySource`. A refusal that comes before a reader lists a file takes a root no test creates.
+A case that reads files serves them from a `MemorySource` through `ReaderRequest::source` or
+the fourth argument of `make_reader_dataset`, below the root `memory_section_root`, on the host
+engine. A case is `Medium_` when it needs the file system or a thread: the two cache cases
+write and remove files under a directory in the system's temporary directory, and the two
+worker cases start threads. The YOLO split is two white raw images of 2 rows and 4 columns under
 `images/train`, the second with one object of class 2 in `labels/train/b.txt`. The folder split
 is one file under each of `train/cat` and `train/dog`. The numbered split is five white raw
 images, image i with one object of class i.

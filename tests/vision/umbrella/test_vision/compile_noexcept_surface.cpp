@@ -629,6 +629,12 @@ namespace SushiAI::Vision::Datasets
         noexcept(make_reader_dataset(std::declval<SushiBLAS::Engine&>(),
                 std::declval<const Config::Value&>(), std::declval<std::string_view>())),
         "make_reader_dataset is noexcept");
+
+    static_assert(
+        noexcept(make_reader_dataset(std::declval<SushiBLAS::Engine&>(),
+                std::declval<const Config::Value&>(), std::declval<std::string_view>(),
+                std::declval<const ByteSource*>())),
+        "make_reader_dataset over a source is noexcept");
 } // namespace SushiAI::Vision::Datasets
 
 namespace SushiAI::Vision::Datasets

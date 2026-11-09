@@ -38,6 +38,7 @@
 
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 namespace SushiAI::Vision::Datasets
@@ -59,6 +60,12 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Holds what a diagnostic calls the section. */
         std::string context = "data";
+
+        /**
+         * @brief Serves the files and folders the reader opens; null reads the file system.
+         * @pre The source, when given, outlives the call.
+         */
+        const ByteSource* source = nullptr;
     };
 
     /**

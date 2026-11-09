@@ -5,6 +5,12 @@
 `vision/registration` adds it to a `Data::DatasetRegistry` as the row `reader`, and
 `Config::parse_train` gives that type to a data block that spells `reader` and no `type`.
 
+A second form takes a fourth argument, `const ByteSource* source`; the first form is the second
+with a null source, which reads the file system. When a source is given the reader lists and opens its folders and files through it (`ReaderRequest::source`), the
+pipeline reads the images through it (`PipelineRequest::source`), and the cache of a section
+that names one is read through it and written to the file system. A test serves the whole
+dataset from a `MemorySource`. The registered factory is the form without a source.
+
 | Key | Kind | Default | Meaning |
 | --- | --- | --- | --- |
 | `reader` | string | required | A row of the reader table |

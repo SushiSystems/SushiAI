@@ -34,6 +34,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -52,6 +53,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/vision/datasets/binary_collator.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 #include <SushiAI/vision/datasets/fit_sample.hpp>
 #include <SushiAI/vision/datasets/reader_section.hpp>
@@ -79,6 +81,12 @@ namespace
 
     /** @brief Holds a root no test creates, for a section a refusal decides before any read. */
     constexpr std::string_view K_ABSENT_ROOT = "sushiai_absent_section_root";
+
+    /** @brief Holds the root of the datasets a MemorySource serves; no such folder exists. */
+    constexpr std::string_view K_MEMORY_ROOT = "memory_section_root";
+
+    /** @brief Pairs the path of a file, below the root of a dataset, with its bytes. */
+    using SplitFiles = std::vector<std::pair<std::string, std::string>>;
 
     /** @brief Holds the seed of the shuffled section. */
     constexpr std::uint64_t K_SHUFFLE_SEED = 7;
@@ -108,40 +116,82 @@ namespace
                 return section_over(scratch.path().generic_string(), members);
             }
 
-            /** @brief Builds the dataset of a section called "data" on the host engine. */
+            /** @brief Builds the dataset of a section called "data" from the file system. */
             Result<std::unique_ptr<Data::Dataset>> build(const Config::Value& section)
             {
                 return make_reader_dataset(backend.engine(), section, "data");
             }
 
-            /** @brief Writes two 2 by 4 white images; the second has one object of class 2. */
-            static void write_yolo_split(const Support::ScratchDirectory& scratch)
+            /** @brief Builds the dataset of a section called "data" from the memory source. */
+            Result<std::unique_ptr<Data::Dataset>> build_in_memory(const Config::Value& section)
             {
-                for (const char* name : {"images/train/a.saim", "images/train/b.saim"})
-                    Support::write_raw_image(scratch, name,
-                                             Support::uniform_image(ImageSize{2, 4}, 3, 255));
-
-                scratch.write_text("labels/train/b.txt", "2 0.5 0.5 0.5 1.0\n");
+                return make_reader_dataset(backend.engine(), section, "data", &files);
             }
 
-            /** @brief Writes K_NUMBERED_IMAGES white images, image i with one object of class i. */
-            static void write_numbered_split(const Support::ScratchDirectory& scratch)
+            /** @brief Parses a section whose root is the root of the memory source. */
+            static Config::Value section_in_memory(std::string_view members)
             {
+                return section_over(K_MEMORY_ROOT, members);
+            }
+
+            /** @brief Returns two 2 by 4 white images; the second has one object of class 2. */
+            static SplitFiles yolo_split()
+            {
+                SplitFiles split;
+                for (const char* name : {"images/train/a.saim", "images/train/b.saim"})
+                    split.emplace_back(name, white_image_text());
+
+                split.emplace_back("labels/train/b.txt", "2 0.5 0.5 0.5 1.0\n");
+                return split;
+            }
+
+            /** @brief Returns K_NUMBERED_IMAGES white images, image i with one object of class i. */
+            static SplitFiles numbered_split()
+            {
+                SplitFiles split;
                 for (std::size_t i = 0; i < K_NUMBERED_IMAGES; ++i)
                 {
                     const std::string stem = std::to_string(i);
-                    Support::write_raw_image(scratch, ("images/train/" + stem + ".saim").c_str(),
-                                             Support::uniform_image(ImageSize{2, 4}, 3, 255));
-                    scratch.write_text(("labels/train/" + stem + ".txt").c_str(),
+                    split.emplace_back("images/train/" + stem + ".saim", white_image_text());
+                    split.emplace_back("labels/train/" + stem + ".txt",
                                        stem + " 0.5 0.5 0.5 1.0\n");
                 }
+
+                return split;
             }
 
-            /** @brief Writes one image file under each of two class folders of "train". */
-            static void write_folder_split(const Support::ScratchDirectory& scratch)
+            /** @brief Returns one image file under each of two class folders of "train". */
+            static SplitFiles folder_split()
             {
-                scratch.write("train/cat/a.jpg", {1});
-                scratch.write("train/dog/b.jpg", {1});
+                return SplitFiles{{"train/cat/a.jpg", std::string(1, '\1')},
+                                  {"train/dog/b.jpg", std::string(1, '\1')}};
+            }
+
+            /** @brief Writes a split below a scratch directory. */
+            static void write_split(const Support::ScratchDirectory& scratch,
+                                    const SplitFiles& split)
+            {
+                for (const auto& [relative, bytes] : split)
+                    scratch.write_text(relative.c_str(), bytes);
+            }
+
+            /** @brief Adds a split below the root of the memory source. */
+            void add_split(const SplitFiles& split)
+            {
+                for (const auto& [relative, bytes] : split)
+                    add_text(relative, bytes);
+            }
+
+            /** @brief Adds one file below the root of the memory source. */
+            void add_text(const std::string& relative, std::string bytes)
+            {
+                files.add_file(std::filesystem::path(K_MEMORY_ROOT) / relative, std::move(bytes));
+            }
+
+            /** @brief Adds an image below the root of the memory source as a raw image file. */
+            void add_image(const std::string& relative, const Vision::Imaging::Image& image)
+            {
+                add_text(relative, Support::raw_image_text(image));
             }
 
             /** @brief Returns the inputs of batch @p index, which must read. */
@@ -176,16 +226,25 @@ namespace
                 return classes == nullptr ? -1 : classes->values.data_as<std::int32_t>()[0];
             }
 
+            /** @brief Returns the bytes of a raw image file of a white image of 2 by 4 pixels. */
+            static std::string white_image_text()
+            {
+                return Support::raw_image_text(Support::uniform_image(ImageSize{2, 4}, 3, 255));
+            }
+
             /** @brief Holds the host engine the datasets are built on. */
             HostExecutionBackend backend;
+
+            /** @brief Serves the files of the cases that read no file system. */
+            MemorySource files;
     };
 
-    /** @brief Builds datasets from sections that need no file, because a refusal comes first. */
+    /** @brief Builds datasets from sections whose files a memory source serves or are absent. */
     class Small_DatasetsReaderSection : public SectionBench
     {
     };
 
-    /** @brief Builds datasets from sections whose reader lists files written for the test. */
+    /** @brief Builds datasets whose cache or worker threads need the file system. */
     class Medium_DatasetsReaderSection : public SectionBench
     {
     };
@@ -558,13 +617,14 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsReaderTableKeyKinds,
                          ::testing::ValuesIn(key_kind_rows()), key_kind_row_name);
 
 /** @brief Tests that the csv row reads its keys of the request's section. */
-TEST(Medium_DatasetsReaderTableFiles, TheCSVRowReadsItsKeysOfTheSection)
+TEST(Small_DatasetsReaderTable, TheCSVRowReadsItsKeysOfTheSection)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_table_keys");
-    scratch.write_text("rows/set.csv", "a,b,c\n1,2,3\n");
+    MemorySource files;
+    files.add_file("rows_root/rows/set.csv", "a,b,c\n1,2,3\n");
 
     ReaderRequest request;
-    request.root = scratch.path();
+    request.root = "rows_root";
+    request.source = &files;
     request.section = SaTest::attributes_from(
         R"({"file": "rows/set.csv", "features": ["c"], "targets": ["a", "b"]})");
 
@@ -588,15 +648,16 @@ TEST(Small_DatasetsReaderTable, TheMaskPNGRowRefusesAClassCountOfZero)
 }
 
 /** @brief Tests that the mask_png row passes the class count and the folders it is given. */
-TEST(Medium_DatasetsReaderTableFiles, TheMaskPNGRowPassesTheClassCountAndTheFolders)
+TEST(Small_DatasetsReaderTable, TheMaskPNGRowPassesTheClassCountAndTheFolders)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_table_masks");
-    scratch.write("pictures/train/a.jpg", {1});
-    scratch.write("labels/train/a.png", {1});
+    MemorySource files;
+    files.add_file("masks_root/pictures/train/a.jpg", std::string(1, '\1'));
+    files.add_file("masks_root/labels/train/a.png", std::string(1, '\1'));
 
     ReaderRequest request;
-    request.root = scratch.path();
+    request.root = "masks_root";
     request.class_count = 5;
+    request.source = &files;
     request.section = SaTest::attributes_from(R"({"images": "pictures", "masks": "labels"})");
 
     const ReaderEntry* const row = find_reader("mask_png");
@@ -608,12 +669,12 @@ TEST(Medium_DatasetsReaderTableFiles, TheMaskPNGRowPassesTheClassCountAndTheFold
 
 namespace
 {
-    /** @brief Writes the annotation of one image whose one object is a difficult dog. */
-    void write_difficult_dog(const Support::ScratchDirectory& scratch)
+    /** @brief Adds the annotation of one image whose one object is a difficult dog. */
+    void add_difficult_dog(MemorySource& files)
     {
-        scratch.write_text("ImageSets/Main/train.txt", "a\n");
-        scratch.write_text(
-            "Annotations/a.xml",
+        files.add_file("voc_root/ImageSets/Main/train.txt", "a\n");
+        files.add_file(
+            "voc_root/Annotations/a.xml",
             "<annotation><size><width>8</width><height>8</height></size><object><name>dog</name>"
             "<difficult>1</difficult><bndbox><xmin>1</xmin><ymin>1</ymin><xmax>4</xmax>"
             "<ymax>4</ymax></bndbox></object></annotation>");
@@ -621,13 +682,14 @@ namespace
 } // namespace
 
 /** @brief Tests that the voc_xml row passes the class list and drops a difficult object. */
-TEST(Medium_DatasetsReaderTableFiles, TheVOCXMLRowPassesTheClassList)
+TEST(Small_DatasetsReaderTable, TheVOCXMLRowPassesTheClassList)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_table_voc_classes");
-    write_difficult_dog(scratch);
+    MemorySource files;
+    add_difficult_dog(files);
 
     ReaderRequest request;
-    request.root = scratch.path();
+    request.root = "voc_root";
+    request.source = &files;
     request.section = SaTest::attributes_from(R"({"class_names": ["cat", "dog"]})");
 
     const ReaderEntry* const row = find_reader("voc_xml");
@@ -638,13 +700,14 @@ TEST(Medium_DatasetsReaderTableFiles, TheVOCXMLRowPassesTheClassList)
 }
 
 /** @brief Tests that the voc_xml row passes the flag that keeps a difficult object. */
-TEST(Medium_DatasetsReaderTableFiles, TheVOCXMLRowPassesTheDifficultFlag)
+TEST(Small_DatasetsReaderTable, TheVOCXMLRowPassesTheDifficultFlag)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_table_voc_flag");
-    write_difficult_dog(scratch);
+    MemorySource files;
+    add_difficult_dog(files);
 
     ReaderRequest request;
-    request.root = scratch.path();
+    request.root = "voc_root";
+    request.source = &files;
     request.section = SaTest::attributes_from(
         R"({"class_names": ["cat", "dog"], "keep_difficult": true})");
 
@@ -793,14 +856,13 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsReaderSectionRefusals,
                          ::testing::ValuesIn(section_refusals()), section_refusal_name);
 
 /** @brief Tests that a detection section over a YOLO split yields letterboxed batches. */
-TEST_F(Medium_DatasetsReaderSection, ADetectionSectionBuildsLetterboxedBatches)
+TEST_F(Small_DatasetsReaderSection, ADetectionSectionBuildsLetterboxedBatches)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_detection");
-    write_yolo_split(scratch);
+    add_split(yolo_split());
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
             "split": "train", "batch_size": 2, "input": [4, 4], "max_objects": 2,
             "classes": 3)")));
 
@@ -834,14 +896,13 @@ TEST_F(Medium_DatasetsReaderSection, ADetectionSectionBuildsLetterboxedBatches)
 }
 
 /** @brief Tests that a detection section stating "fit": "resize" stretches instead of padding. */
-TEST_F(Medium_DatasetsReaderSection, ADetectionSectionStatingResizeStretchesTheImages)
+TEST_F(Small_DatasetsReaderSection, ADetectionSectionStatingResizeStretchesTheImages)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_resize");
-    write_yolo_split(scratch);
+    add_split(yolo_split());
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
             "split": "train", "batch_size": 2, "input": [4, 4], "max_objects": 2,
             "classes": 3, "fit": "resize")")));
 
@@ -853,14 +914,13 @@ TEST_F(Medium_DatasetsReaderSection, ADetectionSectionStatingResizeStretchesTheI
 }
 
 /** @brief Tests that a classification section takes the class count of its folders. */
-TEST_F(Medium_DatasetsReaderSection, AClassificationSectionTakesTheClassesOfTheList)
+TEST_F(Small_DatasetsReaderSection, AClassificationSectionTakesTheClassesOfTheList)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_folder");
-    write_folder_split(scratch);
+    add_split(folder_split());
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "image_folder", "task": "classification",
+        build_in_memory(section_in_memory(R"(, "reader": "image_folder", "task": "classification",
             "batch_size": 2, "input": [2, 3], "channels": 1)")));
 
     EXPECT_EQ(dataset->sample_shape(), (Shape{2, 3, 1}));
@@ -870,51 +930,47 @@ TEST_F(Medium_DatasetsReaderSection, AClassificationSectionTakesTheClassesOfTheL
 }
 
 /** @brief Tests that a section may state more classes than its samples name. */
-TEST_F(Medium_DatasetsReaderSection, TheClassCountMayExceedTheList)
+TEST_F(Small_DatasetsReaderSection, TheClassCountMayExceedTheList)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_classes_above");
-    write_folder_split(scratch);
+    add_split(folder_split());
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "image_folder", "task": "classification",
+        build_in_memory(section_in_memory(R"(, "reader": "image_folder", "task": "classification",
             "batch_size": 2, "input": [2, 2], "classes": 5)")));
 
     EXPECT_EQ(dataset->targets()[0].classes, 5);
 }
 
 /** @brief Tests that a section may not state fewer classes than its samples name. */
-TEST_F(Medium_DatasetsReaderSection, TheClassCountMayNotFallBelowTheList)
+TEST_F(Small_DatasetsReaderSection, TheClassCountMayNotFallBelowTheList)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_classes_below");
-    write_folder_split(scratch);
+    add_split(folder_split());
 
     SA_EXPECT_FAILURE(
-        build(section_of(scratch, R"(, "reader": "image_folder", "task": "classification",
+        build_in_memory(section_in_memory(R"(, "reader": "image_folder", "task": "classification",
             "batch_size": 2, "input": [2, 2], "classes": 1)")),
         StatusCode::InvalidDescription, "data 'classes' is 1", "name 2 classes");
 }
 
 /** @brief Tests that a detection section without its object slots is refused by key. */
-TEST_F(Medium_DatasetsReaderSection, ADetectionSectionNeedsMaxObjects)
+TEST_F(Small_DatasetsReaderSection, ADetectionSectionNeedsMaxObjects)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_slots");
-    write_yolo_split(scratch);
+    add_split(yolo_split());
 
-    SA_EXPECT_FAILURE(build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+    SA_EXPECT_FAILURE(build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
             "batch_size": 2, "input": [4, 4], "classes": 3)")),
         StatusCode::InvalidDescription, "data", "'max_objects'");
 }
 
 /** @brief Tests that a regression section over a CSV file yields rows and their targets. */
-TEST_F(Medium_DatasetsReaderSection, ARegressionSectionReadsTheRowsOfACSVFile)
+TEST_F(Small_DatasetsReaderSection, ARegressionSectionReadsTheRowsOfACSVFile)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_regression");
-    scratch.write_text("train.csv", "a,b,y\n1,2,3\n4,5,6\n7,8,9\n");
+    add_text("train.csv", "a,b,y\n1,2,3\n4,5,6\n7,8,9\n");
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "csv", "task": "regression",
+        build_in_memory(section_in_memory(R"(, "reader": "csv", "task": "regression",
             "batch_size": 2, "targets": ["y"])")));
 
     EXPECT_EQ(dataset->name(), "csv");
@@ -936,17 +992,14 @@ TEST_F(Medium_DatasetsReaderSection, ARegressionSectionReadsTheRowsOfACSVFile)
 }
 
 /** @brief Tests that a segmentation section letterboxes a mask and pads with the ignore index. */
-TEST_F(Medium_DatasetsReaderSection, ASegmentationSectionFitsTheMaskOfEachImage)
+TEST_F(Small_DatasetsReaderSection, ASegmentationSectionFitsTheMaskOfEachImage)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_segmentation");
-    Support::write_raw_image(scratch, "images/train/a.saim",
-                             Support::uniform_image(ImageSize{2, 4}, 3, 255));
-    Support::write_raw_image(scratch, "masks/train/a.png",
-                             Support::gray_image(ImageSize{2, 4}, {0, 1, 2, 0, 1, 1, 2, 2}));
+    add_image("images/train/a.saim", Support::uniform_image(ImageSize{2, 4}, 3, 255));
+    add_image("masks/train/a.png", Support::gray_image(ImageSize{2, 4}, {0, 1, 2, 0, 1, 1, 2, 2}));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "mask_png", "task": "segmentation",
+        build_in_memory(section_in_memory(R"(, "reader": "mask_png", "task": "segmentation",
             "batch_size": 1, "input": [4, 4], "classes": 3, "ignore_index": -1)")));
 
     EXPECT_EQ(dataset->sample_shape(), (Shape{4, 4, 3}));
@@ -965,26 +1018,24 @@ TEST_F(Medium_DatasetsReaderSection, ASegmentationSectionFitsTheMaskOfEachImage)
 }
 
 /** @brief Tests that a task of images over rows of numbers is refused. */
-TEST_F(Medium_DatasetsReaderSection, AnImageTaskOverARowReaderIsRefused)
+TEST_F(Small_DatasetsReaderSection, AnImageTaskOverARowReaderIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_kind_rows");
-    scratch.write_text("train.csv", "a,y\n1,2\n");
+    add_text("train.csv", "a,y\n1,2\n");
 
     SA_EXPECT_FAILURE(
-        build(section_of(scratch, R"(, "reader": "csv", "task": "classification",
+        build_in_memory(section_in_memory(R"(, "reader": "csv", "task": "classification",
             "input": [2, 2])")),
         StatusCode::InvalidDescription, "data 'task' is 'classification'", "reads images",
         "the reader 'csv' lists rows of numbers");
 }
 
 /** @brief Tests that a task of rows of numbers over an image reader is refused. */
-TEST_F(Medium_DatasetsReaderSection, ARowTaskOverAnImageReaderIsRefused)
+TEST_F(Small_DatasetsReaderSection, ARowTaskOverAnImageReaderIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_kind_images");
-    write_folder_split(scratch);
+    add_split(folder_split());
 
     SA_EXPECT_FAILURE(
-        build(section_of(scratch, R"(, "reader": "image_folder", "task": "regression")")),
+        build_in_memory(section_in_memory(R"(, "reader": "image_folder", "task": "regression")")),
         StatusCode::InvalidDescription, "data 'task' is 'regression'", "reads rows of numbers",
         "the reader 'image_folder' lists none");
 }
@@ -993,7 +1044,7 @@ TEST_F(Medium_DatasetsReaderSection, ARowTaskOverAnImageReaderIsRefused)
 TEST_F(Medium_DatasetsReaderSection, ACacheHoldsOneRawImagePerSample)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_cache_files");
-    write_yolo_split(scratch);
+    write_split(scratch, yolo_split());
     const std::filesystem::path cache = scratch.path() / "cache";
 
     SA_ASSERT_OK_AND_ASSIGN(
@@ -1009,7 +1060,7 @@ TEST_F(Medium_DatasetsReaderSection, ACacheHoldsOneRawImagePerSample)
 TEST_F(Medium_DatasetsReaderSection, ACacheServesTheBatchesWhenTheSourcesAreGone)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_cache_read");
-    write_yolo_split(scratch);
+    write_split(scratch, yolo_split());
     const std::filesystem::path cache = scratch.path() / "cache";
 
     SA_ASSERT_OK_AND_ASSIGN(
@@ -1025,14 +1076,13 @@ TEST_F(Medium_DatasetsReaderSection, ACacheServesTheBatchesWhenTheSourcesAreGone
 }
 
 /** @brief Tests that "shuffle" and "seed" read the batches in the order of that seed. */
-TEST_F(Medium_DatasetsReaderSection, AShuffledSectionReadsTheBatchesInTheOrderOfItsSeed)
+TEST_F(Small_DatasetsReaderSection, AShuffledSectionReadsTheBatchesInTheOrderOfItsSeed)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_shuffle");
-    write_numbered_split(scratch);
+    add_split(numbered_split());
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
             "batch_size": 1, "input": [4, 4], "max_objects": 1, "classes": 5,
             "shuffle": true, "seed": 7)")));
     Data::begin_epoch(*dataset, 1);
@@ -1045,17 +1095,16 @@ TEST_F(Medium_DatasetsReaderSection, AShuffledSectionReadsTheBatchesInTheOrderOf
 }
 
 /** @brief Tests that "pipeline": "default" changes the inputs the "none" pipeline reads. */
-TEST_F(Medium_DatasetsReaderSection, ThePipelineKeyChangesTheInputsOfABatch)
+TEST_F(Small_DatasetsReaderSection, ThePipelineKeyChangesTheInputsOfABatch)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_pipeline");
-    write_yolo_split(scratch);
+    add_split(yolo_split());
     const std::string members = R"(, "reader": "yolo_txt", "task": "detection",
         "batch_size": 2, "input": [16, 16], "max_objects": 8, "classes": 3, "pipeline": ")";
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> fitted,
-                            build(section_of(scratch, members + "none\"")));
+                            build_in_memory(section_in_memory(members + "none\"")));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> augmented,
-                            build(section_of(scratch, members + "default\"")));
+                            build_in_memory(section_in_memory(members + "default\"")));
 
     EXPECT_EQ(augmented->sample_shape(), (Shape{16, 16, 3}));
     EXPECT_NE(inputs_of(*augmented, 0), inputs_of(*fitted, 0));
@@ -1065,7 +1114,7 @@ TEST_F(Medium_DatasetsReaderSection, ThePipelineKeyChangesTheInputsOfABatch)
 TEST_F(Medium_DatasetsReaderSection, WorkersPutTheDatasetBehindALoader)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_workers_kind");
-    write_yolo_split(scratch);
+    write_split(scratch, yolo_split());
 
     const std::string_view members = R"(, "reader": "yolo_txt", "task": "detection",
         "batch_size": 1, "input": [4, 4], "max_objects": 2, "classes": 3)";
@@ -1084,7 +1133,7 @@ TEST_F(Medium_DatasetsReaderSection, WorkersPutTheDatasetBehindALoader)
 TEST_F(Medium_DatasetsReaderSection, WorkersReadTheSameBatchesAhead)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_workers");
-    write_yolo_split(scratch);
+    write_split(scratch, yolo_split());
 
     const std::string_view members = R"(, "reader": "yolo_txt", "task": "detection",
         "batch_size": 1, "input": [4, 4], "max_objects": 2, "classes": 3)";
@@ -1100,16 +1149,14 @@ TEST_F(Medium_DatasetsReaderSection, WorkersReadTheSameBatchesAhead)
 }
 
 /** @brief Tests that a segmentation section over polygons paints them into the mask. */
-TEST_F(Medium_DatasetsReaderSection, ASegmentationSectionPaintsThePolygonsOfALabelFile)
+TEST_F(Small_DatasetsReaderSection, ASegmentationSectionPaintsThePolygonsOfALabelFile)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_polygons");
-    Support::write_raw_image(scratch, "images/train/a.saim",
-                             Support::uniform_image(ImageSize{4, 4}, 3, 255));
-    scratch.write_text("labels/train/a.txt", "1 0.0 0.0 0.5 0.0 0.5 0.5 0.0 0.5\n");
+    add_image("images/train/a.saim", Support::uniform_image(ImageSize{4, 4}, 3, 255));
+    add_text("labels/train/a.txt", "1 0.0 0.0 0.5 0.0 0.5 0.5 0.0 0.5\n");
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "segmentation",
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "segmentation",
             "batch_size": 1, "input": [4, 4], "classes": 3, "ignore_index": -1,
             "background": 2)")));
 

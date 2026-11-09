@@ -32,7 +32,6 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -40,12 +39,12 @@
 
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
-#include <SushiAI/vision/codecs/decode_image.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
 
+#include "decode_file.hpp"
 #include "disk.hpp"
 
 namespace SushiAI::Vision::Datasets
@@ -131,9 +130,16 @@ namespace SushiAI::Vision::Datasets
             return Status();
         }
 
+        /** @brief Returns the source a call reads through: @p files, else the file system. */
+        [[nodiscard]] const ByteSource& source_of(const ByteSource* files) noexcept
+        {
+            return files != nullptr ? *files : Detail::file_system();
+        }
+
         /** @brief Writes the missing cache files; may throw what a path or a stream throws. */
         [[nodiscard]] Result<SampleCacheReport> write_checked(const SampleList& list,
-                                                              const SampleCacheOptions& options)
+                                                              const SampleCacheOptions& options,
+                                                              const ByteSource& files)
         {
             SA_TRY_ASSIGN(const std::vector<bool> is_cached, find_cached_files(list));
             SA_FAIL_IF(options.longest_side > 0 && has_masks(list),
@@ -141,8 +147,6 @@ namespace SushiAI::Vision::Datasets
                        "{}: a longest side of {} would leave the masks of the list at another "
                        "size than their images; cache a list with masks at its stored size",
                        K_CACHE, options.longest_side);
-
-            std::filesystem::create_directories(options.directory);
 
             Codecs::DecodeOptions decoding;
             decoding.layout = options.layout;
@@ -156,15 +160,15 @@ namespace SushiAI::Vision::Datasets
                     continue;
 
                 SA_TRY_ASSIGN(const std::filesystem::path target,
-                              sample_cache_path(list.files[file], options));
-                if (std::filesystem::exists(target))
+                              sample_cache_path(list.files[file], options, &files));
+                if (files.kind_of(target) != PathKind::Missing)
                 {
                     ++report.reused;
                     continue;
                 }
 
                 SA_TRY_ASSIGN(const Imaging::Image decoded,
-                              Codecs::load_image(list.files[file], decoding));
+                              Detail::decode_file(files, list.files[file], decoding, K_CACHE));
 
                 Imaging::ImageView stored = decoded.view();
                 if (options.longest_side > 0 &&
@@ -176,6 +180,8 @@ namespace SushiAI::Vision::Datasets
                     stored = resized.view();
                 }
 
+                // The directory is made when a file is written, so a pass that reuses touches none.
+                std::filesystem::create_directories(options.directory);
                 SA_TRY(write_entry(target, stored));
                 ++report.written;
                 report.bytes_written += Imaging::K_RAW_IMAGE_HEADER_BYTES + stored.byte_count();
@@ -186,22 +192,17 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Result<std::filesystem::path> sample_cache_path(const std::filesystem::path& source,
-                                                    const SampleCacheOptions& options) noexcept
+                                                    const SampleCacheOptions& options,
+                                                    const ByteSource* files) noexcept
     {
         return Detail::at_boundary(K_CACHE, [&]() -> Result<std::filesystem::path>
         {
-            SA_TRY_ASSIGN(const std::uint64_t bytes, Detail::size_of_file(source, K_CACHE));
-
-            std::error_code error;
-            const std::filesystem::file_time_type modified =
-                std::filesystem::last_write_time(source, error);
-            SA_FAIL_IF(static_cast<bool>(error), StatusCode::InvalidFile,
-                       "'{}': {}: the modification time cannot be read: {}",
-                       Detail::display_of(source), K_CACHE, error.message());
+            const ByteSource& reading = source_of(files);
+            SA_TRY_ASSIGN(const std::uint64_t bytes, reading.size_of(source, K_CACHE));
+            SA_TRY_ASSIGN(const std::int64_t modified, reading.modified_of(source, K_CACHE));
 
             const std::string key = SushiLog::format_text(
-                "{}|{}|{}|{}|{}", source.generic_u8string(), bytes,
-                static_cast<std::int64_t>(modified.time_since_epoch().count()),
+                "{}|{}|{}|{}|{}", source.generic_u8string(), bytes, modified,
                 options.longest_side, static_cast<std::int32_t>(options.layout));
 
             std::filesystem::path name = source.stem();
@@ -212,7 +213,8 @@ namespace SushiAI::Vision::Datasets
     }
 
     Result<SampleCacheReport> write_sample_cache(const SampleList& list,
-                                                 const SampleCacheOptions& options) noexcept
+                                                 const SampleCacheOptions& options,
+                                                 const ByteSource* files) noexcept
     {
         SA_FAIL_IF(options.directory.empty(), StatusCode::InvalidDescription,
                    "{}: the cache has no directory", K_CACHE);
@@ -223,11 +225,12 @@ namespace SushiAI::Vision::Datasets
 
         return Detail::at_boundary(K_CACHE, [&]() -> Result<SampleCacheReport>
         {
-            return write_checked(list, options);
+            return write_checked(list, options, source_of(files));
         }, options.directory);
     }
 
-    Result<SampleList> use_sample_cache(SampleList list, const SampleCacheOptions& options)
+    Result<SampleList> use_sample_cache(SampleList list, const SampleCacheOptions& options,
+                                        const ByteSource* files)
     {
         return Detail::at_boundary(K_CACHE, [&]() -> Result<SampleList>
         {
@@ -239,8 +242,9 @@ namespace SushiAI::Vision::Datasets
                     continue;
 
                 SA_TRY_ASSIGN(std::filesystem::path target,
-                              sample_cache_path(list.files[file], options));
-                SA_FAIL_IF(!std::filesystem::exists(target), StatusCode::FileNotFound,
+                              sample_cache_path(list.files[file], options, files));
+                SA_FAIL_IF(source_of(files).kind_of(target) == PathKind::Missing,
+                           StatusCode::FileNotFound,
                            "'{}': {}: '{}' holds no file '{}' for the image; it was not "
                            "cached, or it changed since",
                            Detail::display_of(list.files[file]), K_CACHE,
