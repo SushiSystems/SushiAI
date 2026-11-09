@@ -1,23 +1,21 @@
 # tests/vision/detect/anchor/test_head_training_section.cpp
 
 
-Suites: `Small_DetectAnchorTrainingSection`.
+Suites: `Small_DetectAnchorTrainingSection`, `Small_DetectAnchorTrainingSectionTrip` and
+`Small_DetectAnchorTrainingSectionRefused`.
 
 Tests `read_head_training_section` and `write_head_training_section` in
 `modules/vision/detect/include/SushiAI/vision/detect/anchor/head_training_section.hpp`.
 Options are compared field by field, every float bit for bit. The full section states the
 type "anchor" and all nine option keys.
 
-## TheDefaultsRoundTripThroughTheirSection
+## OptionsRoundTripThroughTheirSection
 
-A default `HeadTrainingOptions` comes back unchanged after `write_head_training_section`,
-`write_json`, `parse_json` and `read_head_training_section`.
-
-## OptionsWithNoDefaultRoundTripThroughTheirSection
-
-Options with the thresholds 0.213f and 0.7f, `CompleteIoU`, `DarknetCompatible`, `BestIoU`,
-the weights 0.07f and 0.4f, a `max_delta` of 5.0f and a class gate of 0.3f come back unchanged
-after the same four steps.
+Suite `Small_DetectAnchorTrainingSectionTrip`, two rows. `Defaults`: a default
+`HeadTrainingOptions` comes back unchanged after `write_head_training_section`, `write_json`,
+`parse_json` and `read_head_training_section`. `NoDefaultLeft`: options with the thresholds
+0.213f and 0.7f, `CompleteIoU`, `DarknetCompatible`, `BestIoU`, the weights 0.07f and 0.4f, a
+`max_delta` of 5.0f and a class gate of 0.3f come back unchanged after the same four steps.
 
 ## AFullSectionRoundTripsThroughItsOptions
 
@@ -34,19 +32,34 @@ object weight of 1.5, a `max_delta` of 5.0 and a class gate of 0.125.
 An empty section and a section with the type alone both read as the default options. A
 section with `max_delta` 2.5 alone reads as the defaults with that one field changed.
 
-## WritesTheTypeEveryKeyInOrderAndAFloatAsItsDouble
+## WritesTheTypeOfTheObjective
+
+The written section has the type `K_ANCHOR_OBJECTIVE_TYPE`.
+
+## WritesEveryKeyInOrder
 
 The written section has the keys `type`, `match_threshold`, `ignore_threshold`, `box_loss`,
 `box_gradient`, `objectness_target`, `box_weight`, `object_weight`, `max_delta`, `class_gate`,
-`box_gain`, `class_gain`, `objectness_gain` in that order. Its type is `K_ANCHOR_OBJECTIVE_TYPE` and its `box_loss` "complete_iou". The
-match threshold equals `double(0.213f)` and the box weight `double(0.07f)`.
+`box_gain`, `class_gain`, `objectness_gain` in that order.
 
-## ReadsAndWritesEachEnumeratorString
+## WritesAFloatAsItsDouble
 
-The writer gives "squared_error" and "complete_iou" for `BoxLoss`, "analytic" and
-"darknet_compatible" for `BoxGradient`, and "one" and "best_iou" for `ObjectnessTarget`. A
-section of "squared_error", "analytic" and "one" reads as `SquaredError`, `Analytic` and
-`One`.
+The match threshold equals `double(0.213f)` and the box weight `double(0.07f)`.
+
+## ReadsAndWritesEachBoxLossString
+
+The writer gives "squared_error" and "complete_iou" for `BoxLoss`, and a section holding either
+string reads as `SquaredError` and `CompleteIoU`.
+
+## ReadsAndWritesEachBoxGradientString
+
+The writer gives "analytic" and "darknet_compatible" for `BoxGradient`, and a section holding
+either string reads as `Analytic` and `DarknetCompatible`.
+
+## ReadsAndWritesEachObjectnessTargetString
+
+The writer gives "one" and "best_iou" for `ObjectnessTarget`, and a section holding either
+string reads as `One` and `BestIoU`.
 
 ## ReadsAWholeNumberAsAWeight
 
@@ -85,13 +98,14 @@ The read fails with `InvalidDescription` for the `box_loss` "ciou" ("objective '
 
 A `max_delta` of 1e39 fails with `InvalidDescription`, "objective 'max_delta'" and "float32".
 
-## RefusesTheValuesTheOptionsCheckRefuses
+## TheReaderRefusesAValueTheOptionsCheckRefuses
 
-The read fails with `InvalidDescription` and "objective" for a `match_threshold` of 0.0
-("match threshold", "(0, 1]"), an `ignore_threshold` of 1.5 ("ignore threshold", "1.5"), a
-`class_gate` of -0.25 ("class gate", "-0.25"), a `box_weight` of -1.0 ("box weight",
-"-1"), a `box_gain` of -1.0 ("box gain", "-1"), a `class_gain` of -2.0 ("class gain", "-2")
-and an `objectness_gain` of -3.0 ("objectness gain", "-3").
+Suite `Small_DetectAnchorTrainingSectionRefused`, one row per option range. The read fails with
+`InvalidDescription` and "objective" for a `match_threshold` of 0.0 ("match threshold",
+"(0, 1]"), an `ignore_threshold` of 1.5 ("ignore threshold", "1.5"), a `class_gate` of -0.25
+("class gate", "-0.25"), a `box_weight` of -1.0 ("box weight", "-1"), a `box_gain` of -1.0
+("box gain", "-1"), a `class_gain` of -2.0 ("class gain", "-2") and an `objectness_gain` of
+-3.0 ("objectness gain", "-3").
 
 ## WriterRefusesTheValuesTheOptionsCheckRefuses
 

@@ -156,19 +156,71 @@ namespace
 
         expect_same_options(read, options);
     }
+
+    /** @brief Returns the string the section holds at @p key. */
+    std::string string_of(const Value& section, const char* key)
+    {
+        return std::string(
+            require_value(require_value(section.at(key, "objective")).as_string(key)));
+    }
+
+    /** @brief Returns the real the section holds at @p key. */
+    double real_of(const Value& section, const char* key)
+    {
+        return require_value(require_value(section.at(key, "objective")).as_real(key));
+    }
+
+    /** @brief Holds a set of options and the name of its row. */
+    struct OptionsRow
+    {
+        std::string name;          /**< The row's name. */
+        HeadTrainingOptions value; /**< The options that make the trip. */
+    };
+
+    /** @brief Runs one set of options through the writer and the reader. */
+    class Small_DetectAnchorTrainingSectionTrip : public ::testing::TestWithParam<OptionsRow>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string options_name(const ::testing::TestParamInfo<OptionsRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Holds a member the reader refuses and the words its message holds. */
+    struct RefusedValue
+    {
+        std::string name;   /**< The row's name. */
+        std::string member; /**< The JSON member text the section holds. */
+        std::string field;  /**< The field the message names. */
+        std::string detail; /**< The value or the range the message names. */
+    };
+
+    /** @brief Runs one member the options check refuses. */
+    class Small_DetectAnchorTrainingSectionRefused : public ::testing::TestWithParam<RefusedValue>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string refused_name(const ::testing::TestParamInfo<RefusedValue>& info)
+    {
+        return info.param.name;
+    }
 } // namespace
 
-/** @brief Tests that the defaults read back from their section unchanged. */
-TEST(Small_DetectAnchorTrainingSection, TheDefaultsRoundTripThroughTheirSection)
+/** @brief Tests that a set of options reads back from its section unchanged. */
+TEST_P(Small_DetectAnchorTrainingSectionTrip, OptionsRoundTripThroughTheirSection)
 {
-    expect_options_round_trip(HeadTrainingOptions{});
+    expect_options_round_trip(GetParam().value);
 }
 
-/** @brief Tests that options with no default left read back from their section unchanged. */
-TEST(Small_DetectAnchorTrainingSection, OptionsWithNoDefaultRoundTripThroughTheirSection)
-{
-    expect_options_round_trip(make_imported_options());
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorTrainingSectionTrip,
+                         ::testing::Values(OptionsRow{"Defaults", HeadTrainingOptions{}},
+                                           OptionsRow{"NoDefaultLeft", make_imported_options()}),
+                         options_name);
 
 /**
  * @brief Tests that a section stating every key is written back as it was read.
@@ -229,8 +281,17 @@ TEST(Small_DetectAnchorTrainingSection, AKeyLeftOutKeepsTheDefaultOfItsField)
     expect_same_options(bounded, wanted);
 }
 
-/** @brief Tests that the writer states the type, every key in order and a float as a double. */
-TEST(Small_DetectAnchorTrainingSection, WritesTheTypeEveryKeyInOrderAndAFloatAsItsDouble)
+/** @brief Tests that the writer states the type of the objective. */
+TEST(Small_DetectAnchorTrainingSection, WritesTheTypeOfTheObjective)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value section,
+                            write_head_training_section(make_imported_options()));
+
+    EXPECT_EQ(string_of(section, "type"), K_ANCHOR_OBJECTIVE_TYPE);
+}
+
+/** @brief Tests that the writer states every key, in order. */
+TEST(Small_DetectAnchorTrainingSection, WritesEveryKeyInOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value section,
                             write_head_training_section(make_imported_options()));
@@ -241,71 +302,83 @@ TEST(Small_DetectAnchorTrainingSection, WritesTheTypeEveryKeyInOrderAndAFloatAsI
                                         "box_weight", "object_weight", "max_delta",
                                         "class_gate", "box_gain", "class_gain",
                                         "objectness_gain"}));
-    EXPECT_EQ(require_value(require_value(section.at("type", "objective")).as_string("type")),
-              K_ANCHOR_OBJECTIVE_TYPE);
-    EXPECT_EQ(require_value(require_value(section.at("box_loss",
-                                                     "objective")).as_string("box_loss")),
-              "complete_iou");
-
-    // The tolerance is zero: a float widens to exactly one double.
-    EXPECT_EQ(require_value(require_value(section.at("match_threshold",
-                                                     "objective")).as_real("match_threshold")),
-              
-              static_cast<double>(0.213f));
-    EXPECT_EQ(require_value(require_value(section.at("box_weight",
-                                                     "objective")).as_real("box_weight")),
-              
-              static_cast<double>(0.07f));
 }
 
-/** @brief Tests that every string of the three enumerations is read and written. */
-TEST(Small_DetectAnchorTrainingSection, ReadsAndWritesEachEnumeratorString)
+/** @brief Tests that the writer spells a float as the one double it widens to. */
+TEST(Small_DetectAnchorTrainingSection, WritesAFloatAsItsDouble)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value section,
+                            write_head_training_section(make_imported_options()));
+
+    // The tolerance is zero: a float widens to exactly one double.
+    EXPECT_EQ(real_of(section, "match_threshold"), static_cast<double>(0.213f));
+    EXPECT_EQ(real_of(section, "box_weight"), static_cast<double>(0.07f));
+}
+
+/** @brief Tests that both strings of the box loss are written and read. */
+TEST(Small_DetectAnchorTrainingSection, ReadsAndWritesEachBoxLossString)
 {
     HeadTrainingOptions options;
-
     options.box_loss = BoxLoss::SquaredError;
     SA_ASSERT_OK_AND_ASSIGN(const Value squared, write_head_training_section(options));
-    EXPECT_EQ(require_value(require_value(squared.at("box_loss",
-                                                     "objective")).as_string("box_loss")),
-              "squared_error");
     options.box_loss = BoxLoss::CompleteIoU;
     SA_ASSERT_OK_AND_ASSIGN(const Value complete, write_head_training_section(options));
-    EXPECT_EQ(require_value(require_value(complete.at("box_loss",
-                                                      "objective")).as_string("box_loss")),
-              "complete_iou");
-
-    options.box_gradient = BoxGradient::Analytic;
-    SA_ASSERT_OK_AND_ASSIGN(const Value analytic, write_head_training_section(options));
-    EXPECT_EQ(require_value(require_value(analytic.at("box_gradient",
-                                                      "objective")).as_string("box_gradient")),
-              "analytic");
-    options.box_gradient = BoxGradient::DarknetCompatible;
-    SA_ASSERT_OK_AND_ASSIGN(const Value compatible, write_head_training_section(options));
-    EXPECT_EQ(require_value(require_value(compatible.at("box_gradient",
-                                                        "objective")).as_string("box_gradient")),
-              
-              "darknet_compatible");
-
-    options.objectness_target = ObjectnessTarget::One;
-    SA_ASSERT_OK_AND_ASSIGN(const Value one, write_head_training_section(options));
-    EXPECT_EQ(require_value(require_value(one.at("objectness_target",
-                                                 "objective")).as_string("objectness_target")),
-              "one");
-    options.objectness_target = ObjectnessTarget::BestIoU;
-    SA_ASSERT_OK_AND_ASSIGN(const Value best, write_head_training_section(options));
-    EXPECT_EQ(require_value(require_value(best.at("objectness_target",
-                                                  "objective")).as_string("objectness_target")),
-              
-              "best_iou");
 
     SA_ASSERT_OK_AND_ASSIGN(
-        const HeadTrainingOptions read,
-        read_head_training_section(section_from(
-            R"({"box_loss": "squared_error", "box_gradient": "analytic",
-                "objectness_target": "one"})")));
-    EXPECT_EQ(read.box_loss, BoxLoss::SquaredError);
-    EXPECT_EQ(read.box_gradient, BoxGradient::Analytic);
-    EXPECT_EQ(read.objectness_target, ObjectnessTarget::One);
+        const HeadTrainingOptions read_squared,
+        read_head_training_section(section_of(R"("box_loss": "squared_error")")));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const HeadTrainingOptions read_complete,
+        read_head_training_section(section_of(R"("box_loss": "complete_iou")")));
+
+    EXPECT_EQ(string_of(squared, "box_loss"), "squared_error");
+    EXPECT_EQ(string_of(complete, "box_loss"), "complete_iou");
+    EXPECT_EQ(read_squared.box_loss, BoxLoss::SquaredError);
+    EXPECT_EQ(read_complete.box_loss, BoxLoss::CompleteIoU);
+}
+
+/** @brief Tests that both strings of the box gradient are written and read. */
+TEST(Small_DetectAnchorTrainingSection, ReadsAndWritesEachBoxGradientString)
+{
+    HeadTrainingOptions options;
+    options.box_gradient = BoxGradient::Analytic;
+    SA_ASSERT_OK_AND_ASSIGN(const Value analytic, write_head_training_section(options));
+    options.box_gradient = BoxGradient::DarknetCompatible;
+    SA_ASSERT_OK_AND_ASSIGN(const Value compatible, write_head_training_section(options));
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const HeadTrainingOptions read_analytic,
+        read_head_training_section(section_of(R"("box_gradient": "analytic")")));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const HeadTrainingOptions read_compatible,
+        read_head_training_section(section_of(R"("box_gradient": "darknet_compatible")")));
+
+    EXPECT_EQ(string_of(analytic, "box_gradient"), "analytic");
+    EXPECT_EQ(string_of(compatible, "box_gradient"), "darknet_compatible");
+    EXPECT_EQ(read_analytic.box_gradient, BoxGradient::Analytic);
+    EXPECT_EQ(read_compatible.box_gradient, BoxGradient::DarknetCompatible);
+}
+
+/** @brief Tests that both strings of the objectness target are written and read. */
+TEST(Small_DetectAnchorTrainingSection, ReadsAndWritesEachObjectnessTargetString)
+{
+    HeadTrainingOptions options;
+    options.objectness_target = ObjectnessTarget::One;
+    SA_ASSERT_OK_AND_ASSIGN(const Value one, write_head_training_section(options));
+    options.objectness_target = ObjectnessTarget::BestIoU;
+    SA_ASSERT_OK_AND_ASSIGN(const Value best, write_head_training_section(options));
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const HeadTrainingOptions read_one,
+        read_head_training_section(section_of(R"("objectness_target": "one")")));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const HeadTrainingOptions read_best,
+        read_head_training_section(section_of(R"("objectness_target": "best_iou")")));
+
+    EXPECT_EQ(string_of(one, "objectness_target"), "one");
+    EXPECT_EQ(string_of(best, "objectness_target"), "best_iou");
+    EXPECT_EQ(read_one.objectness_target, ObjectnessTarget::One);
+    EXPECT_EQ(read_best.objectness_target, ObjectnessTarget::BestIoU);
 }
 
 /** @brief Tests that a whole number is read where the section holds a number. */
@@ -379,24 +452,26 @@ TEST(Small_DetectAnchorTrainingSection, RefusesANumberFloat32CannotHold)
                       StatusCode::InvalidDescription, "objective 'max_delta'", "float32");
 }
 
-/** @brief Tests that the reader refuses the values validate_head_training refuses. */
-TEST(Small_DetectAnchorTrainingSection, RefusesTheValuesTheOptionsCheckRefuses)
+/** @brief Tests that the reader refuses a value validate_head_training refuses, naming it. */
+TEST_P(Small_DetectAnchorTrainingSectionRefused, TheReaderRefusesAValueTheOptionsCheckRefuses)
 {
-    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("match_threshold": 0.0)")),
-                      StatusCode::InvalidDescription, "objective", "match threshold", "(0, 1]");
-    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("ignore_threshold": 1.5)")),
-                      StatusCode::InvalidDescription, "objective", "ignore threshold", "1.5");
-    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("class_gate": -0.25)")),
-                      StatusCode::InvalidDescription, "objective", "class gate", "-0.25");
-    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("box_weight": -1.0)")),
-                      StatusCode::InvalidDescription, "objective", "box weight", "-1");
-    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("box_gain": -1.0)")),
-                      StatusCode::InvalidDescription, "objective", "box gain", "-1");
-    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("class_gain": -2.0)")),
-                      StatusCode::InvalidDescription, "objective", "class gain", "-2");
-    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("objectness_gain": -3.0)")),
-                      StatusCode::InvalidDescription, "objective", "objectness gain", "-3");
+    const RefusedValue& row = GetParam();
+
+    SA_EXPECT_FAILURE(read_head_training_section(section_of(row.member)),
+                      StatusCode::InvalidDescription, "objective", row.field, row.detail);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorTrainingSectionRefused,
+    ::testing::Values(
+        RefusedValue{"MatchThreshold", R"("match_threshold": 0.0)", "match threshold", "(0, 1]"},
+        RefusedValue{"IgnoreThreshold", R"("ignore_threshold": 1.5)", "ignore threshold", "1.5"},
+        RefusedValue{"ClassGate", R"("class_gate": -0.25)", "class gate", "-0.25"},
+        RefusedValue{"BoxWeight", R"("box_weight": -1.0)", "box weight", "-1"},
+        RefusedValue{"BoxGain", R"("box_gain": -1.0)", "box gain", "-1"},
+        RefusedValue{"ClassGain", R"("class_gain": -2.0)", "class gain", "-2"},
+        RefusedValue{"ObjectnessGain", R"("objectness_gain": -3.0)", "objectness gain", "-3"}),
+    refused_name);
 
 /** @brief Tests that the writer refuses the values validate_head_training refuses. */
 TEST(Small_DetectAnchorTrainingSection, WriterRefusesTheValuesTheOptionsCheckRefuses)
