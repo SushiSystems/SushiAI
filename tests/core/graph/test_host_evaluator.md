@@ -25,14 +25,16 @@ One row per ADD, SUB, MUL and LESS_EQUAL over a = {1, 4, -2} and b = {3, 4, 5}: 
 
 ## AUnaryRuleMapsEachElement
 
-One row per SCALE by -0.5, EXP, GELU and SILU over {1, -2}. The expected values are e and
-0.1353352832366127 for EXP, 0.8411919906082768 and -0.04540230591222494 for the tanh form of
-GELU, and 0.7310585786300049 and -0.2384058440442351 for SILU, v / (1 + exp(-v)).
+One row per SCALE by -0.5, EXP, GELU, SILU, RELU, ABS and SOFTPLUS over {1, -2}. The expected
+values are e and 0.1353352832366127 for EXP, 0.8411919906082768 and -0.04540230591222494 for the
+tanh form of GELU, and 0.7310585786300049 and -0.2384058440442351 for SILU, v / (1 + exp(-v)).
+RELU gives {1, 0} and ABS gives {1, 2}. SOFTPLUS, log(1 + exp(v)), gives 1.3132616875182228 and
+0.1269280110429725.
 
 ## HostEvaluatesNamesTheRuledOperations
 
-`host_evaluates` is true for LEAF, MATMUL, LAYER_NORM, SILU, IM2COL, DEPTHWISE_CONV2D,
-BATCHNORM2D and BATCHNORM_FOLD, and false for RELU and CAUSAL_MASK.
+`host_evaluates` is true for LEAF, MATMUL, LAYER_NORM, SILU, RELU, ABS, SOFTPLUS, IM2COL,
+DEPTHWISE_CONV2D, BATCHNORM2D and BATCHNORM_FOLD, and false for ATAN and CAUSAL_MASK.
 
 ## AReshapeKeepsTheElementsInOrder
 
@@ -128,7 +130,7 @@ With epsilon 4, gamma {2, 1}, beta {1, 0}, mean {4, 2} and variance {5, 0}, the 
 
 ## AnOperationWithoutARuleIsUnsupported
 
-A graph with a RELU makes `run()` fail with `Unsupported`, naming "no rule" and the operation.
+A graph with an ATAN makes `run()` fail with `Unsupported`, naming "no rule" and the operation.
 
 ## ALeafLeftUnwrittenIsRefused
 

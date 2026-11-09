@@ -161,6 +161,24 @@ namespace SushiAI
                     return v / (1.0 + std::exp(-v));
                 });
             }
+
+            Status host_relu(const HostNodeContext& context) noexcept
+            {
+                return map_unary(context, [](double v) { return v > 0.0 ? v : 0.0; });
+            }
+
+            Status host_abs(const HostNodeContext& context) noexcept
+            {
+                return map_unary(context, [](double v) { return std::fabs(v); });
+            }
+
+            Status host_softplus(const HostNodeContext& context) noexcept
+            {
+                return map_unary(context, [](double v)
+                {
+                    return std::max(v, 0.0) + std::log1p(std::exp(-std::fabs(v)));
+                });
+            }
         } // namespace Detail
     } // namespace Graph
 } // namespace SushiAI

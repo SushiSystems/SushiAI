@@ -31,36 +31,53 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/graph/tensor_pool.hpp>
-#include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/dense_losses.hpp>
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
-namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief The rounded operations of the mean of eight squared differences. */
-    constexpr std::size_t K_SQUARED_ERROR_OPERATIONS = 10;
+    /**
+     * @brief Returns the rounded operations on the longest path to the mean of @p elements.
+     *
+     * The host sum adds the elements in order from a zero start, so the first addition is exact
+     * and the sum of n elements rounds n - 1 times; the scale by 1 / n rounds once more.
+     */
+    constexpr std::size_t mean_operations(std::size_t elements) noexcept
+    {
+        return (elements - 1) + 1;
+    }
 
-    /** @brief The rounded operations of the mean of twelve elements: the sum and the scale. */
-    constexpr std::size_t K_MEAN_OPERATIONS = 14;
+    /**
+     * @brief Returns the rounded operations on the longest path to the logistic loss.
+     *
+     * One element takes three: the exponential, the logarithm and the final sum, or the product,
+     * the difference and the final sum; the maximum, the absolute value and the scale by -1 are
+     * exact. The mean of @p elements elements adds mean_operations(elements).
+     */
+    constexpr std::size_t logistic_operations(std::size_t elements) noexcept
+    {
+        return 3 + mean_operations(elements);
+    }
 
-    /** @brief The rounded operations of the logistic loss of a few elements in float32. */
-    constexpr std::size_t K_LOGISTIC_OPERATIONS = 16;
+    /**
+     * @brief Returns the rounded operations on the longest path to the mean squared error of
+     *        @p elements elements: the difference and the product, then the mean.
+     */
+    constexpr std::size_t squared_error_operations(std::size_t elements) noexcept
+    {
+        return 2 + mean_operations(elements);
+    }
 
     /** @brief Returns the cross entropy of sigmoid(x) against y, averaged: the closed form. */
     double logistic_mean_of(const std::vector<double>& logits, const std::vector<double>& targets)
@@ -84,9 +101,8 @@ namespace
         std::vector<double> targets;    /**< The targets, each in [0, 1]. */
     };
 
-    /** @brief Runs the logistic loss of each row on the device. */
-    class Medium_DenseLossesLogistic : public SaTest::EngineTest,
-                                       public ::testing::WithParamInterface<LogisticRow>
+    /** @brief Runs the logistic loss of each row on the host evaluator. */
+    class Small_DenseLossesLogistic : public ::testing::TestWithParam<LogisticRow>
     {
     };
 } // namespace
@@ -108,11 +124,11 @@ TEST(Small_DenseLosses, TheMeanIsOneColumnSummedAndScaled)
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(mean));
     ASSERT_EQ(result.size(), 1u);
     EXPECT_TRUE(TestSupport::is_within(
-        TestSupport::measure_relative_error<double>(result.front(), 6.5, K_MEAN_OPERATIONS)));
+        TestSupport::measure_relative_error<double>(result.front(), 6.5, mean_operations(12))));
 }
 
 /** @brief Tests that the logistic loss is the cross entropy of the logit, finite at +-100. */
-TEST_P(Medium_DenseLossesLogistic, TheLogisticLossReadsTheLogitInItsStableForm)
+TEST_P(Small_DenseLossesLogistic, TheLogisticLossReadsTheLogitInItsStableForm)
 {
     const LogisticRow& row = GetParam();
     Graph::Graph graph;
@@ -121,23 +137,21 @@ TEST_P(Medium_DenseLossesLogistic, TheLogisticLossReadsTheLogitInItsStableForm)
     const Graph::ValueID targets = builder.input(row.shape, "targets");
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
                             Train::emit_logistic_loss(builder, graph, logits, targets));
-    Graph::TensorPool pool(*engine);
-    SA_EXPECT_OK(pool.materialise_leaves(graph));
-    SaTest::write_tensor(pool.tensor(logits), row.logits);
-    SaTest::write_tensor(pool.tensor(targets), row.targets);
-    std::unique_ptr<Graph::CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, Graph::CompiledStep::compile(backend(), graph, pool));
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(logits, row.logits));
+    SA_EXPECT_OK(evaluator.write(targets, row.targets));
 
-    SA_EXPECT_OK(step->run());
+    SA_EXPECT_OK(evaluator.run());
 
-    const std::vector<double> result = SaTest::read_tensor(pool.tensor(loss));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(loss));
     ASSERT_EQ(result.size(), 1u);
-    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<float>(
-        result.front(), logistic_mean_of(row.logits, row.targets), K_LOGISTIC_OPERATIONS)));
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        result.front(), logistic_mean_of(row.logits, row.targets),
+        logistic_operations(row.logits.size()))));
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    Rows, Medium_DenseLossesLogistic,
+    Rows, Small_DenseLossesLogistic,
     ::testing::Values(
         LogisticRow{"ModerateLogits", Shape{2, 2}, {0.5, -1.5, 2.0, -0.25}, {1.0, 0.0, 0.5, 1.0}},
         LogisticRow{"LargeLogitsStayFinite", Shape{1, 2}, {100.0, -100.0}, {0.0, 1.0}}),
@@ -162,7 +176,7 @@ TEST(Small_DenseLosses, TheSquaredErrorSquaresTheDifference)
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(loss));
     ASSERT_EQ(result.size(), 1u);
     EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
-        result.front(), 9.0 / 8.0, K_SQUARED_ERROR_OPERATIONS)));
+        result.front(), 9.0 / 8.0, squared_error_operations(8))));
 }
 
 /** @brief Tests that two values of different shapes stop the process, naming both. */

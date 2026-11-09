@@ -154,6 +154,12 @@ namespace SushiAI
             [[nodiscard]] Status host_gelu(const HostNodeContext& context) noexcept;
             /** @brief Writes x times the logistic function of x for each element. */
             [[nodiscard]] Status host_silu(const HostNodeContext& context) noexcept;
+            /** @brief Writes the operand where it is positive and 0 elsewhere. */
+            [[nodiscard]] Status host_relu(const HostNodeContext& context) noexcept;
+            /** @brief Writes the absolute value of the operand. */
+            [[nodiscard]] Status host_abs(const HostNodeContext& context) noexcept;
+            /** @brief Writes log(1 + exp(x)) of each element without overflow. */
+            [[nodiscard]] Status host_softplus(const HostNodeContext& context) noexcept;
 
             /** @brief Writes op(A) * op(B) of rank 2 or 3, transposing per slots 0 and 1. */
             [[nodiscard]] Status host_matmul(const HostNodeContext& context) noexcept;

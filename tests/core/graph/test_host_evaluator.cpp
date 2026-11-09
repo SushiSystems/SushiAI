@@ -118,10 +118,10 @@ namespace
     };
 
     /**
-     * @brief Lists the unary rules with their specified values: exp(1) = e and
-     *        exp(-2) = 0.1353352832366127; GELU(v) = 0.5 v (1 + tanh(sqrt(2 / pi)
-     *        (v + 0.044715 v^3))), 0.8411919906082768 at 1 and -0.04540230591222494 at -2;
-     *        SiLU(v) = v / (1 + exp(-v)), 0.7310585786300049 at 1 and -0.2384058440442351 at -2.
+     * @brief Lists the unary rules with their hand-derived values over {1, -2}: exp(v) is e and
+     *        0.1353352832366127, the tanh GELU is 0.8411919906082768 and -0.04540230591222494,
+     *        v / (1 + exp(-v)) is 0.7310585786300049 and -0.2384058440442351, max(v, 0) is 1 and
+     *        0, |v| is 1 and 2, and log(1 + exp(v)) is 1.3132616875182228 and 0.1269280110429725.
      */
     std::vector<UnaryRow> unary_rows()
     {
@@ -134,6 +134,10 @@ namespace
              {0.8411919906082768, -0.04540230591222494}},
             {"Silu", [](const GraphBuilder& b, ValueID x) { return b.silu(x); },
              {0.7310585786300049, -0.2384058440442351}},
+            {"Relu", [](const GraphBuilder& b, ValueID x) { return b.relu(x); }, {1.0, 0.0}},
+            {"Abs", [](const GraphBuilder& b, ValueID x) { return b.abs(x); }, {1.0, 2.0}},
+            {"Softplus", [](const GraphBuilder& b, ValueID x) { return b.softplus(x); },
+             {1.3132616875182228, 0.1269280110429725}},
         };
     }
 
@@ -270,7 +274,10 @@ INSTANTIATE_TEST_SUITE_P(
                       CoverageRow{"DepthwiseConv2d", Ops::K_DEPTHWISE_CONV2D.id, true},
                       CoverageRow{"BatchNorm2d", Ops::K_BATCHNORM2D.id, true},
                       CoverageRow{"BatchNormFold", Ops::K_BATCHNORM_FOLD.id, true},
-                      CoverageRow{"Relu", Ops::K_RELU.id, false},
+                      CoverageRow{"Relu", Ops::K_RELU.id, true},
+                      CoverageRow{"Abs", Ops::K_ABS.id, true},
+                      CoverageRow{"Softplus", Ops::K_SOFTPLUS.id, true},
+                      CoverageRow{"Atan", Ops::K_ATAN.id, false},
                       CoverageRow{"CausalMask", Ops::K_CAUSAL_MASK.id, false}),
     row_name<CoverageRow>);
 
@@ -712,13 +719,13 @@ TEST(Small_HostEvaluator, AnOperationWithoutARuleIsUnsupported)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{2}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.atan(x));
     static_cast<void>(y);
     HostEvaluator evaluator(graph);
     SA_EXPECT_OK(evaluator.write(x, {1, -1}));
 
     SA_EXPECT_FAILURE(evaluator.run(), StatusCode::Unsupported, "no rule",
-                      Ops::name_of(Ops::K_RELU.id));
+                      Ops::name_of(Ops::K_ATAN.id));
 }
 
 /** @brief Tests that run() refuses a leaf that was never written. */

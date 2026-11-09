@@ -43,7 +43,7 @@ namespace SushiAI
         namespace
         {
             /** @brief Lists every operation HostEvaluator computes, with its rule. */
-            constexpr std::array<Detail::HostRuleEntry, 28> K_HOST_RULES = {{
+            constexpr std::array<Detail::HostRuleEntry, 31> K_HOST_RULES = {{
                 {Ops::K_ZERO.id, &Detail::host_zero},
                 {Ops::K_CONSTANT.id, &Detail::host_constant},
                 {Ops::K_CAST.id, &Detail::host_cast},
@@ -56,6 +56,9 @@ namespace SushiAI
                 {Ops::K_SELECT.id, &Detail::host_select},
                 {Ops::K_GELU.id, &Detail::host_gelu},
                 {Ops::K_SILU.id, &Detail::host_silu},
+                {Ops::K_RELU.id, &Detail::host_relu},
+                {Ops::K_ABS.id, &Detail::host_abs},
+                {Ops::K_SOFTPLUS.id, &Detail::host_softplus},
                 {Ops::K_MATMUL.id, &Detail::host_matmul},
                 {Ops::K_BIAS_ADD.id, &Detail::host_bias_add},
                 {Ops::K_SUM_ROWS.id, &Detail::host_sum_rows},
