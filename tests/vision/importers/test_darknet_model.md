@@ -1,65 +1,158 @@
 # tests/vision/importers/test_darknet_model.cpp
 
 
-Suites: `Small_DarknetModel`, `Medium_DarknetModelState`.
+Suites: `Small_DarknetModel`, `Small_DarknetModelHeads`, `Small_DarknetModelAnchors`,
+`Small_DarknetModelSuppression`, `Small_DarknetModelUnknownKeys`,
+`Small_DarknetModelUntranslated`, `Small_DarknetModelMisfits` and `Small_DarknetModelState`.
 
 Tests the translation of a config text into a `DarknetModel`: the rows of its model spec, the
 row each layer ends on, its heads, its anchor layout, the shape of each convolution and the
 state names its weights go to. Most cases translate a 24-layer text with two heads that the
 file holds, under `DarknetNormalisation::Separate` or `DarknetNormalisation::Folded`. The
-refusal cases use a small 32x32 network. `Medium_DarknetModelState` is an engine fixture.
+refusal cases use a small 32x32 network, one table row per input, and name the row in the test
+name. `Small_DarknetModelState` runs on a `HostExecutionBackend` the fixture owns, so no case
+needs a device, a file, a thread or a clock.
 
-## SeparateFormHasTheCountedRowsAndSources
+## SeparateFormHasTheCountedRows
 
-The Separate form has 43 rows, the input shape [416, 416, 3], the input fit "resize" and the
-`row_of_layer` list the case states. Rows 0 to 2 are `conv2d`, `batchnorm2d` and `leaky_relu`,
-with a slope of 0.1, a `bn_epsilon` of 1e-5 and no convolution bias; row 33 has a bias. Row 34 is
-a `conv2d` that reads row 29, and row 38 is a `concat` of rows 37 and 18. Row 23 is a `maxpool2d`
-of kernel 2, stride 1 and padding 0 with a trailing padding of 1 and 1, and row 3 has a trailing
-padding of 0 and 0.
+The Separate form has 43 rows and the `row_of_layer` list the case states.
+
+## SeparateFormReadsTheInputOfTheNetSection
+
+The input shape is [416, 416, 3], the input fit is "resize" and the network is 416 high and 416
+wide.
+
+## ANormalisedConvolutionIsThreeRowsReadingTheInput
+
+Rows 0 to 2 are `conv2d`, `batchnorm2d` and `leaky_relu`, and row 0 reads the model input.
+
+## SeparateFormWritesTheSlopeAndTheEpsilon
+
+The `leaky_relu` row has a slope of 0.1 and the `batchnorm2d` row a `bn_epsilon` of 1e-5.
+
+## OnlyAPlainConvolutionHasABiasInTheSeparateForm
+
+Row 0, behind a batch normalisation, has no convolution bias; row 33, a head convolution, has
+one.
+
+## ARouteOfOneLayerAddsNoRow
+
+Row 34 is a `conv2d` that reads row 29, the row of layer 13.
+
+## ARouteOfTwoLayersIsAConcatInFileOrder
+
+Row 38 is a `concat` of rows 37 and 18.
+
+## AStrideOnePoolPadsTheTrailingEdge
+
+Row 23 is a `maxpool2d` of kernel 2, stride 1 and padding 0 with a trailing padding of 1 and 1.
+
+## AStrideTwoPoolOfAnEvenExtentNeedsNoTrailingPad
+
+Row 3 has a trailing padding of 0 and 0.
+
+## FoldedFormHasTheCountedRows
+
+The Folded form has 32 rows and its own `row_of_layer` list.
 
 ## FoldedFormHasNoNormalisationRow
 
-The Folded form has 32 rows, none of the type `batchnorm2d`, and its own `row_of_layer` list.
-Row 0 has a bias, row 25 reads row 21 and row 28 reads rows 27 and 13. There are 13 targets,
-and the first names "0.weight" and "0.bias" and leaves scale, mean and variance empty.
+No row of the Folded form has the type `batchnorm2d`.
 
-## HeadsCarryTheirOutputsOptionsAndAnchors
+## FoldedFormConvolutionsHaveABias
 
-The model has two heads and two outputs, "head.0" on layer 16 and row 33 and "head.1" on layer
-23 and row 42, each with 80 classes, the Logit coding and a `scale_xy` of 1. The criterion is
-`SuppressionCriterion::IoU` with the exponent 0.6. The six anchors are their pixel sizes
-divided by 416, and the masks are {3, 4, 5} and {0, 1, 2}.
+Row 0 has a bias.
+
+## FoldedFormKeepsTheSourcesOfTheRoutes
+
+Row 25 reads row 21 and row 28 reads rows 27 and 13.
+
+## FoldedFormTargetsNameAWeightAndABiasOnly
+
+There are 13 targets, and the first names "0.weight" and "0.bias" and leaves scale, mean and
+variance empty.
+
+## TwoHeadsPublishTwoOutputs
+
+The model has two heads and two outputs.
+
+## Small_DarknetModelHeads
+
+One row per head: "First" is `head.0` on layer 16 and row 33, "Second" is `head.1` on layer 23
+and row 42.
+
+- `NamesItsOutputAndLayer`: the head carries that output name and layer.
+- `OutputPublishesTheRowOfItsLayer`: the output reads that row from the port "output" under that
+  name.
+- `ReadsTheOptionsOfTheFile`: 80 classes, the Logit coding and a `scale_xy` of 1.
+
+## SuppressionDefaultsToIoUWithTheDefaultExponent
+
+The criterion is `SuppressionCriterion::IoU` with the exponent 0.6.
+
+## Small_DarknetModelAnchors
+
+One row per anchor, six in all: `IsItsPixelSizeOverTheNetworkSize` holds the pixel sizes 10x14,
+23x27, 37x58, 81x82, 135x169 and 344x319 divided by 416, within four units in the last place.
+
+## MasksListTheAnchorsOfEachHead
+
+The masks are {3, 4, 5} and {0, 1, 2}.
+
+## ShapesNameTheLayerOfEachConvolution
+
+The Folded form lists 13 convolution shapes on the layers 0, 2, 4, 6, 8, 10, 12, 13, 14, 15,
+18, 21 and 22.
+
+## EveryShapeIsNormalisedExceptTheHeadConvolutions
+
+A shape is normalised unless it has 255 filters.
 
 ## ShapesCountTheFloatsOfTheWeightsFile
 
-The Folded form lists 13 convolution shapes on the layers 0, 2, 4, 6, 8, 10, 12, 13, 14, 15,
-18, 21 and 22. A shape is normalised unless it has 255 filters. Summed over the shapes, the
-biases, normalisation vectors and weights come to 8858734 floats, and the twelfth convolution
-reads 384 channels.
+Summed over the shapes, the biases, normalisation vectors and weights come to 8858734 floats.
 
-## SeparateFormBuildsAndItsTargetsAreStateEntries
+## TheConvolutionAfterTheJoinReadsBothChannelCounts
 
-In the Separate form the first target names "0.weight", "1.bias", "1.weight", "1.running_mean"
-and "1.running_var", and there are 11 * 5 + 2 * 2 target names. The model builds, and every
-target names an entry of its state.
+The twelfth convolution reads 384 channels, the 128 upsampled ones and the 256 of layer 8.
 
-## FoldedFormBuildsAndItsTargetsAreStateEntries
+## Small_DarknetModelState
 
-In the Folded form there are 13 * 2 target names. The model builds, and every target names an
-entry of its state.
+`SeparateFormBuildsAndItsTargetsAreStateEntries`: the first target names "0.weight", "1.bias",
+"1.weight", "1.running_mean" and "1.running_var", and there are 11 * 5 + 2 * 2 target names.
+`FoldedFormBuildsAndItsTargetsAreStateEntries`: there are 13 * 2 target names. In both the model
+builds, publishes the two heads, and every target names an entry of its state.
 
-## AnActivatedHeadReadsItsStretchAndItsSuppression
+## AnActivatedHeadHasTheActivatedCoding
 
 A head with `new_coords=1`, `scale_x_y = 2.0`, `nms_kind=diounms` and `beta_nms=0.6` among its
-keys gives one head with the Activated coding, a `scale_xy` of 2 and one class. The criterion is
-`SuppressionCriterion::DistanceIoU` with the exponent 0.6. The model has two rows, the second a
-`sigmoid`, and the output is published from row 1.
+keys has the Activated coding. The next five cases read the same text.
 
-## OnlyDiounmsReadsBetaNMS
+## AnActivatedHeadReadsItsStretch
 
-With `nms_kind=greedynms` and `beta_nms=0.3` the criterion is `DistanceIoU` and the exponent
-stays 0.6. With `nms_kind=diounms` and `beta_nms=0.3` the exponent is 0.3.
+The `scale_xy` is 2.
+
+## AnActivatedHeadReadsItsClassCount
+
+The head has one class.
+
+## DiounmsSelectsTheDistanceCriterion
+
+The criterion is `SuppressionCriterion::DistanceIoU`.
+
+## DiounmsReadsItsExponentFromBetaNMS
+
+The exponent is 0.6.
+
+## AnActivatedHeadPublishesASigmoidRow
+
+The model has two rows, the second a `sigmoid`, and the output is published from row 1.
+
+## Small_DarknetModelSuppression
+
+`OnlyDiounmsReadsBetaNMS`: with `nms_kind=greedynms` and `beta_nms=0.3` (row
+`GreedynmsKeepsTheDefault`) the criterion is `DistanceIoU` and the exponent stays 0.6; with
+`nms_kind=diounms` and `beta_nms=0.3` (row `DiounmsTakesBetaNMS`) the exponent is 0.3.
 
 ## TheLastHeadDecidesTheCriterion
 
@@ -70,31 +163,39 @@ heads, the criterion `IoU` and the exponent 0.6.
 
 A `[reorg]` section fails with `Unsupported`, "line 11", "layer 1" and "[reorg]".
 
-## AnUnknownKeyIsRefusedNamingItsLine
+## Small_DarknetModelUnknownKeys
 
-Three unknown keys fail with `Unsupported`: `groups` in a convolution ("line 7",
-"[convolutional]", "'groups'"), `label_smooth_eps` in a head ("line 16", "[yolo]",
-"'label_smooth_eps'") and `crop` in the first section ("line 5", "'crop'").
+`IsRefusedNamingItsLine` fails with `Unsupported` for `groups` in a convolution
+(`AGroupedKeyOfAConvolution`: "line 7", "[convolutional]", "'groups'"), `label_smooth_eps` in a
+head (`AKeyOfAHead`: "line 16", "[yolo]", "'label_smooth_eps'") and `crop` in the first section
+(`AKeyOfTheFirstSection`: "line 5", "'crop'").
 
-## LetterBoxSelectsTheFitOfTheInput
+## LetterBoxOneSelectsTheLetterboxFit
 
 The small network with `letter_box=1` in its `[net]` section translates to an input fit of
-"letterbox". With `letter_box=2` the translation fails with `InvalidDescription`, "line 5" and
+"letterbox".
+
+## LetterBoxTwoIsRefusedNamingItsLine
+
+With `letter_box=2` the translation fails with `InvalidDescription`, "line 5" and
 "letter_box=2".
 
-## UntranslatedValuesAreRefusedNamingTheirLine
+## Small_DarknetModelUntranslated
 
-Two values fail with `Unsupported`: an upsample `scale=2` ("line 11", "scale 2") and
-`activation=relu` ("line 6", "'relu'").
+`IsRefusedNamingItsLine` fails with `Unsupported` for an upsample `scale=2`
+(`AnUpsampleScale`: "line 11", "scale 2") and `activation=relu` (`AnActivationOfRelu`: "line 6",
+"'relu'").
 
-## ValuesThatDoNotFitAreRefusedNamingTheirLine
+## Small_DarknetModelMisfits
 
-Five texts fail with `InvalidDescription`: `filters=many` ("line 6", "'filters'", "'many'"), a
-route to a later layer ("line 12", "names layer 1"), a head over 12 channels that needs 18
-("line 8", "reads 18 channels", "has 12"), a mask that names anchor 3 of three ("line 12",
-"names anchor 3"), and a text with no head ("no [yolo] section").
+`IsRefusedNamingItsLine` fails with `InvalidDescription` for `filters=many` (`AWordForANumber`:
+"line 6", "'filters'", "'many'"), a route to a later layer (`ARouteToALaterLayer`: "line 12",
+"names layer 1"), a head over 12 channels that needs 18 (`AHeadOverTooFewChannels`: "line 8",
+"reads 18 channels", "has 12"), a mask that names anchor 3 of three (`AMaskPastTheAnchors`:
+"line 12", "names anchor 3"), and a text with no head (`ATextWithoutAHead`: "no [yolo]
+section").
 
-Suites: `Small_DarknetRouteGroups`.
+Suites: `Small_DarknetRouteGroups` and `Small_DarknetRouteSplits`.
 
 Tests how the translation of a config text turns a `[route]` section with `groups` and
 `group_id` into model rows. Each case starts from a network whose first convolution has 64
@@ -118,24 +219,24 @@ A grouped route of two layers gives six rows. Rows 2 and 3 are `slice_channels` 
 A route of one layer without groups gives two rows, the second a `conv2d` that reads row 0, and
 the second convolution reads 64 channels.
 
-## UnequalSplitsAndGroupsOutOfRangeAreRefused
+## Small_DarknetRouteSplits
 
-Four routes fail with `InvalidDescription`: `groups=3` over 64 channels ("line 12", "groups 3",
-"64 channels"), `group_id=2` with two groups ("line 11", "group_id 2"), `groups=0` ("line 11",
-"groups 0"), and a `group_id` of 1 without `groups` ("line 11", "group_id 1").
+`IsRefusedNamingItsLine` fails with `InvalidDescription` for `groups=3` over 64 channels
+(`GroupsThatDoNotDivideTheChannels`: "line 12", "groups 3", "64 channels"), `group_id=2` with
+two groups (`AGroupIdPastTheGroups`: "line 11", "group_id 2"), `groups=0` (`ZeroGroups`: "line
+11", "groups 0"), and a `group_id` of 1 without `groups` (`AGroupIdWithoutGroups`: "line 11",
+"group_id 1").
 
-Suites: `Small_DarknetShortcut`.
+Suites: `Small_DarknetShortcut` and `Small_DarknetShortcutFrom`.
 
 Tests how the translation of a config text turns a `[shortcut]` section into a model row. Each
 case starts from an 8x8 three-channel network with two convolutions.
 
-## NegativeFromAddsTheLayerBeforeAndTheNamedLayer
+## Small_DarknetShortcutFrom
 
-`from=-2` gives four rows. Row 2 has the type "add", no attribute key, and the sources 1 and 0.
-
-## AbsoluteFromAddsTheSameTwoRows
-
-`from=0` with `activation=linear` gives the same "add" row with the sources 1 and 0.
+`AddsTheLayerBeforeAndTheNamedLayer` gives four rows for `from=-2` (`ANegativeFrom`) and for
+`from=0` with `activation=linear` (`AnAbsoluteFrom`). Row 2 has the type "add", no attribute
+key, and the sources 1 and 0.
 
 ## FromAboveTheShortcutIsRefusedNamingItsLine
 
