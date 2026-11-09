@@ -27,9 +27,9 @@
  * @brief Tests the reader of a dataset kept as one annotation JSON and an image folder.
  * @author Mustafa Garip
  */
-
 #include <cstddef>
 #include <filesystem>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
@@ -66,20 +66,33 @@ namespace
         R"("categories": [{"id": 90, "name": "brush"}, {"id": 1, "name": "person"},
                           {"id": 17, "name": "cat"}])";
 
-    /** @brief Writes the annotation file of the split "train" and creates its image folder. */
-    void write_split(const Support::ScratchDirectory& scratch, const std::string& annotations)
+    /** @brief Returns the document of the two images, the three categories and the annotations. */
+    std::string document_of(const std::string& annotations)
     {
-        scratch.make_directory("train");
-        scratch.write_text("annotations/instances_train.json",
-                           std::string("{") + K_IMAGES + ", " + K_CATEGORIES +
-                               ", \"annotations\": [" + annotations + "]}");
+        return std::string("{") + K_IMAGES + ", " + K_CATEGORIES + ", \"annotations\": [" +
+               annotations + "]}";
     }
 
-    /** @brief Returns options that read the split "train" of a directory. */
-    COCOJSONOptions options_of(const Support::ScratchDirectory& scratch)
+    /** @brief Returns a source holding the image folder train and the annotation text. */
+    MemorySource source_with(const std::string& text)
+    {
+        MemorySource source;
+        source.add_directory("set/train");
+        source.add_file("set/annotations/instances_train.json", text);
+        return source;
+    }
+
+    /** @brief Returns a source of the split "train" holding the annotations of the document. */
+    MemorySource split_of(const std::string& annotations)
+    {
+        return source_with(document_of(annotations));
+    }
+
+    /** @brief Returns options that read the split "train" of the folder set. */
+    COCOJSONOptions options_of()
     {
         COCOJSONOptions options;
-        options.root = scratch.path();
+        options.root = "set";
         return options;
     }
 
@@ -89,109 +102,180 @@ namespace
     {
         return list.files[list.samples[sample].file].lexically_relative(base).generic_string();
     }
+
+    /** @brief Returns one line per sample: its file, then each object with its box and outline. */
+    std::vector<std::string> description_of(const SampleList& list,
+                                            const std::filesystem::path& base)
+    {
+        std::vector<std::string> lines;
+        for (std::size_t sample = 0; sample < list.samples.size(); ++sample)
+        {
+            const auto& objects = list.samples[sample].objects;
+            std::ostringstream line;
+            line.precision(9);
+            line << relative_file(list, sample, base);
+            for (std::size_t object = 0; object < objects.size(); ++object)
+            {
+                const NormalizedBox& box = objects.boxes()[object];
+                line << " | class " << objects.classes()[object] << " box " << box.x_center << ' '
+                     << box.y_center << ' ' << box.width << ' ' << box.height << " outline";
+                for (const auto& vertex : objects.polygons()[object])
+                    line << ' ' << vertex.x << ',' << vertex.y;
+            }
+            lines.push_back(line.str());
+        }
+
+        return lines;
+    }
+
+    /** @brief Holds the annotations of one document and where the message points. */
+    struct AnnotationRow
+    {
+        std::string name;         /**< The row's name. */
+        std::string annotations;  /**< The text inside the annotation list. */
+        std::string cause;        /**< The text the message holds. */
+    };
+
+    /** @brief Holds a whole document and the text the message holds. */
+    struct DocumentRow
+    {
+        std::string name;      /**< The row's name. */
+        std::string document;  /**< The whole annotation file. */
+        std::string cause;     /**< The text the message holds. */
+    };
+
+    /** @brief Runs read_coco_json over each annotation of an unknown image or category. */
+    class Small_DatasetsCocoJsonUnknown : public ::testing::TestWithParam<AnnotationRow>
+    {
+    };
+
+    /** @brief Runs read_coco_json over each box that is not four numbers. */
+    class Small_DatasetsCocoJsonBox : public ::testing::TestWithParam<AnnotationRow>
+    {
+    };
+
+    /** @brief Runs read_coco_json over each document with an invalid image or category list. */
+    class Small_DatasetsCocoJsonLists : public ::testing::TestWithParam<DocumentRow>
+    {
+    };
+
+    /** @brief Names a test after its annotation row. */
+    std::string annotation_row_name(const ::testing::TestParamInfo<AnnotationRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a test after its document row. */
+    std::string document_row_name(const ::testing::TestParamInfo<DocumentRow>& info)
+    {
+        return info.param.name;
+    }
 } // namespace
 
-/** @brief Tests that boxes become fractions and category ids dense indices in id order. */
-TEST(Small_DatasetsCocoJson, BoxesAndDenseClassesAreRead)
+/** @brief Tests that a box becomes a fraction of its image. */
+TEST(Small_DatasetsCocoJson, ABoxBecomesAFractionOfItsImage)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_boxes");
-    write_split(scratch,
-                R"({"id": 1, "image_id": 4, "category_id": 90, "bbox": [10, 20, 50, 20]},
-                   {"id": 2, "image_id": 4, "category_id": 1, "bbox": [0, 0, 200, 100.0],
-                    "iscrowd": 0},
-                   {"id": 3, "image_id": 4, "category_id": 17, "bbox": [1, 1, 5, 5],
-                    "iscrowd": 1},
-                   {"id": 4, "image_id": 4, "category_id": 17, "bbox": [1, 1, 0, 5]})");
+    const MemorySource source = split_of(
+        R"({"id": 1, "image_id": 4, "category_id": 90, "bbox": [10, 20, 50, 20]})");
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options_of(scratch)));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options_of(), source));
 
-    EXPECT_EQ(list.class_names, (std::vector<std::string>{"person", "cat", "brush"}));
-    EXPECT_EQ(list.class_count, 3);
     ASSERT_EQ(list.samples.size(), 2u);
-    EXPECT_EQ(relative_file(list, 0, scratch.path()), "train/b.jpg");
-    EXPECT_EQ(relative_file(list, 1, scratch.path()), "train/sub/a.jpg");
-    EXPECT_TRUE(list.samples[0].objects.is_empty());
-
-    // The crowd annotation and the box of no width are left out.
-    const Sample& sample = list.samples[1];
-    EXPECT_FALSE(sample.class_index.has_value());
-    ASSERT_EQ(sample.objects.size(), 2u);
-    EXPECT_EQ(sample.objects.classes()[0], 2);
-    EXPECT_EQ(sample.objects.classes()[1], 0);
-    EXPECT_TRUE(sample.objects.polygons()[0].empty());
-
-    const NormalizedBox& box = sample.objects.boxes()[0];
+    ASSERT_EQ(list.samples[1].objects.size(), 1u);
+    const NormalizedBox& box = list.samples[1].objects.boxes()[0];
     EXPECT_NEAR(box.x_center, 35.0f / 200.0f, K_FRACTION_TOLERANCE);
     EXPECT_NEAR(box.y_center, 30.0f / 100.0f, K_FRACTION_TOLERANCE);
     EXPECT_NEAR(box.width, 50.0f / 200.0f, K_FRACTION_TOLERANCE);
     EXPECT_NEAR(box.height, 20.0f / 100.0f, K_FRACTION_TOLERANCE);
 }
 
-/** @brief Tests that a set served from memory is read with no file written. */
-TEST(Small_DatasetsCocoJson, ASetServedFromMemoryIsRead)
+/** @brief Tests that category ids become dense class indices in id order. */
+TEST(Small_DatasetsCocoJson, CategoryIdsBecomeDenseClassesInIdOrder)
 {
-    MemorySource source;
-    source.add_directory("set/train");
-    source.add_file("set/annotations/instances_train.json",
-                    std::string("{") + K_IMAGES + ", " + K_CATEGORIES +
-                        R"(, "annotations": [{"id": 1, "image_id": 9, "category_id": 1,
-                                              "bbox": [0, 0, 100, 50]}]})");
-    COCOJSONOptions options;
-    options.root = "set";
+    const MemorySource source = split_of(
+        R"({"id": 1, "image_id": 4, "category_id": 90, "bbox": [10, 20, 50, 20]},
+           {"id": 2, "image_id": 4, "category_id": 1, "bbox": [0, 0, 200, 100.0]})");
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options, source));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options_of(), source));
 
-    ASSERT_EQ(list.samples.size(), 2u);
-    EXPECT_EQ(list.files[list.samples[0].file].generic_string(), "set/train/b.jpg");
-    ASSERT_EQ(list.samples[0].objects.size(), 1u);
-    EXPECT_EQ(list.samples[0].objects.classes()[0], 0);
+    EXPECT_EQ(list.class_names, (std::vector<std::string>{"person", "cat", "brush"}));
+    EXPECT_EQ(list.class_count, 3);
+    const Sample& sample = list.samples[1];
+    EXPECT_FALSE(sample.class_index.has_value());
+    ASSERT_EQ(sample.objects.size(), 2u);
+    EXPECT_EQ(sample.objects.classes()[0], 2);
+    EXPECT_EQ(sample.objects.classes()[1], 0);
 }
 
-/** @brief Tests that text that is no JSON document is refused through a source. */
-TEST(Small_DatasetsCocoJson, TextThatIsNoJsonIsRefusedFromMemory)
+/** @brief Tests that a crowd annotation and a box of no width are left out. */
+TEST(Small_DatasetsCocoJson, ACrowdAnnotationAndABoxOfNoWidthAreLeftOut)
 {
-    MemorySource source;
-    source.add_directory("set/train");
-    source.add_file("set/annotations/instances_train.json", "{\"images\": [");
-    COCOJSONOptions options;
-    options.root = "set";
+    const MemorySource source = split_of(
+        R"({"id": 1, "image_id": 4, "category_id": 90, "bbox": [10, 20, 50, 20]},
+           {"id": 3, "image_id": 4, "category_id": 17, "bbox": [1, 1, 5, 5], "iscrowd": 1},
+           {"id": 4, "image_id": 4, "category_id": 17, "bbox": [1, 1, 0, 5]})");
 
-    SA_EXPECT_FAILURE(read_coco_json(options, source), StatusCode::InvalidFile,
-                      "instances_train.json", "not valid JSON");
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options_of(), source));
+
+    EXPECT_TRUE(list.samples[0].objects.is_empty());
+    ASSERT_EQ(list.samples[1].objects.size(), 1u);
+    EXPECT_EQ(list.samples[1].objects.classes()[0], 2);
+    EXPECT_TRUE(list.samples[1].objects.polygons()[0].empty());
+}
+
+/** @brief Tests that each image resolves to its file in the image folder, in id order. */
+TEST(Small_DatasetsCocoJson, ImageNamesResolveInTheImageFolder)
+{
+    const MemorySource source = split_of("");
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options_of(), source));
+
+    ASSERT_EQ(list.samples.size(), 2u);
+    EXPECT_EQ(relative_file(list, 0, "set"), "train/b.jpg");
+    EXPECT_EQ(relative_file(list, 1, "set"), "train/sub/a.jpg");
 }
 
 /** @brief Tests that the file and the image folder may be named. */
 TEST(Small_DatasetsCocoJson, TheFileAndTheFolderMayBeNamed)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_named");
-    scratch.make_directory("pictures");
-    scratch.write_text("labels.json", std::string("{") + K_IMAGES + ", " + K_CATEGORIES +
-                                          ", \"annotations\": []}");
-
-    COCOJSONOptions options = options_of(scratch);
+    MemorySource source;
+    source.add_directory("set/pictures");
+    source.add_file("set/labels.json", document_of(""));
+    COCOJSONOptions options = options_of();
     options.annotation_file = "labels.json";
     options.image_folder = "pictures";
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options));
 
-    EXPECT_EQ(relative_file(list, 0, scratch.path()), "pictures/b.jpg");
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options, source));
+
+    EXPECT_EQ(relative_file(list, 0, "set"), "pictures/b.jpg");
 }
 
-/** @brief Tests that a polygon is kept on request and the largest part of several is taken. */
-TEST(Small_DatasetsCocoJson, PolygonsAreKeptWhenAskedFor)
+/** @brief Tests that a polygon is kept only when polygons are asked for. */
+TEST(Small_DatasetsCocoJson, APolygonIsKeptOnlyWhenAskedFor)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_polygons");
-    write_split(scratch,
-                R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 100, 50],
-                    "segmentation": [[0, 0, 2, 0, 2, 2], [0, 0, 100, 0, 100, 50, 0, 50]]},
-                   {"id": 2, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10],
-                    "iscrowd": 1, "segmentation": {"counts": [1, 2], "size": [100, 200]}})");
+    const MemorySource source = split_of(
+        R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 100, 50],
+            "segmentation": [[0, 0, 2, 0, 2, 2], [0, 0, 100, 0, 100, 50, 0, 50]]})");
+    COCOJSONOptions options = options_of();
 
-    COCOJSONOptions options = options_of(scratch);
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList ignored, read_coco_json(options));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList ignored, read_coco_json(options, source));
     EXPECT_TRUE(ignored.samples[0].objects.polygons()[0].empty());
 
     options.segmentation = COCOSegmentation::Polygons;
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList kept, read_coco_json(options, source));
+    EXPECT_EQ(kept.samples[0].objects.polygons()[0].size(), 4u);
+}
+
+/** @brief Tests that the largest part of a multi-part polygon is taken. */
+TEST(Small_DatasetsCocoJson, TheLargestPartOfAPolygonIsTaken)
+{
+    const MemorySource source = split_of(
+        R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 100, 50],
+            "segmentation": [[0, 0, 2, 0, 2, 2], [0, 0, 100, 0, 100, 50, 0, 50]]})");
+    COCOJSONOptions options = options_of();
+    options.segmentation = COCOSegmentation::Polygons;
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options, source));
 
     ASSERT_EQ(list.samples[0].objects.size(), 1u);
     const auto& polygon = list.samples[0].objects.polygons()[0];
@@ -200,124 +284,162 @@ TEST(Small_DatasetsCocoJson, PolygonsAreKeptWhenAskedFor)
     EXPECT_NEAR(polygon[2].y, 50.0f / 100.0f, K_FRACTION_TOLERANCE);
 }
 
-/** @brief Tests that a run-length mask fails by its index only when polygons are asked for. */
+/** @brief Tests that a run-length mask is accepted when polygons are not asked for. */
+TEST(Small_DatasetsCocoJson, ARunLengthMaskIsAcceptedByDefault)
+{
+    const MemorySource source = split_of(
+        R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10]},
+           {"id": 2, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10],
+            "segmentation": {"counts": "abc", "size": [100, 200]}})");
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options_of(), source));
+
+    EXPECT_EQ(list.samples[0].objects.size(), 2u);
+}
+
+/** @brief Tests that a run-length mask fails by its index when polygons are asked for. */
 TEST(Small_DatasetsCocoJson, ARunLengthMaskIsRefusedWhenPolygonsAreAskedFor)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_rle");
-    write_split(scratch,
-                R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10]},
-                   {"id": 2, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10],
-                    "segmentation": {"counts": "abc", "size": [100, 200]}})");
-
-    COCOJSONOptions options = options_of(scratch);
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options));
-    EXPECT_EQ(list.samples[0].objects.size(), 2u);
-
+    const MemorySource source = split_of(
+        R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10]},
+           {"id": 2, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10],
+            "segmentation": {"counts": "abc", "size": [100, 200]}})");
+    COCOJSONOptions options = options_of();
     options.segmentation = COCOSegmentation::Polygons;
-    SA_EXPECT_FAILURE(read_coco_json(options), StatusCode::InvalidFile, "instances_train.json",
-                      "read_coco_json", "annotation 1 holds a run-length mask");
+
+    SA_EXPECT_FAILURE(read_coco_json(options, source), StatusCode::InvalidFile,
+                      "instances_train.json", "read_coco_json",
+                      "annotation 1 holds a run-length mask");
 }
 
 /** @brief Tests that a polygon part of an odd or short number list fails by its index. */
 TEST(Small_DatasetsCocoJson, AMalformedPolygonIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_outline");
-    write_split(scratch,
-                R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10],
-                    "segmentation": [[0, 0, 2, 0, 2, 2, 5]]})");
-
-    COCOJSONOptions options = options_of(scratch);
+    const MemorySource source = split_of(
+        R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10],
+            "segmentation": [[0, 0, 2, 0, 2, 2, 5]]})");
+    COCOJSONOptions options = options_of();
     options.segmentation = COCOSegmentation::Polygons;
-    SA_EXPECT_FAILURE(read_coco_json(options), StatusCode::InvalidFile, "annotation 0",
+
+    SA_EXPECT_FAILURE(read_coco_json(options, source), StatusCode::InvalidFile, "annotation 0",
                       "'segmentation' part", "at least 3 pairs");
 }
 
 /** @brief Tests that an annotation of an unknown image or category fails by its index. */
-TEST(Small_DatasetsCocoJson, AnUnknownImageOrCategoryNamesTheAnnotation)
+TEST_P(Small_DatasetsCocoJsonUnknown, AnUnknownImageOrCategoryNamesTheAnnotation)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_unknown");
+    const MemorySource source = split_of(GetParam().annotations);
 
-    write_split(scratch,
-                R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10]},
-                   {"id": 2, "image_id": 5, "category_id": 1, "bbox": [0, 0, 10, 10]})");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
-                      "instances_train.json", "read_coco_json",
-                      "annotation 1 has the 'image_id' 5, which 'images' lacks");
-
-    write_split(scratch,
-                R"({"id": 1, "image_id": 9, "category_id": 2, "bbox": [0, 0, 10, 10],
-                    "iscrowd": 1})");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
-                      "annotation 0 has the 'category_id' 2, which 'categories' lacks");
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::InvalidFile,
+                      "instances_train.json", "read_coco_json", GetParam().cause);
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsCocoJsonUnknown,
+    ::testing::Values(
+        AnnotationRow{"Image",
+                      R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, 10]},
+                         {"id": 2, "image_id": 5, "category_id": 1, "bbox": [0, 0, 10, 10]})",
+                      "annotation 1 has the 'image_id' 5, which 'images' lacks"},
+        AnnotationRow{"Category",
+                      R"({"id": 1, "image_id": 9, "category_id": 2, "bbox": [0, 0, 10, 10],
+                          "iscrowd": 1})",
+                      "annotation 0 has the 'category_id' 2, which 'categories' lacks"}),
+    annotation_row_name);
+
 /** @brief Tests that a box that is not four numbers fails by the index of its annotation. */
-TEST(Small_DatasetsCocoJson, AMalformedBoxNamesTheAnnotation)
+TEST_P(Small_DatasetsCocoJsonBox, AMalformedBoxNamesTheAnnotation)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_box");
+    const MemorySource source = split_of(GetParam().annotations);
 
-    write_split(scratch,
-                R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10]})");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
-                      "annotation 0 has no 'bbox' of 4 numbers");
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::InvalidFile,
+                      GetParam().cause);
+}
 
-    write_split(scratch,
-                R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, "x"]})");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
-                      "annotation 0 has no 'bbox' of 4 numbers");
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsCocoJsonBox,
+    ::testing::Values(
+        AnnotationRow{"ThreeNumbers",
+                      R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10]})",
+                      "annotation 0 has no 'bbox' of 4 numbers"},
+        AnnotationRow{"ANonNumber",
+                      R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 10, "x"]})",
+                      "annotation 0 has no 'bbox' of 4 numbers"}),
+    annotation_row_name);
 
-    write_split(scratch, R"({"id": 1, "image_id": "9", "category_id": 1})");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
+/** @brief Tests that an image id that is not a whole number fails by the annotation's index. */
+TEST(Small_DatasetsCocoJson, AnImageIdThatIsNotAWholeNumberNamesTheAnnotation)
+{
+    const MemorySource source =
+        split_of(R"({"id": 1, "image_id": "9", "category_id": 1})");
+
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::InvalidFile,
                       "annotation 0 has no whole number 'image_id'");
 }
 
-/** @brief Tests that two entries of one id, and an image of no size, fail by their indices. */
-TEST(Small_DatasetsCocoJson, TheImagesAndTheCategoriesAreChecked)
+/** @brief Tests that a repeated category id, an image of no size and a nameless image fail. */
+TEST_P(Small_DatasetsCocoJsonLists, TheImagesAndTheCategoriesAreChecked)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_lists");
-    scratch.make_directory("train");
+    const MemorySource source = source_with(GetParam().document);
 
-    scratch.write_text("annotations/instances_train.json",
-                       R"({"images": [{"id": 1, "file_name": "a.jpg", "width": 2, "height": 2}],
-                           "categories": [{"id": 3, "name": "a"}, {"id": 7, "name": "b"},
-                                          {"id": 3, "name": "c"}],
-                           "annotations": []})");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
-                      "category 0 and category 2 share the id 3");
-
-    scratch.write_text("annotations/instances_train.json",
-                       R"({"images": [{"id": 1, "file_name": "a.jpg", "width": 2, "height": 2},
-                                      {"id": 2, "file_name": "b.jpg", "width": 0, "height": 2}],
-                           "categories": [{"id": 3, "name": "a"}], "annotations": []})");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
-                      "image 1 is 2 by 0 pixels");
-
-    scratch.write_text("annotations/instances_train.json",
-                       R"({"images": [{"id": 1, "width": 2, "height": 2}],
-                           "categories": [{"id": 3, "name": "a"}], "annotations": []})");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
-                      "image 0 has no string 'file_name'");
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::InvalidFile,
+                      GetParam().cause);
 }
 
-/** @brief Tests that an absent file, an absent folder, bad JSON and a missing list fail. */
-TEST(Small_DatasetsCocoJson, TheFileMustExistAndHoldItsThreeLists)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsCocoJsonLists,
+    ::testing::Values(
+        DocumentRow{"TwoCategoriesOfOneId",
+                    R"({"images": [{"id": 1, "file_name": "a.jpg", "width": 2, "height": 2}],
+                        "categories": [{"id": 3, "name": "a"}, {"id": 7, "name": "b"},
+                                       {"id": 3, "name": "c"}],
+                        "annotations": []})",
+                    "category 0 and category 2 share the id 3"},
+        DocumentRow{"AnImageOfZeroWidth",
+                    R"({"images": [{"id": 1, "file_name": "a.jpg", "width": 2, "height": 2},
+                                   {"id": 2, "file_name": "b.jpg", "width": 0, "height": 2}],
+                        "categories": [{"id": 3, "name": "a"}], "annotations": []})",
+                    "image 1 is 2 by 0 pixels"},
+        DocumentRow{"AnImageWithoutAName",
+                    R"({"images": [{"id": 1, "width": 2, "height": 2}],
+                        "categories": [{"id": 3, "name": "a"}], "annotations": []})",
+                    "image 0 has no string 'file_name'"}),
+    document_row_name);
+
+/** @brief Tests that an absent image folder is reported with its name. */
+TEST(Small_DatasetsCocoJson, AnAbsentImageFolderIsNotFound)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_file");
+    const MemorySource source;
 
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::FileNotFound, "train",
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::FileNotFound, "train",
                       "read_coco_json", "no such image folder");
+}
 
-    scratch.make_directory("train");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::FileNotFound,
+/** @brief Tests that an absent annotation file is reported with its name. */
+TEST(Small_DatasetsCocoJson, AnAbsentAnnotationFileIsNotFound)
+{
+    MemorySource source;
+    source.add_directory("set/train");
+
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::FileNotFound,
                       "annotations/instances_train.json", "read_coco_json", "no such file");
+}
 
-    scratch.write_text("annotations/instances_train.json", "{\"images\": [");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
+/** @brief Tests that text that is no JSON document is refused. */
+TEST(Small_DatasetsCocoJson, TextThatIsNoJsonIsRefused)
+{
+    const MemorySource source = source_with("{\"images\": [");
+
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::InvalidFile,
                       "instances_train.json", "read_coco_json", "not valid JSON");
+}
 
-    scratch.write_text("annotations/instances_train.json",
-                       std::string("{") + K_IMAGES + ", \"annotations\": []}");
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
+/** @brief Tests that a document without one of its three lists is refused. */
+TEST(Small_DatasetsCocoJson, ADocumentWithoutAListIsRefused)
+{
+    const MemorySource source = source_with(std::string("{") + K_IMAGES + ", \"annotations\": []}");
+
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::InvalidFile,
                       "the file has no list 'categories'");
 }
 
@@ -329,63 +451,62 @@ TEST(Small_DatasetsCocoJson, TheListsMayComeInAnyOrder)
                {"segmentation": [[0, 0, 2, 0, 2, 2], [0, 0, 100, 0, 100, 50, 0, 50]],
                 "bbox": [10, 20, 50, 20], "category_id": 90, "image_id": 4, "id": 1},
                {"id": 2, "image_id": 9, "category_id": 1, "bbox": [0, 0, 200, 100]}])";
-
-    const Support::ScratchDirectory in_order("sushiai_test_datasets_coco_in_order");
-    in_order.make_directory("train");
-    in_order.write_text("annotations/instances_train.json",
-                        std::string("{") + K_IMAGES + ", " + K_CATEGORIES + ", " + annotations +
-                            "}");
-
-    const Support::ScratchDirectory reversed("sushiai_test_datasets_coco_reversed");
-    reversed.make_directory("train");
-    reversed.write_text("annotations/instances_train.json",
-                        std::string("{\"info\": {\"year\": 2017, \"notes\": [1, [2]]}, ") +
-                            annotations + ", " + K_CATEGORIES + ", " + K_IMAGES + "}");
-
-    COCOJSONOptions options = options_of(in_order);
+    const MemorySource in_order =
+        source_with(std::string("{") + K_IMAGES + ", " + K_CATEGORIES + ", " + annotations + "}");
+    const MemorySource reversed = source_with(
+        std::string("{\"info\": {\"year\": 2017, \"notes\": [1, [2]]}, ") + annotations + ", " +
+        K_CATEGORIES + ", " + K_IMAGES + "}");
+    COCOJSONOptions options = options_of();
     options.segmentation = COCOSegmentation::Polygons;
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList expected, read_coco_json(options));
 
-    options.root = reversed.path();
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList expected, read_coco_json(options, in_order));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options, reversed));
 
     EXPECT_EQ(list.class_names, expected.class_names);
-    ASSERT_EQ(list.samples.size(), expected.samples.size());
-    for (std::size_t sample = 0; sample < list.samples.size(); ++sample)
-    {
-        const auto& objects = list.samples[sample].objects;
-        const auto& wanted = expected.samples[sample].objects;
+    EXPECT_EQ(description_of(list, "set"), description_of(expected, "set"));
+}
 
-        EXPECT_EQ(relative_file(list, sample, reversed.path()),
-                  relative_file(expected, sample, in_order.path()));
-        ASSERT_EQ(objects.size(), 1u);
-        ASSERT_EQ(wanted.size(), 1u);
-        EXPECT_EQ(objects.classes()[0], wanted.classes()[0]);
-        EXPECT_EQ(objects.boxes()[0].x_center, wanted.boxes()[0].x_center);
-        EXPECT_EQ(objects.boxes()[0].height, wanted.boxes()[0].height);
-        ASSERT_EQ(objects.polygons()[0].size(), wanted.polygons()[0].size());
-        for (std::size_t vertex = 0; vertex < objects.polygons()[0].size(); ++vertex)
-        {
-            EXPECT_EQ(objects.polygons()[0][vertex].x, wanted.polygons()[0][vertex].x);
-            EXPECT_EQ(objects.polygons()[0][vertex].y, wanted.polygons()[0][vertex].y);
-        }
-    }
+/** @brief Tests that an annotation listed before its image and category still reaches both. */
+TEST(Small_DatasetsCocoJson, AnAnnotationListedBeforeItsImageStillReachesIt)
+{
+    const MemorySource source = source_with(
+        std::string("{") + K_CATEGORIES + ", " + K_IMAGES +
+        R"(, "annotations": [
+               {"segmentation": [[0, 0, 2, 0, 2, 2], [0, 0, 100, 0, 100, 50, 0, 50]],
+                "bbox": [10, 20, 50, 20], "category_id": 90, "image_id": 4, "id": 1}]})");
+    COCOJSONOptions options = options_of();
+    options.segmentation = COCOSegmentation::Polygons;
 
-    // Image 4 is the second sample; its outline is the part of four vertices.
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options, source));
+
     EXPECT_EQ(list.samples[1].objects.classes()[0], 2);
     EXPECT_EQ(list.samples[1].objects.polygons()[0].size(), 4u);
-    EXPECT_TRUE(list.samples[0].objects.polygons()[0].empty());
+    EXPECT_TRUE(list.samples[0].objects.is_empty());
 }
 
 /** @brief Tests that a list the file states twice is refused by its key. */
 TEST(Small_DatasetsCocoJson, AListStatedTwiceIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_twice");
+    const MemorySource source = source_with(std::string("{") + K_IMAGES + ", " + K_CATEGORIES +
+                                            ", \"annotations\": [], " + K_IMAGES + "}");
+
+    SA_EXPECT_FAILURE(read_coco_json(options_of(), source), StatusCode::InvalidFile,
+                      "instances_train.json", "read_coco_json", "states 'images' twice");
+}
+
+/** @brief Tests that the file-system form reads a set written to disk. */
+TEST(Medium_DatasetsCocoJson, ASetOnDiskIsRead)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_disk");
     scratch.make_directory("train");
     scratch.write_text("annotations/instances_train.json",
-                       std::string("{") + K_IMAGES + ", " + K_CATEGORIES +
-                           ", \"annotations\": [], " + K_IMAGES + "}");
+                       document_of(R"({"id": 1, "image_id": 4, "category_id": 90,
+                                       "bbox": [10, 20, 50, 20]})"));
+    COCOJSONOptions options;
+    options.root = scratch.path();
 
-    SA_EXPECT_FAILURE(read_coco_json(options_of(scratch)), StatusCode::InvalidFile,
-                      "instances_train.json", "read_coco_json", "states 'images' twice");
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options));
+
+    EXPECT_EQ(relative_file(list, 1, scratch.path()), "train/sub/a.jpg");
+    EXPECT_EQ(list.samples[1].objects.size(), 1u);
 }
