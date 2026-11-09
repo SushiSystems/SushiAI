@@ -2,7 +2,7 @@
 
 
 Suites: `Small_Objective`, `Small_ObjectiveScore`, `Small_ObjectiveLeafLookup`,
-`Small_ObjectiveGraph`, `Medium_ObjectiveLeavesDeathTest`, `Medium_ObjectiveLoss`.
+`Small_ObjectiveGraph`, `Medium_ObjectiveLeavesDeathTest`, `Small_ObjectiveLoss`.
 
 Tests the objective seam: the leaves it declares, the loss it emits, the resulting IR, what
 `feed` and `measure` do with a batch, and the factories of the dense objectives.
@@ -10,9 +10,8 @@ Tests the objective seam: the leaves it declares, the loss it emits, the resulti
 The `Small_` cases need no device. Declaring leaves and emitting a loss are IR-to-IR. The
 `Small_ObjectiveScore` fixture owns a `HostExecutionBackend`, whose engine the logits, the labels
 and the target tensors are allocated from, because `feed` and `measure` read host tensors. The
-death cases are `Medium_`, since a death test starts a child process. `Medium_ObjectiveLoss` is an
-`EngineTest`, because it compiles the loss graph and runs it, and the NLL_LOSS it emits has
-no host rule.
+death cases are `Medium_`, since a death test starts a child process. `Small_ObjectiveLoss` runs
+the loss graph on `Graph::HostEvaluator`, which has a rule for NLL_LOSS.
 
 The test that carries this file is BuildGraphAndBuildClassifierProduceTheSameIR. The objective
 seam's whole promise is that it changed no numbers. The way to check that is not "the loss still
@@ -119,10 +118,12 @@ Adding the leaf `targets` a second time stops the process with a message holding
 The loss is computed from the value the model published. A [3, 4] logits leaf published as the
 only output, and a one-hot targets leaf, give a loss that equals the mean over the three rows of
 the cross-entropy, computed in double from the normaliser of each row. Two sets of logits are
-the rows, so the loss moves when the output moves. The bound is 16 rounded operations of float32:
-the four terms of a normaliser, the exponential and the logarithm, the product with the target,
-the sum over four classes and the mean over three rows are 12, with slack for the device's
-exponential.
+the rows, so the loss moves when the output moves. The graph runs on `Graph::HostEvaluator`, in
+double, so the test is `Small_`. The bound is 42 rounded operations of double. The host takes 21 on
+the longest path: the log-softmax rounds 8 (the shift by the largest logit, the exponential, three
+additions, the logarithm, the sum with the largest logit and the difference), the product with the
+target rounds once, the sum of the 12 products rounds 11 times and the mean once. The reference
+takes the same count, so the two values differ by at most 42.
 
 ## TheFactoryBuildsCrossEntropyOverTheContext
 

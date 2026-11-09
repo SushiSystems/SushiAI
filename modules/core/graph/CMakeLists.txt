@@ -16,6 +16,7 @@ sushiai_add_module(NAME graph TIER core
         source/fusion_selector.cpp
         source/host_evaluation/elementwise.cpp
         source/host_evaluation/linalg.cpp
+        source/host_evaluation/loss.cpp
         source/host_evaluation/norm.cpp
         source/host_evaluation/shape.cpp
         source/host_evaluation/spatial.cpp

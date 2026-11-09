@@ -2,7 +2,7 @@
 
 
 Suites: `Small_HostEvaluator`, `Small_HostEvaluatorProduct`, `Small_HostEvaluatorBinary`,
-`Small_HostEvaluatorUnary`, `Small_HostEvaluatorCoverage`.
+`Small_HostEvaluatorUnary`, `Small_HostEvaluatorNll`, `Small_HostEvaluatorCoverage`.
 
 Tests `Graph::HostEvaluator` and `Graph::host_evaluates` in
 `modules/core/graph/include/SushiAI/graph/host_evaluator.hpp`. Every case builds a small graph
@@ -31,9 +31,16 @@ tanh form of GELU, and 0.7310585786300049 and -0.2384058440442351 for SILU, v / 
 RELU gives {1, 0} and ABS gives {1, 2}. SOFTPLUS, log(1 + exp(v)), gives 1.3132616875182228 and
 0.1269280110429725.
 
+## TheLossIsTheMeanNegativeLogLikelihood
+
+One row per NLL_LOSS case, each compared exactly: the one-hot rows {0, 1} and {1, 0} over the
+log-probabilities {-1, -2} and {-3, -4} pick -2 and -3, so the loss is 5 / 2; the soft row
+{0.25, 0.75} over {-1, -3} gives 0.25 + 2.25 = 2.5; three one-hot rows over {-1, -2}, {-3, -4}
+and {-5, -6} pick -2, -4 and -6, so the loss is 12 / 3 = 4.
+
 ## HostEvaluatesNamesTheRuledOperations
 
-`host_evaluates` is true for LEAF, MATMUL, LAYER_NORM, SILU, RELU, ABS, SOFTPLUS, IM2COL,
+`host_evaluates` is true for LEAF, MATMUL, NLL_LOSS, LAYER_NORM, SILU, RELU, ABS, SOFTPLUS, IM2COL,
 DEPTHWISE_CONV2D, BATCHNORM2D and BATCHNORM_FOLD, and false for ATAN and CAUSAL_MASK.
 
 ## AReshapeKeepsTheElementsInOrder

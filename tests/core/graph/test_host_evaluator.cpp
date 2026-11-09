@@ -147,6 +147,36 @@ namespace
 
     };
 
+    /** @brief Holds one negative log-likelihood case: the operands and the hand-worked loss. */
+    struct NllRow
+    {
+        std::string name;                 /**< The row's name. */
+        Shape shape;                      /**< The shape of both operands. */
+        std::vector<double> log_probs;    /**< The log-probabilities. */
+        std::vector<double> targets;      /**< The targets. */
+        double expected;                  /**< The mean negative log-likelihood. */
+    };
+
+    /**
+     * @brief Lists the loss cases: two one-hot rows pick -2 and -3, so the loss is 5 / 2; one
+     *        soft row {0.25, 0.75} over {-1, -3} is 0.25 + 2.25; three one-hot rows pick -2, -4
+     *        and -6, so the loss is 12 / 3.
+     */
+    std::vector<NllRow> nll_rows()
+    {
+        return {
+            {"OneHotRows", Shape{2, 2}, {-1, -2, -3, -4}, {0, 1, 1, 0}, 2.5},
+            {"SoftRow", Shape{1, 2}, {-1, -3}, {0.25, 0.75}, 2.5},
+            {"ThreeRows", Shape{3, 2}, {-1, -2, -3, -4, -5, -6}, {0, 1, 0, 1, 0, 1}, 4.0},
+        };
+    }
+
+    /** @brief Runs one negative log-likelihood row. */
+    class Small_HostEvaluatorNll : public ::testing::TestWithParam<NllRow>
+    {
+
+    };
+
     /** @brief Holds one operation and whether the evaluator has a rule for it. */
     struct CoverageRow
     {
@@ -256,6 +286,28 @@ TEST_P(Small_HostEvaluatorUnary, AUnaryRuleMapsEachElement)
 INSTANTIATE_TEST_SUITE_P(Rows, Small_HostEvaluatorUnary, ::testing::ValuesIn(unary_rows()),
                          row_name<UnaryRow>);
 
+/** @brief Tests that the loss is minus the mean over the rows of the picked log-probabilities. */
+TEST_P(Small_HostEvaluatorNll, TheLossIsTheMeanNegativeLogLikelihood)
+{
+    const NllRow& row = GetParam();
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID log_probs = builder.input(row.shape, "log_probs");
+    const ValueID targets = builder.input(row.shape, "targets");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(log_probs, targets));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(log_probs, row.log_probs));
+    SA_EXPECT_OK(evaluator.write(targets, row.targets));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(loss));
+    EXPECT_EQ(result, (std::vector<double>{row.expected}));
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_HostEvaluatorNll, ::testing::ValuesIn(nll_rows()),
+                         row_name<NllRow>);
+
 /** @brief Tests that host_evaluates() accepts a leaf and the ruled operations alone. */
 TEST_P(Small_HostEvaluatorCoverage, HostEvaluatesNamesTheRuledOperations)
 {
@@ -275,6 +327,7 @@ INSTANTIATE_TEST_SUITE_P(
                       CoverageRow{"BatchNorm2d", Ops::K_BATCHNORM2D.id, true},
                       CoverageRow{"BatchNormFold", Ops::K_BATCHNORM_FOLD.id, true},
                       CoverageRow{"Relu", Ops::K_RELU.id, true},
+                      CoverageRow{"NllLoss", Ops::K_NLL_LOSS.id, true},
                       CoverageRow{"Abs", Ops::K_ABS.id, true},
                       CoverageRow{"Softplus", Ops::K_SOFTPLUS.id, true},
                       CoverageRow{"Atan", Ops::K_ATAN.id, false},

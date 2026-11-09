@@ -181,6 +181,8 @@ namespace SushiAI
 
             /** @brief Writes the log-softmax of each row of an [N, C] operand. */
             [[nodiscard]] Status host_log_softmax(const HostNodeContext& context) noexcept;
+            /** @brief Writes the mean negative log-likelihood of the one-hot targets. */
+            [[nodiscard]] Status host_nll_loss(const HostNodeContext& context) noexcept;
             /** @brief Writes the layer normalisation of each last-axis row and its statistics. */
             [[nodiscard]] Status host_layer_norm(const HostNodeContext& context) noexcept;
             /** @brief Writes the batch normalisation of an NHWC operand and its statistics. */

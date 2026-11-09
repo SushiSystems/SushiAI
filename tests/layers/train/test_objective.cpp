@@ -48,11 +48,10 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/layers.hpp>
@@ -88,12 +87,11 @@ namespace
     constexpr std::size_t K_RATIO_OPERATIONS = 1;
 
     /**
-     * @brief Counts the roundings on the longest path to the loss of three rows of four
-     *        classes: the four terms of a row's normaliser, the exponential and the logarithm,
-     *        the product with the target, the sum over the four classes and the mean over three
-     *        rows; 16 covers the 12 and leaves slack for the device's exponential.
+     * @brief Counts the roundings on the longest path to the host loss of three rows of four
+     *        classes: 8 in the log-softmax, 1 in the product, 11 in the sum of 12 and 1 in the
+     *        mean are 21, and the reference takes as many, so the two differ by at most 42.
      */
-    constexpr std::size_t K_LOSS_ROUNDED_OPERATIONS = 16;
+    constexpr std::size_t K_LOSS_ROUNDED_OPERATIONS = 42;
 
     /** @brief Provides the host engine the scored tensors, the roles and the leaves live on. */
     class Small_ObjectiveScore : public ::testing::Test
@@ -155,9 +153,8 @@ namespace
 
     };
 
-    /** @brief Provides the device engine the cross-entropy loss graph is compiled on. */
-    class Medium_ObjectiveLoss : public SaTest::EngineTest,
-                                 public ::testing::WithParamInterface<std::vector<double>>
+    /** @brief Runs the cross-entropy loss graph of each set of logits on the host evaluator. */
+    class Small_ObjectiveLoss : public ::testing::TestWithParam<std::vector<double>>
     {
 
     };
@@ -458,7 +455,7 @@ TEST(Medium_ObjectiveLeavesDeathTest, AnEmptyLeafSetSaysSoRatherThanListingNothi
  *        logits it equals the mean over the batch of the cross-entropy against the one-hot
  *        targets, so the loss moves when the output moves.
  */
-TEST_P(Medium_ObjectiveLoss, CrossEntropyReadsTheOnlyOutput)
+TEST_P(Small_ObjectiveLoss, CrossEntropyReadsTheOnlyOutput)
 {
     constexpr std::size_t K_ROWS = 3;
     constexpr std::size_t K_CLASSES = 4;
@@ -475,13 +472,10 @@ TEST_P(Medium_ObjectiveLoss, CrossEntropyReadsTheOnlyOutput)
     SA_EXPECT_OK(outputs.add("output", logits_leaf));
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
                             objective.loss(builder, graph, outputs, leaves));
-    Graph::TensorPool pool(*engine);
-    SA_EXPECT_OK(pool.materialise_leaves(graph));
-    SaTest::write_tensor(pool.tensor(logits_leaf), logits);
-    SaTest::write_tensor(pool.tensor(leaves.at("targets")), targets);
-    std::unique_ptr<Graph::CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, Graph::CompiledStep::compile(backend(), graph, pool));
-    SA_EXPECT_OK(step->run());
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(logits_leaf, logits));
+    SA_EXPECT_OK(evaluator.write(leaves.at("targets"), targets));
+    SA_EXPECT_OK(evaluator.run());
 
     double expected = 0.0;
     for (std::size_t row = 0; row < K_ROWS; ++row)
@@ -495,14 +489,14 @@ TEST_P(Medium_ObjectiveLoss, CrossEntropyReadsTheOnlyOutput)
     }
     expected /= static_cast<double>(K_ROWS);
 
-    const std::vector<double> read = SaTest::read_tensor(pool.tensor(loss));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> read, evaluator.read(loss));
     ASSERT_EQ(read.size(), 1u);
     EXPECT_TRUE(TestSupport::is_within(
-        TestSupport::measure_relative_error<float>(read[0], expected, K_LOSS_ROUNDED_OPERATIONS)));
+        TestSupport::measure_relative_error<double>(read[0], expected, K_LOSS_ROUNDED_OPERATIONS)));
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    Logits, Medium_ObjectiveLoss,
+    Logits, Small_ObjectiveLoss,
     ::testing::Values(
         std::vector<double>{1.0, 2.0, 0.5, -1.0, 0.0, 0.25, 3.0, -2.0, 1.5, 1.5, 0.0, 0.5},
         std::vector<double>{-0.5, 0.75, 2.5, 1.0, 1.25, -1.5, 0.0, 0.5, -2.0, 0.25, 1.75, 1.0}));
