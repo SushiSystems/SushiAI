@@ -11,18 +11,28 @@ are written by hand, ordered as `AssignmentRule::assign` orders them.
 One image, two levels of two anchors each (4 by 4 and 2 by 2 cells, 3 classes, a 64-pixel
 input), two truths: the first takes two neighbour cells of slot 0 on level 0, the second slot 1
 of level 0 and slot 0 of level 1. Head logits follow `0.8 sin(0.37 i + 0.1)`. Every delta equals
-minus the central difference of the level's loss by that logit, step 1e-3, within 1e-4
-absolute. The objectness targets stay at their base values, and so does the trade-off of each
+minus the central difference of the level's loss by that logit, step 1e-3, within 2048 times
+the float unit roundoff. The objectness targets stay at their base values, and so does the trade-off of each
 complete IoU, which Ultralytics computes without a gradient. The test measures each
 assignment's trade-off once on the unshifted head, then replaces the box mean of every shifted
 loss with a mean in double that uses those trade-offs as constants.
 
-## ObjectnessTargetAndBalanceOnAHandWorkedCase
+The next three cases share one fixture: level 2 of three, 2 by 2 cells of one anchor one cell
+wide, one class, a 640-pixel input, zero logits and one assignment at cell (1, 0). The assigned
+slot decodes to its truth exactly.
 
-Level 2 of three, 2 by 2 cells of one anchor one cell wide, one class, a 640-pixel input, zero
-logits. The assigned slot decodes to its truth exactly, so its target is 1 and every other
-target 0. The objectness factor is 1 x 1 x 3/3 x 0.4 over 4 slots, which gives a delta of 0.05
-at the assigned slot and -0.05 elsewhere.
+## TheObjectnessTargetIsOneAtTheAssignedSlotAndZeroElsewhere
+
+The target of the assigned slot is 1 and every other target 0.
+
+## TheObjectnessDeltaIsTheBalancedGapToTheTarget
+
+The objectness factor is 1 x 1 x 3/3 x 0.4 over 4 slots, which gives a delta of 0.05 at the
+assigned slot and -0.05 elsewhere.
+
+## TheDeltaCountsTheAssignmentAndNamesItsTruthRow
+
+The delta reports one assignment, and the assigned row of slot 2 is truth row 0.
 
 ## TheBalanceFollowsTheLevelCount
 

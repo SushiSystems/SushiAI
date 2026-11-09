@@ -72,19 +72,16 @@ namespace
     constexpr float K_STEP = 1e-3f;
 
     /**
-     * @brief Holds the absolute tolerance of a delta against its central difference.
+     * @brief Holds the absolute tolerance of a delta against its central difference: 2048 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-4.
      *
      * The complete IoU is measured in float, about 1e-7 of a loss near 1, which a step of
      * 2e-3 turns into 5e-5 before the box factor of 0.075; the curvature adds about 1e-6.
      */
-    /**
-     * @brief Holds the absolute tolerance: 2048 times the float unit roundoff, the smallest power
-     *        of two not tighter than the earlier 1e-4.
-     */
     constexpr double K_DIFFERENCE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
 
     /**
-     * @brief Holds the absolute the tolerance of a value worked by hand; each is near exact in
+     * @brief Holds the absolute tolerance of a value worked by hand; each is near exact in
      *        float: 256 times the float unit roundoff, the smallest power of two not tighter than
      *        the earlier 1e-5.
      */
@@ -318,46 +315,90 @@ TEST(Small_DetectAnchorShapeRatioDelta, TheDeltaIsTheCentralDifferenceOfTheLoss)
     expect_delta_matches_difference(layout, training, 1, 2, coarse);
 }
 
-/** @brief Tests the objectness target and the balance of the third of three levels by hand. */
-TEST(Small_DetectAnchorShapeRatioDelta, ObjectnessTargetAndBalanceOnAHandWorkedCase)
+namespace
 {
-    // Three levels of one anchor each; level 2 has 2 by 2 cells and an anchor of one cell.
-    AnchorLayout layout;
-    layout.anchors = {{0.125f, 0.125f}, {0.25f, 0.25f}, {0.5f, 0.5f}};
-    layout.head_anchors = {{0}, {1}, {2}};
-    const HeadTrainingOptions training;
+    /**
+     * @brief Holds the level 2 fixture of the hand cases: three levels of one anchor each, level 2 on
+     *        2 by 2 cells with an anchor of one cell and one assignment at cell (1, 0).
+     *
+     * Zero logits decode to offset 0.5 and side (2 * 0.5)^2 * 1 = 1, which the truth equals.
+     */
+    struct HandLevel
+    {
+        AnchorLayout layout;                       /**< Three levels of one anchor each. */
+        HeadTrainingOptions training;              /**< The default training options. */
+        std::vector<float> head;                   /**< Zero logits of 2 by 2 cells, one class. */
+        std::vector<TargetAssignment> assignments; /**< The one assignment. */
 
-    // Zero logits decode to offset 0.5 and side (2 * 0.5)^2 * 1 = 1, which the truth equals.
-    const std::vector<float> head(static_cast<std::size_t>(2 * 2 * (5 + 1)), 0.0f);
-    const std::vector<TargetAssignment> assignments = {{0, 0, 1, 0, 0.5f, 0.5f, 1.0f, 1.0f, 0, 0}};
+        /** @brief Builds the fixture. */
+        HandLevel()
+        {
+            layout.anchors = {{0.125f, 0.125f}, {0.25f, 0.25f}, {0.5f, 0.5f}};
+            layout.head_anchors = {{0}, {1}, {2}};
+            head.assign(static_cast<std::size_t>(2 * 2 * (5 + 1)), 0.0f);
+            assignments = {{0, 0, 1, 0, 0.5f, 0.5f, 1.0f, 1.0f, 0, 0}};
+        }
 
-    ShapeRatioDeltaInput input;
-    input.head = SushiRuntime::span<const float>(head.data(), head.size());
-    input.shape = HeadShape{1, 2, 2};
-    input.options.num_classes = 1;
-    input.options.scale_xy = 2.0f;
-    input.options.size = SizeForm::SquaredSigmoid;
-    input.layout = &layout;
-    input.head_index = 2;
-    input.training = &training;
-    input.network = NetworkSize{640, 640};
-    input.assignments =
-        SushiRuntime::span<const TargetAssignment>(assignments.data(), assignments.size());
+        /** @brief Returns the input of level 2 over the fixture; it points into this object. */
+        ShapeRatioDeltaInput input() const
+        {
+            ShapeRatioDeltaInput input;
+            input.head = SushiRuntime::span<const float>(head.data(), head.size());
+            input.shape = HeadShape{1, 2, 2};
+            input.options.num_classes = 1;
+            input.options.scale_xy = 2.0f;
+            input.options.size = SizeForm::SquaredSigmoid;
+            input.layout = &layout;
+            input.head_index = 2;
+            input.training = &training;
+            input.network = NetworkSize{640, 640};
+            input.assignments =
+                SushiRuntime::span<const TargetAssignment>(assignments.data(), assignments.size());
+            return input;
+        }
+    };
+} // namespace
+
+/** @brief Tests that the objectness target is 1 at the assigned slot and 0 at the others. */
+TEST(Small_DetectAnchorShapeRatioDelta, TheObjectnessTargetIsOneAtTheAssignedSlotAndZeroElsewhere)
+{
+    const HandLevel level;
 
     std::vector<float> targets;
-    SA_EXPECT_OK(build_objectness_targets(input, targets));
+    SA_EXPECT_OK(build_objectness_targets(level.input(), targets));
+
     ASSERT_EQ(targets.size(), 4u);
     EXPECT_NEAR(targets[2], 1.0, K_HAND_TOLERANCE);
     EXPECT_EQ(targets[0], 0.0f);
     EXPECT_EQ(targets[1], 0.0f);
     EXPECT_EQ(targets[3], 0.0f);
+}
 
-    // Factor 1 * 1 * 3 / 3 * 0.4 over 4 slots; the gap is 0.5 - 1 assigned, 0.5 elsewhere.
+/**
+ * @brief Tests the objectness delta of level 2 of three on the hand case.
+ *
+ * Factor 1 * 1 * 3 / 3 * 0.4 over 4 slots; the gap is 0.5 - 1 at the assigned slot, 0.5 elsewhere.
+ */
+TEST(Small_DetectAnchorShapeRatioDelta, TheObjectnessDeltaIsTheBalancedGapToTheTarget)
+{
+    const HandLevel level;
+
     HeadDelta delta;
-    SA_EXPECT_OK(compute_shape_ratio_delta(input, delta));
+    SA_EXPECT_OK(compute_shape_ratio_delta(level.input(), delta));
+
     EXPECT_NEAR(delta.delta[2 * 6 + 4], 0.05, K_HAND_TOLERANCE);
     EXPECT_NEAR(delta.delta[0 * 6 + 4], -0.05, K_HAND_TOLERANCE);
     EXPECT_NEAR(delta.delta[3 * 6 + 4], -0.05, K_HAND_TOLERANCE);
+}
+
+/** @brief Tests that the delta counts its one assignment and names the truth row it came from. */
+TEST(Small_DetectAnchorShapeRatioDelta, TheDeltaCountsTheAssignmentAndNamesItsTruthRow)
+{
+    const HandLevel level;
+
+    HeadDelta delta;
+    SA_EXPECT_OK(compute_shape_ratio_delta(level.input(), delta));
+
     EXPECT_EQ(delta.assignments, 1);
     EXPECT_EQ(delta.assigned_row[2], 0);
 }
