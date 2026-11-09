@@ -45,7 +45,6 @@
 #include <SushiAI/vision/training/dice_targets.hpp>
 #include <SushiAI/vision/training/pixel_labels.hpp>
 #include <SushiAI/vision/training/pixel_targets.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Training::DiceLeaves;
@@ -68,13 +67,6 @@ namespace
 
     /** @brief Holds the value a leaf starts at, which no fill of these cases writes. */
     constexpr double K_UNTOUCHED = -7.0;
-
-    /**
-     * @brief Holds the Bounds the absolute error of a float32 holding 1 / n for n below ten: 2
-     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-7.
-     */
-    constexpr double K_TOLERANCE = 2.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Names a list of class indices, one per pixel. */
     using Classes = std::vector<std::int32_t>;
@@ -118,33 +110,55 @@ namespace
                 return Classes(ids, ids + tensor.num_elements);
             }
 
-            /** @brief Expects element i of @p tensor to be @p expected[i] within K_TOLERANCE. */
+            /** @brief Expects the elements of @p tensor to equal @p expected; all are exact. */
             static void expect_reals(const SushiBLAS::Tensor& tensor,
                                      const std::vector<double>& expected)
             {
-                const std::vector<double> found = SaTest::read_tensor(tensor);
-                ASSERT_EQ(found.size(), expected.size());
-                for (std::size_t i = 0; i < found.size(); ++i)
-                    EXPECT_NEAR(found[i], expected[i], K_TOLERANCE) << "element " << i;
+                EXPECT_EQ(SaTest::read_tensor(tensor), expected);
             }
     };
 } // namespace
 
-/** @brief Tests that the check passes classes and the ignore index and names a bad pixel. */
-TEST_F(Medium_VisionTrainingPixelTargets, TheLabelCheckNamesThePixelOutOfBounds)
+/** @brief Tests that the check passes classes and the ignore index. */
+TEST_F(Medium_VisionTrainingPixelTargets, TheLabelCheckPassesClassesAndTheIgnoreIndex)
 {
     const SushiBLAS::Tensor good = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 1, 1, 0});
-    const SushiBLAS::Tensor high = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 3, 1, 0});
-    const SushiBLAS::Tensor negative = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 1, -1, 0});
-    const SushiBLAS::Tensor reals = make_reals(Shape{2, 3});
 
     SA_EXPECT_OK(validate_pixel_labels(good, K_PIXELS, K_CLASSES, K_IGNORE));
+}
+
+/** @brief Tests that a label at the class count is refused, naming its pixel. */
+TEST_F(Medium_VisionTrainingPixelTargets, TheLabelCheckNamesAHighLabelsPixel)
+{
+    const SushiBLAS::Tensor high = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 3, 1, 0});
+
     SA_EXPECT_FAILURE(validate_pixel_labels(high, K_PIXELS, K_CLASSES, K_IGNORE),
                       StatusCode::Incompatible, "holds 3 at pixel 3", "below 3", "255");
+}
+
+/** @brief Tests that a negative label other than the ignore index is refused, naming its pixel. */
+TEST_F(Medium_VisionTrainingPixelTargets, TheLabelCheckNamesANegativeLabelsPixel)
+{
+    const SushiBLAS::Tensor negative = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 1, -1, 0});
+
     SA_EXPECT_FAILURE(validate_pixel_labels(negative, K_PIXELS, K_CLASSES, K_IGNORE),
                       StatusCode::Incompatible, "holds -1 at pixel 4");
+}
+
+/** @brief Tests that a mask of another pixel count than the expected one is refused. */
+TEST_F(Medium_VisionTrainingPixelTargets, TheLabelCheckRefusesAnotherPixelCount)
+{
+    const SushiBLAS::Tensor good = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 1, 1, 0});
+
     SA_EXPECT_FAILURE(validate_pixel_labels(good, K_PIXELS + 1, K_CLASSES, K_IGNORE),
                       StatusCode::Incompatible, "6 pixels", "expects 7");
+}
+
+/** @brief Tests that a mask of real values is refused. */
+TEST_F(Medium_VisionTrainingPixelTargets, TheLabelCheckRefusesAFloatMask)
+{
+    const SushiBLAS::Tensor reals = make_reals(Shape{2, 3});
+
     SA_EXPECT_FAILURE(validate_pixel_labels(reals, K_PIXELS, K_CLASSES, K_IGNORE),
                       StatusCode::Incompatible, "mask is");
 }
@@ -194,29 +208,6 @@ TEST_F(Medium_VisionTrainingPixelTargets, ARefusedPixelFillChangesNothing)
 
     EXPECT_EQ(read_ids(indices), Classes(6, -7));
     expect_reals(weights, std::vector<double>(6, K_UNTOUCHED));
-}
-
-/** @brief Tests the five Dice leaves of a mask with one absent class and one ignored pixel. */
-TEST_F(Medium_VisionTrainingPixelTargets, TheDiceLeavesCountTheKeptPixelsOfEachClass)
-{
-    // Classes 0 and 2 are present, with three and two kept pixels; class 1 is absent.
-    const SushiBLAS::Tensor mask = make_ids(Shape{K_PIXELS}, {0, 2, K_IGNORE, 0, 2, 0});
-    SushiBLAS::Tensor score_indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
-    SushiBLAS::Tensor class_indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
-    SushiBLAS::Tensor kept = make_reals(Shape{K_PIXELS, 1});
-    SushiBLAS::Tensor class_pixels = make_reals(Shape{K_CLASSES});
-    SushiBLAS::Tensor class_weights = make_reals(Shape{K_CLASSES});
-    const DiceLeaves leaves{&score_indices, &class_indices, &kept, &class_pixels,
-                            &class_weights};
-
-    SA_EXPECT_OK(fill_dice_targets(mask, K_CLASSES, K_IGNORE, leaves));
-
-    // The ignored pixel 2 points at the first score of its row and at class 0, kept 0.
-    EXPECT_EQ(read_ids(score_indices), (Classes{0, 5, 6, 9, 14, 15}));
-    EXPECT_EQ(read_ids(class_indices), (Classes{0, 2, 0, 0, 2, 0}));
-    expect_reals(kept, {1.0, 1.0, 0.0, 1.0, 1.0, 1.0});
-    expect_reals(class_pixels, {3.0, 0.0, 2.0});
-    expect_reals(class_weights, {0.5, 0.0, 0.5});
 }
 
 /** @brief Tests that a refused Dice fill leaves the five leaves as they were. */

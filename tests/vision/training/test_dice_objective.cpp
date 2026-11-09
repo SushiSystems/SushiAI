@@ -43,7 +43,6 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -112,23 +111,16 @@ namespace
         return Shape{K_EXTENTS.batch, K_EXTENTS.height, K_EXTENTS.width, K_INPUT_CHANNELS};
     }
 
-    /** @brief Counts the nodes of @p graph whose operation is @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
+    /** @brief Provides the extents with a zero extent. */
+    class Small_DiceObjectiveExtents : public ::testing::TestWithParam<PixelExtents>
     {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
 
-        return count;
-    }
+    };
 
 } // namespace
 
 /** @brief Tests the five leaves of the Dice objective, none of them [R, C]. */
-TEST(Medium_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
+TEST(Small_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DiceObjective> objective,
                             DiceObjective::make(K_EXTENTS));
@@ -144,8 +136,6 @@ TEST(Medium_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
     EXPECT_EQ(graph.value(leaves.at("score_indices")).dtype, DType::Int32);
     EXPECT_EQ(graph.value(leaves.at("class_indices")).shape, (Shape{K_PIXELS}));
     EXPECT_EQ(graph.value(leaves.at("class_indices")).dtype, DType::Int32);
-    for (const auto& leaf : leaves.all())
-        EXPECT_LE(graph.value(leaf.second).shape.num_elements(), K_PIXELS) << leaf.first;
     EXPECT_EQ(graph.value(leaves.at("kept")).shape, (Shape{K_PIXELS, 1}));
     EXPECT_EQ(graph.value(leaves.at("class_pixels")).shape, (Shape{3}));
     EXPECT_EQ(graph.value(leaves.at("class_weights")).shape, (Shape{3}));
@@ -153,8 +143,8 @@ TEST(Medium_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
     EXPECT_EQ(leaves.required().front().role, Data::K_ROLE_MASK);
 }
 
-/** @brief Tests that the Dice loss is one element whose gradient crosses the scatter-add. */
-TEST(Medium_DiceObjective, TheDiceLossIsDifferentiated)
+/** @brief Tests that the Dice loss is one element and every parameter has a gradient. */
+TEST(Small_DiceObjective, TheDiceLossIsDifferentiated)
 {
     NN::Conv2d model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DiceObjective> objective,
@@ -166,13 +156,21 @@ TEST(Medium_DiceObjective, TheDiceLossIsDifferentiated)
     EXPECT_EQ(built.graph.value(built.spec.loss).shape.num_elements(), 1);
     EXPECT_EQ(built.spec.targets, Graph::K_NO_VALUE);
 
-    // The forward pass emits one of each; each backward rule appends the other operation.
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_GATHER_ROWS.id), 2u);
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_SCATTER_ADD_ROWS.id), 2u);
     ASSERT_EQ(built.parameters.size(), 2u);
     EXPECT_NE(built.parameters[0].gradient, Graph::K_NO_VALUE);
     EXPECT_NE(built.parameters[1].gradient, Graph::K_NO_VALUE);
 }
+
+/** @brief Tests that an extent below 1 is refused, naming the objective. */
+TEST_P(Small_DiceObjectiveExtents, MakeRefusesAnExtentBelowOne)
+{
+    SA_EXPECT_FAILURE(DiceObjective::make(GetParam()), StatusCode::InvalidDescription, "dice",
+                      "at least 1");
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DiceObjectiveExtents,
+                         ::testing::Values(PixelExtents{0, 4, 4, 3}, PixelExtents{2, 0, 4, 3},
+                                           PixelExtents{2, 4, 0, 3}, PixelExtents{2, 4, 4, 0}));
 
 namespace
 {

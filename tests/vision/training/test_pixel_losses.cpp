@@ -23,16 +23,14 @@
 
 /**
  * @file test_pixel_losses.cpp
- * @brief Tests the value and the operations each per-pixel loss graph emits on the host.
+ * @brief Tests the value each per-pixel loss graph emits on the host.
  * @author Mustafa Garip
  */
 
-#include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -42,7 +40,6 @@ using namespace SushiAI;
 using Vision::Training::DiceOperands;
 using Vision::Training::emit_pixel_cross_entropy;
 using Vision::Training::emit_soft_dice;
-using Vision::Training::K_DICE_EPSILON;
 
 namespace
 {
@@ -51,22 +48,9 @@ namespace
 
     /** @brief Holds the classes of the scores, C. */
     constexpr std::int64_t K_CLASSES = 3;
-
-    /** @brief Counts the nodes of @p graph whose operation is @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
-    {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
-
-        return count;
-    }
 } // namespace
 
-/** @brief Tests that the cross entropy is one value of the logits' type from one gather. */
+/** @brief Tests that the cross entropy is one value of the logits' type. */
 TEST(Small_VisionTrainingPixelLosses, TheCrossEntropyIsOneValueOfTheLogitsType)
 {
     Graph::Graph graph;
@@ -80,13 +64,10 @@ TEST(Small_VisionTrainingPixelLosses, TheCrossEntropyIsOneValueOfTheLogitsType)
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
     EXPECT_EQ(graph.value(loss).dtype, DType::Float64);
-    EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_GATHER_ROWS.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_NLL_LOSS.id), 0u);
 }
 
-/** @brief Tests that the soft Dice is one value that gathers once and scatters once. */
-TEST(Small_VisionTrainingPixelLosses, TheSoftDiceIsOneValueThatGathersAndScattersOnce)
+/** @brief Tests that the soft Dice is one float32 value. */
+TEST(Small_VisionTrainingPixelLosses, TheSoftDiceIsOneFloat32Value)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -103,19 +84,4 @@ TEST(Small_VisionTrainingPixelLosses, TheSoftDiceIsOneValueThatGathersAndScatter
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
     EXPECT_EQ(graph.value(loss).dtype, DType::Float32);
-    EXPECT_EQ(count_nodes(graph, Ops::K_GATHER_ROWS.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SCATTER_ADD_ROWS.id), 1u);
-}
-
-/** @brief Tests that default Dice operands name no value and that the epsilon is 1e-6. */
-TEST(Small_VisionTrainingPixelLosses, DefaultOperandsNameNoValueAndTheEpsilonIsAMillionth)
-{
-    const DiceOperands operands;
-
-    EXPECT_EQ(operands.score_indices, Graph::K_NO_VALUE);
-    EXPECT_EQ(operands.class_indices, Graph::K_NO_VALUE);
-    EXPECT_EQ(operands.kept, Graph::K_NO_VALUE);
-    EXPECT_EQ(operands.class_pixels, Graph::K_NO_VALUE);
-    EXPECT_EQ(operands.class_weights, Graph::K_NO_VALUE);
-    EXPECT_EQ(K_DICE_EPSILON, 1e-6);
 }

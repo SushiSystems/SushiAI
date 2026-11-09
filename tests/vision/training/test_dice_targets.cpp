@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
@@ -41,7 +42,6 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/training/dice_targets.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Training::DiceLeaves;
@@ -59,12 +59,6 @@ namespace
 
     /** @brief Holds the value a leaf starts at, which no fill of these cases leaves. */
     constexpr double K_UNTOUCHED = -7.0;
-
-    /**
-     * @brief Holds the Bounds the absolute error of a count or of 1 / n for n below ten: 2 times
-     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-7.
-     */
-    constexpr double K_TOLERANCE = 2.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Names a list of class indices, one per pixel. */
     using Classes = std::vector<std::int32_t>;
@@ -107,15 +101,34 @@ namespace
                 return Classes(ids, ids + tensor.num_elements);
             }
 
-            /** @brief Expects element i of @p tensor to be @p expected[i] within K_TOLERANCE. */
+            /** @brief Expects the elements of @p tensor to equal @p expected; all are exact. */
             static void expect_reals(const SushiBLAS::Tensor& tensor,
                                      const std::vector<double>& expected)
             {
-                const std::vector<double> found = SaTest::read_tensor(tensor);
-                ASSERT_EQ(found.size(), expected.size());
-                for (std::size_t i = 0; i < found.size(); ++i)
-                    EXPECT_NEAR(found[i], expected[i], K_TOLERANCE) << "element " << i;
+                EXPECT_EQ(SaTest::read_tensor(tensor), expected);
             }
+    };
+
+    /** @brief Names a mask, its ignore index, the leaf type and the leaves the fill must write. */
+    struct DiceRow
+    {
+        const char* name;                  /**< Names the row in the test name. */
+        DType dtype;                       /**< The element type of the real leaves. */
+        Classes mask;                      /**< The class of each pixel. */
+        std::int32_t ignore;               /**< The mask value of a pixel of no class. */
+        Classes score_indices;             /**< The score each pixel points at. */
+        Classes class_indices;             /**< The class each pixel points at. */
+        std::vector<double> kept;          /**< One for a kept pixel, zero for an ignored one. */
+        std::vector<double> class_pixels;  /**< The kept pixels of each class. */
+        std::vector<double> class_weights; /**< One over the present classes, zero for the rest. */
+    };
+
+    /** @brief Provides the masks that count the kept pixels of each class. */
+    class Medium_VisionTrainingDiceTargetsCounts
+        : public Medium_VisionTrainingDiceTargets,
+          public ::testing::WithParamInterface<DiceRow>
+    {
+
     };
 } // namespace
 
@@ -141,24 +154,36 @@ TEST_F(Medium_VisionTrainingDiceTargets, AMaskWithNoKeptPixelGivesZeros)
     expect_reals(class_weights, {0.0, 0.0, 0.0});
 }
 
-/** @brief Tests that float64 leaves and an ignore index of -1 give the counts float32 gives. */
-TEST_F(Medium_VisionTrainingDiceTargets, FloatSixtyFourLeavesHoldTheSameCounts)
+/** @brief Tests that the five Dice leaves count the kept pixels of each class. */
+TEST_P(Medium_VisionTrainingDiceTargetsCounts, TheDiceLeavesCountTheKeptPixelsOfEachClass)
 {
-    // Class 1 holds two kept pixels and class 0 one; class 2 is absent and pixel 3 ignored.
-    const SushiBLAS::Tensor mask = make_ids(Shape{K_PIXELS}, {1, 1, 0, -1});
-    SushiBLAS::Tensor score_indices = make_ids(Shape{K_PIXELS}, Classes(4, -7));
-    SushiBLAS::Tensor class_indices = make_ids(Shape{K_PIXELS}, Classes(4, -7));
-    SushiBLAS::Tensor kept = make_reals(Shape{K_PIXELS, 1}, DType::Float64);
-    SushiBLAS::Tensor class_pixels = make_reals(Shape{K_CLASSES}, DType::Float64);
-    SushiBLAS::Tensor class_weights = make_reals(Shape{K_CLASSES}, DType::Float64);
+    const DiceRow& row = GetParam();
+    const Shape pixels{static_cast<std::int64_t>(row.mask.size())};
+    const SushiBLAS::Tensor mask = make_ids(pixels, row.mask);
+    SushiBLAS::Tensor score_indices = make_ids(pixels, Classes(row.mask.size(), -7));
+    SushiBLAS::Tensor class_indices = make_ids(pixels, Classes(row.mask.size(), -7));
+    SushiBLAS::Tensor kept = make_reals(Shape{pixels[0], 1}, row.dtype);
+    SushiBLAS::Tensor class_pixels = make_reals(Shape{K_CLASSES}, row.dtype);
+    SushiBLAS::Tensor class_weights = make_reals(Shape{K_CLASSES}, row.dtype);
 
     SA_EXPECT_OK(fill_dice_targets(
-        mask, K_CLASSES, -1,
+        mask, K_CLASSES, row.ignore,
         DiceLeaves{&score_indices, &class_indices, &kept, &class_pixels, &class_weights}));
 
-    EXPECT_EQ(read_ids(score_indices), (Classes{1, 4, 6, 9}));
-    EXPECT_EQ(read_ids(class_indices), (Classes{1, 1, 0, 0}));
-    expect_reals(kept, {1.0, 1.0, 1.0, 0.0});
-    expect_reals(class_pixels, {1.0, 2.0, 0.0});
-    expect_reals(class_weights, {0.5, 0.5, 0.0});
+    EXPECT_EQ(read_ids(score_indices), row.score_indices);
+    EXPECT_EQ(read_ids(class_indices), row.class_indices);
+    expect_reals(kept, row.kept);
+    expect_reals(class_pixels, row.class_pixels);
+    expect_reals(class_weights, row.class_weights);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_VisionTrainingDiceTargetsCounts,
+    ::testing::Values(
+        DiceRow{"FloatSixtyFourIgnoreMinusOne", DType::Float64, {1, 1, 0, -1}, -1,
+                {1, 4, 6, 9}, {1, 1, 0, 0}, {1.0, 1.0, 1.0, 0.0}, {1.0, 2.0, 0.0},
+                {0.5, 0.5, 0.0}},
+        DiceRow{"FloatThirtyTwoIgnoreTwoFiftyFive", DType::Float32, {0, 2, 255, 0, 2, 0}, 255,
+                {0, 5, 6, 9, 14, 15}, {0, 2, 0, 0, 2, 0}, {1.0, 1.0, 0.0, 1.0, 1.0, 1.0},
+                {3.0, 0.0, 2.0}, {0.5, 0.0, 0.5}}),
+    [](const ::testing::TestParamInfo<DiceRow>& info) { return std::string(info.param.name); });

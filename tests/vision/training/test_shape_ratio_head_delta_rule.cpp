@@ -75,6 +75,60 @@ namespace
      *        1e-12.
      */
     constexpr double K_SUM_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+
+    /** @brief Holds what the pieces of the shape-ratio path give one level of the fixture. */
+    struct LevelParts
+    {
+        HeadDelta alone;            /**< The delta of the level, computed without the rule. */
+        double total = 0.0;         /**< The level's loss total. */
+        double box = 0.0;           /**< The level's box share, scaled to the batch. */
+    };
+
+    /**
+     * @brief Runs the assignment, the loss and the delta on level @p level of @p fixture, one
+     *        after the other, as the rule does for that level.
+     */
+    void compute_level_parts(RuleBatch& fixture, std::size_t level, LevelParts& parts)
+    {
+        const AnchorHead& head = fixture.heads()[level];
+        AssignmentInput given;
+        given.layout = &fixture.layout();
+        given.head_index = static_cast<std::int64_t>(level);
+        given.shape = head.shape;
+        given.classes = K_CLASSES;
+        given.truth = &fixture.truth();
+        given.network = NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE};
+        std::vector<TargetAssignment> assignments;
+        SA_EXPECT_OK(ShapeRatioAssignment(ShapeRatioOptions()).assign(given, assignments));
+
+        ShapeRatioDeltaInput input;
+        input.head = fixture.output(level);
+        input.shape = head.shape;
+        input.options = head.options;
+        input.layout = &fixture.layout();
+        input.head_index = static_cast<std::int64_t>(level);
+        input.training = &head.training;
+        input.network = NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE};
+        input.assignments = SushiRuntime::span<const TargetAssignment>(assignments.data(),
+                                                                       assignments.size());
+        std::vector<float> targets;
+        SA_EXPECT_OK(build_objectness_targets(input, targets));
+        SA_ASSERT_OK_AND_ASSIGN(
+            const ShapeRatioLoss loss,
+            measure_shape_ratio_loss(
+                input, SushiRuntime::span<const float>(targets.data(), targets.size())));
+        SA_EXPECT_OK(compute_shape_ratio_delta(input, parts.alone));
+
+        parts.total = loss.total;
+        parts.box = loss.box * derive_shape_ratio_factors(input).box *
+                    static_cast<double>(head.shape.batch);
+    }
+
+    /** @brief Provides the level of each head of the batch. */
+    class Small_ShapeRatioHeadDeltaRuleLevel : public ::testing::TestWithParam<std::size_t>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that heads of logits with squared sigmoid sides are accepted. */
@@ -121,73 +175,59 @@ TEST(Small_ShapeRatioHeadDeltaRule, CheckRefusesALayoutOfMoreLevelsThanTheBalanc
                       StatusCode::InvalidDescription, "at most 5 levels", "layout has 6");
 }
 
-/** @brief Tests that the rule gives each level the delta and the loss of the shape-ratio path. */
-TEST(Small_ShapeRatioHeadDeltaRule, ComputeFollowsAssignmentThenLossThenDeltaForEachLevel)
+/** @brief Tests that the rule gives a level the delta its assignment, loss and delta give. */
+TEST_P(Small_ShapeRatioHeadDeltaRuleLevel, ComputeFollowsAssignmentThenLossThenDeltaForTheLevel)
+{
+    const std::size_t level = GetParam();
+    RuleBatch fixture(SizeForm::SquaredSigmoid);
+    std::vector<HeadDelta> deltas = make_deltas();
+    SA_EXPECT_OK(ShapeRatioHeadDeltaRule(ShapeRatioOptions())
+                     .compute(fixture.batch(), view_deltas(deltas)));
+    LevelParts parts;
+    compute_level_parts(fixture, level, parts);
+
+    EXPECT_EQ(deltas[level].delta, parts.alone.delta);
+    EXPECT_EQ(deltas[level].assigned_row, parts.alone.assigned_row);
+    EXPECT_EQ(deltas[level].assigned_class, parts.alone.assigned_class);
+    EXPECT_EQ(deltas[level].assignments, parts.alone.assignments);
+}
+
+INSTANTIATE_TEST_SUITE_P(Levels, Small_ShapeRatioHeadDeltaRuleLevel, ::testing::Values(0u, 1u));
+
+/** @brief Tests that the rule assigns at least one box over the two levels. */
+TEST(Small_ShapeRatioHeadDeltaRule, ComputeAssignsTheTruth)
 {
     RuleBatch fixture(SizeForm::SquaredSigmoid);
     std::vector<HeadDelta> deltas = make_deltas();
 
+    SA_EXPECT_OK(ShapeRatioHeadDeltaRule(ShapeRatioOptions())
+                     .compute(fixture.batch(), view_deltas(deltas)));
+
+    EXPECT_GT(deltas[0].assignments + deltas[1].assignments, 0);
+}
+
+/** @brief Tests that the cost shares are the sums of the level losses and the box factors. */
+TEST(Small_ShapeRatioHeadDeltaRule, TheCostSharesAreTheSumsOfTheLevelLosses)
+{
+    RuleBatch fixture(SizeForm::SquaredSigmoid);
+    std::vector<HeadDelta> deltas = make_deltas();
     SA_ASSERT_OK_AND_ASSIGN(
         const HeadCost cost,
         ShapeRatioHeadDeltaRule(ShapeRatioOptions()).compute(fixture.batch(),
                                                              view_deltas(deltas)));
+    LevelParts fine;
+    LevelParts coarse;
+    compute_level_parts(fixture, 0, fine);
+    compute_level_parts(fixture, 1, coarse);
 
-    HeadCost expected;
-    std::int64_t assigned = 0;
-    for (std::size_t level = 0; level < 2; ++level)
-    {
-        SCOPED_TRACE(level);
-        const AnchorHead& head = fixture.heads()[level];
-        AssignmentInput given;
-        given.layout = &fixture.layout();
-        given.head_index = static_cast<std::int64_t>(level);
-        given.shape = head.shape;
-        given.classes = K_CLASSES;
-        given.truth = &fixture.truth();
-        given.network = NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE};
-        std::vector<TargetAssignment> assignments;
-        SA_EXPECT_OK(ShapeRatioAssignment(ShapeRatioOptions()).assign(given, assignments));
-
-        ShapeRatioDeltaInput input;
-        input.head = fixture.output(level);
-        input.shape = head.shape;
-        input.options = head.options;
-        input.layout = &fixture.layout();
-        input.head_index = static_cast<std::int64_t>(level);
-        input.training = &head.training;
-        input.network = NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE};
-        input.assignments = SushiRuntime::span<const TargetAssignment>(assignments.data(),
-                                                                       assignments.size());
-        std::vector<float> targets;
-        SA_EXPECT_OK(build_objectness_targets(input, targets));
-        SA_ASSERT_OK_AND_ASSIGN(
-            const ShapeRatioLoss loss,
-            measure_shape_ratio_loss(
-                input, SushiRuntime::span<const float>(targets.data(), targets.size())));
-        HeadDelta alone;
-        SA_EXPECT_OK(compute_shape_ratio_delta(input, alone));
-
-        EXPECT_EQ(deltas[level].delta, alone.delta);
-        EXPECT_EQ(deltas[level].assigned_row, alone.assigned_row);
-        EXPECT_EQ(deltas[level].assigned_class, alone.assigned_class);
-        EXPECT_EQ(deltas[level].assignments, alone.assignments);
-        assigned += deltas[level].assignments;
-
-        const double box = loss.box * derive_shape_ratio_factors(input).box *
-                           static_cast<double>(head.shape.batch);
-        expected.total += loss.total;
-        expected.box += box;
-        expected.non_box += loss.total - box;
-    }
-
-    EXPECT_GT(assigned, 0);
-    EXPECT_NEAR(cost.total, expected.total, K_SUM_TOLERANCE);
-    EXPECT_NEAR(cost.box, expected.box, K_SUM_TOLERANCE);
-    EXPECT_NEAR(cost.non_box, expected.non_box, K_SUM_TOLERANCE);
+    EXPECT_NEAR(cost.total, fine.total + coarse.total, K_SUM_TOLERANCE);
+    EXPECT_NEAR(cost.box, fine.box + coarse.box, K_SUM_TOLERANCE);
+    EXPECT_NEAR(cost.non_box, (fine.total - fine.box) + (coarse.total - coarse.box),
+                K_SUM_TOLERANCE);
 }
 
-/** @brief Tests that the stored cost equals the total and the box share and the rest make it. */
-TEST(Small_ShapeRatioHeadDeltaRule, TheStoredCostEqualsTheTotalAndTheSharesAddUpToIt)
+/** @brief Tests that the stored cost equals the total, which is above zero. */
+TEST(Small_ShapeRatioHeadDeltaRule, TheStoredCostEqualsTheTotal)
 {
     RuleBatch fixture(SizeForm::SquaredSigmoid);
     std::vector<HeadDelta> deltas = make_deltas();
@@ -199,6 +239,19 @@ TEST(Small_ShapeRatioHeadDeltaRule, TheStoredCostEqualsTheTotalAndTheSharesAddUp
 
     EXPECT_GT(cost.total, 0.0);
     EXPECT_EQ(cost.stored, cost.total);
+}
+
+/** @brief Tests that the box and the non-box share add up to the total. */
+TEST(Small_ShapeRatioHeadDeltaRule, TheSharesAddUpToTheTotal)
+{
+    RuleBatch fixture(SizeForm::SquaredSigmoid);
+    std::vector<HeadDelta> deltas = make_deltas();
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const HeadCost cost,
+        ShapeRatioHeadDeltaRule(ShapeRatioOptions()).compute(fixture.batch(),
+                                                             view_deltas(deltas)));
+
     EXPECT_NEAR(cost.box + cost.non_box, cost.total, K_SUM_TOLERANCE * cost.total);
 }
 

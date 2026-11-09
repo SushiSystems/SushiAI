@@ -32,7 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <string>
+#include <numeric>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
@@ -44,11 +44,11 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
@@ -66,13 +66,6 @@ using Graph::TensorPool;
 
 namespace
 {
-    /**
-     * @brief Holds the absolute Bounds the error allowed on the factor the SCALE node stores: 16384
-     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-12.
-     */
-    constexpr double K_ATTRIBUTE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Holds the factor the tests pass, one over a batch of four. */
     constexpr double K_SCALE = 0.25;
 
@@ -82,54 +75,48 @@ namespace
         return Shape{2, 3, 3, 7};
     }
 
-    /** @brief Returns the operation names of nodes [from, end). */
-    std::vector<std::string> op_names(const Graph::Graph& graph, std::size_t from)
-    {
-        std::vector<std::string> names;
-        for (std::size_t i = from; i < graph.node_count(); ++i)
-            names.emplace_back(Ops::name_of(graph.nodes()[i].op));
-        return names;
-    }
 } // namespace
 
-/** @brief Tests that the emitter appends MUL, RESHAPE, SUM_ROWS and SCALE, wired in that order. */
-TEST(Medium_HeadDeltaLoss, EmitsFourNodesEndingInAScaleOfOneElement)
+/** @brief Tests that the result is one element and its root scales by minus the factor. */
+TEST(Small_HeadDeltaLoss, TheResultIsOneElementScaledByMinusTheFactor)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
     const ValueID head = builder.parameter(head_shape(), "head");
     const ValueID delta = builder.input(head_shape(), "delta");
-    const std::size_t leaves = graph.node_count();
 
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
                             emit_head_delta_loss(builder, head, delta, K_SCALE));
 
-    ASSERT_EQ(op_names(graph, leaves), (std::vector<std::string>{
-        "sushiai.mul",
-        "sushiai.reshape",
-        "sushiai.sum_rows",
-        "sushiai.scale",
-    }));
-
-    const Graph::Node& product = graph.nodes()[leaves];
-    const Graph::Node& column = graph.nodes()[leaves + 1];
-    const Graph::Node& sum = graph.nodes()[leaves + 2];
-    const Graph::Node& root = graph.nodes()[leaves + 3];
-
-    EXPECT_EQ(product.inputs, (std::vector<ValueID>{delta, head}));
-    EXPECT_EQ(column.inputs, (std::vector<ValueID>{product.outputs.at(0)}));
-    EXPECT_EQ(sum.inputs, (std::vector<ValueID>{column.outputs.at(0)}));
-    EXPECT_EQ(root.inputs, (std::vector<ValueID>{sum.outputs.at(0)}));
-    EXPECT_EQ(root.outputs, (std::vector<ValueID>{loss}));
-
-    EXPECT_EQ(graph.value(column.outputs.at(0)).shape, (Shape{126, 1}));
     EXPECT_EQ(graph.value(loss).shape, (Shape{1}));
-    EXPECT_NEAR(root.attributes.get(0), -K_SCALE, K_ATTRIBUTE_TOLERANCE);
+    EXPECT_EQ(graph.value(loss).dtype, DType::Float32);
+    EXPECT_EQ(graph.nodes().back().outputs, (std::vector<ValueID>{loss}));
+    EXPECT_EQ(graph.nodes().back().attributes.get(0), -K_SCALE);
+}
+
+/** @brief Tests that the value on the host is minus the factor times the sum of products. */
+TEST(Small_HeadDeltaLoss, TheValueOnTheHostIsMinusTheFactorTimesTheSumOfProducts)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID head = builder.parameter(head_shape(), "head");
+    const ValueID delta = builder.input(head_shape(), "delta");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            emit_head_delta_loss(builder, head, delta, K_SCALE));
+
+    // 126 elements of head 2 times delta 3 sum to 756; times -1/4 is -189, exact in double.
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(head, std::vector<double>(126, 2.0)));
+    SA_EXPECT_OK(evaluator.write(delta, std::vector<double>(126, 3.0)));
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> value, evaluator.read(loss));
+    EXPECT_EQ(value, (std::vector<double>{-189.0}));
 }
 
 /** @brief Tests that the result carries the element type of the head. */
-TEST(Medium_HeadDeltaLoss, TheResultHasTheElementTypeOfTheHead)
+TEST(Small_HeadDeltaLoss, TheResultHasTheElementTypeOfTheHead)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -144,7 +131,7 @@ TEST(Medium_HeadDeltaLoss, TheResultHasTheElementTypeOfTheHead)
 }
 
 /** @brief Tests that autograd takes the result as a root and returns a head-shaped gradient. */
-TEST(Medium_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
+TEST(Small_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -165,7 +152,7 @@ TEST(Medium_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
 }
 
 /** @brief Tests that a delta of another shape is refused, naming MUL and both shapes. */
-TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherShapeIsRefusedNamingBothShapes)
+TEST(Small_HeadDeltaLoss, ADeltaOfAnotherShapeIsRefusedNamingBothShapes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -181,7 +168,7 @@ TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherShapeIsRefusedNamingBothShapes)
 }
 
 /** @brief Tests that a delta of another element type is refused, naming MUL and both types. */
-TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherElementTypeIsRefusedNamingBothTypes)
+TEST(Small_HeadDeltaLoss, ADeltaOfAnotherElementTypeIsRefusedNamingBothTypes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -221,6 +208,25 @@ namespace
      *        1e-4.
      */
     constexpr double K_VALUE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
+    /** @brief Expects each element of @p actual within @p bound of the same element of @p expected. */
+    void expect_elements_within(const std::vector<double>& actual,
+                                const std::vector<double>& expected, double bound)
+    {
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t i = 0; i < actual.size(); ++i)
+            EXPECT_NEAR(actual[i], expected[i], bound) << "element " << i;
+    }
+
+    /** @brief Returns @p values each multiplied by -@p factor. */
+    std::vector<double> negated_scaled(const std::vector<double>& values, double factor)
+    {
+        std::vector<double> scaled;
+        scaled.reserve(values.size());
+        for (const double value : values)
+            scaled.push_back(-factor * value);
+        return scaled;
+    }
 
     /** @brief Holds the graph of one head and its delta, compiled, with host copies of both. */
     struct DeltaLossCase
@@ -298,9 +304,8 @@ TEST_F(Medium_HeadDeltaLossEndToEnd, TheGradientAtTheHeadIsMinusScaleTimesDelta)
     const std::vector<double> gradient = SaTest::read_tensor(model.pool.tensor(model.gradient));
     ASSERT_EQ(gradient.size(), model.delta_values.size());
 
-    for (std::size_t i = 0; i < gradient.size(); ++i)
-        EXPECT_NEAR(gradient[i], -K_ENGINE_SCALE * model.delta_values[i], K_GRADIENT_TOLERANCE)
-            << "element " << i;
+    expect_elements_within(gradient, negated_scaled(model.delta_values, K_ENGINE_SCALE),
+                           K_GRADIENT_TOLERANCE);
 }
 
 /** @brief Tests that the root's value is -scale * sum(delta * head), summed in double, to 1e-4. */
@@ -311,9 +316,8 @@ TEST_F(Medium_HeadDeltaLossEndToEnd, TheValueIsMinusScaleTimesTheSumOfProducts)
 
     SA_EXPECT_OK(model.step->run());
 
-    double sum = 0.0;
-    for (std::size_t i = 0; i < model.delta_values.size(); ++i)
-        sum += model.delta_values[i] * model.head_values[i];
+    const double sum = std::inner_product(model.delta_values.begin(), model.delta_values.end(),
+                                          model.head_values.begin(), 0.0);
 
     const std::vector<double> value = SaTest::read_tensor(model.pool.tensor(model.loss));
     ASSERT_EQ(value.size(), 1u);

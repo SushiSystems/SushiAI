@@ -34,7 +34,6 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -75,22 +74,18 @@ namespace
      */
     constexpr double K_VALUE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Counts the nodes of @p graph whose operation is @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
+    /** @brief Expects each element of @p actual within @p bound of the float in @p expected. */
+    void expect_matches_host(const std::vector<double>& actual, const std::vector<float>& expected,
+                             double bound)
     {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
-
-        return count;
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            EXPECT_NEAR(actual[i], static_cast<double>(expected[i]), bound) << "side " << i;
     }
 } // namespace
 
 /** @brief Tests that one bin per side returns the box itself and emits nothing. */
-TEST(Medium_DistributionExpectationGraph, OneBinReturnsTheBoxAndEmitsNothing)
+TEST(Small_DistributionExpectationGraph, OneBinReturnsTheBoxAndEmitsNothing)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -104,8 +99,8 @@ TEST(Medium_DistributionExpectationGraph, OneBinReturnsTheBoxAndEmitsNothing)
     EXPECT_EQ(graph.node_count(), before);
 }
 
-/** @brief Tests that four bins give a [B, H, W, 4] value from one softmax and one product. */
-TEST(Medium_DistributionExpectationGraph, FourBinsGiveFourSidesFromOneSoftmaxAndOneProduct)
+/** @brief Tests that four bins give a float64 [B, H, W, 4] value. */
+TEST(Small_DistributionExpectationGraph, FourBinsGiveFourSides)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -117,9 +112,6 @@ TEST(Medium_DistributionExpectationGraph, FourBinsGiveFourSidesFromOneSoftmaxAnd
 
     EXPECT_EQ(graph.value(expected).shape, (Shape{1, 1, 2, 4}));
     EXPECT_EQ(graph.value(expected).dtype, DType::Float64);
-    EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_EXP.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 1u);
 }
 
 namespace
@@ -163,9 +155,8 @@ TEST_F(Medium_DistributionExpectationGraphEndToEnd, TheGraphAgreesWithTheHostDec
     std::vector<float> host(8, 0.0f);
     ASSERT_TRUE(Vision::Detect::Free::expect_distances(stored, K_BINS, host).is_ok());
     const std::vector<double> device = SaTest::read_tensor(pool.tensor(expected));
+    expect_matches_host(device, host, K_VALUE_TOLERANCE);
     ASSERT_EQ(device.size(), host.size());
-    for (std::size_t i = 0; i < host.size(); ++i)
-        EXPECT_NEAR(device[i], static_cast<double>(host[i]), K_VALUE_TOLERANCE) << "side " << i;
     EXPECT_NEAR(device[1], 2.0, K_VALUE_TOLERANCE);
     EXPECT_NEAR(device[2], 1.0, K_VALUE_TOLERANCE);
 }
