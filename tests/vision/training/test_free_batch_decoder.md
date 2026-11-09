@@ -1,6 +1,6 @@
 # tests/vision/training/test_free_batch_decoder.cpp
 
-Suite: `Small_FreeBatchDecoder`. No case needs a device.
+Suites: `Small_FreeBatchDecoder`, `Small_FreeBatchDecoderNonFinite` and `Small_FreeBatchDecoderFacts`. No case needs a device.
 
 The fixture is one image over two levels: 1 by 2 cells at stride 8, then 1 by 1 at stride 16,
 so three anchors with centres (0.5, 0.5), (1.5, 0.5) and (0.5, 0.5) in grid units, and two
@@ -24,3 +24,15 @@ With reg_max 4, uniform bins on level 0 expect 1.5 per side, so (4 4 24 24) and
 ## RejectsAMissingLevel
 
 One level against facts of two returns `InvalidDescription` naming the level count.
+
+## RefusesNonFiniteBoxOutputsAndScores
+
+Rows: a NaN box output at index 5 of level 0 and an infinite score at index 1 of level 1. Each
+decode fails with `InvalidDescription` naming "level 0 box output 5" or "level 1 score 1".
+
+## MakeRefusesFactsItCannotDecode
+
+Rows, each failing with `InvalidDescription`: a `reg_max` of 0, a class count of 0 and no level,
+which name the count they got ("reg_max 0", "0 classes", "0 levels"); a level of width 0, which
+names "a feature level needs positive extents"; and a level of stride 0, which names "a positive
+stride".

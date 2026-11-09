@@ -34,6 +34,7 @@
 #include <limits>
 #include <vector>
 
+#include <string>
 #include <gtest/gtest.h>
 
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -107,6 +108,44 @@ namespace
         for (std::size_t at = 0; at < K_EXPECTED_SCORES.size(); ++at)
             EXPECT_NEAR(scores[at], K_EXPECTED_SCORES[at], K_TOLERANCE) << "score " << at;
     }
+
+    /** @brief Returns the box logits of the single cell of level 1 with a dominant bin 2. */
+    std::vector<float> dominant_bin_two_logits()
+    {
+        std::vector<float> logits(4 * 4, 0.0f);
+        for (std::size_t side = 0; side < 4; ++side)
+            logits[side * 4 + 2] = 50.0f;
+
+        return logits;
+    }
+
+    /** @brief Names a break of the fixture's inputs and what the refusal names. */
+    struct NonFiniteInput
+    {
+        const char* name;                                          /**< Names the row. */
+        void (*apply)(std::vector<float>&, std::vector<float>&);  /**< Breaks one input. */
+        const char* needle;                                        /**< What the message names. */
+    };
+
+    /** @brief Provides the non-finite inputs a decode refuses. */
+    class Small_FreeBatchDecoderNonFinite : public ::testing::TestWithParam<NonFiniteInput>
+    {
+
+    };
+
+    /** @brief Names facts the decoder cannot be made for and what the refusal names. */
+    struct UnmakeableFacts
+    {
+        const char* name;                          /**< Names the row. */
+        void (*apply)(FreeModelFacts&);            /**< Breaks the facts. */
+        const char* needle;                        /**< What the message names. */
+    };
+
+    /** @brief Provides the facts make refuses. */
+    class Small_FreeBatchDecoderFacts : public ::testing::TestWithParam<UnmakeableFacts>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that reg_max 1 reads the box channels as distances in grid units. */
@@ -126,9 +165,7 @@ TEST(Small_FreeBatchDecoder, TakesTheExpectationOfFourBins)
 {
     // Uniform bins expect 1.5 on level 0; a dominant bin 2 expects 2 on level 1.
     const std::vector<float> level0(2 * 4 * 4, 0.0f);
-    std::vector<float> level1(4 * 4, 0.0f);
-    for (std::size_t side = 0; side < 4; ++side)
-        level1[side * 4 + 2] = 50.0f;
+    const std::vector<float> level1 = dominant_bin_two_logits();
 
     const std::array<float, K_ANCHORS * 4> expected = {4.0f,  4.0f, 24.0f, 24.0f,
                                                        12.0f, 4.0f, 24.0f, 24.0f,
@@ -157,24 +194,58 @@ TEST(Small_FreeBatchDecoder, RejectsAMissingLevel)
 }
 
 /** @brief Tests that a NaN box output or an infinite score is refused, naming level and index. */
-TEST(Small_FreeBatchDecoder, RefusesNonFiniteBoxOutputsAndScores)
+TEST_P(Small_FreeBatchDecoderNonFinite, RefusesNonFiniteBoxOutputsAndScores)
 {
     SA_ASSERT_OK_AND_ASSIGN(FreeBatchDecoder decoder, FreeBatchDecoder::make(make_facts(1), 1));
     std::vector<float> level0(8, 0.0f);
     const std::vector<float> level1(4, 0.5f);
+    std::vector<float> level1_scores = K_LEVEL1_SCORES;
+    GetParam().apply(level0, level1_scores);
+    const std::array<FreeLevelLogits, 2> levels = {FreeLevelLogits{level0, K_LEVEL0_SCORES},
+                                                   FreeLevelLogits{level1, level1_scores}};
     std::vector<float> boxes(K_ANCHORS * 4);
     std::vector<float> scores(K_ANCHORS * 2);
 
-    level0[5] = std::numeric_limits<float>::quiet_NaN();
-    std::array<FreeLevelLogits, 2> levels = {FreeLevelLogits{level0, K_LEVEL0_SCORES},
-                                             FreeLevelLogits{level1, K_LEVEL1_SCORES}};
     SA_EXPECT_FAILURE(decoder.decode(levels, boxes, scores), StatusCode::InvalidDescription,
-                      "level 0 box output 5");
-
-    level0[5] = 0.0f;
-    std::vector<float> bad_scores = K_LEVEL1_SCORES;
-    bad_scores[1] = std::numeric_limits<float>::infinity();
-    levels[1] = FreeLevelLogits{level1, bad_scores};
-    SA_EXPECT_FAILURE(decoder.decode(levels, boxes, scores), StatusCode::InvalidDescription,
-                      "level 1 score 1");
+                      GetParam().needle);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_FreeBatchDecoderNonFinite,
+    ::testing::Values(
+        NonFiniteInput{"NaNBoxOutput",
+                       [](std::vector<float>& level0, std::vector<float>&)
+                       { level0[5] = std::numeric_limits<float>::quiet_NaN(); },
+                       "level 0 box output 5"},
+        NonFiniteInput{"InfiniteScore",
+                       [](std::vector<float>&, std::vector<float>& level1_scores)
+                       { level1_scores[1] = std::numeric_limits<float>::infinity(); },
+                       "level 1 score 1"}),
+    [](const ::testing::TestParamInfo<NonFiniteInput>& info) { return std::string(info.param.name); });
+
+/** @brief Tests that facts the decoder cannot be made for are refused, naming the counts. */
+TEST_P(Small_FreeBatchDecoderFacts, MakeRefusesFactsItCannotDecode)
+{
+    FreeModelFacts facts = make_facts(1);
+    GetParam().apply(facts);
+
+    SA_EXPECT_FAILURE(FreeBatchDecoder::make(facts, 1), StatusCode::InvalidDescription,
+                      GetParam().needle);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_FreeBatchDecoderFacts,
+    ::testing::Values(
+        UnmakeableFacts{"RegMaxBelowOne", [](FreeModelFacts& facts) { facts.reg_max = 0; },
+                        "reg_max 0"},
+        UnmakeableFacts{"ClassesBelowOne", [](FreeModelFacts& facts) { facts.classes = 0; },
+                        "0 classes"},
+        UnmakeableFacts{"NoLevel", [](FreeModelFacts& facts) { facts.levels.clear(); },
+                        "0 levels"},
+        UnmakeableFacts{"LevelWithoutCells", [](FreeModelFacts& facts)
+                        { facts.levels[0].width = 0; },
+                        "a feature level needs positive extents"},
+        UnmakeableFacts{"LevelWithoutStride", [](FreeModelFacts& facts)
+                        { facts.levels[1].stride = 0; },
+                        "a positive stride"}),
+    [](const ::testing::TestParamInfo<UnmakeableFacts>& info) { return std::string(info.param.name); });

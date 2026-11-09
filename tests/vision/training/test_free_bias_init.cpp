@@ -50,6 +50,7 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/vision/blocks/detect_head.hpp>
 #include <SushiAI/vision/training/free_bias_init.hpp>
@@ -91,9 +92,6 @@ namespace
 
     /** @brief Holds the channels of each level's feature map. */
     constexpr std::array<std::int64_t, K_LEVELS> K_WIDTHS = {16, 32, 64};
-
-    /** @brief Holds the strides the facts give: 64 divided by each side. */
-    constexpr std::array<std::int64_t, K_LEVELS> K_STRIDES = {8, 16, 32};
 
     /** @brief Names the row the head's state hangs under. */
     constexpr std::string_view K_PREFIX = "23";
@@ -158,6 +156,45 @@ namespace
         for (std::int64_t index = 0; index < tensor->num_elements; ++index)
             EXPECT_NEAR(static_cast<double>(data[index]), value, K_TOLERANCE) << name;
     }
+
+    /** @brief Names a level and whether the one-to-one copy's branch is the one read. */
+    struct CopyRow
+    {
+        std::size_t level;      /**< The level whose last box bias is read. */
+        const char* copy;       /**< The prefix of the copy's branches: "" or "one2one_". */
+        const char* name;       /**< Names the row in the test name. */
+    };
+
+    /** @brief Provides the level and the copy of each last box bias. */
+    class Medium_TrainingFreeBiasInitCopies : public Medium_TrainingFreeBiasInit,
+                                              public ::testing::WithParamInterface<CopyRow>
+    {
+
+    };
+
+    /** @brief Returns the facts of one level at stride 8, three classes and one box bin. */
+    FreeModelFacts single_level_facts()
+    {
+        FreeModelFacts facts;
+        facts.reg_max = 1;
+        facts.classes = K_CLASSES;
+        facts.has_one_to_one = false;
+        facts.levels.resize(1);
+        facts.levels[0].stride = 8;
+        return facts;
+    }
+
+    /** @brief Describes the entry @p name of @p shape and @p dtype for from_entries. */
+    NN::StateEntry bias_entry(const std::string& name, std::uint64_t state, Shape shape,
+                              DType dtype)
+    {
+        NN::StateEntry entry;
+        entry.name = name;
+        entry.state = Graph::StateID{state};
+        entry.shape = shape;
+        entry.dtype = dtype;
+        return entry;
+    }
 } // namespace
 
 /** @brief Tests that the class bias of stride 8 over 80 classes is log(5 / 80 / 6400). */
@@ -166,26 +203,26 @@ TEST(Small_TrainingFreeClassBias, MatchesTheClosedForm)
     EXPECT_NEAR(free_class_bias(80, 8), std::log(5.0 / 80.0 / 6400.0), K_CLOSED_FORM_TOLERANCE);
 }
 
-/** @brief Tests that both copies' last box biases are 1 and class biases follow the stride. */
-TEST_F(Medium_TrainingFreeBiasInit, SetsTheLastBiasesOfBothCopies)
+/** @brief Tests that the last box bias of a level of a copy is 1. */
+TEST_P(Medium_TrainingFreeBiasInitCopies, TheLastBoxBiasIsOne)
 {
     TracedHead traced;
     ASSERT_TRUE(SushiAI::Test::status_is_ok(trace_head(backend(), traced)));
     flush();
     SA_EXPECT_OK(initialize_free_biases(traced.facts, K_PREFIX, *traced.state));
 
-    for (std::size_t level = 0; level < K_LEVELS; ++level)
-    {
-        const std::string index = std::to_string(level);
-        const double class_bias = std::log(5.0 / static_cast<double>(K_CLASSES) /
-                                           std::pow(640.0 / K_STRIDES[level], 2.0));
-        for (const std::string copy : {"", "one2one_"})
-        {
-            expect_bias(*traced.state, "23." + copy + "cv2." + index + ".2.bias", 1.0);
-            expect_bias(*traced.state, "23." + copy + "cv3." + index + ".2.bias", class_bias);
-        }
-    }
+    const CopyRow& row = GetParam();
+    expect_bias(*traced.state, "23." + std::string(row.copy) + "cv2." +
+                                   std::to_string(row.level) + ".2.bias", 1.0);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_TrainingFreeBiasInitCopies,
+    ::testing::Values(CopyRow{0, "", "Level0"}, CopyRow{1, "", "Level1"}, CopyRow{2, "", "Level2"},
+                      CopyRow{0, "one2one_", "Level0OneToOne"},
+                      CopyRow{1, "one2one_", "Level1OneToOne"},
+                      CopyRow{2, "one2one_", "Level2OneToOne"}),
+    [](const ::testing::TestParamInfo<CopyRow>& info) { return std::string(info.param.name); });
 
 /** @brief Tests that a prefix the state lacks is refused by entry and changes nothing. */
 TEST_F(Medium_TrainingFreeBiasInit, RefusesAPrefixTheStateLacks)
@@ -196,4 +233,38 @@ TEST_F(Medium_TrainingFreeBiasInit, RefusesAPrefixTheStateLacks)
     SA_EXPECT_FAILURE(initialize_free_biases(traced.facts, "22", *traced.state),
                       StatusCode::InvalidDescription, "'22.cv2.0.2.bias'");
     expect_bias(*traced.state, "23.cv2.0.2.bias", 0.0);
+}
+
+/** @brief Tests that an entry of another extent is refused, named, and no bias changes. */
+TEST_F(Medium_TrainingFreeBiasInit, AnEntryOfAnotherExtentIsRefusedAndNoBiasChanges)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        NN::ModelState state,
+        NN::ModelState::from_entries(
+            *engine, {bias_entry("p.cv2.0.2.bias", 1, Shape{4}, DType::Float32),
+                      bias_entry("p.cv3.0.2.bias", 2, Shape{4}, DType::Float32)}));
+    SushiAI::Test::write_tensor(*state.tensor("p.cv2.0.2.bias").value(),
+                                std::vector<double>(4, 5.0));
+
+    SA_EXPECT_FAILURE(initialize_free_biases(single_level_facts(), "p", state),
+                      StatusCode::InvalidDescription, "'p.cv3.0.2.bias'", "[4]", "give [3]");
+
+    expect_bias(state, "p.cv2.0.2.bias", 5.0);
+}
+
+/** @brief Tests that an entry of another element type is refused, named, and no bias changes. */
+TEST_F(Medium_TrainingFreeBiasInit, AnEntryOfAnotherElementTypeIsRefusedAndNoBiasChanges)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        NN::ModelState state,
+        NN::ModelState::from_entries(
+            *engine, {bias_entry("p.cv2.0.2.bias", 1, Shape{4}, DType::Float32),
+                      bias_entry("p.cv3.0.2.bias", 2, Shape{3}, DType::Float64)}));
+    SushiAI::Test::write_tensor(*state.tensor("p.cv2.0.2.bias").value(),
+                                std::vector<double>(4, 5.0));
+
+    SA_EXPECT_FAILURE(initialize_free_biases(single_level_facts(), "p", state),
+                      StatusCode::InvalidDescription, "'p.cv3.0.2.bias'", "is not float32");
+
+    expect_bias(state, "p.cv2.0.2.bias", 5.0);
 }

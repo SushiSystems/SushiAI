@@ -726,3 +726,6 @@ The files below have a page beside them that says what each case pins.
 | `test_free_objective.cpp` | [`test_free_objective.md`](test_free_objective.md) |
 | `test_free_loss_gains.cpp` | [`test_free_loss_gains.md`](test_free_loss_gains.md) |
 | `test_free_branch_weights.cpp` | [`test_free_branch_weights.md`](test_free_branch_weights.md) |
+| `test_free_bias_init.cpp` | [`test_free_bias_init.md`](test_free_bias_init.md) |
+| `test_free_batch_decoder.cpp` | [`test_free_batch_decoder.md`](test_free_batch_decoder.md) |
+| `test_free_assignment_stage.cpp` | [`test_free_assignment_stage.md`](test_free_assignment_stage.md) |

@@ -271,6 +271,50 @@ namespace
         return made.value().assign(
             SushiRuntime::span<const FreeLevelViews>(views.data(), views.size()), truth);
     }
+
+    /** @brief Returns the roles of the leaves of @p leaves outside @p branch. */
+    std::vector<std::string> roles_outside(const std::vector<FreeLeaf>& leaves,
+                                           Vision::Training::FreeBranch branch)
+    {
+        std::vector<std::string> outside;
+        for (const FreeLeaf& leaf : leaves)
+        {
+            if (leaf.branch != branch)
+                outside.push_back(leaf.role);
+        }
+
+        return outside;
+    }
+
+    /** @brief Names a change to the ports that the stage refuses and what the refusal names. */
+    struct NonFinitePort
+    {
+        const char* name;                  /**< Names the row in the test name. */
+        void (*apply)(Ports&);             /**< Writes the non-finite value. */
+        const char* needle;                /**< What the message names. */
+    };
+
+    /** @brief Provides the non-finite port values the stage refuses. */
+    class Small_VisionTrainingFreeAssignmentStagePorts
+        : public ::testing::TestWithParam<NonFinitePort>
+    {
+
+    };
+
+    /** @brief Names facts or a task the stage cannot be made for and what the refusal names. */
+    struct UnmakeableStage
+    {
+        const char* name;                                              /**< Names the row. */
+        void (*apply)(FreeModelFacts&, Vision::Detect::Free::FreeTask&);  /**< Breaks one. */
+        const char* needle;                                            /**< What it names. */
+    };
+
+    /** @brief Provides the stages make refuses. */
+    class Small_VisionTrainingFreeAssignmentStageMake
+        : public ::testing::TestWithParam<UnmakeableStage>
+    {
+
+    };
 } // namespace
 
 TEST(Small_VisionTrainingFreeAssignmentStage, MakeRefusesABatchBelowOne)
@@ -310,8 +354,8 @@ TEST(Small_VisionTrainingFreeAssignmentStage, AOneToOneStageNamesItsLeavesApart)
     ASSERT_EQ(leaves.size(), 19u);
     EXPECT_EQ(leaves.front().role, "free.one_to_one.target_scores.level0");
     EXPECT_EQ(leaves.back().role, "free.one_to_one.target_scores_sum");
-    for (const FreeLeaf& leaf : leaves)
-        EXPECT_EQ(leaf.branch, Vision::Training::FreeBranch::OneToOne) << leaf.role;
+    EXPECT_EQ(roles_outside(leaves, Vision::Training::FreeBranch::OneToOne),
+              std::vector<std::string>());
 }
 
 TEST(Small_VisionTrainingFreeAssignmentStage, AOneToOneStageOfAModelWithoutTheCopyIsRefused)
@@ -325,23 +369,33 @@ TEST(Small_VisionTrainingFreeAssignmentStage, AOneToOneStageOfAModelWithoutTheCo
 TEST(Small_VisionTrainingFreeAssignmentStage, RawDistancesGiveHandWorkedTargets)
 {
     const FreeAssignmentStage stage = run_fixture(1);
+
     expect_fixture_targets(stage);
     EXPECT_TRUE(stage.distribution_weights().empty());
+}
 
+TEST(Small_VisionTrainingFreeAssignmentStage, RawDistancesFillTheBoxMaskLeaf)
+{
+    const FreeAssignmentStage stage = run_fixture(1);
     const std::size_t mask = find_leaf(stage, "free.box_mask.level1");
     ASSERT_LT(mask, stage.leaves().size());
     std::vector<float> values(static_cast<std::size_t>(K_BATCH) * 2 * 2 * 4, -1.0f);
-    SA_EXPECT_OK(stage.write_leaf(mask, SushiRuntime::span<float>(values.data(), values.size())));
-    for (std::size_t cell = 0; cell < values.size() / 4; ++cell)
-    {
-        const float expected = cell == 3 || cell == 4 ? 1.0f : 0.0f;
-        for (std::size_t side = 0; side < 4; ++side)
-            EXPECT_EQ(values[cell * 4 + side], expected) << "cell " << cell;
-    }
 
+    SA_EXPECT_OK(stage.write_leaf(mask, SushiRuntime::span<float>(values.data(), values.size())));
+
+    // Cells 3 and 4 of level 1 hold the foreground anchors; the other six cells are background.
+    EXPECT_EQ(values, (std::vector<float>{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+                                          1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}));
+}
+
+TEST(Small_VisionTrainingFreeAssignmentStage, RawDistancesFillTheSumLeaf)
+{
+    const FreeAssignmentStage stage = run_fixture(1);
     std::array<float, 1> sum = {0.0f};
+
     SA_EXPECT_OK(
         stage.write_leaf(stage.leaves().size() - 1, SushiRuntime::span<float>(sum.data(), 1)));
+
     EXPECT_NEAR(sum[0], 3.0f, 3.0f * K_TOLERANCE);
 }
 
@@ -366,32 +420,68 @@ TEST(Small_VisionTrainingFreeAssignmentStage, BinnedDistancesGiveTheSameTargetsA
     EXPECT_EQ(stage.leaves()[level0].shape, (Shape{K_BATCH, 4, 4, 16}));
 }
 
-TEST(Small_VisionTrainingFreeAssignmentStage, RefusesANonFiniteBoxOutputNamingLevelAndIndex)
+TEST_P(Small_VisionTrainingFreeAssignmentStagePorts, RefusesANonFinitePortNamingLevelAndIndex)
 {
     Ports ports = make_ports(1);
-    ports.boxes[1][7] = std::numeric_limits<float>::quiet_NaN();
+    GetParam().apply(ports);
 
     SA_EXPECT_FAILURE(assign_over(ports, make_truth()), StatusCode::InvalidDescription,
-                      "level 1 box output 7");
+                      GetParam().needle);
 }
 
-TEST(Small_VisionTrainingFreeAssignmentStage, RefusesAnInfiniteScoreNamingLevelAndIndex)
-{
-    Ports ports = make_ports(1);
-    ports.scores[0][3] = std::numeric_limits<float>::infinity();
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_VisionTrainingFreeAssignmentStagePorts,
+    ::testing::Values(
+        NonFinitePort{"NaNBoxOutput",
+                      [](Ports& ports) { ports.boxes[1][7] = std::numeric_limits<float>::quiet_NaN(); },
+                      "level 1 box output 7"},
+        NonFinitePort{"InfiniteScore",
+                      [](Ports& ports) { ports.scores[0][3] = std::numeric_limits<float>::infinity(); },
+                      "level 0 score 3"}),
+    [](const ::testing::TestParamInfo<NonFinitePort>& info) { return std::string(info.param.name); });
 
-    SA_EXPECT_FAILURE(assign_over(ports, make_truth()), StatusCode::InvalidDescription,
-                      "level 0 score 3");
-}
-
-TEST(Small_VisionTrainingFreeAssignmentStage, RefusesANonFiniteValidTruthBoxButNotPadding)
+TEST(Small_VisionTrainingFreeAssignmentStage, AcceptsANonFinitePaddingRow)
 {
     const Ports ports = make_ports(1);
     Vision::Detect::GroundTruthBatch truth = make_truth();
     truth.boxes[14] = std::numeric_limits<float>::quiet_NaN();
-    SA_EXPECT_OK(assign_over(ports, truth));
 
+    SA_EXPECT_OK(assign_over(ports, truth));
+}
+
+TEST(Small_VisionTrainingFreeAssignmentStage, RefusesANonFiniteValidTruthBoxNamingTheSlot)
+{
+    const Ports ports = make_ports(1);
+    Vision::Detect::GroundTruthBatch truth = make_truth();
     truth.boxes[5] = std::numeric_limits<float>::quiet_NaN();
+
     SA_EXPECT_FAILURE(assign_over(ports, truth), StatusCode::InvalidDescription, "truth slot 1",
                       "at 1");
 }
+
+TEST_P(Small_VisionTrainingFreeAssignmentStageMake, MakeRefusesWhatItCannotAssign)
+{
+    FreeModelFacts facts = make_facts(1);
+    Vision::Detect::Free::FreeTask task;
+    GetParam().apply(facts, task);
+
+    SA_EXPECT_FAILURE(FreeAssignmentStage::make(facts, task, K_BATCH),
+                      StatusCode::InvalidDescription, GetParam().needle);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_VisionTrainingFreeAssignmentStageMake,
+    ::testing::Values(
+        UnmakeableStage{"RegMaxBelowOne",
+                        [](FreeModelFacts& facts, Vision::Detect::Free::FreeTask&)
+                        { facts.reg_max = 0; },
+                        "got 0 and 2"},
+        UnmakeableStage{"ClassesBelowOne",
+                        [](FreeModelFacts& facts, Vision::Detect::Free::FreeTask&)
+                        { facts.classes = 0; },
+                        "got 1 and 0"},
+        UnmakeableStage{"FewerAnchorsThanTopk",
+                        [](FreeModelFacts&, Vision::Detect::Free::FreeTask& task)
+                        { task.one_to_many.topk = 21; },
+                        "topk 21"}),
+    [](const ::testing::TestParamInfo<UnmakeableStage>& info) { return std::string(info.param.name); });
