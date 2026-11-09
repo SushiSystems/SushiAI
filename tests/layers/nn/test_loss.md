@@ -1,7 +1,7 @@
 # tests/layers/nn/test_loss.cpp
 
 
-Suites: `Small_CrossEntropyLoss`.
+Suites: `Small_CrossEntropyLoss`, `Medium_CrossEntropyLossValues`.
 
 Tests the nodes `CrossEntropyLoss` emits and the operands it refuses.
 
@@ -21,3 +21,11 @@ With float64 operands the loss holds one element and is float64 as well.
 ## OperandsOfTwoShapesAreRefused
 
 A [4, 2] target beside [4, 3] logits returns `InvalidDescription` naming NLL_LOSS and both shapes.
+
+## Medium_CrossEntropyLossValues.TheLossIsTheMeanOverTheBatchNotTheSum
+
+The loss of three rows of four logits against one-hot targets, run on the engine, equals the mean
+over the three rows of the per-row cross-entropy computed on the host in double, not their sum. The
+bound is `K_LOSS_ROUNDED_OPERATIONS` (16) float unit roundoffs of the reference, by
+`measure_relative_error`. The case is medium because the NLL_LOSS kernel runs on the device and the
+`HostEvaluator` has no rule for it.

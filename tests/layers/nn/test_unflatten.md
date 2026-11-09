@@ -65,3 +65,8 @@ The layout tag of a [2, 60] input is set to NCHW by hand, and `forward()` return
 ## HasNoParameters
 
 `parameter_count` is 0 before and after a trace and `parameter_elements` is 0.
+
+## ForwardKeepsTheElementOrder
+
+An `Unflatten` of 1 by 2 by 3 over a [2, 6] input holding 0 to 11 gives a [2, 1, 2, 3] value that
+holds 0 to 11 in the same order, read from the `HostEvaluator`. The case runs on the host.

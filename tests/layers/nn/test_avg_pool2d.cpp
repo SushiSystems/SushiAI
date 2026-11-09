@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -38,6 +39,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/avg_pool2d.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 using namespace SushiAI;
 using NN::AvgPool2d;
@@ -242,4 +244,33 @@ TEST(Small_AvgPool2d, ForwardAddsOneValue)
     SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(graph.value_count(), 2u);
+}
+
+/**
+ * @brief Tests that a traced AvgPool2d adds one average-pool node that reads its input and
+ *        carries the window geometry.
+ */
+TEST(Small_AvgPool2d, ForwardEmitsOneAveragePoolNodeThatCarriesTheWindow)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const std::size_t nodes_before = graph.node_count();
+    const AvgPool2d layer{padded_top_left(dilated(window(3, 2, 2, 1), 2, 1), 1)};
+
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
+
+    ASSERT_EQ(graph.node_count(), nodes_before + 1u);
+    const Graph::Node& pool = graph.nodes()[nodes_before];
+    EXPECT_EQ(pool.op, Ops::K_AVGPOOL2D.id);
+    EXPECT_EQ(pool.inputs, (std::vector<Graph::ValueID>{x}));
+    EXPECT_EQ(pool.outputs, (std::vector<Graph::ValueID>{y}));
+    EXPECT_EQ(pool.attributes.values[0], 3.0);
+    EXPECT_EQ(pool.attributes.values[1], 2.0);
+    EXPECT_EQ(pool.attributes.values[2], 2.0);
+    EXPECT_EQ(pool.attributes.values[3], 1.0);
+    EXPECT_EQ(pool.attributes.values[4], 2.0);
+    EXPECT_EQ(pool.attributes.values[5], 1.0);
+    EXPECT_EQ(pool.attributes.values[6], 1.0);
+    EXPECT_EQ(pool.attributes.values[7], 1.0);
 }

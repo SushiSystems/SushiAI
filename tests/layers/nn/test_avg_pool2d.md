@@ -63,3 +63,11 @@ messages of the shape refusal), and AWindowLargerThanTheImage (5x5 over [2, 4, 4
 ## ForwardAddsOneValue
 
 After a trace the graph holds two values, the input and the pooled result.
+
+## ForwardEmitsOneAveragePoolNodeThatCarriesTheWindow
+
+A layer with a 3 by 2 kernel, stride 2 by 1, dilation 2 by 1 and a top and left padding of 1 traces one
+new node of the operation `Ops::K_AVGPOOL2D` over an NHWC [2, 8, 8, 3] input. The node reads the input
+and writes the returned value, and its attribute slots 0 to 7 hold the kernel, stride, dilation and
+padding in that order: 3, 2, 2, 1, 2, 1, 1, 1. The case states a promise of `avg_pool2d.hpp`, that the
+window reaches the node whole, and the node is the only place it can be observed.

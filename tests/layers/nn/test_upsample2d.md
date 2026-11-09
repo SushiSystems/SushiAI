@@ -94,3 +94,9 @@ raises this message.
 ## TheParameterWalkVisitsNothing
 
 After a trace the walk visits nothing and `parameter_count` is 0.
+
+## ForwardReplicatesEachValueOverItsScaleBlock
+
+An `Upsample2d` of scale 2 over the [1, 2, 2, 1] image 1, 2, 3, 4 gives a [1, 4, 4, 1] image in which each
+value fills a 2 by 2 block: rows 1 1 2 2, 1 1 2 2, 3 3 4 4 and 3 3 4 4, read from the `HostEvaluator`.
+The case runs on the host.

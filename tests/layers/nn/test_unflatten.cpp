@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -38,6 +39,7 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/unflatten.hpp>
@@ -235,4 +237,23 @@ TEST(Small_Unflatten, HasNoParameters)
 
     EXPECT_EQ(NN::parameter_count(layer), 0u);
     EXPECT_EQ(NN::parameter_elements(layer), 0);
+}
+
+/** @brief Tests that unflatten keeps the order of the elements when it reshapes, on host values. */
+TEST(Small_Unflatten, ForwardKeepsTheElementOrder)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
+    const Unflatten layer{1, 2, 3};
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
+    const std::vector<double> values{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, values));
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> reshaped, evaluator.read(y));
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 1, 2, 3}));
+    EXPECT_EQ(reshaped, values);
 }

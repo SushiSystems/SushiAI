@@ -31,11 +31,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
@@ -228,4 +230,25 @@ TEST(Small_Upsample2d, TheParameterWalkVisitsNothing)
 
     EXPECT_EQ(visited, 0u);
     EXPECT_EQ(NN::parameter_count(layer), 0u);
+}
+
+/** @brief Tests that upsample replicates each value over its scale block, on host values. */
+TEST(Small_Upsample2d, ForwardReplicatesEachValueOverItsScaleBlock)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const NN::Upsample2d layer{2};
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
+
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, std::vector<double>{1, 2, 3, 4}));
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> upsampled, evaluator.read(y));
+    EXPECT_EQ(graph.value(y).shape, (Shape{1, 4, 4, 1}));
+    EXPECT_EQ(upsampled, (std::vector<double>{1, 1, 2, 2,
+                                              1, 1, 2, 2,
+                                              3, 3, 4, 4,
+                                              3, 3, 4, 4}));
 }
