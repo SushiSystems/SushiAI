@@ -34,6 +34,11 @@ A major of 1001 and a minor of 1001 each return `Unsupported`.
 A stream that ends two bytes into the revision fails with `InvalidFile` and a message holding
 "revision".
 
+## RefusesAHeaderThatEndsInsideTheSeenCount
+
+A version 0.2 header that ends after four of the eight seen-count bytes fails with `InvalidFile` and
+a message holding "seen count".
+
 ## ReadsEveryVectorInFileOrder
 
 With floats 0 to 21 in the span, the plain convolution's biases start at 0 and its weights at

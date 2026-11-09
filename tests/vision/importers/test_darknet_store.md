@@ -28,6 +28,11 @@ folded values, and the four batch-norm entries keep the sentinel -7 written befo
 A target that names `1.bn.missing` is refused as `Incompatible`. The message contains "layer 1" and
 the entry name.
 
+## AMissingEntryLeavesEveryEntryUntouched
+
+All eight entries hold the sentinel -7. A target that names `1.bn.missing` is refused as
+`Incompatible`, and every element of every entry still holds the sentinel.
+
 ## AShapeMismatchIsRefusedAndNothingIsWritten
 
 `1.bn.running_var` is given the shape `[3]`. The store is refused as `Incompatible`, the message
@@ -42,6 +47,11 @@ Layer 1 is folded but its target still names the batch-norm entries. The store i
 
 Two targets name `0.conv.bias`. The store is refused as `Incompatible`, and the message contains
 "layer 1", the entry name and "already fills".
+
+## ARepeatedNameLeavesEveryEntryUntouched
+
+All eight entries hold the sentinel -7. Two targets name `0.conv.bias`, the store is refused as
+`Incompatible`, and every element of every entry still holds the sentinel.
 
 ## MismatchedCountsAreRefused
 

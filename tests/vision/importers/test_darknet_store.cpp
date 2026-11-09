@@ -151,6 +151,28 @@ namespace
             data[i] = value;
     }
 
+    /** @brief Writes the sentinel into every entry of the model of model_entries(). */
+    void fill_all(NN::ModelState& state)
+    {
+        for (const NN::StateEntry& entry : model_entries())
+            fill(state, entry.name, K_SENTINEL);
+    }
+
+    /** @brief Expects every entry of the model of model_entries() to hold only the sentinel. */
+    ::testing::AssertionResult holds_only_the_sentinel(NN::ModelState& state)
+    {
+        for (const NN::StateEntry& entry : model_entries())
+        {
+            for (const float value : values_of(state, entry.name))
+            {
+                if (value != K_SENTINEL)
+                    return ::testing::AssertionFailure()
+                           << "entry " << entry.name << " holds " << value;
+            }
+        }
+        return ::testing::AssertionSuccess();
+    }
+
 } // namespace
 
 /**
@@ -232,6 +254,22 @@ TEST_F(Small_DarknetStore, AMissingEntryIsRefusedAndNamesTheLayer)
                       StatusCode::Incompatible, "layer 1", "'1.bn.missing'");
 }
 
+/** @brief Tests that a store refused for a missing entry leaves every entry untouched. */
+TEST_F(Small_DarknetStore, AMissingEntryLeavesEveryEntryUntouched)
+{
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
+    fill_all(state);
+    const DarknetWeightTarget targets[] = {
+        {"0.conv.weight", "0.conv.bias", "", "", ""},
+        {"1.conv.weight", "", "1.bn.missing", "", ""},
+    };
+
+    SA_EXPECT_FAILURE(store_darknet_weights(make_weights(), K_SHAPES, targets, state),
+                      StatusCode::Incompatible);
+    EXPECT_TRUE(holds_only_the_sentinel(state));
+}
+
 /**
  * @brief Tests that a shape that differs is refused, and that no earlier write reaches the state.
  */
@@ -275,6 +313,22 @@ TEST_F(Small_DarknetStore, AnEntryNamedTwiceIsRefused)
     };
     SA_EXPECT_FAILURE(store_darknet_weights(make_weights(), K_SHAPES, targets, state),
                       StatusCode::Incompatible, "layer 1", "'0.conv.bias'", "already fills");
+}
+
+/** @brief Tests that a store refused for a repeated name leaves every entry untouched. */
+TEST_F(Small_DarknetStore, ARepeatedNameLeavesEveryEntryUntouched)
+{
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
+                            NN::ModelState::from_entries(backend.engine(), model_entries()));
+    fill_all(state);
+    const DarknetWeightTarget targets[] = {
+        {"0.conv.weight", "0.conv.bias", "", "", ""},
+        {"1.conv.weight", "0.conv.bias", "", "", ""},
+    };
+
+    SA_EXPECT_FAILURE(store_darknet_weights(make_weights(), K_SHAPES, targets, state),
+                      StatusCode::Incompatible);
+    EXPECT_TRUE(holds_only_the_sentinel(state));
 }
 
 /**

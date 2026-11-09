@@ -227,6 +227,19 @@ TEST(Small_DarknetWeights, RefusesAHeaderThatEndsEarly)
     SA_EXPECT_FAILURE(read_darknet_header(stream), StatusCode::InvalidFile, "revision");
 }
 
+/** @brief Tests that a stream that ends inside the seen count is InvalidFile. */
+TEST(Small_DarknetWeights, RefusesAHeaderThatEndsInsideTheSeenCount)
+{
+    std::string bytes;
+    put(bytes, 0, 4);
+    put(bytes, 2, 4);
+    put(bytes, 0, 4);
+    put(bytes, 0, 4);
+    std::istringstream stream(bytes);
+
+    SA_EXPECT_FAILURE(read_darknet_header(stream), StatusCode::InvalidFile, "seen count");
+}
+
 /** @brief Tests that index-valued floats land in each vector at their own indices. */
 TEST(Small_DarknetWeights, ReadsEveryVectorInFileOrder)
 {
