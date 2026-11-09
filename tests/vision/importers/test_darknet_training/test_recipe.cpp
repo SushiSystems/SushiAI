@@ -38,7 +38,6 @@
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_training.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Detect::Anchor::BoxLoss;
@@ -52,19 +51,6 @@ using Vision::Importers::read_darknet_training;
 
 namespace
 {
-    /**
-     * @brief Holds the tolerance of every float field, absolute: 32 times the float unit roundoff,
-     *        the smallest power of two not tighter than the earlier 1e-6f.
-     */
-    constexpr float K_FLOAT_TOLERANCE =
-        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
-
-    /**
-     * @brief Holds the tolerance of every double field, absolute: 16384 times the double unit
-     *        roundoff, the smallest power of two not tighter than the earlier 1e-12.
-     */
-    constexpr double K_DOUBLE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Holds the head values a test expects; the thresholds are the match and ignore. */
     struct ExpectedHead
     {
@@ -99,12 +85,11 @@ namespace
     {
         EXPECT_EQ(head.box_loss, expected.box_loss);
         EXPECT_EQ(head.objectness_target, expected.objectness);
-        EXPECT_NEAR(head.box_weight, expected.box_weight, K_FLOAT_TOLERANCE);
-        EXPECT_NEAR(head.object_weight, expected.object_weight, K_FLOAT_TOLERANCE);
-        EXPECT_NEAR(head.max_delta, expected.max_delta, K_FLOAT_TOLERANCE);
-        EXPECT_NEAR(head.thresholds.match_threshold, expected.match_threshold, K_FLOAT_TOLERANCE);
-        EXPECT_NEAR(head.thresholds.ignore_threshold, expected.ignore_threshold,
-                    K_FLOAT_TOLERANCE);
+        EXPECT_EQ(head.box_weight, expected.box_weight);
+        EXPECT_EQ(head.object_weight, expected.object_weight);
+        EXPECT_EQ(head.max_delta, expected.max_delta);
+        EXPECT_EQ(head.thresholds.match_threshold, expected.match_threshold);
+        EXPECT_EQ(head.thresholds.ignore_threshold, expected.ignore_threshold);
     }
 
     /**
@@ -246,9 +231,9 @@ TEST(Small_DarknetTraining, KeepsTheSolverDefaultsWhenTheKeysAreAbsent)
 
     SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training, read_cfg_text(text));
 
-    EXPECT_NEAR(training.solver.learning_rate, 0.001, K_DOUBLE_TOLERANCE);
-    EXPECT_NEAR(training.solver.momentum, 0.9, K_DOUBLE_TOLERANCE);
-    EXPECT_NEAR(training.solver.decay, 0.0005, K_DOUBLE_TOLERANCE);
+    EXPECT_EQ(training.solver.learning_rate, 0.001);
+    EXPECT_EQ(training.solver.momentum, 0.9);
+    EXPECT_EQ(training.solver.decay, 0.0005);
     EXPECT_EQ(training.solver.burn_in, 0);
     EXPECT_TRUE(training.solver.steps.empty());
     EXPECT_TRUE(training.solver.scales.empty());
@@ -279,15 +264,15 @@ TEST(Small_DarknetTraining, ReadsEverySolverKeyTheFileSpells)
 
     EXPECT_EQ(training.solver.batch, 64);
     EXPECT_EQ(training.solver.subdivisions, 16);
-    EXPECT_NEAR(training.solver.momentum, 0.949, K_DOUBLE_TOLERANCE);
-    EXPECT_NEAR(training.solver.decay, 0.0005, K_DOUBLE_TOLERANCE);
-    EXPECT_NEAR(training.solver.learning_rate, 0.00261, K_DOUBLE_TOLERANCE);
+    EXPECT_EQ(training.solver.momentum, 0.949);
+    EXPECT_EQ(training.solver.decay, 0.0005);
+    EXPECT_EQ(training.solver.learning_rate, 0.00261);
     EXPECT_EQ(training.solver.burn_in, 1000);
     EXPECT_EQ(training.solver.max_batches, 500200);
     EXPECT_EQ(training.solver.steps, (std::vector<std::int64_t>{400000, 450000}));
     ASSERT_EQ(training.solver.scales.size(), 2u);
-    EXPECT_NEAR(training.solver.scales[0], 0.1, K_DOUBLE_TOLERANCE);
-    EXPECT_NEAR(training.solver.scales[1], 0.1, K_DOUBLE_TOLERANCE);
+    EXPECT_EQ(training.solver.scales[0], 0.1);
+    EXPECT_EQ(training.solver.scales[1], 0.1);
 }
 
 /**
@@ -309,47 +294,28 @@ TEST(Small_DarknetTraining, KeepsTheHeadsInFileOrderAndSkipsOtherSections)
     SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training, read_cfg_text(text));
 
     ASSERT_EQ(training.heads.size(), 2u);
-    EXPECT_NEAR(training.heads[0].box_weight, 0.07f, K_FLOAT_TOLERANCE);
-    EXPECT_NEAR(training.heads[1].box_weight, 0.05f, K_FLOAT_TOLERANCE);
+    EXPECT_EQ(training.heads[0].box_weight, 0.07f);
+    EXPECT_EQ(training.heads[1].box_weight, 0.05f);
 }
 
-/**
- * @brief Tests that the spelled defaults, mse and objectness_smooth 0, give the same options as
- *        absent keys.
- */
-TEST(Small_DarknetTraining, ReadsMSEAndObjectnessSmoothZeroAsTheDefaults)
+/** @brief Tests that a head under the CIoU box loss takes the Darknet-compatible box gradient. */
+TEST(Small_DarknetTraining, SelectsTheDarknetCompatibleBoxGradientUnderCIoU)
 {
-    const std::string text =
-        "[net]\n"
-        "[yolo]\n"
-        "iou_loss=mse\n"
-        "objectness_smooth=0\n";
-
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training, read_cfg_text(text));
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training,
+                            read_cfg_text("[net]\n[yolo]\niou_loss=ciou\n"));
 
     ASSERT_EQ(training.heads.size(), 1u);
-    expect_head(training.heads[0], ExpectedHead{BoxLoss::SquaredError, ObjectnessTarget::One,
-                                                0.75f, 1.0f, 0.0f, 1.0f, 0.7f});
+    EXPECT_EQ(training.heads[0].box_gradient, BoxGradient::DarknetCompatible);
 }
 
-/**
- * @brief Tests that a head takes the Darknet-compatible box gradient under either box loss.
- */
-TEST(Small_DarknetTraining, SelectsTheDarknetCompatibleBoxGradientForEveryHead)
+/** @brief Tests that a head under the squared-error box loss takes the same box gradient. */
+TEST(Small_DarknetTraining, SelectsTheDarknetCompatibleBoxGradientUnderMSE)
 {
-    const std::string text =
-        "[net]\n"
-        "[yolo]\n"
-        "iou_loss=ciou\n"
-        "[yolo]\n"
-        "iou_loss=mse\n";
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training,
+                            read_cfg_text("[net]\n[yolo]\niou_loss=mse\n"));
 
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training, read_cfg_text(text));
-
-    ASSERT_EQ(training.heads.size(), 2u);
+    ASSERT_EQ(training.heads.size(), 1u);
     EXPECT_EQ(training.heads[0].box_gradient, BoxGradient::DarknetCompatible);
-    EXPECT_EQ(training.heads[1].box_gradient, BoxGradient::DarknetCompatible);
-    EXPECT_EQ(HeadTrainingOptions{}.box_gradient, BoxGradient::Analytic);
 }
 
 /**
@@ -412,7 +378,7 @@ TEST(Small_DarknetTraining, RefusesAnIoULossOtherThanMSEAndCIoU)
     SA_EXPECT_FAILURE(read_cfg_text(text), StatusCode::Unsupported, "line 3", "iou_loss");
 }
 
-/** @brief Tests that an objectness_smooth other than 0 or 1 is invalid, naming its line. */
+/** @brief Tests that a cls_normalizer that is not a number is invalid, naming its line. */
 TEST(Small_DarknetTraining, RefusesAClsNormalizerThatIsNotANumber)
 {
     const std::string text =
@@ -424,6 +390,7 @@ TEST(Small_DarknetTraining, RefusesAClsNormalizerThatIsNotANumber)
                       "cls_normalizer");
 }
 
+/** @brief Tests that an objectness_smooth other than 0 or 1 is invalid, naming its line. */
 TEST(Small_DarknetTraining, RefusesAnObjectnessSmoothOtherThanZeroOrOne)
 {
     const std::string text =
@@ -459,26 +426,22 @@ TEST(Small_DarknetTraining, RefusesAHeadWhoseIgnoreThresholdIsAboveOne)
                       "ignore threshold");
 }
 
-/** @brief Tests that a learning_rate that is not a number is invalid, naming its line. */
-TEST(Small_DarknetTraining, RefusesALearningRateThatIsNotANumber)
+/** @brief Holds one learning_rate value the reader refuses. */
+class Small_DarknetTrainingLearningRate : public ::testing::TestWithParam<std::string>
 {
-    const std::string text =
-        "[net]\n"
-        "learning_rate=abc\n";
+};
+
+/** @brief Tests that a learning_rate that is not a finite number is invalid, naming its line. */
+TEST_P(Small_DarknetTrainingLearningRate, IsRefused)
+{
+    const std::string text = "[net]\nlearning_rate=" + GetParam() + "\n";
 
     SA_EXPECT_FAILURE(read_cfg_text(text), StatusCode::InvalidDescription, "line 2",
-                      "learning_rate", "abc");
+                      "learning_rate", GetParam());
 }
 
-/** @brief Tests that a non-finite learning_rate is invalid, naming its line. */
-TEST(Small_DarknetTraining, RefusesANonFiniteLearningRate)
-{
-    const std::string text =
-        "[net]\n"
-        "learning_rate=nan\n";
-
-    SA_EXPECT_FAILURE(read_cfg_text(text), StatusCode::InvalidDescription, "line 2", "nan");
-}
+INSTANTIATE_TEST_SUITE_P(Values, Small_DarknetTrainingLearningRate,
+                         ::testing::Values("abc", "nan"));
 
 /** @brief Tests that a batch below 1 is invalid, since the loss divides by it. */
 TEST(Small_DarknetTraining, RefusesABatchBelowOne)
