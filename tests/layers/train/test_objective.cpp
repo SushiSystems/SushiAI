@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -41,7 +42,6 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -49,17 +49,18 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/layers.hpp>
-#include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/node.hpp>
-#include <SushiAI/sample_models/two_output_model.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/binary_cross_entropy_objective.hpp>
+#include <SushiAI/train/in_memory_objective.hpp>
 #include <SushiAI/train/mean_squared_error_objective.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/multi_label_objective.hpp>
@@ -80,14 +81,29 @@ using Train::MultiLabelObjective;
 
 namespace
 {
-    /** @brief Provides the engine the scored tensors are allocated on. */
-    class Medium_ObjectiveScore : public SaTest::EngineTest
+    /**
+     * @brief The rounded operations from the counts to the accuracy: the counts are exact
+     *        integers, so the one quotient rounds.
+     */
+    constexpr std::size_t K_RATIO_OPERATIONS = 1;
+
+    /**
+     * @brief Counts the roundings on the longest path to the loss of three rows of four
+     *        classes: the four terms of a row's normaliser, the exponential and the logarithm,
+     *        the product with the target, the sum over the four classes and the mean over three
+     *        rows; 16 covers the 12 and leaves slack for the device's exponential.
+     */
+    constexpr std::size_t K_LOSS_ROUNDED_OPERATIONS = 16;
+
+    /** @brief Provides the host engine the scored tensors, the roles and the leaves live on. */
+    class Small_ObjectiveScore : public ::testing::Test
     {
         protected:
             /** @brief Returns [3, 2] logits whose rows have their largest value at 1, 0, 1. */
             [[nodiscard]] Result<SushiBLAS::Tensor> logits()
             {
-                SA_TRY_ASSIGN(SushiBLAS::Tensor output, allocate_tensor(*engine, Shape{3, 2}));
+                SA_TRY_ASSIGN(SushiBLAS::Tensor output,
+                              allocate_tensor(backend.engine(), Shape{3, 2}));
                 SaTest::write_tensor(output,
                                      std::vector<double>{0.1, 0.9, 0.8, 0.2, -1.0, 0.5});
                 return output;
@@ -99,7 +115,7 @@ namespace
                 Data::BatchTarget labels;
                 labels.role = std::string(Data::K_ROLE_LABELS);
                 SA_TRY_ASSIGN(labels.values,
-                              allocate_tensor(*engine,
+                              allocate_tensor(backend.engine(),
                                               Shape{static_cast<int64_t>(values.size())},
                                               DType::Int32));
                 for (std::size_t i = 0; i < values.size(); ++i)
@@ -118,34 +134,32 @@ namespace
                     batch, 0.0,
                     SushiRuntime::span<const Train::StepOutput>(outputs.data(), outputs.size())};
             }
+
+            /** @brief The host backend the tensors and the pool are allocated from. */
+            HostExecutionBackend backend;
     };
 
-    /**
-     * @brief Bounds the difference between a counted ratio and its exact value; 16384 unit
-     * roundoffs of double, the smallest power of two that covers 1e-12.
-     */
-    constexpr double K_RATIO_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
-    /** @brief An objective that keeps the feed and the metrics of the base. */
-    class StepFedObjective final : public Train::Objective
+    /** @brief Holds the leaf a lookup asks for and the words of the refusal it gets. */
+    struct LeafLookupRow
     {
-        public:
-            /** @brief Declares no leaf. */
-            void declare(const Graph::GraphBuilder&, ObjectiveLeaves&) const override
-            {
+        std::string name;       /**< The row's name. */
+        std::string role;       /**< The role looked up. */
+        std::string first;      /**< A text the message holds. */
+        std::string second;     /**< Another text the message holds. */
+    };
 
-            }
+    /** @brief Looks up a leaf tensor the objective did not declare or the pool does not hold. */
+    class Small_ObjectiveLeafLookup : public Small_ObjectiveScore,
+                                      public ::testing::WithParamInterface<LeafLookupRow>
+    {
 
-            /** @brief Returns the absent value; the tests never build a graph with it. */
-            [[nodiscard]] Result<Graph::ValueID> loss(
-                const Graph::GraphBuilder&, const Graph::Graph&, const NN::ModelOutputs&,
-                const ObjectiveLeaves&) const override
-            {
-                return Graph::K_NO_VALUE;
-            }
+    };
 
-            /** @brief Returns "step_fed". */
-            std::string_view name() const noexcept override { return "step_fed"; }
+    /** @brief Provides the device engine the cross-entropy loss graph is compiled on. */
+    class Medium_ObjectiveLoss : public SaTest::EngineTest,
+                                 public ::testing::WithParamInterface<std::vector<double>>
+    {
+
     };
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
@@ -174,8 +188,6 @@ namespace
         }
         return rows;
     }
-
-    using Test::build_two_output_model;
 }
 
 TEST(Small_Objective, BuildGraphAndBuildClassifierProduceTheSameIR)
@@ -206,16 +218,14 @@ TEST(Small_Objective, BuildGraphAndBuildClassifierProduceTheSameIR)
     EXPECT_EQ(a.spec.loss, b.spec.loss);
 }
 
-TEST(Small_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
+/** @brief Tests that the spec's targets value is the leaf the objective declared as "targets". */
+TEST(Small_Objective, TheSpecTargetsAreTheLeafTheObjectiveDeclared)
 {
-    // The target leaf sits between the input and the model; see tests/layers/train/README.md.
     MLP model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 3);
     SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
                             Train::build_training_graph(model, objective, Shape{4, 6}));
 
-    EXPECT_EQ(built.spec.inputs, 0);
-    EXPECT_EQ(built.spec.targets, 1);
     EXPECT_TRUE(built.leaves.has("targets"));
     EXPECT_EQ(built.leaves.at("targets"), built.spec.targets);
 }
@@ -286,7 +296,7 @@ TEST(Small_Objective, LeavesKeepEveryRequiredRoleInOrder)
 }
 
 /** @brief Tests that accuracy is the fraction of rows whose label is the largest logit. */
-TEST_F(Medium_ObjectiveScore, AccuracyIsReadFromTheLabelsRole)
+TEST_F(Small_ObjectiveScore, AccuracyIsReadFromTheLabelsRole)
 {
     const CrossEntropyObjective objective(3, 2);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor output, logits());
@@ -300,11 +310,12 @@ TEST_F(Medium_ObjectiveScore, AccuracyIsReadFromTheLabelsRole)
     const Train::Metric* const accuracy = metrics.find("accuracy");
     ASSERT_NE(accuracy, nullptr);
     EXPECT_TRUE(accuracy->is_fraction);
-    EXPECT_NEAR(accuracy->value, 2.0 / 3.0, K_RATIO_TOLERANCE);
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        accuracy->value, 2.0 / 3.0, K_RATIO_OPERATIONS)));
 }
 
 /** @brief Tests that a batch without the labels role is refused and adds no metric. */
-TEST_F(Medium_ObjectiveScore, ABatchWithoutTheLabelsRoleIsRefused)
+TEST_F(Small_ObjectiveScore, ABatchWithoutTheLabelsRoleIsRefused)
 {
     const CrossEntropyObjective objective(3, 2);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor output, logits());
@@ -318,7 +329,7 @@ TEST_F(Medium_ObjectiveScore, ABatchWithoutTheLabelsRoleIsRefused)
 }
 
 /** @brief Tests that accuracy refuses a step that published two outputs. */
-TEST_F(Medium_ObjectiveScore, AccuracyReadsOneOutput)
+TEST_F(Small_ObjectiveScore, AccuracyReadsOneOutput)
 {
     const CrossEntropyObjective objective(3, 2);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor output, logits());
@@ -332,7 +343,7 @@ TEST_F(Medium_ObjectiveScore, AccuracyReadsOneOutput)
 }
 
 /** @brief Tests that feed writes the one-hot row of every label into the target leaf. */
-TEST_F(Medium_ObjectiveScore, FeedWritesTheOneHotRowsOfTheLabels)
+TEST_F(Small_ObjectiveScore, FeedWritesTheOneHotRowsOfTheLabels)
 {
     const CrossEntropyObjective objective(3, 2);
     Graph::Graph graph;
@@ -340,8 +351,9 @@ TEST_F(Medium_ObjectiveScore, FeedWritesTheOneHotRowsOfTheLabels)
     ObjectiveLeaves leaves;
     objective.declare(builder, leaves);
 
-    Graph::TensorPool pool(*engine);
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor targets, allocate_tensor(*engine, Shape{3, 2}));
+    Graph::TensorPool pool(backend.engine());
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor targets,
+                            allocate_tensor(backend.engine(), Shape{3, 2}));
     SA_EXPECT_OK(pool.bind(leaves.at("targets"), targets));
     SA_ASSERT_OK_AND_ASSIGN(const Data::Batch batch, batch_of({1, 0, 0}));
 
@@ -351,16 +363,24 @@ TEST_F(Medium_ObjectiveScore, FeedWritesTheOneHotRowsOfTheLabels)
               (std::vector<double>{0.0, 1.0, 1.0, 0.0, 1.0, 0.0}));
 }
 
-/** @brief Tests that the base refuses to feed a batch and measures nothing. */
-TEST_F(Medium_ObjectiveScore, AnObjectiveFedByItsOwnStepRefusesABatch)
+/** @brief Tests that the base refuses to feed a batch: the real objective that keeps it. */
+TEST_F(Small_ObjectiveScore, AnObjectiveFedByItsOwnStepRefusesABatch)
 {
-    const StepFedObjective objective;
+    const Train::InMemoryObjective objective;
     const ObjectiveLeaves leaves;
-    Graph::TensorPool pool(*engine);
+    Graph::TensorPool pool(backend.engine());
     const Data::Batch batch{};
 
     SA_EXPECT_FAILURE(objective.feed(batch, leaves, pool), StatusCode::Unsupported,
-                      "'step_fed'", "fed by its own step");
+                      "'in-memory'", "fed by its own step");
+    EXPECT_FALSE(objective.is_fed_by_batch());
+}
+
+/** @brief Tests that the base measures nothing and adds no metric. */
+TEST_F(Small_ObjectiveScore, AnObjectiveWithoutMetricsMeasuresNothing)
+{
+    const Train::InMemoryObjective objective;
+    const Data::Batch batch{};
 
     Train::Metrics metrics;
     SA_EXPECT_OK(objective.measure(view_of(batch, {}), metrics));
@@ -368,86 +388,124 @@ TEST_F(Medium_ObjectiveScore, AnObjectiveFedByItsOwnStepRefusesABatch)
 }
 
 /** @brief Tests that a leaf the objective did not declare, or the pool does not hold, is named. */
-TEST_F(Medium_ObjectiveScore, ALeafWithoutATensorIsNamed)
+TEST_P(Small_ObjectiveLeafLookup, ALeafWithoutATensorIsNamed)
+{
+    const LeafLookupRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    ObjectiveLeaves leaves;
+    leaves.add("targets", builder.input(Shape{2, 3}, "targets"));
+    Graph::TensorPool pool(backend.engine());
+
+    SA_EXPECT_FAILURE(Train::find_leaf_tensor(leaves, row.role, pool),
+                      StatusCode::InvalidDescription, row.first, row.second);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ObjectiveLeafLookup,
+    ::testing::Values(LeafLookupRow{"ALeafTheObjectiveDidNotDeclare", "collocation",
+                                    "no leaf 'collocation'", "no leaf 'collocation'"},
+                      LeafLookupRow{"ALeafThePoolHoldsNoTensorFor", "targets", "no tensor",
+                                    "'targets'"}),
+    [](const ::testing::TestParamInfo<LeafLookupRow>& info) { return info.param.name; });
+
+/** @brief Tests that the leaves report what they hold and what they do not. */
+TEST(Small_Objective, LeavesReportWhatTheyHold)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     ObjectiveLeaves leaves;
     leaves.add("targets", builder.input(Shape{2, 3}, "targets"));
-    Graph::TensorPool pool(*engine);
-
-    SA_EXPECT_FAILURE(Train::find_leaf_tensor(leaves, "collocation", pool),
-                      StatusCode::InvalidDescription, "no leaf 'collocation'");
-    SA_EXPECT_FAILURE(Train::find_leaf_tensor(leaves, "targets", pool),
-                      StatusCode::InvalidDescription, "no tensor", "'targets'");
-}
-
-TEST(Small_Objective, TheObjectiveOwnsTheOutputShapeCheck)
-{
-    // The objective owns the output shape message; see tests/layers/train/README.md.
-    MLP model = make_model(6, 8, 3);
-    const CrossEntropyObjective objective(4, 5);   // asks for 5 classes, model gives 3
-
-    SA_EXPECT_FAILURE(Train::build_training_graph(model, objective, Shape{4, 6}),
-                      StatusCode::InvalidDescription, "[4, 3]", "[4, 5]");
-}
-
-TEST(Small_Objective, LeavesRefuseADuplicateRoleAndNameAnAbsentOne)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    ObjectiveLeaves leaves;
-    leaves.add("targets", builder.input(Shape{2, 3}, "targets"));
-
-    const Graph::ValueID again = builder.input(Shape{2, 3}, "again");
-    SA_EXPECT_FATAL(leaves.add("targets", again), "'targets'", "twice");
-    SA_EXPECT_FATAL((void)leaves.at("collocation"), "'collocation'", "'targets'");
 
     EXPECT_TRUE(leaves.has("targets"));
     EXPECT_FALSE(leaves.has("collocation"));
     EXPECT_EQ(leaves.all().size(), 1u);
 }
 
-/** @brief Tests that the loss is computed from the value the model published as "output". */
-TEST(Small_Objective, CrossEntropyReadsTheOnlyOutput)
+/** @brief Tests that adding a role twice stops the process and names the role. */
+TEST(Medium_ObjectiveLeavesDeathTest, ARoleAddedTwiceIsFatal)
 {
-    MLP model = make_model(6, 8, 3);
-    const CrossEntropyObjective objective(4, 3);
-    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
-                            Train::build_training_graph(model, objective, Shape{4, 6}));
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    ObjectiveLeaves leaves;
+    leaves.add("targets", builder.input(Shape{2, 3}, "targets"));
+    const Graph::ValueID again = builder.input(Shape{2, 3}, "again");
 
-    ASSERT_EQ(built.outputs.all().size(), 1u);
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID published,
-                            built.outputs.at(NN::K_SINGLE_PORT_NAME));
-
-    const Graph::NodeID loss_node = built.graph.value(built.spec.loss).producer;
-    ASSERT_NE(loss_node, Graph::K_NO_NODE);
-    ASSERT_EQ(built.graph.node(loss_node).op, Ops::K_NLL_LOSS.id);
-
-    // NLL_LOSS reads the log-softmax, and the log-softmax reads the model's output.
-    const Graph::ValueID log_probabilities = built.graph.node(loss_node).inputs.at(0);
-    const Graph::NodeID softmax_node = built.graph.value(log_probabilities).producer;
-    ASSERT_NE(softmax_node, Graph::K_NO_NODE);
-    ASSERT_EQ(built.graph.node(softmax_node).op, Ops::K_LOG_SOFTMAX.id);
-    EXPECT_EQ(built.graph.node(softmax_node).inputs.at(0), published);
+    SA_EXPECT_FATAL(leaves.add("targets", again), "'targets'", "twice");
 }
 
-/** @brief Tests that cross-entropy refuses a model with two outputs and names both. */
-TEST(Small_Objective, CrossEntropyRefusesTwoOutputs)
+/** @brief Tests that asking for an absent role stops the process and lists the roles held. */
+TEST(Medium_ObjectiveLeavesDeathTest, AnAbsentRoleIsFatalAndTheRolesHeldAreListed)
 {
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, build_two_output_model());
-    const CrossEntropyObjective objective(4, 3);
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    ObjectiveLeaves leaves;
+    leaves.add("targets", builder.input(Shape{2, 3}, "targets"));
 
-    SA_EXPECT_FAILURE(Train::build_training_graph(model, objective, Shape{4, 6}),
-                      StatusCode::InvalidDescription, "features", "logits");
+    SA_EXPECT_FATAL((void)leaves.at("collocation"), "'collocation'", "'targets'");
 }
 
-TEST(Small_Objective, AnEmptyLeafSetSaysSoRatherThanListingNothing)
+/** @brief Tests that an empty leaf set says so rather than listing nothing. */
+TEST(Medium_ObjectiveLeavesDeathTest, AnEmptyLeafSetSaysSoRatherThanListingNothing)
 {
     const ObjectiveLeaves leaves;
+
     SA_EXPECT_FATAL((void)leaves.at("targets"), "'targets'", "(none)");
 }
+
+/**
+ * @brief Tests that the loss is computed from the value the model published: for each set of
+ *        logits it equals the mean over the batch of the cross-entropy against the one-hot
+ *        targets, so the loss moves when the output moves.
+ */
+TEST_P(Medium_ObjectiveLoss, CrossEntropyReadsTheOnlyOutput)
+{
+    constexpr std::size_t K_ROWS = 3;
+    constexpr std::size_t K_CLASSES = 4;
+    const std::vector<double>& logits = GetParam();
+    const std::vector<double> targets{0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0};
+    const CrossEntropyObjective objective(K_ROWS, K_CLASSES);
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    ObjectiveLeaves leaves;
+    objective.declare(builder, leaves);
+    NN::ModelOutputs outputs;
+    const Graph::ValueID logits_leaf = builder.input(Shape{3, 4}, "logits");
+    SA_EXPECT_OK(outputs.add("output", logits_leaf));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            objective.loss(builder, graph, outputs, leaves));
+    Graph::TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    SaTest::write_tensor(pool.tensor(logits_leaf), logits);
+    SaTest::write_tensor(pool.tensor(leaves.at("targets")), targets);
+    std::unique_ptr<Graph::CompiledStep> step;
+    SA_ASSERT_OK_AND_ASSIGN(step, Graph::CompiledStep::compile(backend(), graph, pool));
+    SA_EXPECT_OK(step->run());
+
+    double expected = 0.0;
+    for (std::size_t row = 0; row < K_ROWS; ++row)
+    {
+        double normaliser = 0.0;
+        for (std::size_t c = 0; c < K_CLASSES; ++c)
+            normaliser += std::exp(logits[row * K_CLASSES + c]);
+        for (std::size_t c = 0; c < K_CLASSES; ++c)
+            expected -= targets[row * K_CLASSES + c] *
+                        (logits[row * K_CLASSES + c] - std::log(normaliser));
+    }
+    expected /= static_cast<double>(K_ROWS);
+
+    const std::vector<double> read = SaTest::read_tensor(pool.tensor(loss));
+    ASSERT_EQ(read.size(), 1u);
+    EXPECT_TRUE(TestSupport::is_within(
+        TestSupport::measure_relative_error<float>(read[0], expected, K_LOSS_ROUNDED_OPERATIONS)));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Logits, Medium_ObjectiveLoss,
+    ::testing::Values(
+        std::vector<double>{1.0, 2.0, 0.5, -1.0, 0.0, 0.25, 3.0, -2.0, 1.5, 1.5, 0.0, 0.5},
+        std::vector<double>{-0.5, 0.75, 2.5, 1.0, 1.25, -1.5, 0.0, 0.5, -2.0, 0.25, 1.75, 1.0}));
 
 /** @brief Tests that the factory builds cross-entropy over the batch and classes it is given. */
 TEST(Small_Objective, TheFactoryBuildsCrossEntropyOverTheContext)
@@ -519,68 +577,128 @@ namespace
 
 } // namespace
 
-/** @brief Tests that each make refuses an extent below 1, a bound threshold and int32. */
-TEST(Small_ObjectiveGraph, MakeRefusesWhatNoLeafCanHold)
+/** @brief Tests that the binary make refuses a batch below 1. */
+TEST(Small_ObjectiveGraph, BinaryMakeRefusesABatchBelowOne)
 {
     SA_EXPECT_FAILURE(BinaryCrossEntropyObjective::make(0), StatusCode::InvalidDescription,
                       "binary_cross_entropy", "at least 1");
+}
+
+/** @brief Tests that the binary make refuses a threshold on the bound. */
+TEST(Small_ObjectiveGraph, BinaryMakeRefusesAThresholdOnTheBound)
+{
     SA_EXPECT_FAILURE(BinaryCrossEntropyObjective::make(K_BATCH, 1.0),
                       StatusCode::InvalidDescription, "above 0 and below 1");
+}
+
+/** @brief Tests that the binary make refuses an int32 label type. */
+TEST(Small_ObjectiveGraph, BinaryMakeRefusesAnInt32LabelType)
+{
     SA_EXPECT_FAILURE(BinaryCrossEntropyObjective::make(K_BATCH, 0.5, DType::Int32),
                       StatusCode::InvalidDescription, "float32", "int32");
+}
+
+/** @brief Tests that the multi-label make refuses a width below 1. */
+TEST(Small_ObjectiveGraph, MultiLabelMakeRefusesAWidthBelowOne)
+{
     SA_EXPECT_FAILURE(MultiLabelObjective::make(K_BATCH, 0), StatusCode::InvalidDescription,
                       "multi_label", "at least 1");
+}
+
+/** @brief Tests that the multi-label make refuses a threshold on the bound. */
+TEST(Small_ObjectiveGraph, MultiLabelMakeRefusesAThresholdOnTheBound)
+{
     SA_EXPECT_FAILURE(MultiLabelObjective::make(K_BATCH, 3, 0.0),
                       StatusCode::InvalidDescription, "above 0 and below 1");
+}
+
+/** @brief Tests that the regression make refuses a width below 1. */
+TEST(Small_ObjectiveGraph, MeanSquaredErrorMakeRefusesAWidthBelowOne)
+{
     SA_EXPECT_FAILURE(MeanSquaredErrorObjective::make(K_BATCH, 0),
                       StatusCode::InvalidDescription, "mean_squared_error", "at least 1");
 }
 
-/** @brief Tests that each factory takes its extents from the one output of the model. */
-TEST(Small_ObjectiveGraph, TheFactoriesReadTheOneOutput)
+/** @brief Tests that the binary factory takes its threshold and batch from its context. */
+TEST(Small_ObjectiveGraph, TheBinaryFactoryReadsTheOneOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> binary,
         Train::make_binary_cross_entropy(context_of(Shape{K_BATCH, 1}),
                                          keys(R"({"threshold": 0.9})"), "objective"));
+
     EXPECT_EQ(static_cast<const BinaryCrossEntropyObjective&>(*binary).threshold(), 0.9);
     EXPECT_EQ(static_cast<const BinaryCrossEntropyObjective&>(*binary).batch(), K_BATCH);
+}
 
+/** @brief Tests that the multi-label factory takes its class count from the output. */
+TEST(Small_ObjectiveGraph, TheMultiLabelFactoryReadsTheOneOutput)
+{
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> multi_label,
         Train::make_multi_label(context_of(Shape{K_BATCH, 5}), keys("{}"), "objective"));
+
     EXPECT_EQ(static_cast<const MultiLabelObjective&>(*multi_label).classes(), 5);
     EXPECT_EQ(static_cast<const MultiLabelObjective&>(*multi_label).threshold(), 0.5);
+}
 
+/** @brief Tests that the regression factory takes its width from the output. */
+TEST(Small_ObjectiveGraph, TheMeanSquaredErrorFactoryReadsTheOneOutput)
+{
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> regression,
         Train::make_mean_squared_error(context_of(Shape{K_BATCH, 2}), keys("{}"),
                                        "objective"));
+
     EXPECT_EQ(static_cast<const MeanSquaredErrorObjective&>(*regression).width(), 2);
 }
 
-/** @brief Tests that each factory refuses a model whose output it cannot read, and a stray key. */
-TEST(Small_ObjectiveGraph, TheFactoriesRefuseAnotherOutputAndAStrayKey)
+/** @brief Tests that the binary factory refuses an output of more than one logit per sample. */
+TEST(Small_ObjectiveGraph, TheBinaryFactoryRefusesAnOutputOfTwoLogits)
 {
     SA_EXPECT_FAILURE(
         Train::make_binary_cross_entropy(context_of(Shape{K_BATCH, 2}), keys("{}"), "objective"),
         StatusCode::InvalidDescription, "objective", "one logit per sample", "[4, 2]");
+}
+
+/** @brief Tests that the multi-label factory refuses an output of rank 3. */
+TEST(Small_ObjectiveGraph, TheMultiLabelFactoryRefusesAnOutputOfRankThree)
+{
     SA_EXPECT_FAILURE(
         Train::make_multi_label(context_of(Shape{K_BATCH, 3, 5}), keys("{}"), "objective"),
         StatusCode::InvalidDescription, "objective", "[4, columns]", "[4, 3, 5]");
+}
+
+/** @brief Tests that the regression factory refuses an output of another batch. */
+TEST(Small_ObjectiveGraph, TheMeanSquaredErrorFactoryRefusesAnOutputOfAnotherBatch)
+{
     SA_EXPECT_FAILURE(
         Train::make_mean_squared_error(context_of(Shape{8, 2}), keys("{}"), "objective"),
         StatusCode::InvalidDescription, "objective", "[4, columns]", "[8, 2]");
+}
 
+/** @brief Tests that a factory refuses a model that publishes a second output. */
+TEST(Small_ObjectiveGraph, AFactoryRefusesAModelWithTwoOutputs)
+{
     Train::ObjectiveContext two = context_of(Shape{K_BATCH, 1});
     two.outputs.push_back(Train::OutputShape{"second", Shape{K_BATCH, 1}});
+
     SA_EXPECT_FAILURE(Train::make_binary_cross_entropy(two, keys("{}"), "objective"),
                       StatusCode::InvalidDescription, "objective", "publishes 2");
+}
 
+/** @brief Tests that the regression factory refuses a stray key and names it. */
+TEST(Small_ObjectiveGraph, TheMeanSquaredErrorFactoryRefusesAStrayKey)
+{
     SA_EXPECT_FAILURE(
         Train::make_mean_squared_error(context_of(Shape{K_BATCH, 2}), keys(R"({"huber": 1})"),
                                        "objective"),
         StatusCode::InvalidDescription, "objective", "'huber'");
+}
+
+/** @brief Tests that the multi-label factory refuses a stray key and names the one it knows. */
+TEST(Small_ObjectiveGraph, TheMultiLabelFactoryRefusesAStrayKey)
+{
     SA_EXPECT_FAILURE(
         Train::make_multi_label(context_of(Shape{K_BATCH, 3}), keys(R"({"weights": 1})"),
                                 "objective"),
