@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_sppf.cpp
 
 
-Suites: `Small_BlockSppf`.
+Suites: `Small_BlockSppf` and `Small_BlockSppfNoAdd`.
 
 Tests SPPF's trace, its state names against YOLO26n row 9, and its factory.
 
@@ -14,10 +14,10 @@ closes the block. `NN::make_sppf_node` builds the node of an `sppf` row.
 The expected state names are typed into the test from
 `tests/vision/registration/fixtures/yolo26/MANIFEST.json`. No case opens a fixture file.
 
+
 ## Constants
 
-`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
-unchanged. `K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`. `K_CONTEXT` is "layer 9 'sppf'", the row
+`K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`. `K_CONTEXT` is "layer 9 'sppf'", the row
 name handed to the factory.
 
 ## StateKind
@@ -36,6 +36,22 @@ prefix, in walk order.
 ## count_nodes
 
 `count_nodes` counts the nodes of a graph that carry one operation.
+
+## count_norms
+
+`count_norms` counts the running means a walk lists, one per norm.
+
+## input_shapes
+
+`input_shapes` lists the shape of each input of a node, in order.
+
+## count_adds_reading
+
+`count_adds_reading` counts the K_ADD nodes of a graph that read one value as either operand.
+
+## conv_records
+
+`conv_records` writes the five records of one `Conv` under a prefix: the weight, then the norm's weight, bias, running mean and running variance.
 
 ## first_node
 
@@ -61,37 +77,27 @@ true)` maps [5, 7, 64] to [5, 7, 96].
 
 ## ThePoolKeepsTheExtents
 
-The pool of `SPPF(256, 256, 5, 3, true)` has a 5x5 kernel, stride 1 and a pad of 2 on top and
-left, and its `output_shape([20, 20, 128])` is [20, 20, 128].
+The `output_shape([20, 20, 128])` of the pool of `SPPF(256, 256, 5, 3, true)` is [20, 20, 128].
 
-## Row9EmitsThreePoolsOneConcatAndOneAdd
+## Row9KeepsTheShapeAndUpdatesEveryNorm
 
-A training trace over [2, 4, 4, 256] emits two K_MATMUL, two K_BATCHNORM2D, one K_SILU, three
-K_MAXPOOL2D, one K_CONCAT_CHANNELS and one K_ADD. The list holds four updates and the result is
-[2, 4, 4, 256]. The one K_SILU is `cv2`'s.
+A training trace over [2, 4, 4, 256] returns [2, 4, 4, 256]. The list holds two updates, a mean and a variance, for each norm the state walk lists.
 
-## TheJoinReadsTheNarrowedValueThenEachPoolInAChain
+## TheJoinTakesTheNarrowedValueAndEachPool
 
-The K_CONCAT_CHANNELS has four inputs. The first is produced by a K_BATCHNORM2D, because `cv1` is
-a `ConvLinear` and emits no activation. Each of the other three is produced by a K_MAXPOOL2D
-that reads the input before it, and each is [2, 4, 4, 128]. The joined value is
-[2, 4, 4, 512].
+The one K_CONCAT_CHANNELS has four inputs of [2, 4, 4, 128] each, the narrowed value and three pooled ones, and yields [2, 4, 4, 512].
 
-## TheClosingAddReadsTheResultThenTheInput
+## AShortcutOverEqualWidthsAddsTheInputOnce
 
-`adds_input` is true. The K_ADD's first operand is produced by a K_SILU and its second is the
-block's input, and its output is the returned value. The operand order is the reverse of
-`Bottleneck`'s.
+`adds_input` is true, exactly one K_ADD reads the block's input, and the returned value is produced by a K_ADD.
 
-## NoAddWithoutAShortcutOrOverUnequalWidths
+## NoAddIsTracedWithoutAShortcutOrOverUnequalWidths
 
-`SPPF(64, 64, 5, 3, false)` and `SPPF(64, 96, 5, 3, true)` both report `adds_input` false and
-trace no K_ADD.
+`SPPF(64, 64, 5, 3, false)` and `SPPF(64, 96, 5, 3, true)` both report `adds_input` false and trace no K_ADD. The suite is `Small_BlockSppfNoAdd`, one row each.
 
-## ThePoolCountSetsThePoolsAndTheJoinedWidth
+## ThePoolCountSetsTheJoinedWidthCv2Reads
 
-`SPPF(64, 64, 3, 1, false)` traces one K_MAXPOOL2D. Its `cv1` weight is [32, 1, 1, 64] and its
-`cv2` weight is [64, 1, 1, 64], two parts of 32 channels.
+The state walk under "b" of a traced `SPPF(64, 64, 3, 1, false)` lists ten records: `cv1` with a [32, 1, 1, 64] weight and `cv2` with a [64, 1, 1, 64] weight, which reads two parts of 32 channels.
 
 ## StateMatchesManifestRow9
 
@@ -101,15 +107,11 @@ follow, with the weight [256, 1, 1, 512] and the rest [256]. The pool has no sta
 
 ## TheFactoryBuildsRow9
 
-`make_sppf_node` over [20, 20, 256] with 256 filters, kernel 5, 3 pools and shortcut true has
-one port of shape [20, 20, 256]. Its training trace holds three K_MAXPOOL2D and one K_ADD. The walk
-under "model.9" yields ten records; record 0 is the `cv1` weight and record 5 the `cv2`
-weight.
+`make_sppf_node` over [20, 20, 256] with 256 filters, kernel 5, 3 pools and shortcut true has one port of shape [20, 20, 256]. The state is pinned by `StateMatchesManifestRow9`.
 
 ## TheFactoryDefaultsToThreePoolsOfFiveAndNoShortcut
 
-A row stating only 64 filters traces three K_MAXPOOL2D and no K_ADD, and its `cv2` weight is
-[64, 1, 1, 128].
+A row stating only 64 filters traces no K_ADD, and its `cv2` weight is [64, 1, 1, 128]: four parts of 32 channels, which is three pools.
 
 ## TheFactoryRefusesAnEvenKernel
 
@@ -120,17 +122,23 @@ A row stating only 64 filters traces three K_MAXPOOL2D and no K_ADD, and its `cv
 
 The input shape [4, 4, 1] fails with "[4, 4, 1]" and "at least 2 channels".
 
-## TheFactoryRefusesARowThatDoesNotFit
+## TheFactoryRefusesAnUnknownKey
 
-The key `hidden` fails with the context and "'hidden'". A row without `filters` fails with
-"'filters'" and "absent". `pools` 0 fails with "'pools'" and "positive".
+The key `hidden` fails with the context and "'hidden'".
+
+## TheFactoryRefusesAnAbsentFilterCount
+
+A row without `filters` fails with "'filters'" and "absent".
+
+## TheFactoryRefusesZeroPools
+
+`pools` 0 fails with "'pools'" and "positive".
 
 ## TheFactoryHandsTheNormOptionsToBothNorms
 
 A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two K_BATCHNORM2D nodes and four
 updates, and `expect_norm_options` finds those two values on all of them.
 
-## TheFactoryReadsKernelAndPools
+## TheFactoryReadsThePoolCount
 
-With `kernel` 3 and `pools` 1 the trace holds one K_MAXPOOL2D whose attributes 0, 1 and 6, which
-are kernel_h, kernel_w and pad_top, are 3, 3 and 1. The `cv2` weight is [64, 1, 1, 64].
+With `kernel` 3 and `pools` 1 the walk yields ten records and the `cv2` weight is [64, 1, 1, 64], two parts. The value of `kernel` shows only in the pool node's attributes and in values, so no case here pins it.
