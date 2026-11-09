@@ -30,6 +30,9 @@ update with every path and 0.36 with that path removed, against a largest entry 
 keeps every path, and is 15.60 from the dump where the host model with the library's divisor is
 15.61. The suite compares no update of the first convolution with the dump for that reason.
 
+Every bound below is a multiple of the float unit roundoff u, 2^-24: the smallest power
+of two not tighter than the decimal bound the measured differences set.
+
 ## TheTrainingOptionsMatchTheDumpedSettings
 
 The options read from the cfg hold the box loss and the objectness target above, and the weights and
@@ -38,33 +41,33 @@ thresholds that the descriptions of the dump hold.
 ## TheDeltaOfADumpedHeadMatchesDarknet
 
 The delta is computed on the host from each dumped head of `yolov3_tiny`. Its assignments equal the
-dumped ones exactly, every entry is within 1e-6 of the dumped delta, and the stored cost agrees to
-1e-5 relative.
+dumped ones exactly, every entry is within 32 u of the dumped delta, and the stored cost agrees to
+256 u relative.
 
 ## TheDeltaOfATwoImageHeadMatchesDarknet
 
 The same computation over each dumped head of `yolov3_tiny_train_step` is compared with the delta
-that run dumped, under the same bounds, and the stored cost to 1e-5 relative.
+that run dumped, under the same bounds, and the stored cost to 256 u relative.
 
 ## TheHeadsUnderBatchStatisticsMatchDarknet
 
-Each head of the Separate model under batch statistics is within 7e-2 absolute plus 1e-4
-relative of the dump, and the [yolo] output computed from it within 6e-3 absolute plus 1e-4
+Each head of the Separate model under batch statistics is within 2097152 u absolute plus 2048 u
+relative of the dump, and the [yolo] output computed from it within 131072 u absolute plus 2048 u
 relative. The largest differences measured were 0.0466 and 0.0037.
 
 ## TheDeltasOfTheStepMatchDarknet
 
-The deltas the step fed are compared with the dumped ones: a box entry within 2.5e-3 absolute plus
-1.5e-4 relative, any other entry within 2.5e-3; the largest differences measured were 0.0017
+The deltas the step fed are compared with the dumped ones: a box entry within 65536 u absolute plus
+4096 u relative, any other entry within 65536 u; the largest differences measured were 0.0017
 and 0.0016. The summed cost and its mean over the heads are
-compared with the layer costs and the network cost to 1e-3 relative. The bounds do not cover a slot
+compared with the layer costs and the network cost to 32768 u relative. The bounds do not cover a slot
 that crosses the ignore threshold.
 
 ## TheUpdatesOfTheHeadConvolutionsMatchDarknet
 
 The weight and bias gradients of the convolution before each head, times minus the batch, are
-compared with the dumped updates. The bound is 7e-3 of the dump's largest
-magnitude plus 1e-3 of the entry; the largest difference measured was 4.2e-3 of that magnitude.
+compared with the dumped updates. The bound is 131072 u of the dump's largest
+magnitude plus 32768 u of the entry; the largest difference measured was 4.2e-3 of that magnitude.
 
 ## TheFirstConvolutionReceivesAGradient
 
