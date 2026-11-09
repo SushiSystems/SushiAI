@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-09 — test_tree: Apply the package records (M39).
 - 2026-11-09 — test_tree: Apply the layers/umbrella records (M38).
 - 2026-11-09 — reference_files: Added a ReferenceFile constructor that takes the opener of the file, so an absent file is reported without the disk (`reference_file.hpp`).
 - 2026-11-09 — test_tree: Apply the layers/reference_files records (M36).

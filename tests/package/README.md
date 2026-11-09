@@ -16,4 +16,5 @@ or a sanitizer, because a consumer would inherit that flag.
 The program is the smallest thing that proves the package works. It runs one real operation,
 an `axpy`, through both siblings that the package resolves transitively (SushiBLAS and
 SushiRuntime), against an installed SushiAI, from a project with no access to this source
-tree.
+tree. It copies the result back to the host and returns 1, with a message on standard error,
+unless every element of `y` equals `2 * x + y`, so a wrong result fails the run.

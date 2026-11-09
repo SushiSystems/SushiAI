@@ -57,7 +57,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M36 | the tests of `layers/reference_files` (1 file): 1 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M37 | the tests of `layers/train` (39 files): 107 rewrite, 28 resize, 36 split, 20 merge, 20 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M38 | the tests of `layers/umbrella` (2 files): 2 rewrite, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
-| M39 | the tests of `package` (2 files): 1 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M39 | the tests of `package` (2 files): 1 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M40 | the tests of `tools` (6 files): 7 rewrite, 85 resize, 14 split, 12 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M41 | the tests of `vision/blocks` (12 files): 73 rewrite, 7 resize, 20 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M42 | the tests of `vision/codecs` (5 files): 21 rewrite, 6 resize, 2 split, 3 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |

@@ -28,14 +28,17 @@
  * @see tests/package/README.md, "main.cpp".
  */
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdio>
+#include <vector>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 
 /** @brief Shortens the SushiBLAS namespace. */
 namespace sb = SushiBLAS;
 
-/** @brief Runs one axpy through the installed package and prints a confirmation. */
+/** @brief Runs one axpy through the installed package and returns 1 unless y holds 2 * x + y. */
 int main()
 {
     sr::Runtime runtime = sr::Runtime::create().value();
@@ -45,6 +48,11 @@ int main()
     auto x = engine.create_tensor({K_N});
     auto y = engine.create_tensor({K_N});
 
+    const std::vector<float> ones(static_cast<std::size_t>(K_N), 1.0f);
+    sycl::queue& queue = runtime.advanced().queue(sr::DeviceIndex{0});
+    queue.memcpy(x.data_as<float>(), ones.data(), ones.size() * sizeof(float)).wait();
+    queue.memcpy(y.data_as<float>(), ones.data(), ones.size() * sizeof(float)).wait();
+
     sb::LateCountHold late_counts(runtime);
     sr::Graph graph = runtime.graph();
     sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
@@ -53,7 +61,21 @@ int main()
     graph.run().value();
     runtime.wait().value();
 
-    std::printf("OK: SushiAI %s ran an op through SushiBLAS %s against an installed package\n",
+    std::vector<float> result(static_cast<std::size_t>(K_N));
+    queue.memcpy(result.data(), y.data_as<float>(), result.size() * sizeof(float)).wait();
+
+    // y = 2 * x + y = 2 * 1 + 1, exact in float32.
+    const bool right = std::all_of(result.begin(), result.end(),
+                                   [](float value) { return value == 3.0f; });
+    if (!right)
+    {
+        std::fprintf(stderr, "FAIL: the axpy of the installed package did not yield 2 * x + y
+");
+        return 1;
+    }
+
+    std::printf("OK: SushiAI %s ran an op through SushiBLAS %s against an installed package
+",
                 SushiAI::version_string(), SUSHIBLAS_VERSION_STRING);
     return 0;
 }
