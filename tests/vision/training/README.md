@@ -732,3 +732,5 @@ The files below have a page beside them that says what each case pins.
 | `test_free_training_step.cpp` | [`test_free_training_step.md`](test_free_training_step.md) |
 | `test_anchor_training_loop.cpp` | [`test_anchor_training_loop.md`](test_anchor_training_loop.md) |
 | `test_anchor_training_step.cpp` | [`test_anchor_training_step.md`](test_anchor_training_step.md) |
+| `test_pixel_cross_entropy_objective.cpp` | [`test_pixel_cross_entropy_objective.md`](test_pixel_cross_entropy_objective.md) |
+| `test_pixel_labels.cpp` | [`test_pixel_labels.md`](test_pixel_labels.md) |

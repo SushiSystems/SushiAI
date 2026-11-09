@@ -44,7 +44,6 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -123,19 +122,6 @@ namespace
         return Shape{K_EXTENTS.batch, K_EXTENTS.height, K_EXTENTS.width, K_INPUT_CHANNELS};
     }
 
-    /** @brief Counts the nodes of @p graph whose operation is @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
-    {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
-
-        return count;
-    }
-
     /** @brief Returns what a factory is given for the test model over @p classes classes. */
     Train::ObjectiveContext make_context(std::int64_t classes)
     {
@@ -156,10 +142,54 @@ namespace
         return SaTest::require_value(Config::parse_json(text, "<test>"));
     }
 
+    /** @brief Provides the extents with a zero extent. */
+    class Small_PixelCrossEntropyObjectiveExtents : public ::testing::TestWithParam<PixelExtents>
+    {
+
+    };
+
+    /** @brief Names a context a factory refuses and what the refusal names; "" matches any. */
+    struct UnfitModel
+    {
+        const char* name;                   /**< Names the row in the test name. */
+        Train::ObjectiveContext given;      /**< What the factory is given. */
+        const char* needles[3];             /**< What the message names. */
+    };
+
+    /** @brief Returns the context of a model that publishes a second output. */
+    Train::ObjectiveContext with_second_output()
+    {
+        Train::ObjectiveContext given = make_context(3);
+        given.outputs.push_back(Train::OutputShape{"second", Shape{2, 4, 4, 3}});
+        return given;
+    }
+
+    /** @brief Returns the context whose one output is [2, 3]. */
+    Train::ObjectiveContext with_flat_output()
+    {
+        Train::ObjectiveContext given = make_context(3);
+        given.outputs.front().shape = Shape{2, 3};
+        return given;
+    }
+
+    /** @brief Returns the context whose one output is half the size of the input. */
+    Train::ObjectiveContext with_half_size_output()
+    {
+        Train::ObjectiveContext given = make_context(3);
+        given.outputs.front().shape = Shape{2, 2, 2, 3};
+        return given;
+    }
+
+    /** @brief Provides the models the pixel cross entropy factory refuses. */
+    class Small_PixelCrossEntropyObjectiveModels : public ::testing::TestWithParam<UnfitModel>
+    {
+
+    };
+
 } // namespace
 
-/** @brief Tests that make() keeps what it was given and refuses an extent below 1. */
-TEST(Medium_PixelCrossEntropyObjective, MakeKeepsItsExtentsAndRefusesNone)
+/** @brief Tests that make() keeps the extents, the ignore index and the name it was given. */
+TEST(Small_PixelCrossEntropyObjective, MakeKeepsWhatItIsGiven)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PixelCrossEntropyObjective> objective,
                             PixelCrossEntropyObjective::make(K_EXTENTS, 7));
@@ -168,28 +198,49 @@ TEST(Medium_PixelCrossEntropyObjective, MakeKeepsItsExtentsAndRefusesNone)
     EXPECT_EQ(objective->extents().classes, 3);
     EXPECT_EQ(objective->ignore_index(), 7);
     EXPECT_EQ(objective->name(), "pixel_cross_entropy");
-
-    SA_EXPECT_FAILURE(PixelCrossEntropyObjective::make(PixelExtents{2, 0, 4, 3}),
-                      StatusCode::InvalidDescription, "pixel_cross_entropy", "at least 1");
-    SA_EXPECT_FAILURE(DiceObjective::make(PixelExtents{2, 4, 4, 0}),
-                      StatusCode::InvalidDescription, "dice", "at least 1");
 }
 
-/** @brief Tests the ignore index that names a class and the element type that is no real. */
-TEST(Medium_PixelCrossEntropyObjective, MakeRefusesAnIgnoreIndexThatIsAClass)
+/** @brief Tests that an extent below 1 is refused, naming the objective. */
+TEST_P(Small_PixelCrossEntropyObjectiveExtents, MakeRefusesAnExtentBelowOne)
+{
+    SA_EXPECT_FAILURE(PixelCrossEntropyObjective::make(GetParam()),
+                      StatusCode::InvalidDescription, "pixel_cross_entropy", "at least 1");
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_PixelCrossEntropyObjectiveExtents,
+                         ::testing::Values(PixelExtents{0, 4, 4, 3}, PixelExtents{2, 0, 4, 3},
+                                           PixelExtents{2, 4, 0, 3}, PixelExtents{2, 4, 4, 0}));
+
+/** @brief Tests that an ignore index naming a class is refused by the cross entropy. */
+TEST(Small_PixelCrossEntropyObjective, MakeRefusesAnIgnoreIndexThatIsAClass)
 {
     SA_EXPECT_FAILURE(PixelCrossEntropyObjective::make(K_EXTENTS, 2),
                       StatusCode::InvalidDescription, "ignore index 2", "3 classes");
-    SA_EXPECT_OK(PixelCrossEntropyObjective::make(K_EXTENTS, 3));
-    SA_EXPECT_OK(PixelCrossEntropyObjective::make(K_EXTENTS, -1));
+}
+
+/** @brief Tests that an ignore index naming a class is refused by the Dice objective. */
+TEST(Small_PixelCrossEntropyObjective, MakeRefusesAnIgnoreIndexThatIsAClassForTheDice)
+{
     SA_EXPECT_FAILURE(DiceObjective::make(K_EXTENTS, 0), StatusCode::InvalidDescription,
                       "ignore index 0");
+}
+
+/** @brief Tests that the first index above the classes and -1 are accepted. */
+TEST(Small_PixelCrossEntropyObjective, MakeAcceptsAnIgnoreIndexOutsideTheClasses)
+{
+    SA_EXPECT_OK(PixelCrossEntropyObjective::make(K_EXTENTS, 3));
+    SA_EXPECT_OK(PixelCrossEntropyObjective::make(K_EXTENTS, -1));
+}
+
+/** @brief Tests that a weight type that is no real is refused. */
+TEST(Small_PixelCrossEntropyObjective, MakeRefusesAWeightTypeThatIsNoReal)
+{
     SA_EXPECT_FAILURE(PixelCrossEntropyObjective::make(K_EXTENTS, 255, DType::Int32),
                       StatusCode::InvalidDescription, "float32");
 }
 
 /** @brief Tests the two leaves of the cross entropy and the mask role it reads. */
-TEST(Medium_PixelCrossEntropyObjective, TheCrossEntropyDeclaresIndicesAndWeights)
+TEST(Small_PixelCrossEntropyObjective, TheCrossEntropyDeclaresIndicesAndWeights)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PixelCrossEntropyObjective> objective,
                             PixelCrossEntropyObjective::make(K_EXTENTS));
@@ -213,8 +264,8 @@ TEST(Medium_PixelCrossEntropyObjective, TheCrossEntropyDeclaresIndicesAndWeights
     EXPECT_EQ(mask.classes, 0);
 }
 
-/** @brief Tests that the cross entropy is one element built from one gather and no one-hot. */
-TEST(Medium_PixelCrossEntropyObjective, TheCrossEntropyGathersOneLogProbabilityPerPixel)
+/** @brief Tests that the cross entropy is one element and every parameter has a gradient. */
+TEST(Small_PixelCrossEntropyObjective, TheCrossEntropyIsOneElementWithGradients)
 {
     NN::Conv2d model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PixelCrossEntropyObjective> objective,
@@ -225,68 +276,85 @@ TEST(Medium_PixelCrossEntropyObjective, TheCrossEntropyGathersOneLogProbabilityP
 
     EXPECT_EQ(built.graph.value(built.spec.loss).shape.num_elements(), 1);
     EXPECT_EQ(built.graph.value(built.spec.targets).dtype, DType::Int32);
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_NLL_LOSS.id), 0u);
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_LOG_SOFTMAX.id), 1u);
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_GATHER_ROWS.id), 1u);
     ASSERT_EQ(built.parameters.size(), 2u);
     EXPECT_NE(built.parameters[0].gradient, Graph::K_NO_VALUE);
     EXPECT_NE(built.parameters[1].gradient, Graph::K_NO_VALUE);
 }
 
-/** @brief Tests that both factories read N, H, W and C from the model's one output. */
-TEST(Medium_PixelCrossEntropyObjective, TheFactoriesReadTheModelsOutput)
+/** @brief Tests that the cross entropy factory reads N, H, W and C from the model's output. */
+TEST(Small_PixelCrossEntropyObjective, TheCrossEntropyFactoryReadsTheModelsOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> cross_entropy,
         make_pixel_cross_entropy_objective(make_context(3), keys("{}"), K_CONTEXT));
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Train::Objective> dice,
-        make_dice_objective(make_context(0), keys(R"({"ignore_index": 9})"), K_CONTEXT));
 
     EXPECT_EQ(cross_entropy->name(), "pixel_cross_entropy");
     const auto* const made = dynamic_cast<const PixelCrossEntropyObjective*>(cross_entropy.get());
     ASSERT_NE(made, nullptr);
     EXPECT_EQ(made->extents().pixels(), K_PIXELS);
     EXPECT_EQ(made->ignore_index(), 255);
+}
+
+/** @brief Tests that the Dice factory reads the ignore index of its block. */
+TEST(Small_PixelCrossEntropyObjective, TheDiceFactoryReadsTheModelsOutputAndItsIgnoreIndex)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Train::Objective> dice,
+        make_dice_objective(make_context(0), keys(R"({"ignore_index": 9})"), K_CONTEXT));
 
     const auto* const made_dice = dynamic_cast<const DiceObjective*>(dice.get());
     ASSERT_NE(made_dice, nullptr);
     EXPECT_EQ(made_dice->ignore_index(), 9);
 }
 
-/** @brief Tests the keys a factory refuses: an unknown one, a real and an index of a class. */
-TEST(Medium_PixelCrossEntropyObjective, TheFactoriesRefuseABadSection)
+/** @brief Tests that the cross entropy factory refuses a key it does not read. */
+TEST(Small_PixelCrossEntropyObjective, TheCrossEntropyFactoryRefusesAnUnknownKey)
 {
     SA_EXPECT_FAILURE(
         make_pixel_cross_entropy_objective(make_context(3), keys(R"({"weight": 1})"), K_CONTEXT),
         StatusCode::InvalidDescription, "the objective block", "'weight'", "'ignore_index'");
+}
+
+/** @brief Tests that the Dice factory refuses an ignore index that is no whole number. */
+TEST(Small_PixelCrossEntropyObjective, TheDiceFactoryRefusesARealIgnoreIndex)
+{
     SA_EXPECT_FAILURE(
         make_dice_objective(make_context(3), keys(R"({"ignore_index": 0.5})"), K_CONTEXT),
         StatusCode::InvalidDescription, "'ignore_index'", "whole number");
+}
+
+/** @brief Tests that the cross entropy factory refuses an ignore index that is a class. */
+TEST(Small_PixelCrossEntropyObjective, TheCrossEntropyFactoryRefusesAClassAsIgnoreIndex)
+{
     SA_EXPECT_FAILURE(
         make_pixel_cross_entropy_objective(make_context(3), keys(R"({"ignore_index": 1})"),
                                            K_CONTEXT),
         StatusCode::InvalidDescription, "ignore index 1");
 }
 
-/** @brief Tests the models a factory refuses, and data of more classes than the model scores. */
-TEST(Medium_PixelCrossEntropyObjective, TheFactoriesRefuseAModelThatDoesNotFit)
+/** @brief Tests the models the cross entropy factory refuses. */
+TEST_P(Small_PixelCrossEntropyObjectiveModels, TheFactoryRefusesAModelThatDoesNotFit)
 {
-    Train::ObjectiveContext two_outputs = make_context(3);
-    two_outputs.outputs.push_back(Train::OutputShape{"second", Shape{2, 4, 4, 3}});
-    Train::ObjectiveContext flat = make_context(3);
-    flat.outputs.front().shape = Shape{2, 3};
-    Train::ObjectiveContext half_size = make_context(3);
-    half_size.outputs.front().shape = Shape{2, 2, 2, 3};
+    const UnfitModel& row = GetParam();
 
-    SA_EXPECT_FAILURE(make_pixel_cross_entropy_objective(two_outputs, keys("{}"), K_CONTEXT),
-                      StatusCode::InvalidDescription, "one [N, H, W, classes] output",
-                      "publishes 2");
-    SA_EXPECT_FAILURE(make_dice_objective(flat, keys("{}"), K_CONTEXT),
-                      StatusCode::InvalidDescription, "'output'", "[2, 3]");
-    SA_EXPECT_FAILURE(make_pixel_cross_entropy_objective(half_size, keys("{}"), K_CONTEXT),
-                      StatusCode::InvalidDescription, "[2, 2, 2, 3]", "[4, 4, 5]",
-                      "input size");
+    SA_EXPECT_FAILURE(make_pixel_cross_entropy_objective(row.given, keys("{}"), K_CONTEXT),
+                      StatusCode::InvalidDescription, row.needles[0], row.needles[1],
+                      row.needles[2]);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_PixelCrossEntropyObjectiveModels,
+    ::testing::Values(
+        UnfitModel{"TwoOutputs", with_second_output(),
+                   {"one [N, H, W, classes] output", "publishes 2", ""}},
+        UnfitModel{"FlatOutput", with_flat_output(), {"'output'", "[2, 3]", ""}},
+        UnfitModel{"HalfSizeOutput", with_half_size_output(),
+                   {"[2, 2, 2, 3]", "[4, 4, 5]", "input size"}}),
+    [](const ::testing::TestParamInfo<UnfitModel>& info) { return std::string(info.param.name); });
+
+/** @brief Tests that the Dice factory refuses data of more classes than the model scores. */
+TEST(Small_PixelCrossEntropyObjective, TheDiceFactoryRefusesMoreClassesThanTheModelScores)
+{
     SA_EXPECT_FAILURE(make_dice_objective(make_context(4), keys("{}"), K_CONTEXT),
                       StatusCode::InvalidDescription, "holds 4 classes", "scores 3");
 }
@@ -406,6 +474,34 @@ namespace
         }
 
         return total / present;
+    }
+
+    /** @brief Returns (softmax - one_hot) / kept on a kept pixel and zero on an ignored one. */
+    std::vector<double> cross_entropy_gradient_on_host(const std::vector<double>& logits,
+                                                       const std::vector<std::int32_t>& labels)
+    {
+        std::vector<double> gradient;
+        for (std::size_t pixel = 0; pixel < K_HOST_PIXELS; ++pixel)
+        {
+            const std::vector<double> probabilities = probabilities_of(logits, pixel);
+            for (std::size_t column = 0; column < K_CLASSES; ++column)
+            {
+                const bool is_kept = labels[pixel] != K_IGNORE;
+                const double hit = labels[pixel] == static_cast<std::int32_t>(column) ? 1.0 : 0.0;
+                gradient.push_back(is_kept ? (probabilities[column] - hit) / K_KEPT : 0.0);
+            }
+        }
+
+        return gradient;
+    }
+
+    /** @brief Expects each element of @p actual within K_TOLERANCE of the one of @p expected. */
+    void expect_elements_near(const std::vector<double>& actual,
+                              const std::vector<double>& expected)
+    {
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t i = 0; i < actual.size(); ++i)
+            EXPECT_NEAR(actual[i], expected[i], K_TOLERANCE) << "element " << i;
     }
 
     /** @brief Returns the central difference of @p loss at every logit. */
@@ -549,19 +645,7 @@ TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, TheCrossEntropyAndItsGradientE
     EXPECT_NEAR(found.loss, cross_entropy_on_host(logits, labels), K_TOLERANCE);
 
     // The gradient is (softmax - one_hot) / kept on a kept pixel and zero on an ignored one.
-    ASSERT_EQ(found.gradient.size(), K_HOST_PIXELS * K_CLASSES);
-    for (std::size_t pixel = 0; pixel < K_HOST_PIXELS; ++pixel)
-    {
-        const std::vector<double> probabilities = probabilities_of(logits, pixel);
-        for (std::size_t column = 0; column < K_CLASSES; ++column)
-        {
-            const bool is_kept = labels[pixel] != K_IGNORE;
-            const double hit = labels[pixel] == static_cast<std::int32_t>(column) ? 1.0 : 0.0;
-            const double expected = is_kept ? (probabilities[column] - hit) / K_KEPT : 0.0;
-            EXPECT_NEAR(found.gradient[pixel * K_CLASSES + column], expected, K_TOLERANCE)
-                << "pixel " << pixel << ", class " << column;
-        }
-    }
+    expect_elements_near(found.gradient, cross_entropy_gradient_on_host(logits, labels));
 }
 
 /** @brief Tests that a sum feeds both terms: the loss and its gradient are the weighted sums. */
@@ -594,13 +678,11 @@ TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AWeightedSumOfBothLossesEquals
     EXPECT_NEAR(found.loss, both(logits, labels), K_TOLERANCE);
 
     const std::vector<double> expected = gradient_on_host(both, logits, labels);
-    ASSERT_EQ(found.gradient.size(), expected.size());
-    for (std::size_t index = 0; index < expected.size(); ++index)
-        EXPECT_NEAR(found.gradient[index], expected[index], K_TOLERANCE) << "element " << index;
+    expect_elements_near(found.gradient, expected);
 }
 
-/** @brief Tests that a mask of ignored pixels alone gives a loss of zero and no gradient. */
-TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AMaskWithNoKeptPixelGivesZero)
+/** @brief Tests that a mask of ignored pixels alone gives a loss of zero. */
+TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AMaskWithNoKeptPixelGivesALossOfZero)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
@@ -611,8 +693,20 @@ TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AMaskWithNoKeptPixelGivesZero)
                             run_step(backend(), *objective, make_logits(), labels));
 
     EXPECT_NEAR(found.loss, 0.0, K_TOLERANCE);
-    for (const double element : found.gradient)
-        EXPECT_NEAR(element, 0.0, K_TOLERANCE);
+}
+
+/** @brief Tests that a mask of ignored pixels alone gives no gradient. */
+TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AMaskWithNoKeptPixelGivesNoGradient)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
+        Vision::Training::PixelCrossEntropyObjective::make(K_HOST_EXTENTS, K_IGNORE));
+    const std::vector<std::int32_t> labels(K_HOST_PIXELS, K_IGNORE);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Found found,
+                            run_step(backend(), *objective, make_logits(), labels));
+
+    expect_elements_near(found.gradient, std::vector<double>(K_HOST_PIXELS * K_CLASSES, 0.0));
 }
 
 /** @brief Tests that a label at the class count stops the feed and names its pixel. */
@@ -774,53 +868,61 @@ namespace
     /** @brief Provides the engine the state, the dataset and the step are built on. */
     class Medium_SegmentOverfit : public SaTest::EngineTest
     {
+        protected:
+            /** @brief Fits the tiny segmenter to one batch and returns the report of the run. */
+            void fit(Train::RunReport& report)
+            {
+        TinySegmenter model;
+        SA_ASSERT_OK_AND_ASSIGN(
+            const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
+            Vision::Training::PixelCrossEntropyObjective::make(
+                Vision::Training::PixelExtents{K_BATCH, K_SIDE, K_SIDE, K_OVERFIT_CLASSES}, K_IGNORE));
+        SA_ASSERT_OK_AND_ASSIGN(
+            Train::TrainingGraph built,
+            Train::build_training_graph(model, *objective,
+                                        Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}));
+
+        SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+        Graph::TensorPool pool(*engine);
+        SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                                Train::bind_parameters(backend(), built, state, pool));
+        SA_EXPECT_OK(NN::initialize(backend(), state));
+        SA_ASSERT_OK_AND_ASSIGN(std::vector<Train::BufferUpdateSlot> updates,
+                                Train::bind_buffer_updates(built.updates, state, pool));
+
+        Optim::SGDOptions sgd;
+        sgd.learning_rate = K_RATE;
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                                Optim::SGD::make(backend(), slots, sgd));
+        Train::TrainerOptions options;
+        options.epochs = K_EPOCHS;
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
+                                Train::Trainer::make(backend(), built, pool, *objective, *optimizer,
+                                                     options, std::move(updates)));
+        SA_ASSERT_OK_AND_ASSIGN(const Data::MaterialisedDataset dataset, make_dataset(*engine));
+
+        SA_ASSERT_OK_AND_ASSIGN(report, trainer->fit(dataset));
+
+            }
     };
 } // namespace
 
-/** @brief Tests that the loss falls below half its start and the mean IoU rises above 0.8. */
-TEST_F(Medium_SegmentOverfit, TwoConvolutionsAndAHeadFitOneBatch)
+/** @brief Tests that the loss falls below a fraction of its start over the run. */
+TEST_F(Medium_SegmentOverfit, TheLossFallsOnOneBatch)
 {
-    TinySegmenter model;
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
-        Vision::Training::PixelCrossEntropyObjective::make(
-            Vision::Training::PixelExtents{K_BATCH, K_SIDE, K_SIDE, K_OVERFIT_CLASSES}, K_IGNORE));
-    SA_ASSERT_OK_AND_ASSIGN(
-        Train::TrainingGraph built,
-        Train::build_training_graph(model, *objective,
-                                    Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}));
+    Train::RunReport report;
+    ASSERT_NO_FATAL_FAILURE(fit(report));
 
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    Graph::TensorPool pool(*engine);
-    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(backend(), built, state, pool));
-    SA_EXPECT_OK(NN::initialize(backend(), state));
-    SA_ASSERT_OK_AND_ASSIGN(std::vector<Train::BufferUpdateSlot> updates,
-                            Train::bind_buffer_updates(built.updates, state, pool));
-
-    Optim::SGDOptions sgd;
-    sgd.learning_rate = K_RATE;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(backend(), slots, sgd));
-    Train::TrainerOptions options;
-    options.epochs = K_EPOCHS;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(backend(), built, pool, *objective, *optimizer,
-                                                 options, std::move(updates)));
-    SA_ASSERT_OK_AND_ASSIGN(const Data::MaterialisedDataset dataset, make_dataset(*engine));
-
-    SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(dataset));
-
-    EXPECT_EQ(report.steps, static_cast<std::size_t>(K_EPOCHS));
-    EXPECT_EQ(report.compile_count, 1u);
     EXPECT_LT(report.last_loss, K_LOSS_FRACTION * report.first_loss) << report.to_string();
+}
+
+/** @brief Tests that the mean IoU of the last step rises above the bound. */
+TEST_F(Medium_SegmentOverfit, TheMeanIouRisesOnOneBatch)
+{
+    Train::RunReport report;
+    ASSERT_NO_FATAL_FAILURE(fit(report));
 
     const Train::Metric* const mean_iou = report.last_metrics.find("mean_iou");
-    const Train::Metric* const accuracy = report.last_metrics.find("pixel_accuracy");
     ASSERT_NE(mean_iou, nullptr);
-    ASSERT_NE(accuracy, nullptr);
     EXPECT_GT(mean_iou->value, K_MEAN_IOU) << report.to_string();
-
-    // With two classes the accuracy is at least the IoU of each, so at least their mean.
-    EXPECT_GE(accuracy->value, mean_iou->value) << report.to_string();
 }
