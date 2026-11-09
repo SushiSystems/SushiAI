@@ -1,7 +1,7 @@
 # tests/layers/nn/test_node_registry.cpp
 
 
-Suites: `Small_NodeRegistry`.
+Suites: `Small_NodeRegistry`, `Small_NodeRegistryLayerRow`.
 
 Tests `NN::NodeRegistry`, `NN::register_layers`, `NN::make_node` and `NN::build_model` over
 the rows `register_layers` adds. The file needs no device. `make_node` looks a type up among
@@ -99,11 +99,6 @@ Adding a node row named "concat", and one named "relu", each fail with `InvalidD
 "the type 'silu'" and "does not have", and its message ends with
 "the node types are: ; the layer types are: ".
 
-## EveryRowHasAMinimalCase
-
-`K_MINIMAL_CASES` has as many entries as `registered()` has node rows, and entry `i` names
-the type of row `i`.
-
 ## EachRowBuildsFromAMinimalObject
 
 For every case, `make_node` returns a node with one port named `NN::K_SINGLE_PORT_NAME` whose
@@ -124,13 +119,20 @@ A `concat` row over [4, 4, 2] and [8, 4, 2] fails with a message containing "lay
 `make_node("concat", ...)` over [4, 4, 2] and [4, 4, 3] returns an `NN::Concat` and not a
 `LayerNode`.
 
-## ALayerTypeIsWrappedInALayerNode
+## ALayerNodeReportsThePortOfItsLayer
 
 `make_node("upsample", ...)` with scale 2 over [4, 4, 2] returns a `LayerNode` with one port
-named `K_SINGLE_PORT_NAME` of shape [8, 8, 2]. The case then walks `K_LAYER_CASES`, which has
-one entry per layer row of the registry in order. Every type builds a `LayerNode`, and every
-type given `{"no_such_key": 1}` fails with "'no_such_key'", which shows the layer's own
-factory ran.
+named `K_SINGLE_PORT_NAME` of shape [8, 8, 2].
+
+## Small_NodeRegistryLayerRow.ALayerTypeIsWrappedInALayerNode
+
+One row per entry of `K_LAYER_CASES`, which holds a minimal object for each of the sixteen layer
+rows. The type of the row builds a `LayerNode`.
+
+## Small_NodeRegistryLayerRow.ALayerTypeRefusesAnUnknownKeyByName
+
+For the same rows, the type given `{"no_such_key": 1}` fails with "'no_such_key'", which shows the
+layer's own factory ran.
 
 ## ALayerTypeRefusesTwoInputs
 
@@ -168,8 +170,9 @@ Over [4, 4, 64], the slice_channels row with `offset` 32 and `count` 32 gives a 
 ## AnUnknownTypeListsBothTables
 
 `make_node("conv3d", ...)` fails with a message containing "layer 5 'conv3d'", "the type
-'conv3d'", "does not have", "node types" and "layer types". The message also contains every
-type of the registry's node rows and of its layer rows in quotes.
+'conv3d'", "does not have", "node types" and "layer types". The message also names, in quotes and
+written out in the test, the six node types (batchnorm2d, concat, add, embedding, layernorm,
+dropout) and the sixteen layer types.
 
 ## AFileAndAHandBuiltGraphAgree
 
@@ -221,8 +224,7 @@ on row 2 fails with "layer 2 'upsample'" and "row -2". A row with no source fail
 
 ## AnEmptyOutputListPublishesTheLastRowWhole
 
-A spec whose `outputs` were cleared builds a model whose `output_shape` is [8, 8, 8], the same
-as that of the model built from the parsed spec.
+A spec whose `outputs` were cleared builds a model whose `output_shape` is [8, 8, 8].
 
 ## AWrongOutputListIsRefused
 

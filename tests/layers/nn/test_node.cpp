@@ -528,7 +528,7 @@ TEST(Small_Node, LayerNodeRejectsNoInput)
 }
 
 /** @brief Tests that building a LayerNode over a null layer stops the process. */
-TEST(Small_NodeDeathTest, LayerNodeOverANullLayerIsFatal)
+TEST(Medium_NodeDeathTest, LayerNodeOverANullLayerIsFatal)
 {
     SA_EXPECT_FATAL((void)LayerNode(std::unique_ptr<NN::Layer>()), "LayerNode", "null layer");
 }

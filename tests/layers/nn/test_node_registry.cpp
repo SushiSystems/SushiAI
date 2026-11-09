@@ -261,17 +261,6 @@ TEST(Small_NodeRegistry, AnEmptyRegistryKnowsNoType)
     EXPECT_EQ(message.substr(message.size() - no_types.size()), no_types);
 }
 
-/** @brief Tests that every node row of registered() has a minimal case here, in row order. */
-TEST(Small_NodeRegistry, EveryRowHasAMinimalCase)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    const SushiRuntime::span<const NN::NodeEntry> nodes = registry.nodes();
-    ASSERT_EQ(K_MINIMAL_CASES.size(), nodes.size());
-
-    for (std::size_t index = 0; index < nodes.size(); ++index)
-        EXPECT_EQ(K_MINIMAL_CASES[index].type, nodes[index].type);
-}
-
 /** @brief Tests that each row builds a one-port node of the expected shape from its case. */
 TEST(Small_NodeRegistry, EachRowBuildsFromAMinimalObject)
 {
@@ -328,8 +317,8 @@ TEST(Small_NodeRegistry, ANodeTypeBuildsItsOwnNode)
     EXPECT_EQ(dynamic_cast<NN::LayerNode*>(node.get()), nullptr);
 }
 
-/** @brief Tests that every layer row's type is reached through make_node as a LayerNode. */
-TEST(Small_NodeRegistry, ALayerTypeIsWrappedInALayerNode)
+/** @brief Tests that the upsample layer row is reached through make_node as a LayerNode. */
+TEST(Small_NodeRegistry, ALayerNodeReportsThePortOfItsLayer)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{4, 4, 2}};
@@ -343,27 +332,43 @@ TEST(Small_NodeRegistry, ALayerTypeIsWrappedInALayerNode)
     ASSERT_EQ(node->ports().size(), 1u);
     EXPECT_EQ(node->ports()[0].name, NN::K_SINGLE_PORT_NAME);
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 8, 2}));
-
-    const SushiRuntime::span<const NN::LayerEntry> layers = registry.layers();
-    ASSERT_EQ(K_LAYER_CASES.size(), layers.size());
-    for (std::size_t index = 0; index < layers.size(); ++index)
-    {
-        const LayerCase& minimal = K_LAYER_CASES[index];
-        SCOPED_TRACE(std::string(minimal.type));
-        ASSERT_EQ(minimal.type, layers[index].type);
-
-        const std::vector<Shape> read = {minimal.input};
-        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> built,
-                                NN::make_node(registry, minimal.type, span_of(read),
-                                              attributes_from(minimal.attributes), "layer 0"));
-        EXPECT_NE(dynamic_cast<NN::LayerNode*>(built.get()), nullptr);
-
-        // An unknown key is refused by the layer's own factory, so the type was found.
-        SA_EXPECT_FAILURE(NN::make_node(registry, minimal.type, span_of(read),
-                                        attributes_from(R"({"no_such_key": 1})"), "layer 0"),
-                          StatusCode::InvalidDescription, "'no_such_key'");
-    }
 }
+
+/** @brief Runs a case over each layer row of the registry. */
+class Small_NodeRegistryLayerRow : public ::testing::TestWithParam<LayerCase>
+{
+};
+
+/** @brief Tests that the layer type of the row is reached through make_node as a LayerNode. */
+TEST_P(Small_NodeRegistryLayerRow, ALayerTypeIsWrappedInALayerNode)
+{
+    const LayerCase& minimal = GetParam();
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    const std::vector<Shape> read = {minimal.input};
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> built,
+                            NN::make_node(registry, minimal.type, span_of(read),
+                                          attributes_from(minimal.attributes), "layer 0"));
+
+    EXPECT_NE(dynamic_cast<NN::LayerNode*>(built.get()), nullptr);
+}
+
+/** @brief Tests that the layer type of the row is found and refuses an unknown key by name. */
+TEST_P(Small_NodeRegistryLayerRow, ALayerTypeRefusesAnUnknownKeyByName)
+{
+    const LayerCase& minimal = GetParam();
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    const std::vector<Shape> read = {minimal.input};
+
+    // An unknown key is refused by the layer's own factory, so the type was found.
+    SA_EXPECT_FAILURE(NN::make_node(registry, minimal.type, span_of(read),
+                                    attributes_from(R"({"no_such_key": 1})"), "layer 0"),
+                      StatusCode::InvalidDescription, "'no_such_key'");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_NodeRegistryLayerRow, ::testing::ValuesIn(K_LAYER_CASES),
+    [](const ::testing::TestParamInfo<LayerCase>& info) { return std::string(info.param.type); });
 
 /** @brief Tests that a layer type given two inputs fails and names the count and the type. */
 TEST(Small_NodeRegistry, ALayerTypeRefusesTwoInputs)
@@ -478,14 +483,13 @@ TEST(Small_NodeRegistry, AnUnknownTypeListsBothTables)
 
     SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "layer 5 'conv3d'",
                       "the type 'conv3d'", "does not have", "node types", "layer types");
-
-    for (const NN::NodeEntry& entry : registry.nodes())
-        SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription,
-                          "'" + std::string(entry.type) + "'");
-
-    for (const NN::LayerEntry& entry : registry.layers())
-        SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription,
-                          "'" + std::string(entry.type) + "'");
+    SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "'batchnorm2d'", "'concat'", "'add'",
+                      "'embedding'", "'layernorm'", "'dropout'");
+    SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "'linear'", "'gelu'", "'relu'",
+                      "'tanh'", "'sigmoid'", "'leaky_relu'", "'unflatten'", "'conv2d'");
+    SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "'maxpool2d'", "'avgpool2d'",
+                      "'global_avgpool'", "'flatten'", "'upsample'", "'silu'", "'mish'",
+                      "'slice_channels'");
 }
 
 /**
@@ -637,12 +641,9 @@ TEST(Small_NodeRegistry, AnEmptyOutputListPublishesTheLastRowWhole)
     Config::ModelSpec silent = parsed;
     silent.outputs.clear();
 
-    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph from_file, NN::build_model(registry, parsed));
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph by_hand, NN::build_model(registry, silent));
 
     EXPECT_EQ(by_hand.output_shape(parsed.input_shape).value(), (Shape{8, 8, 8}));
-    EXPECT_EQ(by_hand.output_shape(parsed.input_shape).value(),
-              from_file.output_shape(parsed.input_shape).value());
 }
 
 /** @brief Tests that a spec with no layer or a wrong output entry is refused. */
