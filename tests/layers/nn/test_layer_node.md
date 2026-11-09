@@ -18,11 +18,6 @@ the rest of the node's surface.
 `make_linear` returns a 6-to-8 `Linear` wrapped in a `LayerAdapter`, the run-time layer every
 case hands to a node.
 
-## TheNodeHandsBackTheLayerItOwns
-
-The address of the layer before it is moved into the node equals the address `layer()` returns,
-through the const and the non-const overload. The one port is named `K_SINGLE_PORT_NAME`.
-
 ## ForwardKeepsWhatTheOutputsAlreadyHeld
 
 `outputs` holds `x` before the call. After a forward over `x` it holds two values: `x`, unchanged

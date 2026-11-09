@@ -3,7 +3,7 @@
 
 `Trace::host_table`: a table is a buffer leaf listed with its values, two declarations are two leaves, and a trace without a sink, a wrong type or a wrong count is refused.
 
-Suites: `Small_HostTable`.
+Suites: `Small_HostTable`, `Small_HostTableRefusal`.
 
 Tests `NN::Trace::host_table` and the `NN::HostTableList` a trace collects into with
 `collect_tables`.
@@ -19,9 +19,9 @@ table with that leaf and the six values, and the trace is ok.
 Two float64 tables declared on a training trace return two different leaves, and the list
 holds them in the order they were declared.
 
-## ATableThatNoStepCanFillIsRefused
+## Small_HostTableRefusal.ATableThatNoStepCanFillIsRefused
 
-`host_table` fails with `InvalidDescription` and a message naming `'angles'` three times: on a
-trace without `collect_tables` ("collect_tables"), for the type int32 ("float32 or a float64")
-and for two values under the shape [2, 3] ("6 elements", "2 values"). The graph gains no node
-and the list stays empty.
+`host_table` fails with `InvalidDescription` and a message naming `'angles'` and the row's
+substrings. The graph gains no node and the list stays empty. The rows are NoCollector (a trace
+without `collect_tables`: "collect_tables"), AnIntegerType (int32: "float32 or a float64") and
+ACountMismatch (two values under the shape [2, 3]: "6 elements", "2 values").

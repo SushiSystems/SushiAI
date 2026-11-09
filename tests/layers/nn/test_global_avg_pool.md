@@ -3,7 +3,7 @@
 
 The shapes GlobalAvgPool traces and reports, and the inputs it refuses.
 
-Suites: `Small_GlobalAvgPool`.
+Suites: `Small_GlobalAvgPool`, `Small_GlobalAvgPoolShapeRefusal`, `Small_GlobalAvgPoolForwardRefusal`.
 
 Tests the shapes GlobalAvgPool traces and reports, and the inputs it refuses.
 
@@ -14,12 +14,6 @@ no field and no parameter. It reduces the two spatial axes of an image to their 
 
 `traced_shape` traces the layer over an [N, H, W, C] input built from its four arguments and
 returns the result's shape.
-
-## SatisfiesTheModuleTrait
-
-Three `static_assert` lines require `GlobalAvgPool` to be a `Module`, not to be a
-`ModuleContainer`, and to have a `forward()` that is callable on a const object and returns
-`Graph::ValueID`.
 
 ## ForwardReducesTheSpatialAxes
 
@@ -43,30 +37,13 @@ The result of an NHWC input is tagged NHWC, and `finalise()` accepts the graph.
 For a square [7, 7, 512] sample and an oblong [3, 9, 2] one, `output_shape()` is rank 1 and
 the traced shape is the batch extent followed by its one extent.
 
-## OutputShapeRejectsAFeatureVector
+## Small_GlobalAvgPoolShapeRefusal.OutputShapeRefuses
 
-`output_shape([16])` returns InvalidDescription.
+`output_shape` returns InvalidDescription for a per-sample shape that is not rank 3. The rows are
+AFeatureVector ([16]), ARankTwoShape ([7, 16]) and AShapeWithTheBatchAxis ([4, 7, 5, 16]).
 
-## OutputShapeRejectsARankTwoShape
+## Small_GlobalAvgPoolForwardRefusal.ForwardRefuses
 
-`output_shape([7, 16])` returns InvalidDescription.
-
-## OutputShapeRejectsAShapeWithTheBatchAxis
-
-`output_shape([4, 7, 5, 16])` returns InvalidDescription.
-
-## ForwardRejectsAFeatureMatrix
-
-`forward()` returns InvalidDescription on a [4, 16] input.
-
-## ForwardRejectsAnInputWithoutTheBatchAxis
-
-`forward()` returns InvalidDescription on a [7, 5, 16] input.
-
-## ForwardRejectsAnNCHWInput
-
-A [1, 4, 4, 3] input is converted to NCHW, and `forward()` returns InvalidDescription for the converted value.
-
-## TheParameterWalkVisitsNothing
-
-`parameter_count` is 0 before and after a trace, and `parameter_elements` is 0 after it.
+`forward()` returns InvalidDescription. The rows are AFeatureMatrix ([4, 16]),
+AnInputWithoutTheBatchAxis ([7, 5, 16]) and AnNCHWInput (a [1, 4, 4, 3] input converted to
+NCHW).

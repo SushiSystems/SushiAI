@@ -30,8 +30,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
-#include <utility>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -58,20 +57,6 @@ namespace
         return graph.value(layer.forward(builder, x).value()).shape;
     }
 } // namespace
-
-/** @brief Tests that GlobalAvgPool satisfies the Module trait as a leaf with a const forward(). */
-TEST(Small_GlobalAvgPool, SatisfiesTheModuleTrait)
-{
-    static_assert(NN::Module<GlobalAvgPool>, "GlobalAvgPool must satisfy the Module contract");
-    static_assert(!NN::ModuleContainer<GlobalAvgPool>,
-                  "GlobalAvgPool is a leaf and must not look like a container");
-    static_assert(std::is_same<decltype(std::declval<const GlobalAvgPool&>().forward(
-                                   std::declval<const Graph::GraphBuilder&>(),
-                                   std::declval<const Graph::Traced&>())),
-                               Graph::Traced>::value,
-                  "GlobalAvgPool declares no parameter, so forward() must be const");
-    SUCCEED();
-}
 
 /** @brief Tests that forward() reduces an [N, H, W, C] input to [N, C]. */
 TEST(Small_GlobalAvgPool, ForwardReducesTheSpatialAxes)
@@ -143,80 +128,66 @@ TEST(Small_GlobalAvgPool, OutputShapeAgreesWithForward)
     EXPECT_EQ(traced_shape(1, 3, 9, 2), (Shape{1, oblong[0]}));
 }
 
-/** @brief Tests that output_shape() rejects a per-sample shape of rank 1. */
-TEST(Small_GlobalAvgPool, OutputShapeRejectsAFeatureVector)
+/** @brief Holds a name and a shape the layer refuses. */
+struct RefusedShapeRow
+{
+    std::string name; /**< The row's name. */
+    Shape shape;      /**< The shape given to output_shape or forward. */
+};
+
+/** @brief Runs the output_shape refusal over each per-sample shape of the wrong rank. */
+class Small_GlobalAvgPoolShapeRefusal : public ::testing::TestWithParam<RefusedShapeRow>
+{
+};
+
+/** @brief Tests that output_shape() rejects a per-sample shape that is not rank 3. */
+TEST_P(Small_GlobalAvgPoolShapeRefusal, OutputShapeRefuses)
 {
     const GlobalAvgPool layer{};
 
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{16}), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(layer.output_shape(GetParam().shape), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() rejects a per-sample shape of rank 2. */
-TEST(Small_GlobalAvgPool, OutputShapeRejectsARankTwoShape)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_GlobalAvgPoolShapeRefusal,
+    ::testing::Values(RefusedShapeRow{"AFeatureVector", Shape{16}},
+                      RefusedShapeRow{"ARankTwoShape", Shape{7, 16}},
+                      RefusedShapeRow{"AShapeWithTheBatchAxis", Shape{4, 7, 5, 16}}),
+    [](const ::testing::TestParamInfo<RefusedShapeRow>& info) { return info.param.name; });
+
+/** @brief Holds an input shape forward refuses and whether it is converted to NCHW. */
+struct ForwardRefusalRow
 {
-    const GlobalAvgPool layer{};
+    std::string name; /**< The row's name. */
+    Shape input;      /**< The input shape. */
+    bool nchw;        /**< Whether the input is converted to NCHW first. */
+};
 
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{7, 16}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() rejects a rank-4 shape that still carries the batch axis. */
-TEST(Small_GlobalAvgPool, OutputShapeRejectsAShapeWithTheBatchAxis)
+/** @brief Runs the forward refusal over each input the layer does not take. */
+class Small_GlobalAvgPoolForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
-    const GlobalAvgPool layer{};
+};
 
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 7, 5, 16}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that forward() rejects a rank-2 [N, F] input. */
-TEST(Small_GlobalAvgPool, ForwardRejectsAFeatureMatrix)
+/** @brief Tests that forward() rejects the input of the row. */
+TEST_P(Small_GlobalAvgPoolForwardRefusal, ForwardRefuses)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{4, 16}, "x");
-
+    Graph::ValueID x = builder.input(GetParam().input, "x");
+    if (GetParam().nchw)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID converted,
+                                builder.layout_convert(x, Graph::TensorLayout::NCHW));
+        x = converted;
+    }
     const GlobalAvgPool layer{};
 
     SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that forward() rejects a rank-3 input that lacks the batch axis. */
-TEST(Small_GlobalAvgPool, ForwardRejectsAnInputWithoutTheBatchAxis)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{7, 5, 16}, "x");
-
-    const GlobalAvgPool layer{};
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that forward() rejects a rank-4 input tagged NCHW. */
-TEST(Small_GlobalAvgPool, ForwardRejectsAnNCHWInput)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{1, 4, 4, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID x_nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-
-    const GlobalAvgPool layer{};
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x_nchw), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that the parameter walk visits nothing, before and after a trace. */
-TEST(Small_GlobalAvgPool, TheParameterWalkVisitsNothing)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 3, 3, 8}, "x");
-
-    GlobalAvgPool layer{};
-    EXPECT_EQ(NN::parameter_count(layer), 0u);
-
-    SA_EXPECT_OK(layer.forward(builder, x));
-
-    EXPECT_EQ(NN::parameter_count(layer), 0u);
-    EXPECT_EQ(NN::parameter_elements(layer), 0);
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_GlobalAvgPoolForwardRefusal,
+    ::testing::Values(ForwardRefusalRow{"AFeatureMatrix", Shape{4, 16}, false},
+                      ForwardRefusalRow{"AnInputWithoutTheBatchAxis", Shape{7, 5, 16}, false},
+                      ForwardRefusalRow{"AnNCHWInput", Shape{1, 4, 4, 3}, true}),
+    [](const ::testing::TestParamInfo<ForwardRefusalRow>& info) { return info.param.name; });

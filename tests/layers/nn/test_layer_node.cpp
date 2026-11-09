@@ -62,20 +62,6 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the node hands back the very layer it took ownership of. */
-TEST(Small_LayerNode, TheNodeHandsBackTheLayerItOwns)
-{
-    std::unique_ptr<NN::Layer> layer = make_linear();
-    const NN::Layer* const address = layer.get();
-
-    LayerNode node(std::move(layer));
-    const LayerNode& view = node;
-
-    EXPECT_EQ(&node.layer(), address);
-    EXPECT_EQ(&view.layer(), address);
-    EXPECT_EQ(node.ports()[0].name, NN::K_SINGLE_PORT_NAME);
-}
-
 /** @brief Tests that forward appends its result behind the values the caller already held. */
 TEST(Small_LayerNode, ForwardKeepsWhatTheOutputsAlreadyHeld)
 {

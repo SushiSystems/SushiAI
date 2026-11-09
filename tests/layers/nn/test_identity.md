@@ -24,6 +24,3 @@ The graph's node count and value count are the same before and after `forward`.
 
 `output_shape([7])` is [7] and `output_shape([8, 6, 4])` is [8, 6, 4].
 
-## TheParameterWalkVisitsNothing
-
-After a trace, `NN::for_each_parameter` calls its visitor zero times.

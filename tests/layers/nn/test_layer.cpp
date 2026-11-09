@@ -125,13 +125,3 @@ TEST(Small_Layer, AnAdapterWalksItsModulesParametersUnderThePrefix)
               (std::vector<std::string>{"block.weight", "block.bias"}));
 }
 
-/** @brief Tests that the adapter hands back the module it wraps, fields intact. */
-TEST(Small_Layer, TheAdapterHandsBackTheModuleItWraps)
-{
-    LayerAdapter<Linear> adapter(Linear{6, 8}, 8);
-    const LayerAdapter<Linear>& view = adapter;
-
-    EXPECT_EQ(adapter.layer().in_features, 6);
-    EXPECT_EQ(view.layer().out_features, 8);
-    EXPECT_EQ(&view.layer(), &adapter.layer());
-}

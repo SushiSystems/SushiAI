@@ -28,10 +28,12 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <numeric>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -111,47 +113,119 @@ namespace
         SA_EXPECT_OK(model.trace(NN::Trace::training(builder, list), x));
     }
 
-    /** @brief Expects every element of the tensor named @p name to be @p expected. */
-    void expect_every_element_near(NN::ModelState& state, std::string_view name, double expected)
+    /** @brief Expects every element of the tensor named @p name to equal @p expected. */
+    void expect_every_element_equal(NN::ModelState& state, std::string_view name, double expected)
     {
         SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(name));
-        for (const double value : SaTest::read_tensor(*tensor))
-            EXPECT_DOUBLE_EQ(value, expected);
+        const std::vector<double> values = SaTest::read_tensor(*tensor);
+        EXPECT_TRUE(std::all_of(values.begin(), values.end(),
+                                [expected](double value) { return value == expected; }))
+            << "tensor " << name;
+    }
+
+    /** @brief Returns the mean of @p values. */
+    double sample_mean(const std::vector<double>& values)
+    {
+        return std::accumulate(values.begin(), values.end(), 0.0) /
+               static_cast<double>(values.size());
+    }
+
+    /** @brief Returns the deviation of @p values around @p mean, over all of them. */
+    double sample_deviation(const std::vector<double>& values, double mean)
+    {
+        const double squares = std::accumulate(values.begin(), values.end(), 0.0,
+                                               [mean](double sum, double value)
+                                               {
+                                                   return sum + (value - mean) * (value - mean);
+                                               });
+
+        return std::sqrt(squares / static_cast<double>(values.size()));
+    }
+
+    /**
+     * @brief Holds the number of standard errors a statistic may stray: the two-sided normal tail
+     * beyond 6.1 is 1.0e-9, so a correct fill of a fixed seed fails a check with that chance.
+     */
+    constexpr double K_STANDARD_ERRORS = 6.1;
+
+    /**
+     * @brief Bounds the distance of the mean of @p count normal draws of deviation @p sigma from
+     * zero: the mean has the standard error sigma / sqrt(count).
+     */
+    double mean_bound(std::size_t count, double sigma)
+    {
+        return K_STANDARD_ERRORS * sigma / std::sqrt(static_cast<double>(count));
+    }
+
+    /**
+     * @brief Bounds the distance of the deviation of @p count normal draws from @p sigma: the
+     * sample deviation has the standard error sigma / sqrt(2 * count) for a large count.
+     */
+    double deviation_bound(std::size_t count, double sigma)
+    {
+        return K_STANDARD_ERRORS * sigma / std::sqrt(2.0 * static_cast<double>(count));
+    }
+
+    /** @brief Builds a three-channel BatchNorm2d model and traces it, ready for a state. */
+    void prepare_batch_norm(NN::ModelGraph& model)
+    {
+        build_batch_norm(model, 3);
+        trace_training(model, Shape{2, 4, 4, 3});
     }
 } // namespace
 
-/**
- * @brief Tests that a scale starts at one, a shift at zero, and a buffer at its initial value.
- */
-TEST_F(Medium_InitState, AScaleIsOneAShiftIsZeroAndABufferHoldsItsInitialValue)
+/** @brief Tests that a scale starts at one. */
+TEST_F(Medium_InitState, AScaleStartsAtOne)
 {
     NN::ModelGraph model(Shape{4, 4, 3});
-    build_batch_norm(model, 3);
-    trace_training(model, Shape{2, 4, 4, 3});
-
+    prepare_batch_norm(model);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+
     SA_EXPECT_OK(NN::initialize(backend(), state));
 
-    expect_every_element_near(state, "bn.weight", 1.0);
-    expect_every_element_near(state, "bn.bias", 0.0);
-    expect_every_element_near(state, "bn.running_mean", 0.0);
-    expect_every_element_near(state, "bn.running_var", 1.0);
+    expect_every_element_equal(state, "bn.weight", 1.0);
+}
+
+/** @brief Tests that a shift starts at zero. */
+TEST_F(Medium_InitState, AShiftStartsAtZero)
+{
+    NN::ModelGraph model(Shape{4, 4, 3});
+    prepare_batch_norm(model);
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+
+    SA_EXPECT_OK(NN::initialize(backend(), state));
+
+    expect_every_element_equal(state, "bn.bias", 0.0);
+}
+
+/** @brief Tests that a buffer holds its initial value: the running mean zero, the variance one. */
+TEST_F(Medium_InitState, ABufferHoldsItsInitialValue)
+{
+    NN::ModelGraph model(Shape{4, 4, 3});
+    prepare_batch_norm(model);
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+
+    SA_EXPECT_OK(NN::initialize(backend(), state));
+
+    expect_every_element_equal(state, "bn.running_mean", 0.0);
+    expect_every_element_equal(state, "bn.running_var", 1.0);
 }
 
 /**
- * @brief Tests that zeroing the final layer zeroes the last fan-scaled entry and nothing after.
+ * @brief Tests that zeroing the final layer zeroes every element of the convolution weight and
+ *        leaves the normalisation scale at one.
  */
-TEST_F(Medium_InitState, ZeroFinalLayerZeroesOnlyTheLastFanScaledEntry)
+TEST_F(Medium_InitState, ZeroFinalLayerZeroesTheConvWeightAndKeepsTheNormScaleAtOne)
 {
     NN::ModelGraph model(Shape{4, 4, 3});
     build_conv_norm(model);
     trace_training(model, Shape{2, 4, 4, 3});
-
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+
     SA_EXPECT_OK(NN::initialize(backend(), state));
 
-    expect_every_element_near(state, "conv.weight", 0.0);
-    expect_every_element_near(state, "bn.weight", 1.0);
+    expect_every_element_equal(state, "conv.weight", 0.0);
+    expect_every_element_equal(state, "bn.weight", 1.0);
 }
 
 /**
@@ -163,92 +237,85 @@ TEST_F(Medium_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
     Graph::Graph graph;
     trace_mlp(model, graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
+
     SA_EXPECT_OK(NN::initialize(backend(), state, policy));
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* last, state.tensor("2.weight"));
-    bool any_nonzero = false;
-    for (const double value : SaTest::read_tensor(*last))
-        if (value != 0.0) any_nonzero = true;
-    EXPECT_TRUE(any_nonzero);
+    const std::vector<double> values = SaTest::read_tensor(*last);
+    EXPECT_TRUE(std::any_of(values.begin(), values.end(),
+                            [](double value) { return value != 0.0; }));
 }
 
+/** @brief Holds the name of one state entry of the two-layer model. */
+struct EntryRow
+{
+    std::string name;  /**< The row's name. */
+    std::string entry; /**< The state entry compared. */
+};
+
+/** @brief Provides the Engine and the entry rows of the seed case. */
+class Medium_InitStateSeed : public SaTest::EngineTest,
+                             public ::testing::WithParamInterface<EntryRow>
+{
+};
+
 /**
- * @brief Tests that two states of equal models, filled with one seed, hold equal bits.
+ * @brief Tests that two states of equal models, filled with one seed, hold equal bits in an entry.
  */
-TEST_F(Medium_InitState, TheSameSeedGivesTheSameBits)
+TEST_P(Medium_InitStateSeed, TheSameSeedGivesTheSameBits)
 {
     MLP first_model = make_mlp();
     Graph::Graph first_graph;
     trace_mlp(first_model, first_graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState first, NN::ModelState::create(*engine, first_model));
-
     MLP second_model = make_mlp();
     Graph::Graph second_graph;
     trace_mlp(second_model, second_graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState second,
                             NN::ModelState::create(*engine, second_model));
-
     SA_EXPECT_OK(NN::initialize(backend(), first));
     SA_EXPECT_OK(NN::initialize(backend(), second));
 
-    for (const NN::StateEntry& entry : first.entries())
-    {
-        SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* a, first.tensor(entry.name));
-        SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* b, second.tensor(entry.name));
-        EXPECT_EQ(SaTest::read_tensor_bytes(*a), SaTest::read_tensor_bytes(*b));
-    }
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* a, first.tensor(GetParam().entry));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* b, second.tensor(GetParam().entry));
+
+    EXPECT_EQ(SaTest::read_tensor_bytes(*a), SaTest::read_tensor_bytes(*b));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_InitStateSeed,
+    ::testing::Values(EntryRow{"TheFirstWeight", "0.weight"}, EntryRow{"TheFirstBias", "0.bias"},
+                      EntryRow{"TheLastWeight", "2.weight"}, EntryRow{"TheLastBias", "2.bias"}),
+    [](const ::testing::TestParamInfo<EntryRow>& info) { return info.param.name; });
 
 /**
  * @brief Tests that a normal fill of deviation 0.02 gives a table of that spread, zeroing or not.
  */
 TEST_F(Medium_InitState, ANormalFillHasTheDeviationItStates)
 {
-    // 64 * 32 draws: the sample deviation of 2048 normals is within 1.6 % at one sigma.
     constexpr int64_t K_ROWS = 64;
     constexpr int64_t K_WIDTH = 32;
-    /**
-     * @brief Bounds the absolute difference of a sample deviation from the target; a statistical
-     * share of 2048 draws, not a rounding bound.
-     */
-    constexpr double K_DEVIATION_TOLERANCE = 0.002;
-    /**
-     * @brief Bounds the absolute difference of a sample mean from zero; a statistical share of 2048
-     * draws, not a rounding bound.
-     */
-    constexpr double K_MEAN_TOLERANCE = 0.0025;
-
     NN::Embedding model{};
     model.num_embeddings = K_ROWS;
     model.embedding_dim = K_WIDTH;
-
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID ids = builder.input(Shape{2, 4}, "ids", DType::Int32);
     static_cast<void>(model.forward(NN::Trace::evaluation(builder), ids));
-
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+
+    // The seed is the fixed default of InitPolicy, so the draw is the same on every run.
     SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* table, state.tensor("weight"));
     const std::vector<double> values = SaTest::read_tensor(*table);
     ASSERT_EQ(values.size(), static_cast<std::size_t>(K_ROWS * K_WIDTH));
-
-    double sum = 0.0;
-    for (const double value : values)
-        sum += value;
-    const double mean = sum / static_cast<double>(values.size());
-
-    double squares = 0.0;
-    for (const double value : values)
-        squares += (value - mean) * (value - mean);
-    const double deviation = std::sqrt(squares / static_cast<double>(values.size()));
-
-    EXPECT_NEAR(mean, 0.0, K_MEAN_TOLERANCE);
-    EXPECT_NEAR(deviation, NN::K_EMBEDDING_DEVIATION, K_DEVIATION_TOLERANCE);
+    const double mean = sample_mean(values);
+    EXPECT_NEAR(mean, 0.0, mean_bound(values.size(), NN::K_EMBEDDING_DEVIATION));
+    EXPECT_NEAR(sample_deviation(values, mean), NN::K_EMBEDDING_DEVIATION,
+                deviation_bound(values.size(), NN::K_EMBEDDING_DEVIATION));
 }
 
 /** @brief Tests that a normal fill of a deviation that is not positive is refused. */

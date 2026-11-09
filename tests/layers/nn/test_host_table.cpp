@@ -29,6 +29,7 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
@@ -91,25 +92,49 @@ TEST(Small_HostTable, EveryDeclarationIsItsOwnLeaf)
     EXPECT_EQ(tables.tables()[1].leaf, second);
 }
 
-/** @brief Tests that a trace with no sink, another type and a wrong count are each refused. */
-TEST(Small_HostTable, ATableThatNoStepCanFillIsRefused)
+/** @brief Holds a trace, a table and the substrings of the refusal. */
+struct RefusedTableRow
 {
+    std::string name;           /**< The row's name. */
+    bool collects;              /**< Whether the trace collects its tables. */
+    Shape shape;                /**< The shape of the table. */
+    DType dtype;                /**< The element type of the table. */
+    std::vector<double> values; /**< The values of the table. */
+    std::string first;          /**< A substring the message holds. */
+    std::string second;         /**< A second substring the message holds; empty for none. */
+};
+
+/** @brief Runs the table refusal over each table no step can fill. */
+class Small_HostTableRefusal : public ::testing::TestWithParam<RefusedTableRow>
+{
+};
+
+/** @brief Tests that a table no step can fill is refused and leaves the graph and the list alone. */
+TEST_P(Small_HostTableRefusal, ATableThatNoStepCanFillIsRefused)
+{
+    const RefusedTableRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const std::size_t nodes_before = graph.node_count();
-
-    const Trace plain = Trace::evaluation(builder);
-    SA_EXPECT_FAILURE(plain.host_table(Shape{2}, "angles", DType::Float32, {1.0, 2.0}),
-                      StatusCode::InvalidDescription, "'angles'", "collect_tables");
-
     HostTableList tables;
     Trace trace = Trace::evaluation(builder);
-    trace.collect_tables(tables);
-    SA_EXPECT_FAILURE(trace.host_table(Shape{2}, "angles", DType::Int32, {1.0, 2.0}),
-                      StatusCode::InvalidDescription, "'angles'", "float32 or a float64");
-    SA_EXPECT_FAILURE(trace.host_table(Shape{2, 3}, "angles", DType::Float32, {1.0, 2.0}),
-                      StatusCode::InvalidDescription, "'angles'", "6 elements", "2 values");
+    if (row.collects)
+        trace.collect_tables(tables);
+    const std::size_t nodes_before = graph.node_count();
+
+    SA_EXPECT_FAILURE(trace.host_table(row.shape, "angles", row.dtype, row.values),
+                      StatusCode::InvalidDescription, "'angles'", row.first, row.second);
 
     EXPECT_EQ(graph.node_count(), nodes_before);
     EXPECT_TRUE(tables.tables().empty());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_HostTableRefusal,
+    ::testing::Values(
+        RefusedTableRow{"NoCollector", false, Shape{2}, DType::Float32, {1.0, 2.0},
+                        "collect_tables", ""},
+        RefusedTableRow{"AnIntegerType", true, Shape{2}, DType::Int32, {1.0, 2.0},
+                        "float32 or a float64", ""},
+        RefusedTableRow{"ACountMismatch", true, Shape{2, 3}, DType::Float32, {1.0, 2.0},
+                        "6 elements", "2 values"}),
+    [](const ::testing::TestParamInfo<RefusedTableRow>& info) { return info.param.name; });

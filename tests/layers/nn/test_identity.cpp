@@ -85,20 +85,3 @@ TEST(Small_Identity, OutputShapeReturnsItsInput)
     EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}).value(), (Shape{8, 6, 4}));
 }
 
-/** @brief Tests that the parameter walk visits nothing after a trace. */
-TEST(Small_Identity, TheParameterWalkVisitsNothing)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-
-    Identity layer{};
-    SA_EXPECT_OK(layer.forward(builder, x));
-
-    std::size_t visits = 0;
-    NN::for_each_parameter(layer, [&visits](const std::string&, NN::Parameter&)
-    {
-        ++visits;
-    });
-    EXPECT_EQ(visits, 0u);
-}

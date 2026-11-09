@@ -36,7 +36,3 @@ both 6 to 8 over a [2, 6] input, leave graphs with the same node count and a res
 After one forward, the adapter's walk under the prefix `block` yields `block.weight` and then
 `block.bias`, the parameters `Linear` declared on that trace.
 
-## TheAdapterHandsBackTheModuleItWraps
-
-`layer()` returns the wrapped `Linear` with its fields as given, 6 in and 8 out, and the const
-and non-const overloads return the same object.
