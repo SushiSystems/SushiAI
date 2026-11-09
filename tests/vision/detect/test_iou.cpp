@@ -118,8 +118,18 @@ TEST(Medium_DetectBoxes, DifferentAspectRatiosLoseTheAspectTerm)
     EXPECT_NEAR(SushiAI::Vision::Detect::complete_iou(wide, square), expected, K_IOU_TOLERANCE);
 }
 
-/** @brief Tests that a zero-size box gives finite values: IoU 0 and complete IoU -0.05. */
-TEST(Medium_DetectBoxes, ADegenerateBoxStaysFinite)
+/** @brief Tests that a zero-size box against a box has an IoU of 0. */
+TEST(Medium_DetectBoxes, ADegenerateBoxHasAnIouOfZero)
+{
+    const std::vector<float> point{1.0f, 1.0f, 1.0f, 1.0f};
+    const std::vector<float> box{0.0f, 0.0f, 2.0f, 2.0f};
+
+    EXPECT_NEAR(SushiAI::Vision::Detect::intersection_over_union(point, box), 0.0f,
+                K_IOU_TOLERANCE);
+}
+
+/** @brief Tests that a zero-size box against a box has a complete IoU of minus the aspect term. */
+TEST(Medium_DetectBoxes, ADegenerateBoxPaysTheAspectTerm)
 {
     const std::vector<float> point{1.0f, 1.0f, 1.0f, 1.0f};
     const std::vector<float> box{0.0f, 0.0f, 2.0f, 2.0f};
@@ -128,13 +138,19 @@ TEST(Medium_DetectBoxes, ADegenerateBoxStaysFinite)
     const double pi = std::acos(-1.0);
     const double aspect = 4.0 / (pi * pi) * (pi / 4.0) * (pi / 4.0);
     const double trade_off = aspect / (1.0 - 0.0 + aspect);
-    const float iou = SushiAI::Vision::Detect::intersection_over_union(point, box);
-    const float complete = SushiAI::Vision::Detect::complete_iou(point, box);
 
-    EXPECT_NEAR(iou, 0.0f, K_IOU_TOLERANCE);
-    EXPECT_NEAR(complete, 0.0 - aspect * trade_off, K_IOU_TOLERANCE);
-    EXPECT_TRUE(std::isfinite(SushiAI::Vision::Detect::complete_iou(point, point)));
-    EXPECT_NEAR(SushiAI::Vision::Detect::complete_iou(point, point), 0.0f, K_IOU_TOLERANCE);
+    EXPECT_NEAR(SushiAI::Vision::Detect::complete_iou(point, box), 0.0 - aspect * trade_off,
+                K_IOU_TOLERANCE);
+}
+
+/** @brief Tests that a zero-size box against itself has a finite complete IoU of 0. */
+TEST(Medium_DetectBoxes, ADegenerateBoxAgainstItselfScoresZero)
+{
+    const std::vector<float> point{1.0f, 1.0f, 1.0f, 1.0f};
+    const float complete = SushiAI::Vision::Detect::complete_iou(point, point);
+
+    EXPECT_TRUE(std::isfinite(complete));
+    EXPECT_NEAR(complete, 0.0f, K_IOU_TOLERANCE);
 }
 
 /** @brief Tests that the elementwise forms pair row i with row i. */

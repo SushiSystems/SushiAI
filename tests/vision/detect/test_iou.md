@@ -32,10 +32,18 @@ term only.
 A 4 by 2 box and a 2 by 2 box give IoU 1/2, and the complete IoU loses the centre and the aspect
 terms.
 
-## ADegenerateBoxStaysFinite
+## ADegenerateBoxHasAnIouOfZero
 
-A point against a box gives IoU 0 and a complete IoU of minus the aspect term. A point against
-itself is finite and 0.
+A point against a box has an IoU of 0: the overlap has no area.
+
+## ADegenerateBoxPaysTheAspectTerm
+
+A point against a box has a complete IoU of minus the aspect term; the point's width over its
+height is 0, so the angle gap is pi / 4.
+
+## ADegenerateBoxAgainstItselfScoresZero
+
+A point against itself gives a finite complete IoU of 0.
 
 ## ElementwiseFormsPairRows
 

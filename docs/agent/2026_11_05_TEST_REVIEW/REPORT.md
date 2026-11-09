@@ -153,6 +153,9 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 
 57. The helper and the share the six training files duplicated are one header (2026-11-10, the worker): `training_units.hpp` in `darknet_training_cases` holds `units(count)`, which is `count` times the float unit roundoff, and `K_OVERFIT_COST_SHARE`, 0.1. `test_yolov3.cpp`, `test_yolov3_tiny.cpp`, `test_yolov4.cpp`, `test_yolov4_tiny.cpp`, `test_yolov7.cpp` and `test_yolov7_tiny.cpp` include it and keep no copy. `test_yolov7_tiny.cpp` states 0.25, not 0.1, from the Darknet share 0.226 (`test_yolov7_tiny.md`), so it keeps its own `K_YOLOV7_TINY_OVERFIT_COST_SHARE` and takes only `units`. The header carries its mirror rule test, `tests/vision/darknet_training_cases/test_training_units.cpp`, which states `units` against 2^-24 and 2^23 units against 0.5; the share is not tested, since a test of a constant's value only restates it. M48 is set done; none of its files has been built or run.
 
+58. `ADegenerateBoxStaysFinite` of `test_iou.cpp` is three cases (2026-11-10, the worker): `ADegenerateBoxHasAnIouOfZero`, `ADegenerateBoxPaysTheAspectTerm` and `ADegenerateBoxAgainstItselfScoresZero`, one promise each. The same section of `test_box_coding.md` is split to match, in the commit of decision 60. Not built or run; the syntax was checked only.
+
+
 ## Seams the M jobs wait on
 
 RW-155 asks the owner to rule on these. Each changes a module's surface, so the test named stays as it is until then.
