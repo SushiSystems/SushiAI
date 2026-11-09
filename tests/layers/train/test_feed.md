@@ -1,7 +1,7 @@
 # tests/layers/train/test_feed.cpp
 
 
-Suites: `Small_Feed`.
+Suites: `Small_Feed`, `Small_FeedShape`.
 
 Tests `Train::check_feed`, which compares a batch tensor with the leaf a step copies it into.
 
@@ -17,10 +17,15 @@ storage.
 
 Two [4, 6] float32 headers pass.
 
+## ShapeRow
+
+`ShapeRow` holds the extents of the batch tensor and the text of its shape that the message holds.
+
 ## AnotherShapeIsIncompatibleAndBothShapesAreNamed
 
-A [4, 5] source for a [4, 6] leaf fails with Incompatible naming `inputs` and both shapes. A
-[24] source of the same element count fails too, so the check compares shapes and not counts.
+A source for a [4, 6] leaf fails with Incompatible naming `inputs`, the source shape and [4, 6].
+The rows are a [4, 5] source and a [24] source of the same element count, so the check compares
+shapes and not counts.
 
 ## AnotherElementTypeIsIncompatibleAndBothTypesAreNamed
 

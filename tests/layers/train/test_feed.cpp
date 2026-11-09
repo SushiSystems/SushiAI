@@ -30,6 +30,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -56,6 +58,20 @@ namespace
             tensor.shape[axis++] = extent;
         return tensor;
     }
+
+    /** @brief Holds a source shape, a leaf shape and the words of the refusal naming both. */
+    struct ShapeRow
+    {
+        std::string name;                       /**< The row's name. */
+        std::vector<std::int64_t> source;       /**< The extents of the batch tensor. */
+        std::string first;                      /**< The source shape the message holds. */
+    };
+
+    /** @brief Runs the refusal of a source of another shape than the [4, 6] leaf. */
+    class Small_FeedShape : public ::testing::TestWithParam<ShapeRow>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that tensors of one rank, one set of extents and one element type pass. */
@@ -66,15 +82,23 @@ TEST(Small_Feed, MatchingTensorsAreAccepted)
 }
 
 /** @brief Tests that other extents or another rank are refused with both shapes named. */
-TEST(Small_Feed, AnotherShapeIsIncompatibleAndBothShapesAreNamed)
+TEST_P(Small_FeedShape, AnotherShapeIsIncompatibleAndBothShapesAreNamed)
 {
-    SA_EXPECT_FAILURE(Train::check_feed(header_of({4, 5}, DType::Float32),
-                                        header_of({4, 6}, DType::Float32), "inputs"),
-                      StatusCode::Incompatible, "inputs", "[4, 5]", "[4, 6]");
-    SA_EXPECT_FAILURE(Train::check_feed(header_of({24}, DType::Float32),
-                                        header_of({4, 6}, DType::Float32), "inputs"),
-                      StatusCode::Incompatible, "[24]", "[4, 6]");
+    const ShapeRow& row = GetParam();
+    SushiBLAS::Tensor source = header_of({}, DType::Float32);
+    source.rank = static_cast<std::int32_t>(row.source.size());
+    for (std::size_t axis = 0; axis < row.source.size(); ++axis)
+        source.shape[axis] = row.source[axis];
+
+    SA_EXPECT_FAILURE(Train::check_feed(source, header_of({4, 6}, DType::Float32), "inputs"),
+                      StatusCode::Incompatible, "inputs", row.first, "[4, 6]");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_FeedShape,
+    ::testing::Values(ShapeRow{"AnotherExtent", {4, 5}, "[4, 5]"},
+                      ShapeRow{"AnotherRankOfTheSameCount", {24}, "[24]"}),
+    [](const ::testing::TestParamInfo<ShapeRow>& info) { return info.param.name; });
 
 /** @brief Tests that equal shapes of two element types are refused with both types named. */
 TEST(Small_Feed, AnotherElementTypeIsIncompatibleAndBothTypesAreNamed)

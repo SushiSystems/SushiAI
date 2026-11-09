@@ -27,15 +27,18 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/host_values.hpp>
@@ -45,42 +48,48 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Provides the engine the tensors are allocated on. */
-    class Medium_HostValues : public SaTest::EngineTest
+    /** @brief Holds the elements of one tensor, the element read and the double it reads as. */
+    struct ReadRow
+    {
+        std::string name;               /**< The row's name. */
+        DType dtype;                    /**< The element type of the tensor. */
+        std::vector<double> values;     /**< The elements written, as the type holds them. */
+        std::size_t index;              /**< The element read. */
+        double expected;                /**< The double the read returns. */
+    };
+
+    /** @brief Reads one element of a tensor on the host backend for each row. */
+    class Small_HostValues : public ::testing::TestWithParam<ReadRow>
     {
         protected:
-            /** @brief Returns a tensor of @p shape and @p dtype that holds @p values. */
-            [[nodiscard]] Result<SushiBLAS::Tensor> tensor_of(const Shape& shape, DType dtype,
-                                                              const std::vector<double>& values)
-            {
-                SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_tensor(*engine, shape, dtype));
-                SaTest::write_tensor(tensor, values);
-                return tensor;
-            }
+            /** @brief The host backend the tensor is allocated from. */
+            HostExecutionBackend backend;
     };
 } // namespace
 
-/** @brief Tests that a float32 tensor is accepted and its element read back as a double. */
-TEST_F(Medium_HostValues, AFloat32ElementIsReadAsADouble)
+/**
+ * @brief Tests that a tensor of either type is accepted and an element reads back as the
+ *        double the type holds. Reading rounds nothing, so the comparison is equality.
+ */
+TEST_P(Small_HostValues, AnElementIsReadAsTheDoubleItsTypeHolds)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor tensor,
-                            tensor_of(Shape{3}, DType::Float32, {0.5, -1.25, 3.0}));
+    const ReadRow& row = GetParam();
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor tensor,
+                            allocate_tensor(backend.engine(),
+                                            Shape{static_cast<std::int64_t>(row.values.size())},
+                                            row.dtype));
+    SaTest::write_tensor(tensor, row.values);
 
-    SA_EXPECT_OK(Train::require_host_reals(tensor, 3, "the scores"));
-    EXPECT_DOUBLE_EQ(Train::host_real(tensor, 1), -1.25);
-    EXPECT_DOUBLE_EQ(Train::host_real(tensor, 2), 3.0);
+    SA_EXPECT_OK(Train::require_host_reals(tensor, static_cast<std::int64_t>(row.values.size()),
+                                           "the scores"));
+    EXPECT_EQ(Train::host_real(tensor, static_cast<std::int64_t>(row.index)), row.expected);
 }
 
-/** @brief Tests that a float64 element comes back unrounded, unlike its float32 neighbour. */
-TEST_F(Medium_HostValues, AFloat64ElementIsReadUnrounded)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor wide,
-                            tensor_of(Shape{2}, DType::Float64, {0.1, 0.2}));
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor narrow,
-                            tensor_of(Shape{2}, DType::Float32, {0.1, 0.2}));
-
-    SA_EXPECT_OK(Train::require_host_reals(wide, 2, "the scores"));
-    EXPECT_DOUBLE_EQ(Train::host_real(wide, 0), 0.1);
-    EXPECT_DOUBLE_EQ(Train::host_real(narrow, 0), static_cast<double>(0.1f));
-    EXPECT_NE(Train::host_real(narrow, 0), 0.1);
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_HostValues,
+    ::testing::Values(
+        ReadRow{"Float32HoldingExactValues", DType::Float32, {0.5, -1.25, 3.0}, 1, -1.25},
+        ReadRow{"Float32RoundsToTheNearestFloat", DType::Float32, {0.1, 0.2}, 0,
+                static_cast<double>(0.1f)},
+        ReadRow{"Float64KeepsEveryBit", DType::Float64, {0.1, 0.2}, 0, 0.1}),
+    [](const ::testing::TestParamInfo<ReadRow>& info) { return info.param.name; });
