@@ -40,27 +40,16 @@
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
-#include <SushiAI/vision/detect/detections_topk.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
-#include <SushiAI/vision/detect/top_k.hpp>
 
 namespace
 {
     using SushiAI::StatusCode;
-    using SushiAI::Vision::Detect::ClassMode;
-
-    using SushiAI::Vision::Detect::LabelMode;
-
-    using SushiAI::Vision::Detect::NMSConfig;
-
-    using SushiAI::Vision::Detect::PredictionShape;
-
     using SushiAI::Test::equal_reference;
-
-    using SushiAI::Test::near_reference;
-
-    /** @brief Holds the tolerance of values a postprocess copies from its inputs. */
-    constexpr float K_EXACT = 0.0f;
+    using SushiAI::Vision::Detect::ClassMode;
+    using SushiAI::Vision::Detect::LabelMode;
+    using SushiAI::Vision::Detect::NMSConfig;
+    using SushiAI::Vision::Detect::PredictionShape;
 
     /** @brief Holds "suppression.arguments.conf_thres" of forward.sacp in MANIFEST.json. */
     constexpr float K_SUPPRESSION_CONFIDENCE = 1.8e-4f;
@@ -89,6 +78,15 @@ namespace
         return flat;
     }
 
+    /** @brief Returns the values at @p offset of every six-value row of @p rows. */
+    std::vector<float> column(const std::vector<float>& rows, std::size_t offset)
+    {
+        std::vector<float> values;
+        for (std::size_t at = offset; at < rows.size(); at += 6)
+            values.push_back(rows[at]);
+        return values;
+    }
+
     /** @brief Returns a suppression config with one threshold pair and the reference's limits. */
     NMSConfig make_nms_config(float confidence, float iou, LabelMode labels, ClassMode classes)
     {
@@ -112,75 +110,85 @@ namespace
         return detections.front();
     }
 
+    /**
+     * @brief Holds the decoded boxes, the decoded scores and the suppressed detections of the
+     *        YOLO26 forward reference, and skips every case of its suite when the file is absent.
+     */
+    class Medium_DetectPostprocessSuppressionReference : public ::testing::Test
+    {
+    protected:
+        /** @brief Opens the reference file and reads the three tensors the cases use. */
+        void SetUp() override
+        {
+            SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
+            SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2many.decoded.boxes");
+            SA_READ_REFERENCE_OR_FAIL(score_tensor, forward, "one2many.decoded.scores");
+            SA_READ_REFERENCE_OR_FAIL(reference_tensor, forward, "one2many.suppressed.detections");
+            boxes = box_tensor.floats();
+            scores = score_tensor.floats();
+            reference = reference_tensor.floats();
+        }
+
+        std::vector<float> boxes;     /**< The decoded boxes of the reference, `[8400, 4]`. */
+        std::vector<float> scores;    /**< The decoded scores of the reference, `[8400, 80]`. */
+        std::vector<float> reference; /**< The suppressed reference detections, `[300, 6]`. */
+    };
+
 } // namespace
 
 /** @brief Tests that the suppression path reproduces the reference rows up to tied scores. */
-TEST(Medium_DetectPostprocess, SuppressionReproducesTheReferenceRows)
+TEST_F(Medium_DetectPostprocessSuppressionReference, SuppressionReproducesTheReferenceRows)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
-    SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2many.decoded.boxes");
-    SA_READ_REFERENCE_OR_FAIL(score_tensor, forward, "one2many.decoded.scores");
-    SA_READ_REFERENCE_OR_FAIL(reference_tensor, forward, "one2many.suppressed.detections");
-
-    const std::vector<float> reference = reference_tensor.floats();
     NMSConfig config;
     config.confidence_threshold = K_SUPPRESSION_CONFIDENCE;
     std::vector<std::vector<float>> detections;
     SA_EXPECT_OK(SushiAI::Vision::Detect::select_nms_detections(
-        box_tensor.floats(), score_tensor.floats(), PredictionShape{1, 8400, 80}, config,
-        detections));
+        boxes, scores, PredictionShape{1, 8400, 80}, config, detections));
 
     // 1542 scores pass and the reference keeps 300 rows: "suppression" in MANIFEST.json.
     ASSERT_EQ(detections.size(), 1u);
     ASSERT_EQ(detections[0].size(), reference.size());
-    std::vector<float> score_column;
-    std::vector<float> reference_scores;
-    for (std::size_t at = 0; at < reference.size(); at += 6)
-    {
-        score_column.push_back(detections[0][at + 4]);
-        reference_scores.push_back(reference[at + 4]);
-    }
-    EXPECT_TRUE(near_reference(score_column, reference_scores, K_EXACT));
+    EXPECT_TRUE(equal_reference(column(detections[0], 4), column(reference, 4)));
 
     // Rows sharing the last score are interchangeable; see modules/vision/detect/README.md.
-    const float last_score = reference_scores.back();
-    EXPECT_TRUE(near_reference(sorted_rows_above(detections[0], last_score),
-                               sorted_rows_above(reference, last_score), K_EXACT));
+    const float last_score = column(reference, 4).back();
+    EXPECT_TRUE(equal_reference(sorted_rows_above(detections[0], last_score),
+                                sorted_rows_above(reference, last_score)));
 }
 
 /** @brief Tests that no reference score passes the validation confidence, as the manifest says. */
-TEST(Medium_DetectPostprocess, NoReferenceScorePassesTheValidationConfidence)
+TEST_F(Medium_DetectPostprocessSuppressionReference, NoReferenceScorePassesTheValidationConfidence)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
-    SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2many.decoded.boxes");
-    SA_READ_REFERENCE_OR_FAIL(score_tensor, forward, "one2many.decoded.scores");
-
     std::vector<std::vector<float>> detections;
     SA_EXPECT_OK(SushiAI::Vision::Detect::select_nms_detections(
-        box_tensor.floats(), score_tensor.floats(), PredictionShape{1, 8400, 80}, NMSConfig{},
-        detections));
+        boxes, scores, PredictionShape{1, 8400, 80}, NMSConfig{}, detections));
 
     // 0 is "validation.row_count.one2many" of forward.sacp in MANIFEST.json.
     ASSERT_EQ(detections.size(), 1u);
     EXPECT_TRUE(detections[0].empty());
 }
 
-/** @brief Tests that the suppression settings default to what the reference validator passes. */
-TEST(Medium_DetectPostprocess, SuppressionDefaultsMatchTheValidator)
+/**
+ * @brief Tests that a default configuration passes what the reference validator passes.
+ *
+ * Boxes 0 and 1 are 10 by 10 squares shifted by 1, an IoU of 81 / 119, 0.68, below the default
+ * threshold 0.7, so both survive. Box 2 scores 0.001, which is the default confidence, and is
+ * dropped.
+ */
+TEST(Small_DetectPostprocess, SuppressionDefaultsMatchTheValidator)
 {
-    const NMSConfig config;
+    const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f, 6.0f,  6.0f,
+                                   10.0f, 10.0f, 45.0f, 45.0f, 10.0f, 10.0f};
+    const std::vector<float> scores{0.9f, 0.8f, 0.001f};
+    const std::vector<float> detections = suppress_one_image(boxes, scores, 1, NMSConfig{});
 
-    EXPECT_EQ(config.confidence_threshold, 0.001f);
-    EXPECT_EQ(config.iou_threshold, 0.7f);
-    EXPECT_EQ(config.label_mode, LabelMode::MultiLabel);
-    EXPECT_EQ(config.class_mode, ClassMode::ClassAware);
-    EXPECT_EQ(config.max_detections, 300);
-    EXPECT_EQ(config.max_candidates, 30000);
-    EXPECT_EQ(config.class_offset, 7680.0f);
+    const std::vector<float> expected{0.0f, 0.0f, 10.0f, 10.0f, 0.9f, 0.0f,
+                                      1.0f, 1.0f, 11.0f, 11.0f, 0.8f, 0.0f};
+    EXPECT_TRUE(equal_reference(detections, expected));
 }
 
 /** @brief Tests that the lower-scoring of two overlapping boxes is suppressed. */
-TEST(Medium_DetectPostprocess, SuppressesTheLowerOfTwoOverlappingBoxes)
+TEST(Small_DetectPostprocess, SuppressesTheLowerOfTwoOverlappingBoxes)
 {
     const std::vector<float> boxes{0.0f,  0.0f,  10.0f, 10.0f, 1.0f,  1.0f,
                                    11.0f, 11.0f, 20.0f, 20.0f, 30.0f, 30.0f};
@@ -193,7 +201,7 @@ TEST(Medium_DetectPostprocess, SuppressesTheLowerOfTwoOverlappingBoxes)
 }
 
 /** @brief Tests that survivors are listed by descending score, equal scores by index. */
-TEST(Medium_DetectPostprocess, ListsSurvivorsByDescendingScore)
+TEST(Small_DetectPostprocess, ListsSurvivorsByDescendingScore)
 {
     const std::vector<float> boxes{0.0f,  0.0f,  1.0f,  1.0f,  10.0f, 10.0f, 11.0f, 11.0f,
                                    20.0f, 20.0f, 21.0f, 21.0f, 30.0f, 30.0f, 31.0f, 31.0f};
@@ -205,7 +213,7 @@ TEST(Medium_DetectPostprocess, ListsSurvivorsByDescendingScore)
 }
 
 /** @brief Tests that an IoU equal to the threshold survives and one above it does not. */
-TEST(Medium_DetectPostprocess, KeepsABoxWhoseIoUEqualsTheThreshold)
+TEST(Small_DetectPostprocess, KeepsABoxWhoseIoUEqualsTheThreshold)
 {
     const std::vector<float> boxes{0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 0.0f, 2.0f, 1.0f};
     const std::vector<float> scores{0.9f, 0.8f};
@@ -230,7 +238,7 @@ TEST(Medium_DetectPostprocess, OverlappingBoxesOfOneClassCollapse)
 
     // Centre 5 and size 10 are the corners 0 and 10.
     const std::vector<float> expected{0.0f, 0.0f, 10.0f, 10.0f, 0.9f, 0.0f};
-    EXPECT_TRUE(near_reference(detections, expected, K_EXACT));
+    EXPECT_TRUE(equal_reference(detections, expected));
 }
 
 /** @brief Tests that overlapping boxes of different classes both survive a class-aware pass. */
@@ -248,8 +256,8 @@ TEST(Medium_DetectPostprocess, OverlappingBoxesOfDifferentClassesBothSurvive)
     const std::vector<float> expected_aware{0.0f, 0.0f, 10.0f, 10.0f, 0.9f, 0.0f,
                                             0.0f, 0.0f, 10.0f, 10.0f, 0.8f, 1.0f};
     const std::vector<float> expected_agnostic{0.0f, 0.0f, 10.0f, 10.0f, 0.9f, 0.0f};
-    EXPECT_TRUE(near_reference(aware, expected_aware, K_EXACT));
-    EXPECT_TRUE(near_reference(agnostic, expected_agnostic, K_EXACT));
+    EXPECT_TRUE(equal_reference(aware, expected_aware));
+    EXPECT_TRUE(equal_reference(agnostic, expected_agnostic));
 }
 
 /** @brief Tests that a score equal to the confidence threshold is dropped. */
@@ -262,26 +270,34 @@ TEST(Medium_DetectPostprocess, DropsAScoreEqualToTheConfidenceThreshold)
         make_nms_config(0.25f, 0.5f, LabelMode::MultiLabel, ClassMode::ClassAware));
 
     const std::vector<float> expected{20.0f, 20.0f, 30.0f, 30.0f, 0.5f, 0.0f};
-    EXPECT_TRUE(near_reference(detections, expected, K_EXACT));
+    EXPECT_TRUE(equal_reference(detections, expected));
 }
 
-/** @brief Tests that an anchor contributes every passing class, or only its best one. */
-TEST(Medium_DetectPostprocess, AnAnchorContributesEveryPassingClassOrItsBest)
+/** @brief Tests that an anchor contributes every passing class under MultiLabel. */
+TEST(Medium_DetectPostprocess, AnAnchorContributesEveryPassingClass)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.6f, 0.1f, 0.7f};
     const std::vector<float> every = suppress_one_image(
         boxes, scores, 3,
         make_nms_config(0.25f, 0.5f, LabelMode::MultiLabel, ClassMode::ClassAware));
+
+    const std::vector<float> expected_every{0.0f, 0.0f, 10.0f, 10.0f, 0.7f, 2.0f,
+                                            0.0f, 0.0f, 10.0f, 10.0f, 0.6f, 0.0f};
+    EXPECT_TRUE(equal_reference(every, expected_every));
+}
+
+/** @brief Tests that an anchor contributes only its best class under BestClass. */
+TEST(Medium_DetectPostprocess, AnAnchorContributesItsBestClassUnderBestClass)
+{
+    const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f};
+    const std::vector<float> scores{0.6f, 0.1f, 0.7f};
     const std::vector<float> best = suppress_one_image(
         boxes, scores, 3,
         make_nms_config(0.25f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware));
 
-    const std::vector<float> expected_every{0.0f, 0.0f, 10.0f, 10.0f, 0.7f, 2.0f,
-                                            0.0f, 0.0f, 10.0f, 10.0f, 0.6f, 0.0f};
     const std::vector<float> expected_best{0.0f, 0.0f, 10.0f, 10.0f, 0.7f, 2.0f};
-    EXPECT_TRUE(near_reference(every, expected_every, K_EXACT));
-    EXPECT_TRUE(near_reference(best, expected_best, K_EXACT));
+    EXPECT_TRUE(equal_reference(best, expected_best));
 }
 
 /** @brief Tests that the detection limit keeps the highest-scoring survivors. */
@@ -296,7 +312,7 @@ TEST(Medium_DetectPostprocess, LimitsDetectionsToTheHighestScores)
 
     const std::vector<float> expected{20.0f, 20.0f, 30.0f, 30.0f, 0.9f, 0.0f,
                                       40.0f, 40.0f, 50.0f, 50.0f, 0.7f, 0.0f};
-    EXPECT_TRUE(near_reference(detections, expected, K_EXACT));
+    EXPECT_TRUE(equal_reference(detections, expected));
 }
 
 /** @brief Tests that the candidate limit drops the lowest scores before suppression. */
@@ -310,11 +326,11 @@ TEST(Medium_DetectPostprocess, LimitsCandidatesBeforeSuppression)
     const std::vector<float> detections = suppress_one_image(boxes, scores, 1, config);
 
     const std::vector<float> expected{20.0f, 20.0f, 30.0f, 30.0f, 0.9f, 0.0f};
-    EXPECT_TRUE(near_reference(detections, expected, K_EXACT));
+    EXPECT_TRUE(equal_reference(detections, expected));
 }
 
 /** @brief Tests that a threshold outside [0, 1] is refused with its value. */
-TEST(Medium_DetectPostprocess, RejectsAThresholdOutsideTheUnitInterval)
+TEST(Small_DetectPostprocess, RejectsAThresholdOutsideTheUnitInterval)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.6f};
@@ -327,7 +343,7 @@ TEST(Medium_DetectPostprocess, RejectsAThresholdOutsideTheUnitInterval)
 }
 
 /** @brief Tests that an image whose scores all stay at or below the threshold yields no rows. */
-TEST(Medium_DetectPostprocess, AnImageBelowTheThresholdYieldsNoRows)
+TEST(Small_DetectPostprocess, AnImageBelowTheThresholdYieldsNoRows)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f, 25.0f, 25.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.25f, 0.1f, 0.2f, 0.0f};
@@ -354,12 +370,12 @@ TEST(Medium_DetectPostprocess, SuppressesEachImageFromItsOwnRows)
     const std::vector<float> expected_second{40.0f, 40.0f, 50.0f, 50.0f, 0.6f, 0.0f,
                                              20.0f, 20.0f, 30.0f, 30.0f, 0.3f, 0.0f};
     ASSERT_EQ(detections.size(), 2u);
-    EXPECT_TRUE(near_reference(detections[0], expected_first, K_EXACT));
-    EXPECT_TRUE(near_reference(detections[1], expected_second, K_EXACT));
+    EXPECT_TRUE(equal_reference(detections[0], expected_first));
+    EXPECT_TRUE(equal_reference(detections[1], expected_second));
 }
 
 /** @brief Tests that scores that do not fill the shape are refused, not read as other classes. */
-TEST(Medium_DetectPostprocess, RejectsScoresThatDoNotFillTheShape)
+TEST(Small_DetectPostprocess, RejectsScoresThatDoNotFillTheShape)
 {
     const std::vector<float> boxes(8, 0.0f);
     const std::vector<float> scores(6, 0.5f);
@@ -381,6 +397,44 @@ TEST(Small_DetectPostprocess, SuppressionKeepsTheFiniteRowMaximumBesideANaN)
     const std::vector<float> detections = suppress_one_image(boxes, scores, 3, config);
 
     ASSERT_EQ(detections.size(), 6u);
-    EXPECT_FLOAT_EQ(detections[4], 0.9f);
-    EXPECT_FLOAT_EQ(detections[5], 1.0f);
+    EXPECT_EQ(detections[4], 0.9f);
+    EXPECT_EQ(detections[5], 1.0f);
+}
+
+/** @brief Tests that an extent that is not positive is refused with the extents it was given. */
+TEST(Small_DetectPostprocess, SuppressionRefusesAnExtentThatIsNotPositive)
+{
+    std::vector<std::vector<float>> detections;
+
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::select_nms_detections(
+                          {}, {}, PredictionShape{1, 0, 1}, NMSConfig{}, detections),
+                      StatusCode::InvalidDescription, "positive extents", "0 anchors");
+}
+
+/** @brief Tests that a detection limit below 1 is refused with the limits it was given. */
+TEST(Small_DetectPostprocess, SuppressionRefusesADetectionLimitBelowOne)
+{
+    const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f};
+    const std::vector<float> scores{0.6f};
+    NMSConfig config;
+    config.max_detections = 0;
+    std::vector<std::vector<float>> detections;
+
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::select_nms_detections(
+                          boxes, scores, PredictionShape{1, 1, 1}, config, detections),
+                      StatusCode::InvalidDescription, "must be positive", "got 0 and 30000");
+}
+
+/** @brief Tests that a candidate limit below 1 is refused with the limits it was given. */
+TEST(Small_DetectPostprocess, SuppressionRefusesACandidateLimitBelowOne)
+{
+    const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f};
+    const std::vector<float> scores{0.6f};
+    NMSConfig config;
+    config.max_candidates = 0;
+    std::vector<std::vector<float>> detections;
+
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::select_nms_detections(
+                          boxes, scores, PredictionShape{1, 1, 1}, config, detections),
+                      StatusCode::InvalidDescription, "must be positive", "got 300 and 0");
 }
