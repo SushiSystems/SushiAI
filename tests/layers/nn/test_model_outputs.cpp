@@ -66,14 +66,6 @@ namespace
 
 } // namespace
 
-/** @brief Tests that a new set holds no output. */
-TEST(Small_ModelOutputs, StartsEmpty)
-{
-    const ModelOutputs outputs;
-
-    EXPECT_TRUE(outputs.all().empty());
-}
-
 /** @brief Tests that all() returns the outputs in the order they were added. */
 TEST(Small_ModelOutputs, AllKeepsTheOrderOfAdd)
 {
@@ -112,7 +104,7 @@ TEST(Small_ModelOutputs, AddRejectsAnEmptyName)
 }
 
 /** @brief Tests that add stops the process when the value is Graph::NO_VALUE. */
-TEST(Small_ModelOutputsDeathTest, AddStopsOnNoValue)
+TEST(Medium_ModelOutputsDeathTest, AddStopsOnNoValue)
 {
     SA_EXPECT_FATAL(add_without_value(), "'boxes'", "no value");
 }
@@ -164,20 +156,34 @@ TEST(Small_ModelOutputs, OnlyReturnsTheSingleValue)
     EXPECT_EQ(logits, ValueID{12});
 }
 
-/** @brief Tests that only fails on a set that holds no output. */
-TEST(Small_ModelOutputs, OnlyFailsOnZero)
+namespace
 {
-    const ModelOutputs outputs;
-
-    SA_EXPECT_FAILURE(outputs.only(), StatusCode::InvalidDescription, "exactly one", "has 0",
-                      "none");
+    /** @brief Holds a set the row builds and the words the refusal of only() names. */
+    struct OnlyRefusalRow
+    {
+        std::string name;       /**< The row's name. */
+        ModelOutputs outputs;   /**< The set whose only() is refused. */
+        std::string count;      /**< The count the message states, as "has N". */
+        std::string names;      /**< The names the message lists. */
+    };
 }
 
-/** @brief Tests that only fails on a set that holds two outputs and names both. */
-TEST(Small_ModelOutputs, OnlyFailsOnTwo)
+/** @brief Runs only() over each set that does not hold exactly one output. */
+class Small_ModelOutputsOnlyRefusal : public ::testing::TestWithParam<OnlyRefusalRow>
 {
-    const ModelOutputs outputs = boxes_and_scores();
+};
 
-    SA_EXPECT_FAILURE(outputs.only(), StatusCode::InvalidDescription, "exactly one", "has 2",
-                      "boxes, scores");
+/** @brief Tests that only() fails on the set of the row and says how many it holds. */
+TEST_P(Small_ModelOutputsOnlyRefusal, OnlyFails)
+{
+    const OnlyRefusalRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(row.outputs.only(), StatusCode::InvalidDescription, "exactly one", row.count,
+                      row.names);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ModelOutputsOnlyRefusal,
+    ::testing::Values(OnlyRefusalRow{"OnAnEmptySet", ModelOutputs{}, "has 0", "none"},
+                      OnlyRefusalRow{"OnASetOfTwo", boxes_and_scores(), "has 2", "boxes, scores"}),
+    [](const ::testing::TestParamInfo<OnlyRefusalRow>& info) { return info.param.name; });

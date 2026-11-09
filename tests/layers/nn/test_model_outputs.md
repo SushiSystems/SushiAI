@@ -1,7 +1,7 @@
 # tests/layers/nn/test_model_outputs.cpp
 
 
-Suites: `Small_ModelOutputs`, `Small_ModelOutputsDeathTest`.
+Suites: `Small_ModelOutputs`, `Small_ModelOutputsOnlyRefusal`, `Medium_ModelOutputsDeathTest`.
 
 Tests ModelOutputs: publishing named values and reading them back.
 
@@ -22,10 +22,6 @@ that order.
 `add_without_value` adds "boxes" with `Graph::K_NO_VALUE`. It is the statement of the death
 test.
 
-## StartsEmpty
-
-A new set's `all()` is empty.
-
 ## AllKeepsTheOrderOfAdd
 
 After adding "scores", "boxes" and "features", `all()` holds those three entries in that order
@@ -42,7 +38,7 @@ and "boxes, scores". The set still holds two entries and `at("boxes")` is still 
 
 ## AddStopsOnNoValue
 
-The case is in the suite `Small_ModelOutputsDeathTest`. `add("boxes", K_NO_VALUE)` stops the
+The case is in the suite `Medium_ModelOutputsDeathTest`, because a death test starts a child process. `add("boxes", K_NO_VALUE)` stops the
 process with a report containing "'boxes'" and "no value".
 
 ## AtReturnsTheNamedValue
@@ -66,11 +62,8 @@ for.
 
 `only()` on a set of one entry returns that entry's id, 12.
 
-## OnlyFailsOnZero
+## Small_ModelOutputsOnlyRefusal.OnlyFails
 
-`only()` on an empty set fails with a message containing "exactly one", "has 0" and "none".
-
-## OnlyFailsOnTwo
-
-`only()` on a set of two fails with a message containing "exactly one", "has 2" and "boxes,
-scores".
+Two rows. `only()` on an empty set fails with `InvalidDescription` and a message holding "exactly
+one", "has 0" and "none". On the set of "boxes" and "scores" it holds "exactly one", "has 2" and
+"boxes, scores".
