@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,8 +44,8 @@
 #include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
-#include <SushiAI/engine_fixture/test_graph.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
+#include <SushiAI/execution/step_tasks.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
@@ -62,19 +63,14 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Medium_BufferUpdateRecorder : public SaTest::EngineTest {};
-
     /** @brief The weight the blend gives the buffer's current content. */
     constexpr double K_MOMENTUM = 0.1;
 
     /** @brief The factor the batch value is scaled by before it is blended in. */
     constexpr double K_SOURCE_SCALE = 2.0;
 
-    /**
-     * @brief The absolute tolerance of one blended element, in double precision; 16777216 unit
-     * roundoffs of double, the smallest power of two that covers 1e-9.
-     */
-    constexpr double K_BLEND_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
+    /** @brief The rounded operations of one blended element: two products, a sum and a scale. */
+    constexpr std::size_t K_BLEND_OPERATIONS = 4;
 
     /** @brief The state identity the bind cases give the buffer their update targets. */
     constexpr std::uint64_t K_TARGET_STATE = 7;
@@ -106,85 +102,131 @@ namespace
         return entry;
     }
 
+    /** @brief Provides the host backend the targets, the sources and the recordings live on. */
+    class HostBlend
+    {
+        protected:
+            /** @brief Replays @p tasks once and returns its status. */
+            static Status replay_once(StepTasks& tasks)
+            {
+                SushiRuntime::RunReport report;
+                return tasks.replay(report);
+            }
+
+            /** @brief The host backend the tensors are allocated from. */
+            HostExecutionBackend backend;
+    };
+
+    /** @brief Records and replays buffer updates on the host backend. */
+    class Small_BufferUpdateRecorder : public HostBlend, public ::testing::Test
+    {
+    };
+
+    /** @brief Holds a count of slots; each blends a two-element source into a two-element target. */
+    struct SlotCountRow
+    {
+        std::string name;               /**< The row's name. */
+        std::size_t slots;              /**< The slots the recorder holds. */
+        std::size_t recorded_tasks;     /**< The tasks it records: two for each slot. */
+    };
+
+    /** @brief Records a recorder of a given slot count. */
+    class Small_BufferUpdateRecorderCount : public HostBlend,
+                                            public ::testing::TestWithParam<SlotCountRow>
+    {
+    };
+
+    /** @brief Holds one element of a running statistic and the batch statistic blended into it. */
+    struct BlendRow
+    {
+        std::string name;       /**< The row's name. */
+        double running;         /**< The element the target holds. */
+        double batch;           /**< The element the source holds. */
+    };
+
+    /** @brief Replays one blend of one element. */
+    class Small_BufferUpdateBlend : public HostBlend, public ::testing::TestWithParam<BlendRow>
+    {
+    };
 } // namespace
 
-/** @brief Tests that a recorder records two device tasks for every slot it holds. */
-TEST_F(Medium_BufferUpdateRecorder, RecordsTwoTasksPerSlot)
+/** @brief Tests that a recorder records two tasks for every slot it holds, and none for none. */
+TEST_P(Small_BufferUpdateRecorderCount, TwoTasksPerSlotAndNoneForNoSlot)
 {
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target,
-                            vector_of(*engine, {1.0, 2.0}, DType::Float64));
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor source,
-                            vector_of(*engine, {3.0, 4.0}, DType::Float64));
-
+    const SlotCountRow& row = GetParam();
+    std::vector<SushiBLAS::Tensor> tensors;
     std::vector<Train::BufferUpdateSlot> slots;
-    slots.push_back(Train::BufferUpdateSlot{target, source, K_MOMENTUM, K_SOURCE_SCALE});
-    slots.push_back(Train::BufferUpdateSlot{source, target, K_MOMENTUM, K_SOURCE_SCALE});
+    for (std::size_t slot = 0; slot < row.slots; ++slot)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target,
+                                vector_of(backend.engine(), {1.0, 2.0}, DType::Float64));
+        SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor source,
+                                vector_of(backend.engine(), {3.0, 4.0}, DType::Float64));
+        slots.push_back(Train::BufferUpdateSlot{target, source, K_MOMENTUM, K_SOURCE_SCALE});
+    }
     Train::BufferUpdateRecorder recorder(std::move(slots));
 
-    SaTest::TestGraph recording(backend());
-    const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<StepTasks> tasks, backend.make_tasks());
+    const Graph::StepRecording step(tasks->recorder(), tasks->runtime_recorder());
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, recorder.record_into_step(step));
-    SA_EXPECT_OK(recording.run());
-    EXPECT_EQ(recorder.slot_count(), 2u);
-    EXPECT_EQ(recorded, 4u);
+
+    EXPECT_EQ(recorder.slot_count(), row.slots);
+    EXPECT_EQ(recorded, row.recorded_tasks);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BufferUpdateRecorderCount,
+    ::testing::Values(SlotCountRow{"NoSlot", 0, 0}, SlotCountRow{"OneSlot", 1, 2},
+                      SlotCountRow{"TwoSlots", 2, 4}),
+    [](const ::testing::TestParamInfo<SlotCountRow>& info) { return info.param.name; });
 
 /**
- * @brief Tests that one replay of a recorder leaves each target at the value
+ * @brief Tests that one replay of a recorder leaves the target at the value
  *        NN::updated_statistic gives for its running and batch elements.
  */
-TEST_F(Medium_BufferUpdateRecorder, OneReplayBlendsTheSourceIntoTheTarget)
+TEST_P(Small_BufferUpdateBlend, OneReplayBlendsTheSourceIntoTheTarget)
 {
-    const std::vector<double> running = {1.0, -2.0, 0.5, 4.0};
-    const std::vector<double> batch = {0.25, 3.0, -1.0, 2.0};
+    const BlendRow& row = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target,
-                            vector_of(*engine, running, DType::Float64));
+                            vector_of(backend.engine(), {row.running}, DType::Float64));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor source,
-                            vector_of(*engine, batch, DType::Float64));
+                            vector_of(backend.engine(), {row.batch}, DType::Float64));
 
     std::vector<Train::BufferUpdateSlot> slots;
     slots.push_back(Train::BufferUpdateSlot{target, source, K_MOMENTUM, K_SOURCE_SCALE});
     Train::BufferUpdateRecorder recorder(std::move(slots));
 
-    SaTest::TestGraph recording(backend());
-    const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<StepTasks> tasks, backend.make_tasks());
+    const Graph::StepRecording step(tasks->recorder(), tasks->runtime_recorder());
     SA_EXPECT_OK(recorder.record_into_step(step));
-    SA_EXPECT_OK(recording.run());
+    SA_EXPECT_OK(tasks->seal());
+    SA_EXPECT_OK(replay_once(*tasks));
 
     const std::vector<double> blended = SaTest::read_tensor(target);
-    ASSERT_EQ(blended.size(), running.size());
-    for (std::size_t i = 0; i < running.size(); ++i)
-    {
-        const double expected =
-            NN::updated_statistic(running[i], batch[i], K_MOMENTUM, K_SOURCE_SCALE);
-        EXPECT_NEAR(blended[i], expected, K_BLEND_TOLERANCE) << "element " << i;
-    }
+    ASSERT_EQ(blended.size(), 1u);
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        blended.front(),
+        NN::updated_statistic(row.running, row.batch, K_MOMENTUM, K_SOURCE_SCALE),
+        K_BLEND_OPERATIONS)));
 }
 
-/** @brief Tests that a recorder holding no slot records no task and runs cleanly. */
-TEST_F(Medium_BufferUpdateRecorder, NoSlotRecordsNothing)
-{
-    Train::BufferUpdateRecorder recorder(std::vector<Train::BufferUpdateSlot>{});
-
-    SaTest::TestGraph recording(backend());
-    const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
-    SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, recorder.record_into_step(step));
-    SA_EXPECT_OK(recording.run());
-    EXPECT_EQ(recorder.slot_count(), 0u);
-    EXPECT_EQ(recorded, 0u);
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BufferUpdateBlend,
+    ::testing::Values(BlendRow{"AboveTheBatch", 1.0, 0.25}, BlendRow{"BelowTheBatch", -2.0, 3.0},
+                      BlendRow{"BatchBelowZero", 0.5, -1.0}, BlendRow{"BatchAboveRunning", 4.0, 2.0}),
+    [](const ::testing::TestParamInfo<BlendRow>& info) { return info.param.name; });
 
 /** @brief Tests that binding refuses an update whose target the state does not hold. */
-TEST_F(Medium_BufferUpdateRecorder, BindRefusesATargetTheStateLacks)
+TEST_F(Small_BufferUpdateRecorder, BindRefusesATargetTheStateLacks)
 {
     std::vector<NN::StateEntry> entries;
     entries.push_back(make_entry("bn.running_mean", 1, DType::Float64));
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, std::move(entries)));
+                            NN::ModelState::from_entries(backend.engine(), std::move(entries)));
 
-    Graph::TensorPool pool(*engine);
+    Graph::TensorPool pool(backend.engine());
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor source,
-                            vector_of(*engine, {1.0, 2.0}, DType::Float64));
+                            vector_of(backend.engine(), {1.0, 2.0}, DType::Float64));
     SA_EXPECT_OK(pool.bind(K_SOURCE_VALUE, std::move(source)));
 
     NN::BufferUpdateList updates;
@@ -196,16 +238,16 @@ TEST_F(Medium_BufferUpdateRecorder, BindRefusesATargetTheStateLacks)
 }
 
 /** @brief Tests that binding refuses an update whose target and source differ in dtype. */
-TEST_F(Medium_BufferUpdateRecorder, BindRefusesADTypeMismatch)
+TEST_F(Small_BufferUpdateRecorder, BindRefusesADTypeMismatch)
 {
     std::vector<NN::StateEntry> entries;
     entries.push_back(make_entry("bn.running_mean", K_TARGET_STATE, DType::Float32));
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::from_entries(*engine, std::move(entries)));
+                            NN::ModelState::from_entries(backend.engine(), std::move(entries)));
 
-    Graph::TensorPool pool(*engine);
+    Graph::TensorPool pool(backend.engine());
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor source,
-                            vector_of(*engine, {1.0, 2.0}, DType::Float64));
+                            vector_of(backend.engine(), {1.0, 2.0}, DType::Float64));
     SA_EXPECT_OK(pool.bind(K_SOURCE_VALUE, std::move(source)));
 
     NN::BufferUpdateList updates;
