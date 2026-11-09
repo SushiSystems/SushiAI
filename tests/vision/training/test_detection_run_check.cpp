@@ -275,5 +275,5 @@ TEST(Small_DetectionRunCheck, RolesOverAnotherClassCountAreRefused)
     const DescribedDataset dataset(K_BATCHES, K_BATCH, truth_roles());
 
     SA_EXPECT_FAILURE(check_detection_run(dataset, subject, DetectionRunPlan{}),
-                      StatusCode::Incompatible, "'stub'", "'labels'", "was compiled for");
+                      StatusCode::Incompatible, "'stub'", "'classes'", "was compiled for");
 }

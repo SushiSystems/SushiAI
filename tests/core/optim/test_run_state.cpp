@@ -224,6 +224,8 @@ TEST(Small_StateOwner, AnotherTypeIsRefusedWithBothNames)
                       "'adamw'", "'sgd'");
 }
 
+namespace
+{
 /** @brief Holds a scalar list the check refuses and the words its refusal uses. */
 struct ScalarListRow
 {
@@ -231,12 +233,16 @@ struct ScalarListRow
     const char* first;              /**< A fragment of the refusal. */
     const char* second;             /**< Another fragment of the refusal. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the scalar-list refusals as rows. */
 class Small_ScalarList : public ::testing::TestWithParam<ScalarListRow>
 {
 
 };
+} // namespace
 
 /** @brief Tests that a missing, a surplus, a repeated and a mistyped scalar are refused. */
 TEST_P(Small_ScalarList, AScalarThatDoesNotFitIsRefusedByName)
@@ -305,6 +311,8 @@ TEST(Small_LossScaleStateRestore, TheRestoredCountContinuesTheGrowthInterval)
     EXPECT_EQ(state.consecutive_good_steps(), 0u);
 }
 
+namespace
+{
 /** @brief Holds a saved loss scale the restore refuses and the words its refusal uses. */
 struct LossScaleRow
 {
@@ -313,12 +321,16 @@ struct LossScaleRow
     const char* first;        /**< A fragment of the refusal. */
     const char* second;       /**< Another fragment of the refusal. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the loss scale refusals as rows. */
 class Small_LossScaleStateRefusal : public ::testing::TestWithParam<LossScaleRow>
 {
 
 };
+} // namespace
 
 /** @brief Tests that a restore refuses a scale or a count the state cannot hold, naming it. */
 TEST_P(Small_LossScaleStateRefusal, RestoreRefusesWhatTheStateCannotHold)

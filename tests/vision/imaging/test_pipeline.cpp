@@ -49,7 +49,8 @@
 #include <SushiAI/vision/imaging/in_memory_sample_source.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
-#include <support/imaging_images.hpp>
+#include <support/imaging_images.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
@@ -858,7 +859,7 @@ INSTANTIATE_TEST_SUITE_P(
                    "validate_flip", "probability", ""}),
     [](const ::testing::TestParamInfo<SettingRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a setting out of range is refused also when a partner source is given. */
@@ -936,7 +937,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Medium_ImagingPipelineRange,
                                            RangeRow{"EpochAtTheEpochCount", 0, 100, "epoch 100"}),
                          [](const ::testing::TestParamInfo<RangeRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 /** @brief Tests that a one-channel image leaves the training pipeline with three equal channels. */

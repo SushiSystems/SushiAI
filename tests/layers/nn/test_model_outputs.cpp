@@ -168,10 +168,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs only() over each set that does not hold exactly one output. */
 class Small_ModelOutputsOnlyRefusal : public ::testing::TestWithParam<OnlyRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that only() fails on the set of the row and says how many it holds. */
 TEST_P(Small_ModelOutputsOnlyRefusal, OnlyFails)

@@ -517,8 +517,11 @@ TEST(Small_VisionRegistration, DetectBuildsFourPortsPerLevel)
 
 namespace
 {
-    /** @brief Gives each row of K_MINIMAL_CASES, and detect, its case. */
+    /** @brief Gives each single-port row of K_MINIMAL_CASES its case. */
     class Small_VisionRegistrationRow : public ::testing::TestWithParam<MinimalCase> {};
+
+    /** @brief Runs the unknown-key refusal over every row, detect included. */
+    class Small_VisionRegistrationKeyRow : public ::testing::TestWithParam<MinimalCase> {};
 } // namespace
 
 /** @brief Tests that a single-port row builds a one-port node of its case's shape. */
@@ -537,7 +540,7 @@ TEST_P(Small_VisionRegistrationRow, BuildsFromAMinimalObject)
 }
 
 /** @brief Tests that a row refuses a key it does not know and names the row and the key. */
-TEST_P(Small_VisionRegistrationRow, RejectsAnUnknownKey)
+TEST_P(Small_VisionRegistrationKeyRow, RejectsAnUnknownKey)
 {
     const MinimalCase& minimal = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
@@ -550,7 +553,10 @@ TEST_P(Small_VisionRegistrationRow, RejectsAnUnknownKey)
 INSTANTIATE_TEST_SUITE_P(SingleRows, Small_VisionRegistrationRow,
                          ::testing::ValuesIn(K_MINIMAL_CASES), case_name);
 
-INSTANTIATE_TEST_SUITE_P(DetectRow, Small_VisionRegistrationRow,
+INSTANTIATE_TEST_SUITE_P(SingleRows, Small_VisionRegistrationKeyRow,
+                         ::testing::ValuesIn(K_MINIMAL_CASES), case_name);
+
+INSTANTIATE_TEST_SUITE_P(DetectRow, Small_VisionRegistrationKeyRow,
                          ::testing::Values(K_DETECT_CASE), case_name);
 
 /** @brief Tests that the YOLO26n file parses to 24 rows of the types it lists, in order. */

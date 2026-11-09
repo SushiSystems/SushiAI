@@ -181,10 +181,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the Linear refusal over each input the layer does not fit. */
 class Small_LayersLinearRefusal : public ::testing::TestWithParam<LinearRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that Linear names its own dimensions when the input of the row does not fit. */
 TEST_P(Small_LayersLinearRefusal, LinearNamesItsOwnDimensions)

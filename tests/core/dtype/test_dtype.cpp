@@ -38,6 +38,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 using SushiAI::DType;
 
@@ -72,7 +73,7 @@ namespace
     /** @brief Names a Small_DTypeRow case after the diagnostic name of its element type. */
     std::string element_type_case_name(const ::testing::TestParamInfo<ElementTypeRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     }
 } // namespace
 

@@ -54,9 +54,9 @@ and one set of options, in the cache directory. Its file name is 23 characters l
 
 `Small_`. The digits of the file name equal the 64-bit FNV-1a hash of
 `<path>|<bytes>|<time>|<side>|<layout>`. Over the memory source the key of `images/a.jpg` at
-`longest_side` 320 is "images/a.jpg|4|0|320|0", whose hash, computed in Python from the
-offset basis 14695981039346656037 and the prime 1099511628211, is ec970685015c5c41, so the
-file name is "a-ec970685015c5c41.saim". The name must not change, because a cache written
+`longest_side` 320 is "images/a.jpg|4|0|320|2", whose hash, computed in Python from the
+offset basis 14695981039346656037 and the prime 1099511628211, is ec970485015c58db, so the
+file name is "a-ec970485015c58db.saim". The name must not change, because a cache written
 under the old name would be written again.
 
 ## AListIsPointedAtTheCacheFileTheSourceHolds

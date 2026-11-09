@@ -40,6 +40,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/binary_collator.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -134,7 +135,7 @@ INSTANTIATE_TEST_SUITE_P(
     Rows, Small_BinaryCollatorLabels,
     ::testing::Values(LabelRow{"ClassOneIsPositive", 1, 1.0f, 0.0f},
                       LabelRow{"ClassZeroIsPositive", 0, 0.0f, 1.0f}),
-    [](const ::testing::TestParamInfo<LabelRow>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<LabelRow>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that binary names the file of a sample with no class index. */
 TEST_F(Small_BinaryCollator, BinaryNamesTheFileOfASampleWithoutAClass)

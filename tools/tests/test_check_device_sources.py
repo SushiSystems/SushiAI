@@ -173,6 +173,14 @@ class TestProgramDeviceSourcesTest(unittest.TestCase):
         )
         self.assertEqual(_messages(rule_device_source_unneeded, tree), [])
 
+    def test_a_test_unit_that_reaches_a_kernel_through_a_support_header_is_not_unneeded(self) -> None:
+        """Follows `support/<name>.hpp` into tests/support, where a shared test header records a kernel."""
+        program = _test_program(["test_step.cpp"])
+        program["tests/core/optim/test_step.cpp"] = "#include <support/late_recorder.hpp>"
+        program["tests/support/late_recorder.hpp"] = "void f() { recorder.record_late_pair(a, b); }"
+        tree = _tree(["source/sgd.cpp", "source/schedule.cpp"], ["source/sgd.cpp"], program)
+        self.assertEqual(_messages(rule_device_source_unneeded, tree), [])
+
     def test_an_unlisted_test_unit_that_records_a_kernel_is_reported(self) -> None:
         """Names the test unit that records a kernel pair and that no test program lists."""
         tree = _tree(["source/sgd.cpp", "source/schedule.cpp"], ["source/sgd.cpp"], _test_program([]))

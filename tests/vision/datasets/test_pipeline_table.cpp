@@ -49,6 +49,7 @@
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -96,7 +97,7 @@ namespace
     /** @brief Names a test after the name of its row. */
     std::string table_row_name(const ::testing::TestParamInfo<std::string_view>& info)
     {
-        return std::string(info.param);
+        return ::SushiAI::Test::parameter_name(info.param);
     }
 } // namespace
 
@@ -163,4 +164,4 @@ INSTANTIATE_TEST_SUITE_P(
     Rows, Small_DatasetsPipelineTableRefusal,
     ::testing::Values(InputRefusal{"ANonSquareSize", ImageSize{4, 6}, 3, "square", "4 by 6"},
                       InputRefusal{"OneChannel", ImageSize{4, 4}, 1, "3 channels", "has 1"}),
-    [](const ::testing::TestParamInfo<InputRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<InputRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });

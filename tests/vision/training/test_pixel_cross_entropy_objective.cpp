@@ -82,6 +82,7 @@
 #include <SushiAI/vision/training/pixel_cross_entropy_objective.hpp>
 #include <SushiAI/vision/training/pixel_extents.hpp>
 #include <SushiAI/vision/training/pixel_losses.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Training::DiceObjective;
@@ -350,7 +351,7 @@ INSTANTIATE_TEST_SUITE_P(
         UnfitModel{"FlatOutput", with_flat_output(), {"'output'", "[2, 3]", ""}},
         UnfitModel{"HalfSizeOutput", with_half_size_output(),
                    {"[2, 2, 2, 3]", "[4, 4, 5]", "input size"}}),
-    [](const ::testing::TestParamInfo<UnfitModel>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<UnfitModel>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that the Dice factory refuses data of more classes than the model scores. */
 TEST(Small_PixelCrossEntropyObjective, TheDiceFactoryRefusesMoreClassesThanTheModelScores)

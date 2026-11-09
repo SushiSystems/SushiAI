@@ -88,6 +88,8 @@ TEST(Small_Unflatten, TagsTheResultNHWC)
     SA_EXPECT_OK(graph.finalise());
 }
 
+namespace
+{
 /** @brief Holds a layer's image extents, the flat input it takes and the image it gives. */
 struct ImageRow
 {
@@ -97,11 +99,15 @@ struct ImageRow
     int64_t channels; /**< The channels of the image. */
     int64_t batch;    /**< The batch extent of the trace. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the shape agreement over each image size. */
 class Small_UnflattenImage : public ::testing::TestWithParam<ImageRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape() equals the image and the traced per-sample shape. */
 TEST_P(Small_UnflattenImage, OutputShapeAgreesWithTheTrace)
@@ -124,6 +130,8 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(ImageRow{"AnRGBImage", 4, 5, 3, 2}, ImageRow{"AGreyImage", 28, 28, 1, 7}),
     [](const ::testing::TestParamInfo<ImageRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds extents that are not all positive. */
 struct ExtentRow
 {
@@ -132,11 +140,15 @@ struct ExtentRow
     int64_t width;    /**< The width given to the layer. */
     int64_t channels; /**< The channels given to the layer. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the extent refusal over each extent that is not positive. */
 class Small_UnflattenExtent : public ::testing::TestWithParam<ExtentRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward() returns the layer's positive-extent error. */
 TEST_P(Small_UnflattenExtent, ForwardRejectsTheExtent)

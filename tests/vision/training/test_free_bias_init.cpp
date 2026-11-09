@@ -56,6 +56,7 @@
 #include <SushiAI/vision/training/free_bias_init.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Blocks::DetectHead;
@@ -222,7 +223,7 @@ INSTANTIATE_TEST_SUITE_P(
                       CopyRow{0, "one2one_", "Level0OneToOne"},
                       CopyRow{1, "one2one_", "Level1OneToOne"},
                       CopyRow{2, "one2one_", "Level2OneToOne"}),
-    [](const ::testing::TestParamInfo<CopyRow>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<CopyRow>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a prefix the state lacks is refused by entry and changes nothing. */
 TEST_F(Medium_TrainingFreeBiasInit, RefusesAPrefixTheStateLacks)

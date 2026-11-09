@@ -36,6 +36,7 @@
 #include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -333,7 +334,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(WrongSizedArray{"Scores", &level_with_short_scores, "scores", "hold 3 values"},
                       WrongSizedArray{"BoxMask", &level_with_short_mask, "box mask",
                                       "hold 2 values"}),
-    [](const ::testing::TestParamInfo<WrongSizedArray>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<WrongSizedArray>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a setting below one, or a score sum that is not above 0, is refused. */
 TEST_P(Small_FreeDetectionLossHostSettings, ASettingThatIsNotPositiveIsRefused)
@@ -350,7 +351,7 @@ INSTANTIATE_TEST_SUITE_P(
                       NotPositive{"Classes", level_of_no_classes(), 1, 1.0, "0 classes"},
                       NotPositive{"Batch", LevelRow(), 0, 1.0, "batch of 0"},
                       NotPositive{"ScoreSum", LevelRow(), 1, 0.0, "score sum"}),
-    [](const ::testing::TestParamInfo<NotPositive>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<NotPositive>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a run of no level has every term 0. */
 TEST(Small_FreeDetectionLossHost, NoLevelGivesNoLoss)

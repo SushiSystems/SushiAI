@@ -97,16 +97,22 @@ namespace
     }
 } // namespace
 
+namespace
+{
 /** @brief Holds one traced head variant of encoder_head_loss(). */
 struct HeadVariant
 {
     Support::Head head;
     bool extra;
 };
+} // namespace
 
+namespace
+{
 class Small_RegionBoundaryHeads : public ::testing::TestWithParam<HeadVariant>
 {
 };
+} // namespace
 
 /**
  * @brief Tests that a forward region exports what a later region reads, and that every import

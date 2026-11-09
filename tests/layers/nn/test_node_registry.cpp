@@ -63,6 +63,7 @@
 #include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using NN::ModelGraph;
@@ -334,10 +335,13 @@ TEST(Small_NodeRegistry, ALayerNodeReportsThePortOfItsLayer)
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 8, 2}));
 }
 
+namespace
+{
 /** @brief Runs a case over each layer row of the registry. */
 class Small_NodeRegistryLayerRow : public ::testing::TestWithParam<LayerCase>
 {
 };
+} // namespace
 
 /** @brief Tests that the layer type of the row is reached through make_node as a LayerNode. */
 TEST_P(Small_NodeRegistryLayerRow, ALayerTypeIsWrappedInALayerNode)
@@ -368,7 +372,7 @@ TEST_P(Small_NodeRegistryLayerRow, ALayerTypeRefusesAnUnknownKeyByName)
 
 INSTANTIATE_TEST_SUITE_P(
     Rows, Small_NodeRegistryLayerRow, ::testing::ValuesIn(K_LAYER_CASES),
-    [](const ::testing::TestParamInfo<LayerCase>& info) { return std::string(info.param.type); });
+    [](const ::testing::TestParamInfo<LayerCase>& info) { return ::SushiAI::Test::parameter_name(info.param.type); });
 
 /** @brief Tests that a layer type given two inputs fails and names the count and the type. */
 TEST(Small_NodeRegistry, ALayerTypeRefusesTwoInputs)

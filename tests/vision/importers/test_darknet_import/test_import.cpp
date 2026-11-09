@@ -51,6 +51,7 @@
 #include <SushiAI/vision/importers/darknet_import.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using IO::ImportedModel;
@@ -292,7 +293,7 @@ INSTANTIATE_TEST_SUITE_P(
                                        "3 files"}),
     [](const ::testing::TestParamInfo<FileCountRefusal>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a .cfg that is not on disk is refused by its path. */

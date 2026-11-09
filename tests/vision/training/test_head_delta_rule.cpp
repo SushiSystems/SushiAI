@@ -42,6 +42,7 @@
 #include <SushiAI/vision/training/best_shape_head_delta_rule.hpp>
 #include <SushiAI/vision/training/head_delta_rule.hpp>
 #include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
+#include <support/test_names.hpp>
 
 #include "head_delta_rule_fixture.hpp"
 
@@ -120,7 +121,7 @@ INSTANTIATE_TEST_SUITE_P(Rules, Small_HeadDeltaRuleContract,
                                            RuleRow{"ShapeRatio", SizeForm::SquaredSigmoid,
                                                    &make_shape_ratio}),
                          [](const ::testing::TestParamInfo<RuleRow>& info)
-                         { return std::string(info.param.name); });
+                         { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a rule refuses through check the heads it cannot train. */
 TEST(Small_HeadDeltaRule, EachRuleRefusesThroughCheckTheHeadsOfTheOther)

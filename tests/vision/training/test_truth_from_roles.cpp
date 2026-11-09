@@ -49,6 +49,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/truth_from_roles.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Detect::GroundTruthBatch;
@@ -326,7 +327,7 @@ INSTANTIATE_TEST_SUITE_P(
         BadRole{"ValidOfAnotherSlotCount",
                 [](HostRoles& host) { host.valid_extents = {K_IMAGES, K_SLOTS - 1}; },
                 {"'valid'", "[2, 2]", "[2, 3, 4]"}}),
-    [](const ::testing::TestParamInfo<BadRole>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<BadRole>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a role whose values the host cannot read in order is refused. */
 TEST(Small_TruthFromHostRoles, RefusesARoleTheHostCannotReadInOrder)
@@ -354,7 +355,7 @@ INSTANTIATE_TEST_SUITE_P(
     Rows, Small_TruthFromHostRolesFlag,
     ::testing::Values(BadFlag{"Half", 0.5f},
                       BadFlag{"NotANumber", std::numeric_limits<float>::quiet_NaN()}),
-    [](const ::testing::TestParamInfo<BadFlag>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<BadFlag>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a refused batch leaves the boxes, the labels and the flags as they were. */
 TEST(Small_TruthFromHostRoles, ARefusedBatchLeavesTheWholeTruthUnchanged)

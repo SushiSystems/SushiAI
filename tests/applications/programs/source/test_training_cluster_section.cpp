@@ -32,7 +32,8 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 #include "training_cluster_section.hpp"
 
@@ -78,6 +79,8 @@ namespace
     }
 }
 
+namespace
+{
 /** @brief Holds the version and the extra members of a training file that states "local". */
 struct RefusedCase
 {
@@ -90,6 +93,7 @@ struct RefusedCase
     /** @brief The members placed before the "model" key. */
     const char* extra;
 };
+} // namespace
 
 /** @brief Runs the rows of training files whose "local" fallback is refused. */
 class Small_TrainingClusterSectionLocalFallback : public ::testing::TestWithParam<RefusedCase> {};
@@ -111,7 +115,7 @@ INSTANTIATE_TEST_SUITE_P(
                       RefusedCase{"InAVersion2File", 2, ""}),
     [](const ::testing::TestParamInfo<RefusedCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that "local" is read when the file states "deterministic": false. */

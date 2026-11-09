@@ -100,6 +100,8 @@ TEST(Small_LeakyReLU, ForwardEmitsOneLeakyReLUNodeCarryingTheSlope)
     EXPECT_DOUBLE_EQ(node.attributes.get(0), 0.2);
 }
 
+namespace
+{
 /** @brief Holds an input, whether it is NCHW, and what the result must keep of it. */
 struct KeptRow
 {
@@ -109,11 +111,15 @@ struct KeptRow
     bool states_layout;             /**< Whether the row states the layout the result carries. */
     Graph::TensorLayout layout;     /**< The layout the result carries, when the row states it. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the shape, type and layout promise over each kind of input. */
 class Small_LeakyReLUKept : public ::testing::TestWithParam<KeptRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the result is shaped, typed and laid out like the input. */
 TEST_P(Small_LeakyReLUKept, ForwardKeepsTheShapeTypeAndLayoutOfItsInput)
@@ -147,6 +153,8 @@ INSTANTIATE_TEST_SUITE_P(
         KeptRow{"AnNCHWImageBatch", Shape{2, 8, 6, 3}, true, true, Graph::TensorLayout::NCHW}),
     [](const ::testing::TestParamInfo<KeptRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds a batched input and the per-sample shape output_shape gives. */
 struct SampleRow
 {
@@ -154,11 +162,15 @@ struct SampleRow
     Shape batched;    /**< The input shape, batch axis included. */
     Shape sample;     /**< The per-sample shape. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the shape agreement over each sample shape. */
 class Small_LeakyReLUSample : public ::testing::TestWithParam<SampleRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape() is the per-sample shape and matches the traced shape. */
 TEST_P(Small_LeakyReLUSample, OutputShapeAgreesWithForward)
@@ -182,17 +194,23 @@ INSTANTIATE_TEST_SUITE_P(
                       SampleRow{"AnImage", Shape{3, 8, 6, 4}, Shape{8, 6, 4}}),
     [](const ::testing::TestParamInfo<SampleRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds a slope outside the open range (0, 1). */
 struct SlopeRow
 {
     std::string name; /**< The row's name. */
     double slope;     /**< The slope both forward and output_shape refuse. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the slope refusal over each slope outside the open range. */
 class Small_LeakyReLUSlope : public ::testing::TestWithParam<SlopeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward() refuses the slope in the layer's own message. */
 TEST_P(Small_LeakyReLUSlope, ForwardRefusesTheSlope)

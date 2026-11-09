@@ -552,9 +552,12 @@ TEST(Small_RegionSignature, TheSameTraceGivesTheSameSignature)
                                             Ops::K_SCALE.id}));
 }
 
+namespace
+{
 class Small_RegionSignatureAttribute : public ::testing::TestWithParam<AttributeChange>
 {
 };
+} // namespace
 
 /** @brief Tests that a changed attribute of a node changes the hash and keeps the operations. */
 TEST_P(Small_RegionSignatureAttribute, AChangedAttributeChangesTheHash)
@@ -568,9 +571,12 @@ TEST_P(Small_RegionSignatureAttribute, AChangedAttributeChangesTheHash)
 INSTANTIATE_TEST_SUITE_P(Rows, Small_RegionSignatureAttribute,
                          ::testing::Values(AttributeChange::Factor, AttributeChange::LastSlot));
 
+namespace
+{
 class Small_RegionSignatureValue : public ::testing::TestWithParam<ValueChange>
 {
 };
+} // namespace
 
 /** @brief Tests that a changed layout, shape or element type changes the hash. */
 TEST_P(Small_RegionSignatureValue, AChangedValueDescriptionChangesTheHash)
@@ -598,9 +604,12 @@ TEST(Small_RegionSignature, AChangedOpChangesTheHash)
     EXPECT_NE(base.hash, other.hash);
 }
 
+namespace
+{
 class Small_RegionSignatureIdentity : public ::testing::TestWithParam<IdentityChange>
 {
 };
+} // namespace
 
 /** @brief Tests that a value of another identity hashes apart over the same structure. */
 TEST_P(Small_RegionSignatureIdentity, AValueOfAnotherIdentityChangesTheHash)
@@ -615,9 +624,12 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_RegionSignatureIdentity,
                          ::testing::Values(IdentityChange::Parameter,
                                            IdentityChange::BoundaryValue));
 
+namespace
+{
 class Small_RegionSignatureGrowth : public ::testing::TestWithParam<Eager::Direction>
 {
 };
+} // namespace
 
 /**
  * @brief Tests that a layer added to "stem" keeps the signature of "body" in the direction of the
@@ -711,9 +723,12 @@ TEST(Small_RegionSignature, AnOperandFromAnUnlistedRegionHashesAsExternal)
     EXPECT_TRUE(listed == other);
 }
 
+namespace
+{
 class Small_RegionSignatureOperand : public ::testing::TestWithParam<OperandOrders>
 {
 };
+} // namespace
 
 /** @brief Tests that the kind of an operand, inside the region or not, changes the hash. */
 TEST_P(Small_RegionSignatureOperand, AnOperandOfAnotherKindHashesApart)

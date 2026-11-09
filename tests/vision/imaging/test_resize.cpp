@@ -37,7 +37,8 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
-#include <SushiAI/vision/imaging/resize.hpp>
+#include <SushiAI/vision/imaging/resize.hpp>
+#include <support/test_names.hpp>
 
 using SushiAI::Vision::Imaging::fit_long_side;
 using SushiAI::Vision::Imaging::Image;
@@ -354,7 +355,7 @@ INSTANTIATE_TEST_SUITE_P(
         ConstantRow{"WhenReduced", ImageSize{31, 17}, Bytes{201}, ImageSize{4, 5}}),
     [](const ::testing::TestParamInfo<ConstantRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a horizontal gradient never falls, at every width from 1 to 40. */
@@ -550,7 +551,7 @@ INSTANTIATE_TEST_SUITE_P(
                     2, ImageSize{2, 2}, Bytes{36, 55, 115, 135}}),
     [](const ::testing::TestParamInfo<LongSideRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_ImagingResize, ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds)
@@ -609,7 +610,7 @@ INSTANTIATE_TEST_SUITE_P(
                  "resize_long_side"}),
     [](const ::testing::TestParamInfo<AliasRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that resize_long_side refuses a source size outside the image bounds. */

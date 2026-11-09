@@ -35,7 +35,8 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/vision/importers/darknet_config.hpp>
+#include <SushiAI/vision/importers/darknet_config.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Importers::DarknetConfig;
@@ -248,7 +249,7 @@ INSTANTIATE_TEST_SUITE_P(
                       MalformedSection{"TextAfterTheBracket", "[net]x\n", ""}),
     [](const ::testing::TestParamInfo<MalformedSection>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a text of comments alone fails naming the origin. */

@@ -48,6 +48,7 @@
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/table_dataset.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -248,7 +249,7 @@ INSTANTIATE_TEST_SUITE_P(
         MakeRefusal{"ABatchSizeOfZero", false, false, false, 4, 0, "a batch size of 0", ""},
         MakeRefusal{"ABatchLargerThanTheList", false, false, false, 1, 2, "1 samples",
                     "one batch of 2"}),
-    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a batch index past the last batch stops the process. */
 TEST_F(Medium_DatasetsTableDataset, ABatchOutsideTheEpochStopsTheProcess)
@@ -316,4 +317,4 @@ INSTANTIATE_TEST_SUITE_P(
                                    "of batch 1"},
                       RangeRefusal{"ABatchPastTheEpoch", 99, Data::RowRange{0, 1},
                                    "Batch 99 is out of range", ""}),
-    [](const ::testing::TestParamInfo<RangeRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<RangeRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });

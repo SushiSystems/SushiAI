@@ -35,7 +35,8 @@
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/graph/fusion.hpp>
-#include <SushiAI/graph/fusion_selector.hpp>
+#include <SushiAI/graph/fusion_selector.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Graph::DeviceFusionSelector;
@@ -89,7 +90,7 @@ INSTANTIATE_TEST_SUITE_P(, Small_FusionSelectorForm,
                                            FusedForm::ExpSubScale),
                          [](const ::testing::TestParamInfo<FusedForm>& info)
                          {
-                             return std::string(Graph::fused_form_name(info.param));
+                             return ::SushiAI::Test::parameter_name(Graph::fused_form_name(info.param));
                          });
 
 /** @brief Tests that a FLOAT64 match on a device without native doubles is spelled unfused. */

@@ -230,10 +230,13 @@ TEST(Small_ImagingBoxes, PolygonFilterKeepsABoxThePlainFilterRejects)
     EXPECT_TRUE(is_box_candidate(before, after, make_polygon_filter()));
 }
 
+namespace
+{
 /** @brief Rows of a 10 by 10 box warped to the row's box. */
 class Small_ImagingBoxesSide : public ::testing::TestWithParam<SideRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a candidate needs each side strictly above the minimum side. */
 TEST_P(Small_ImagingBoxesSide, CandidateNeedsASideAboveTheMinimumSide)

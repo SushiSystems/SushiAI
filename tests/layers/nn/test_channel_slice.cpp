@@ -64,6 +64,8 @@ namespace
 
 } // namespace
 
+namespace
+{
 /** @brief Holds a channel range, the per-sample shape it slices and the shape it gives. */
 struct AcceptedRangeRow
 {
@@ -73,11 +75,15 @@ struct AcceptedRangeRow
     Shape sample;      /**< The per-sample input shape. */
     Shape expected;    /**< The per-sample shape the layer gives. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the accepted-range promise over each kind of range. */
 class Small_ChannelSliceAccepted : public ::testing::TestWithParam<AcceptedRangeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape keeps height and width and takes the range of channels. */
 TEST_P(Small_ChannelSliceAccepted, OutputShapeTakesTheRange)
@@ -159,6 +165,8 @@ TEST(Small_ChannelSlice, OutputShapeAgreesWithTheTracedShape)
               traced_per_sample_shape(leading, Shape{1, 4, 4, 6}));
 }
 
+namespace
+{
 /** @brief Holds a range and a per-sample shape that output_shape refuses, with the message. */
 struct RefusedRangeRow
 {
@@ -170,11 +178,15 @@ struct RefusedRangeRow
     std::string second; /**< A second substring the message holds; empty for none. */
     std::string third;  /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the output_shape refusal over each range and shape it cannot take. */
 class Small_ChannelSliceRefused : public ::testing::TestWithParam<RefusedRangeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape refuses the row and names the values the row says. */
 TEST_P(Small_ChannelSliceRefused, OutputShapeRefuses)
@@ -208,6 +220,8 @@ INSTANTIATE_TEST_SUITE_P(
         RefusedRangeRow{"ARankFourShape", 0, 1, Shape{2, 3, 5, 7}, "", "", ""}),
     [](const ::testing::TestParamInfo<RefusedRangeRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds a range, a batched input, whether it is NCHW, and the refusal forward meets. */
 struct ForwardRefusalRow
 {
@@ -220,11 +234,15 @@ struct ForwardRefusalRow
     std::string second; /**< A second substring the message holds. */
     std::string third;  /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the forward refusal over each input and range it cannot take. */
 class Small_ChannelSliceForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward refuses the row and names what the row says. */
 TEST_P(Small_ChannelSliceForwardRefusal, ForwardRefuses)

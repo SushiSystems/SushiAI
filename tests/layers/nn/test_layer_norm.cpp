@@ -316,10 +316,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the factory over each row it refuses. */
 class Small_LayerNormFactoryRefusal : public ::testing::TestWithParam<FactoryRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the factory refuses the row, naming layer 3 and the reason. */
 TEST_P(Small_LayerNormFactoryRefusal, TheFactoryRefusesTheRow)

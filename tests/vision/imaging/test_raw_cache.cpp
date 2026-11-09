@@ -41,7 +41,8 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
-#include <SushiAI/vision/imaging/raw_cache.hpp>
+#include <SushiAI/vision/imaging/raw_cache.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 
@@ -317,7 +318,7 @@ INSTANTIATE_TEST_SUITE_P(
                       RoundTripRow{"GrayImage", ImageSize{4, 3}, 1, ChannelOrder::Gray}),
     [](const ::testing::TestParamInfo<RoundTripRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_ImagingRawCache, BGRFileIsWrittenAsGivenAndReadAsRGB)

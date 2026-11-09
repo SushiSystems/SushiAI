@@ -207,6 +207,19 @@ namespace
                 {SaTest::K_SHALLOW_ROTARY_DECODER_MODEL, K_LONG_TOKENS}};
     }
 
+    /**
+     * @brief Returns the decoders whose slides the window generator reproduces exactly: the table
+     *        and the one-block ring.
+     *
+     * Past the first slide a two-block ring reads keys cached from ids the window has dropped, so
+     * its oracle is the wide cache instead; test_cached_generator.md gives the reason.
+     */
+    std::vector<DecoderCase> window_exact_cases()
+    {
+        return {{SaTest::K_DECODER_MODEL, K_SLIDING_TOKENS},
+                {SaTest::K_SHALLOW_ROTARY_DECODER_MODEL, K_LONG_TOKENS}};
+    }
+
     /** @brief Returns a step that carries nothing, a misnamed leaf, a silent ring and a step fed both. */
     std::vector<RefusalCase> refusal_cases()
     {
@@ -569,6 +582,12 @@ namespace
             }
     };
 
+    /** @brief Builds the decoders of window_exact_cases(), for the runs that slide. */
+    class Medium_CachedSlide : public Medium_CachedGeneration
+    {
+
+    };
+
     /** @brief Builds the decoders the ring tests feed by hand. */
     class Medium_CachedRing : public CachedGenerationTest
     {
@@ -648,7 +667,7 @@ TEST_P(Medium_CachedGeneration, TheLogitsEqualThoseOfTheWindowAtTheLastPosition)
 }
 
 /** @brief Tests that a context that reaches the window and slides gives the window generator's tokens. */
-TEST_P(Medium_CachedGeneration, AContextThatSlidesGivesTheTokensOfTheWindowGenerator)
+TEST_P(Medium_CachedSlide, AContextThatSlidesGivesTheTokensOfTheWindowGenerator)
 {
     const std::vector<TokenID> prompt{1, 2, 3};
     const std::int64_t tokens = GetParam().sliding_tokens;
@@ -682,6 +701,7 @@ TEST_P(Medium_CachedGeneration, ASecondPromptMatchesAFreshGenerator)
 }
 
 INSTANTIATE_TEST_SUITE_P(Rows, Medium_CachedGeneration, ::testing::ValuesIn(decoder_cases()));
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_CachedSlide, ::testing::ValuesIn(window_exact_cases()));
 
 /** @brief Tests that a step that carries nothing, a leaf that is absent and a ring that does not fit are refused. */
 TEST_P(Medium_CachedRefusal, AStepOrARingThatDoesNotFitIsRefused)

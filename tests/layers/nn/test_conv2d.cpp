@@ -267,6 +267,8 @@ TEST(Small_Conv2d, TracingTwiceDoesNotDuplicateParameters)
     EXPECT_EQ(NN::parameter_count(layer), 2u);
 }
 
+namespace
+{
 /** @brief Holds a layer, a batch, a sample and the per-sample shape the layer gives. */
 struct AgreementRow
 {
@@ -276,11 +278,15 @@ struct AgreementRow
     Shape sample;     /**< The per-sample input shape. */
     Shape expected;   /**< The per-sample shape the layer gives. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the shape agreement over each kind of window. */
 class Small_Conv2dShape : public ::testing::TestWithParam<AgreementRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape equals the expected shape and the traced shape. */
 TEST_P(Small_Conv2dShape, OutputShapeAgreesWithForward)
@@ -398,6 +404,8 @@ TEST(Small_Conv2d, BiasInitLeavesTheWeightFanScaled)
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
 }
 
+namespace
+{
 /** @brief Holds a layer and a per-sample shape that output_shape refuses, with the message. */
 struct ShapeRefusalRow
 {
@@ -408,11 +416,15 @@ struct ShapeRefusalRow
     std::string second; /**< A second substring the message holds. */
     std::string third;  /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the output_shape refusal over each layer and shape it cannot take. */
 class Small_Conv2dShapeRefusal : public ::testing::TestWithParam<ShapeRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape refuses the row and names the layer and what the row says. */
 TEST_P(Small_Conv2dShapeRefusal, OutputShapeRefuses)
@@ -445,6 +457,8 @@ INSTANTIATE_TEST_SUITE_P(
                         "Conv2d(3, 8)", "padding -1,-1", ""}),
     [](const ::testing::TestParamInfo<ShapeRefusalRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds a layer, a batched input, whether it is NCHW, and the refusal forward meets. */
 struct ForwardRefusalRow
 {
@@ -456,11 +470,15 @@ struct ForwardRefusalRow
     std::string second; /**< A second substring the message holds; empty for none. */
     std::string third;  /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the forward refusal over each layer and input it cannot take. */
 class Small_Conv2dForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward refuses the row, names what the row says and declares nothing. */
 TEST_P(Small_Conv2dForwardRefusal, ForwardRefuses)

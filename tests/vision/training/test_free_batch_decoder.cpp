@@ -41,6 +41,7 @@
 #include <SushiAI/vision/training/free_batch_decoder.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Training::FreeBatchDecoder;
@@ -221,7 +222,7 @@ INSTANTIATE_TEST_SUITE_P(
                        [](std::vector<float>&, std::vector<float>& level1_scores)
                        { level1_scores[1] = std::numeric_limits<float>::infinity(); },
                        "level 1 score 1"}),
-    [](const ::testing::TestParamInfo<NonFiniteInput>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<NonFiniteInput>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that facts the decoder cannot be made for are refused, naming the counts. */
 TEST_P(Small_FreeBatchDecoderFacts, MakeRefusesFactsItCannotDecode)
@@ -248,4 +249,4 @@ INSTANTIATE_TEST_SUITE_P(
         UnmakeableFacts{"LevelWithoutStride", [](FreeModelFacts& facts)
                         { facts.levels[1].stride = 0; },
                         "a positive stride"}),
-    [](const ::testing::TestParamInfo<UnmakeableFacts>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<UnmakeableFacts>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });

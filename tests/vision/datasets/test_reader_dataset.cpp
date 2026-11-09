@@ -61,6 +61,7 @@
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -441,7 +442,7 @@ INSTANTIATE_TEST_SUITE_P(
                       OptionsRefusal{"ABatchSizeOfZero", 2, 1, 0, "batch size of 0", ""},
                       OptionsRefusal{"ABatchLargerThanTheList", 2, 1, 3, "2 samples",
                                      "one batch of 3"}),
-    [](const ::testing::TestParamInfo<OptionsRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<OptionsRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that make refuses a missing collator. */
 TEST_F(Small_DatasetsReaderDataset, MakeRefusesANullCollator)
@@ -514,7 +515,7 @@ TEST_F(Small_DatasetsReaderDataset, AnImageOfAnotherChannelCountNamesItsFile)
                             make(stored_list(2), options));
 
     Data::Batch batch;
-    SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::Incompatible, "pixels.bin",
+    SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::Incompatible, "never_read.bin",
                       "ReaderDataset", "1 channels", "reads 3");
 }
 
@@ -679,4 +680,4 @@ INSTANTIATE_TEST_SUITE_P(
                                    "Rows 3 to 5", "of batch 1"},
                       RangeRefusal{"ABatchPastTheEpoch", 99, Data::RowRange{0, 1},
                                    "Batch 99 is out of range", ""}),
-    [](const ::testing::TestParamInfo<RangeRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<RangeRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });

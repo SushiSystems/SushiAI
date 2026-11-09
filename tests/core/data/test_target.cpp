@@ -48,6 +48,7 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Data::BatchTarget;
@@ -271,7 +272,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_DataTargetAllocation,
                          ::testing::ValuesIn(allocate_cases()),
                          [](const ::testing::TestParamInfo<AllocateCase>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 /** @brief Tests that prepare_batch keeps an input of the layout and replaces any other. */
@@ -298,7 +299,7 @@ INSTANTIATE_TEST_SUITE_P(
                                   false}),
     [](const ::testing::TestParamInfo<PrepareCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that describe_input reports the type and the sample shape a dataset overrides. */

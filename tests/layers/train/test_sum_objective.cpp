@@ -218,6 +218,12 @@ namespace
                 return metrics.add(Train::Metric{"accuracy", accuracy_});
             }
 
+            /** @brief Is fed by the batch, as the wrapped cross-entropy is. */
+            [[nodiscard]] bool is_fed_by_batch() const noexcept override
+            {
+                return inner_.is_fed_by_batch();
+            }
+
             /** @brief Names the term. */
             std::string_view name() const noexcept override
             {

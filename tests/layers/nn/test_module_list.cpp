@@ -163,10 +163,13 @@ namespace
     }
 }
 
+namespace
+{
 /** @brief Runs the enumeration case over begin() and end() and over visit_children(). */
 class Small_ModuleListEnumeration : public ::testing::TestWithParam<EnumerationRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the enumeration of the row hands out each child with its index, in order. */
 TEST_P(Small_ModuleListEnumeration, ChildrenComeInIndexOrder)

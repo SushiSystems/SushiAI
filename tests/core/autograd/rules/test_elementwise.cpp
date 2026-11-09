@@ -36,7 +36,8 @@
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/elementwise.hpp>
-#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <support/test_names.hpp>
 
 using SushiAI::Autograd::BackwardRule;
 using SushiAI::Autograd::K_ELEMENTWISE_RULES;
@@ -103,7 +104,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_ElementwiseRuleRow,
                          {
                              std::string name(info.param.op.name);
                              std::replace(name.begin(), name.end(), '.', '_');
-                             return name;
+                             return ::SushiAI::Test::parameter_name(name);
                          });
 
 /** @brief Tests that the table has a row for each expected operation and no other. */

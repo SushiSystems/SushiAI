@@ -42,6 +42,7 @@
 #include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
@@ -170,7 +171,7 @@ INSTANTIATE_TEST_SUITE_P(
                       LetterboxRow{"SecondRowIsTheSource", 1, 200},
                       LetterboxRow{"ThirdRowIsTheSource", 2, 200},
                       LetterboxRow{"BottomRowIsPadding", 3, K_PADDING}),
-    [](const ::testing::TestParamInfo<LetterboxRow>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<LetterboxRow>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a letterbox moves the boxes by the padding and invents no class. */
 TEST(Small_DatasetsFitSample, LetterboxMovesTheLabelsByThePadding)

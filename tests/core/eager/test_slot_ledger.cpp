@@ -182,9 +182,12 @@ TEST(Small_SlotLedger, AReaderThatIsNotTrustedNamesNoSlot)
               K_NO_STORAGE);
 }
 
+namespace
+{
 class Small_SlotLedgerClaim : public ::testing::TestWithParam<ClaimRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a slot is claimed once: the first claim takes it, the second does not. */
 TEST_P(Small_SlotLedgerClaim, ASlotIsClaimedOnce)
@@ -207,16 +210,22 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_SlotLedgerClaim,
                          ::testing::Values(ClaimRow{Claimer::Place, ValuePosition{2, 0}},
                                            ClaimRow{Claimer::Match, ValuePosition{3, 0}}));
 
+namespace
+{
 /** @brief Holds the buffer description a changed slot is asked for. */
 struct ChangeRow
 {
     Shape shape;  /**< The extents asked for. */
     DType dtype;  /**< The element type asked for. */
 };
+} // namespace
 
+namespace
+{
 class Small_SlotLedgerChange : public ::testing::TestWithParam<ChangeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a changed shape or element type gets a new slot and releases the old. */
 TEST_P(Small_SlotLedgerChange, AChangedBufferGetsANewSlotAndReleasesTheOld)

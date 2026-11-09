@@ -92,6 +92,8 @@ TEST(Small_HostTable, EveryDeclarationIsItsOwnLeaf)
     EXPECT_EQ(tables.tables()[1].leaf, second);
 }
 
+namespace
+{
 /** @brief Holds a trace, a table and the substrings of the refusal. */
 struct RefusedTableRow
 {
@@ -103,11 +105,15 @@ struct RefusedTableRow
     std::string first;          /**< A substring the message holds. */
     std::string second;         /**< A second substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the table refusal over each table no step can fill. */
 class Small_HostTableRefusal : public ::testing::TestWithParam<RefusedTableRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a table no step can fill is refused and leaves the graph and the list alone. */
 TEST_P(Small_HostTableRefusal, ATableThatNoStepCanFillIsRefused)

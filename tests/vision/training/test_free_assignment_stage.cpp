@@ -47,6 +47,7 @@
 #include <SushiAI/vision/training/free_assignment_stage.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Training::FreeAssignmentStage;
@@ -438,7 +439,7 @@ INSTANTIATE_TEST_SUITE_P(
         NonFinitePort{"InfiniteScore",
                       [](Ports& ports) { ports.scores[0][3] = std::numeric_limits<float>::infinity(); },
                       "level 0 score 3"}),
-    [](const ::testing::TestParamInfo<NonFinitePort>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<NonFinitePort>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 TEST(Small_VisionTrainingFreeAssignmentStage, AcceptsANonFinitePaddingRow)
 {
@@ -484,4 +485,4 @@ INSTANTIATE_TEST_SUITE_P(
                         [](FreeModelFacts&, Vision::Detect::Free::FreeTask& task)
                         { task.one_to_many.topk = 21; },
                         "topk 21"}),
-    [](const ::testing::TestParamInfo<UnmakeableStage>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<UnmakeableStage>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });

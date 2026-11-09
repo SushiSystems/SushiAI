@@ -45,7 +45,8 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <support/tolerance.hpp>
+#include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -447,5 +448,5 @@ TEST_P(Small_ClusterSectionRefusal, ASectionThatBreaksARuleIsRefusedNamingIt)
 INSTANTIATE_TEST_SUITE_P(Rows, Small_ClusterSectionRefusal, ::testing::ValuesIn(refusal_cases()),
                          [](const ::testing::TestParamInfo<RefusalCase>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

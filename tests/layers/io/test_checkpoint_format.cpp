@@ -213,6 +213,8 @@ TEST(Small_CheckpointFormat, RejectsAForeignMagic)
 
 namespace
 {
+namespace
+{
 /** @brief Holds a version number the format cannot read and the words of its refusal. */
 struct VersionRow
 {
@@ -220,11 +222,15 @@ struct VersionRow
     std::uint32_t version;   /**< The version patched into the header. */
     std::string message;     /**< The version the refusal names. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the version refusal over each version outside the readable ones. */
 class Small_CheckpointFormatVersion : public ::testing::TestWithParam<VersionRow>
 {
 };
+} // namespace
 } // namespace
 
 /** @brief Tests that a version outside 1 to 2 is refused with the versions read. */
@@ -466,6 +472,8 @@ TEST(Small_CheckpointFormat, RejectsARunStateCountOverTheBound)
 
 namespace
 {
+namespace
+{
 /** @brief Holds one malformed owner, the call that meets it and the words of its refusal. */
 struct OwnerRow
 {
@@ -476,11 +484,15 @@ struct OwnerRow
     std::string second;               /**< Another text the message holds. */
     std::string third;                /**< A third text the message holds. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the owner refusal over each way an owner is malformed. */
 class Small_CheckpointFormatOwner : public ::testing::TestWithParam<OwnerRow>
 {
 };
+} // namespace
 
 /** @brief Returns the run-state stream with the owner length replaced by @p length. */
 std::string with_owner_length(std::uint32_t length)

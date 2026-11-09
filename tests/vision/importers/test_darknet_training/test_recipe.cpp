@@ -426,10 +426,13 @@ TEST(Small_DarknetTraining, RefusesAHeadWhoseIgnoreThresholdIsAboveOne)
                       "ignore threshold");
 }
 
+namespace
+{
 /** @brief Holds one learning_rate value the reader refuses. */
 class Small_DarknetTrainingLearningRate : public ::testing::TestWithParam<std::string>
 {
 };
+} // namespace
 
 /** @brief Tests that a learning_rate that is not a finite number is invalid, naming its line. */
 TEST_P(Small_DarknetTrainingLearningRate, IsRefused)

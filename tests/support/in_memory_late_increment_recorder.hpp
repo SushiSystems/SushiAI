@@ -25,7 +25,7 @@
  * @file in_memory_late_increment_recorder.hpp
  * @brief Declares InMemoryLateIncrementRecorder, a StepRecorder that records one late-count task.
  * @author Mustafa Garip
- * @see modules/core/graph/README.md
+ * @see tests/support/README.md
  */
 
 #pragma once
@@ -44,7 +44,7 @@
 
 namespace SushiAI
 {
-    namespace Graph
+    namespace Test
     {
         /**
          * @class InMemoryLateIncrementRecorder
@@ -54,7 +54,7 @@ namespace SushiAI
          * The task reads the count when it runs, not when it is recorded, and captures the data
          * pointers only, so it replays after the recorder that made it is gone.
          */
-        class InMemoryLateIncrementRecorder final : public StepRecorder
+        class InMemoryLateIncrementRecorder final : public Graph::StepRecorder
         {
             public:
                 /**
@@ -70,7 +70,7 @@ namespace SushiAI
 
                 /** @brief Records one late-count task over the tensor and returns 1. */
                 [[nodiscard]] Result<std::size_t> record_into_step(
-                    const StepRecording& recording) override
+                    const Graph::StepRecording& recording) override
                 {
                     return ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Record, [&]()
                     {
@@ -103,5 +103,5 @@ namespace SushiAI
                 SushiBLAS::Tensor count_;
         };
 
-    } // namespace Graph
+    } // namespace Test
 } // namespace SushiAI

@@ -42,6 +42,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/training/dice_targets.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Training::DiceLeaves;
@@ -186,4 +187,4 @@ INSTANTIATE_TEST_SUITE_P(
         DiceRow{"FloatThirtyTwoIgnoreTwoFiftyFive", DType::Float32, {0, 2, 255, 0, 2, 0}, 255,
                 {0, 5, 6, 9, 14, 15}, {0, 2, 0, 0, 2, 0}, {1.0, 1.0, 0.0, 1.0, 1.0, 1.0},
                 {3.0, 0.0, 2.0}, {0.5, 0.0, 0.5}}),
-    [](const ::testing::TestParamInfo<DiceRow>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<DiceRow>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });

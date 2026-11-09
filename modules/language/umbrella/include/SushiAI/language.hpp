@@ -80,3 +80,10 @@
 #include <SushiAI/language/blocks/rotary_embedding.hpp>
 #include <SushiAI/language/blocks/rotary_positions.hpp>
 #include <SushiAI/language/training/expert_balance_objective.hpp>
+#include <SushiAI/language/generation/fed_leaves.hpp>
+#include <SushiAI/language/generation/in_memory_fed_leaves.hpp>
+#include <SushiAI/language/generation/in_memory_generator.hpp>
+#include <SushiAI/language/generation/in_memory_one_position_step.hpp>
+#include <SushiAI/language/generation/in_memory_window_logits.hpp>
+#include <SushiAI/language/generation/one_position_step.hpp>
+#include <SushiAI/language/generation/window_logits.hpp>

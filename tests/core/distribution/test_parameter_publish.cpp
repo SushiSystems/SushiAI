@@ -52,6 +52,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -225,5 +226,5 @@ TEST_P(Medium_ParameterPublishRefusal, MakeRefusesParametersThatDifferFromTheLay
 INSTANTIATE_TEST_SUITE_P(Lists, Medium_ParameterPublishRefusal, ::testing::ValuesIn(refusal_rows()),
                          [](const ::testing::TestParamInfo<RefusalRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

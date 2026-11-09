@@ -31,7 +31,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiAI/distribution/exact_sum.hpp>
+#include <SushiAI/distribution/exact_sum.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -82,5 +83,5 @@ TEST_P(Small_ExactSum, ATypeAddsAsACountExactlyWhenItIsAnInteger)
 INSTANTIATE_TEST_SUITE_P(Types, Small_ExactSum, ::testing::ValuesIn(type_rows()),
                          [](const ::testing::TestParamInfo<TypeRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

@@ -32,7 +32,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/distribution/replica_draws.hpp>
-#include <support/splitmix64.hpp>
+#include <support/splitmix64.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -108,5 +109,5 @@ TEST_P(Small_ReplicaDrawsPair, DrawsThatDifferGiveDifferentSeeds)
 INSTANTIATE_TEST_SUITE_P(Draws, Small_ReplicaDrawsPair, ::testing::ValuesIn(draw_pairs()),
                          [](const ::testing::TestParamInfo<DrawPair>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

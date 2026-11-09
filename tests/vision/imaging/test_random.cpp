@@ -36,7 +36,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/vision/imaging/random.hpp>
+#include <SushiAI/vision/imaging/random.hpp>
+#include <support/test_names.hpp>
 
 using SushiAI::Vision::Imaging::Random;
 
@@ -227,7 +228,7 @@ INSTANTIATE_TEST_SUITE_P(
                       MixRow{"TheSecondCounter", 0x3C6EF372FE94F82Aull, 0x6E789E6AA1B965F4ull}),
     [](const ::testing::TestParamInfo<MixRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_ImagingRandom, SeedZeroReproducesTheHandComputedSequence)
@@ -297,7 +298,7 @@ INSTANTIATE_TEST_SUITE_P(
                     0.4f, 0.6f}),
     [](const ::testing::TestParamInfo<IntervalRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that the mean and variance of uniform draws are those of a uniform variable. */

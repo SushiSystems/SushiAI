@@ -51,6 +51,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/precision.hpp>
 #include <SushiAI/graph/traced.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -84,7 +85,7 @@ namespace
     template<typename Row>
     std::string row_name(const ::testing::TestParamInfo<Row>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     }
 
     /** @brief Names a case of a suite whose rows are operations after the operation. */

@@ -44,7 +44,8 @@
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
 #include <SushiAI/vision/imaging/in_memory_partner_source.hpp>
 #include <SushiAI/vision/imaging/mosaic.hpp>
-#include <support/imaging_images.hpp>
+#include <support/imaging_images.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
@@ -541,7 +542,7 @@ INSTANTIATE_TEST_SUITE_P(
                                    K_HIGH_SIZES, K_HIGH_PLACEMENTS}),
     [](const ::testing::TestParamInfo<PlacementRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_ImagingMosaic, PlanCarriesTheFillValueOfTheSettings)

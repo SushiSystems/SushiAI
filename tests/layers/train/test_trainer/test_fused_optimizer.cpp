@@ -59,6 +59,7 @@
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
 #include <SushiAI/train/training_step.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 
@@ -410,7 +411,7 @@ INSTANTIATE_TEST_SUITE_P(Decay, Medium_FusedOptimizerAdamW,
                          ::testing::Values(AdamWRow{"WithDecay", 0.01},
                                            AdamWRow{"WithoutDecay", 0.0}),
                          [](const ::testing::TestParamInfo<AdamWRow>& info)
-                         { return std::string(info.param.name); });
+                         { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /**
  * @brief Tests that each SGD branch matches the separate operations byte for byte.
@@ -447,7 +448,7 @@ INSTANTIATE_TEST_SUITE_P(Branches, Medium_FusedOptimizerSgd,
                                            sgd_row("Nesterov", 0.0, 0.9, 0.0, true),
                                            sgd_row("MomentumAndDecay", 0.05, 0.9, 0.0, false)),
                          [](const ::testing::TestParamInfo<SgdRow>& info)
-                         { return std::string(info.param.name); });
+                         { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /**
  * @brief Tests that AdamW inside the compiled plan trains identically to AdamW outside it.

@@ -41,7 +41,8 @@
 #include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
-#include <support/tolerance.hpp>
+#include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -312,5 +313,5 @@ INSTANTIATE_TEST_SUITE_P(Rows, Medium_DetectBoxesRoundTrip,
                          ::testing::ValuesIn(K_ROUND_TRIP_ROWS),
                          [](const ::testing::TestParamInfo<RoundTripRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

@@ -254,5 +254,22 @@
 #include <SushiAI/io/memory_input.hpp>
 #include <SushiAI/optim/run_state.hpp>
 
+#include <SushiAI/failure/failure_block_counter.hpp>
+#include <SushiAI/failure/in_memory_failure_block_counter.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
+#include <SushiAI/execution/runtime_access.hpp>
+#include <SushiAI/execution/runtime_backend.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
+#include <SushiAI/execution/step_tasks.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
+#include <SushiAI/graph/in_memory_descent_recorder.hpp>
+#include <SushiAI/graph/run_counter.hpp>
+#include <SushiAI/graph/tensor_source.hpp>
+#include <SushiAI/data/batch_allocator.hpp>
+#include <SushiAI/data/in_memory_dataset.hpp>
+#include <SushiAI/eager/trailing_ledger.hpp>
+#include <SushiAI/io/in_memory_importer.hpp>
+
 /** @brief Short alias for the library's namespace, matching sb:: and sr::. */
 namespace sa = SushiAI;

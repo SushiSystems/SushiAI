@@ -48,7 +48,6 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/step_recorder.hpp` | `StepRecorder`, `StepRecorderList` |
 | `SushiAI/graph/in_memory_step_recorder.hpp` | `InMemoryStepRecorder` |
 | `SushiAI/graph/in_memory_descent_recorder.hpp` | `InMemoryDescentRecorder` |
-| `SushiAI/graph/in_memory_late_increment_recorder.hpp` | `InMemoryLateIncrementRecorder` |
 | `SushiAI/graph/run_counter.hpp` | `RunCounter` |
 | `SushiAI/graph/step_recording.hpp` | `StepRecording` |
 | `SushiAI/graph/tensor_pool.hpp` | `TensorPool` |

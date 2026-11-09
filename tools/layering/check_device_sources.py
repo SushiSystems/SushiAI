@@ -48,6 +48,9 @@ K_PACKAGE_FOLDERS = ("tests/package",)
 K_PUBLIC_FOLDER = "include"
 K_SOURCE_FOLDER = "source"
 K_PROJECT_PREFIX = "SushiAI/"
+# The test programs include tests/ itself, so `support/<name>.hpp` names a shared test header.
+K_TEST_SUPPORT_PREFIX = "support/"
+K_TESTS_FOLDER = "tests"
 K_INCLUDE = re.compile(r'^\s*#\s*include\s*(?:<([^>]+)>|"([^"]+)")')
 K_KERNEL_CALL = re.compile(r"\b(?:parallel_for|single_task|record_pair|record_late_pair)\(")
 K_TEST_FUNCTION = "sushiai_add_test_program"
@@ -244,6 +247,8 @@ class UnitTree:
                 candidates.append(source_folder / target)
         if quoted or target.startswith(K_PROJECT_PREFIX):
             candidates += [root / target for root in self.include_roots]
+        if target.startswith(K_TEST_SUPPORT_PREFIX):
+            candidates.append(self.root / K_TESTS_FOLDER / target)
         return next((path for path in candidates if self.has(path)), None)
 
     def reach(self, unit: Path, source_folder: Path | None) -> Reach | None:

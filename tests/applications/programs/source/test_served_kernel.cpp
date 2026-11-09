@@ -31,7 +31,8 @@
 #include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/distribution/replica_kernel.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 #include "cluster_test_files.hpp"
 #include "registries.hpp"
@@ -94,5 +95,5 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_ServedKernelMachine,
                                            MachineCase{"TheExactLabel", "worker"}),
                          [](const ::testing::TestParamInfo<MachineCase>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

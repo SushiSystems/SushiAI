@@ -67,6 +67,7 @@
 #include "exchange_test_support.hpp"
 #include "replica_test_support.hpp"
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -535,5 +536,5 @@ INSTANTIATE_TEST_SUITE_P(Types, Medium_GradientExchangeType,
                          ::testing::Range<std::size_t>(0, 7),
                          [](const ::testing::TestParamInfo<std::size_t>& info)
                          {
-                             return std::string(dtype_name(typed_dtypes()[info.param]));
+                             return ::SushiAI::Test::parameter_name(dtype_name(typed_dtypes()[info.param]));
                          });

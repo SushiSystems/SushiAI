@@ -33,7 +33,8 @@
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/vision/datasets/task_table.hpp>
+#include <SushiAI/vision/datasets/task_table.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 
@@ -47,7 +48,7 @@ namespace
     /** @brief Names a test after the task of its row. */
     std::string row_name(const ::testing::TestParamInfo<std::size_t>& info)
     {
-        return std::string(task_table()[info.param].name);
+        return ::SushiAI::Test::parameter_name(task_table()[info.param].name);
     }
 
     /** @brief Returns each name that a second row of the task table repeats. */

@@ -43,6 +43,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/regression_collator.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -104,7 +105,7 @@ INSTANTIATE_TEST_SUITE_P(
     Rows, Small_RegressionCollatorMakeRefusal,
     ::testing::Values(MakeRefusal{"ZeroFeatures", 0, 1, "0 features"},
                       MakeRefusal{"ZeroTargets", 3, 0, "0 targets"}),
-    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that regression publishes one values role of the target width. */
 TEST(Small_RegressionCollatorTargets, RegressionPublishesOneValuesRole)

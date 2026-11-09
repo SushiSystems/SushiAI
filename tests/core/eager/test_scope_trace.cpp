@@ -229,6 +229,8 @@ TEST(Small_ScopeTrace, SegmentsCoverEveryNodeExactlyOnce)
     EXPECT_EQ(segments.back().end, graph.node_count());
 }
 
+namespace
+{
 /** @brief Holds an illegal scope name and the two words open() reports for it. */
 struct ScopeNameRow
 {
@@ -236,10 +238,14 @@ struct ScopeNameRow
     const char* first;  /**< The first word the report names after "open()". */
     const char* second; /**< The second word the report names after the first. */
 };
+} // namespace
 
+namespace
+{
 class Small_ScopeTraceLegalName : public ::testing::TestWithParam<const char*>
 {
 };
+} // namespace
 
 /** @brief Tests that a name is legal exactly when open() accepts it. */
 TEST_P(Small_ScopeTraceLegalName, ALegalNameIsAcceptedByOpen)
@@ -256,9 +262,12 @@ TEST_P(Small_ScopeTraceLegalName, ALegalNameIsAcceptedByOpen)
 INSTANTIATE_TEST_SUITE_P(Rows, Small_ScopeTraceLegalName,
                          ::testing::Values("encoder", "block 3"));
 
+namespace
+{
 class Medium_ScopeTraceRefusedName : public ::testing::TestWithParam<ScopeNameRow>
 {
 };
+} // namespace
 
 /** @brief Tests that an empty name or a name with a separator is illegal and stops open(). */
 TEST_P(Medium_ScopeTraceRefusedName, AnIllegalNameIsRefusedByOpen)

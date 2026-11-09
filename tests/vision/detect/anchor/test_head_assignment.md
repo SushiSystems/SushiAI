@@ -2,7 +2,7 @@
 
 
 Suites: `Small_DetectAnchorHeadAssignment`, `Small_DetectAnchorHeadAssignmentCfg` and
-`Characterization_Small_DetectAnchorHeadAssignment`.
+`Small_DetectAnchorHeadAssignmentCharacterization`.
 
 Tests `assign_anchors_to_heads`, which gives each head, in the order of its stride, a run of
 anchor indices in ascending area and returns an `AnchorLayout`.
@@ -17,7 +17,7 @@ anchors over the strides 32, 16 and 8 giving {6, 7, 8}, {3, 4, 5} and {0, 1, 2};
 
 ## DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor
 
-Suite `Characterization_Small_DetectAnchorHeadAssignment`. For six rising anchors over the
+Suite `Small_DetectAnchorHeadAssignmentCharacterization`. For six rising anchors over the
 strides 32 and 16, the first computed mask is {3, 4, 5}. The second is {0, 1, 2}, which is not
 the cfg's {1, 2, 3}. The second mask is the unit's own output and is pinned, not derived.
 

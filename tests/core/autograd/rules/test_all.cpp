@@ -54,6 +54,7 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/autograd/README.md.
@@ -638,7 +639,7 @@ INSTANTIATE_TEST_SUITE_P(Operations, Medium_AutogradBinary,
                          ::testing::Values(BinaryCase{"Add", false, 0}, BinaryCase{"Sub", true, 1}),
                          [](const ::testing::TestParamInfo<BinaryCase>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 TEST_F(Medium_Autograd, ElementwiseSubtractFromTheRight)

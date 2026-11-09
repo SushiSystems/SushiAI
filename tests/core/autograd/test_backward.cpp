@@ -715,7 +715,7 @@ INSTANTIATE_TEST_SUITE_P(
                       UniformCastCase{"NoPolicyMeansTheUniformPolicy", &cast_with_default_options}),
     [](const ::testing::TestParamInfo<UniformCastCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
@@ -1279,7 +1279,7 @@ INSTANTIATE_TEST_SUITE_P(
                       PoolCastCase{"AMixedPolicy", &cast_pool_under_the_mixed_policy}),
     [](const ::testing::TestParamInfo<PoolCastCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
@@ -1628,7 +1628,7 @@ INSTANTIATE_TEST_SUITE_P(
                       ForwardOnlyCase{"AForwardOnlyConvolution", &build_columns_one_matmul_reads}),
     [](const ::testing::TestParamInfo<ForwardOnlyCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_Rematerialise, RunningItTwiceAddsNothingTheSecondTime)
@@ -1804,7 +1804,7 @@ namespace
          "Medium_Dropout.TheGradientAtTheInputIsTheMaskOfThatStep"},
         {Ops::K_BIAS_ADD.id,   "Medium_Autograd.BiasAddPassesTheMatrixGradientThrough"},
         {Ops::K_BIAS_ADD.id,   "Medium_Autograd.BiasAddSumsOverTheBroadcastAxis"},
-        {Ops::K_ADD.id,        "Medium_Autograd.ElementwiseAddAndSubtract"},
+        {Ops::K_ADD.id,        "Operations/Medium_AutogradBinary.ElementwiseAddAndSubtract/Add"},
         {Ops::K_SUB.id,        "Medium_Autograd.ElementwiseSubtractFromTheRight"},
         {Ops::K_MUL.id,        "Medium_Autograd.ElementwiseMultiply"},
         {Ops::K_MUL.id,        "Medium_Autograd.ElementwiseMultiplyFromTheRight"},
@@ -2769,7 +2769,7 @@ namespace
     /** @brief Names a forward case by its label. */
     std::string forward_case_name(const ::testing::TestParamInfo<ForwardCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     }
 
     /** @brief Expects no node of @p graph from index @p first on to narrow under mixed precision. */
@@ -3193,7 +3193,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(NonScalarRoot{"ASum", &emit_a_sum}, NonScalarRoot{"AReLU", &emit_a_relu}),
     [](const ::testing::TestParamInfo<NonScalarRoot>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a root that is a leaf throws, names the leaf and appends nothing. */
@@ -3282,7 +3282,7 @@ INSTANTIATE_TEST_SUITE_P(
                        "sushiai.matmul", "requires no gradient", "STOP_GRADIENT"}),
     [](const ::testing::TestParamInfo<NoGradientRoot>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a root whose producer has no rule throws, names it and appends nothing. */

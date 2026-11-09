@@ -33,7 +33,8 @@
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/activation.hpp>
-#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <support/test_names.hpp>
 
 using SushiAI::Autograd::K_ACTIVATION_RULES;
 namespace Autograd = SushiAI::Autograd;
@@ -59,10 +60,13 @@ TEST(Small_ActivationRules, TheTableListsTheSevenActivations)
     }
 }
 
+namespace
+{
 /** @brief Holds one row of the activation rule table as the test parameter. */
 class Small_ActivationRuleRow : public ::testing::TestWithParam<Autograd::RuleEntry>
 {
 };
+} // namespace
 
 /** @brief Tests that the row's rule is activation_backward and the library reports it. */
 TEST_P(Small_ActivationRuleRow, OneRuleServesTheActivation)
@@ -83,5 +87,5 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_ActivationRuleRow,
                                  if (letter == '.')
                                      letter = '_';
                              }
-                             return name;
+                             return ::SushiAI::Test::parameter_name(name);
                          });

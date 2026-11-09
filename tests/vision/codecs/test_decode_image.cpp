@@ -455,6 +455,9 @@ INSTANTIATE_TEST_SUITE_P(
 TEST(Medium_CodecsLoadImage, LoadRefusesADirectory)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_directory");
+    std::error_code created;
+    std::filesystem::create_directories(directory.path(), created);
+    ASSERT_FALSE(created) << created.message();
 
     SA_EXPECT_FAILURE(load_image(directory.path(), DecodeOptions{}), StatusCode::InvalidFile,
                       "sushiai_unit_codecs_load_directory", "regular file");

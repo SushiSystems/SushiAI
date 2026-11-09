@@ -188,6 +188,8 @@ TEST(Small_DarknetWeights, ReadsAMajorOneHeaderWithA64BitSeen)
     EXPECT_EQ(static_cast<std::streamoff>(stream.tellg()), 20);
 }
 
+namespace
+{
 /** @brief Holds one header version and the status code reading it gives. */
 struct VersionLimit
 {
@@ -195,11 +197,15 @@ struct VersionLimit
     std::uint32_t minor;
     StatusCode expected;
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the header reader over each version around the limit of one thousand. */
 class Small_DarknetWeightsVersionLimit : public ::testing::TestWithParam<VersionLimit>
 {
 };
+} // namespace
 
 /** @brief Tests that a major or a minor above 1000 is Unsupported and 1000 is read. */
 TEST_P(Small_DarknetWeightsVersionLimit, GivesTheExpectedStatusCode)
@@ -305,6 +311,8 @@ TEST(Small_DarknetWeights, DecodesEveryBitPatternAsItIs)
     EXPECT_EQ(bits_of(layer.weights[1]), 0x3F800000u);
 }
 
+namespace
+{
 /** @brief Holds a float count that disagrees with the sample shapes and what the refusal names. */
 struct ByteCountRefusal
 {
@@ -313,11 +321,15 @@ struct ByteCountRefusal
     const char* expected;
     const char* detail;
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the reader over a sample file that is one float short or one float over. */
 class Small_DarknetWeightsByteCount : public ::testing::TestWithParam<ByteCountRefusal>
 {
 };
+} // namespace
 
 /** @brief Tests that a file of the wrong size is InvalidFile with the layer and both counts. */
 TEST_P(Small_DarknetWeightsByteCount, IsRefusedWithTheLayerAndBothByteCounts)
@@ -347,17 +359,23 @@ TEST(Small_DarknetWeights, RefusesBytesAfterAHeaderWithNoConvolution)
                       "no convolution is listed", "4 bytes are left over");
 }
 
+namespace
+{
 /** @brief Holds a shape the reader cannot size and what its refusal names. */
 struct ShapeRefusal
 {
     DarknetConvolutionShape shape;
     const char* detail;
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the reader over a header-only file and one shape it cannot size. */
 class Small_DarknetWeightsShape : public ::testing::TestWithParam<ShapeRefusal>
 {
 };
+} // namespace
 
 /** @brief Tests that a shape with no positive size or too large to count is InvalidDescription. */
 TEST_P(Small_DarknetWeightsShape, IsRefusedNamingTheLayer)

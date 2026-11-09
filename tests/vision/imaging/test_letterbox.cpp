@@ -36,7 +36,8 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
-#include <support/imaging_images.hpp>
+#include <support/imaging_images.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::Image;
@@ -383,7 +384,7 @@ INSTANTIATE_TEST_SUITE_P(
                 "target size of 8x16385", "16384"}),
     [](const ::testing::TestParamInfo<SideRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_ImagingLetterbox, PlanRejectsAResizedSideOfZeroPixels)
@@ -448,7 +449,7 @@ INSTANTIATE_TEST_SUITE_P(
                       FlatFitRow{"TallImageWithACustomFill", ImageSize{200, 50}, 1, 33, 7}),
     [](const ::testing::TestParamInfo<FlatFitRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that the content rectangle equals the bilinear resize and only it is written. */
@@ -474,7 +475,7 @@ INSTANTIATE_TEST_SUITE_P(
                                 ImageSize{100, 101}, 120}),
     [](const ::testing::TestParamInfo<ResizeRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_ImagingLetterbox, DestinationIsFullyRewrittenWhenItIsReused)
@@ -525,7 +526,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Medium_ImagingLetterboxAliasing,
                                            AliasRow{"ViewOfTheLowerRows", 3, 1}),
                          [](const ::testing::TestParamInfo<AliasRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 /** @brief Tests that apply_letterbox refuses a source of another size than the plan. */

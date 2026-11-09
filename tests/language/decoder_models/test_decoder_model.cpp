@@ -39,6 +39,7 @@
 #include <SushiAI/language/decoder_models/decoder_model.hpp>
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/nn/model_graph.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 
@@ -147,5 +148,5 @@ TEST_P(Small_DecoderModelBuild, AFileBuilds)
 INSTANTIATE_TEST_SUITE_P(Rows, Small_DecoderModelBuild, ::testing::ValuesIn(model_files()),
                          [](const ::testing::TestParamInfo<ModelFile>& info)
                          {
-                             return std::string(info.param.label);
+                             return ::SushiAI::Test::parameter_name(info.param.label);
                          });

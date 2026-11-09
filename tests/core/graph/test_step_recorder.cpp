@@ -236,7 +236,7 @@ TEST(Medium_StepRecordingDeathTest, ADetachedRecordingHoldsNoRecorder)
 
     EXPECT_TRUE(recording.is_detached());
     SA_EXPECT_FATAL((void)recording.tasks(), "detached", "task recorder");
-    SA_EXPECT_FATAL((void)recording.graph(), "detached", "runtime recorder");
+    SA_EXPECT_FATAL((void)recording.graph(), "holds no runtime recorder");
 }
 
 /** @brief Tests that adding a recorder the list already holds is fatal and leaves one entry. */

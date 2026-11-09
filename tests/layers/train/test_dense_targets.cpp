@@ -43,6 +43,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/dense_targets.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -127,7 +128,7 @@ TEST_P(Small_DenseTargetsRealType, ValuesAreCopiedInOrderIntoEitherRealType)
 INSTANTIATE_TEST_SUITE_P(Types, Small_DenseTargetsRealType,
                          ::testing::Values(DType::Float32, DType::Float64),
                          [](const ::testing::TestParamInfo<DType>& info)
-                         { return std::string(dtype_name(info.param)); });
+                         { return ::SushiAI::Test::parameter_name(dtype_name(info.param)); });
 
 /** @brief Tests that [N] labels fill an [N, 1] leaf, which holds as many elements. */
 TEST_F(Small_DenseTargets, AColumnLeafTakesOneLabelPerRow)

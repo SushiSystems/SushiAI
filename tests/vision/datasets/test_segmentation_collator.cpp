@@ -44,6 +44,7 @@
 #include <SushiAI/vision/datasets/segmentation_collator.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -170,7 +171,7 @@ INSTANTIATE_TEST_SUITE_P(
                        "a background of 1", "masks come from files"},
         OptionsRefusal{"ABackgroundThatIsNoClass", background_outside_the_classes(),
                        "the background 3 is none of the 3 classes", ""}),
-    [](const ::testing::TestParamInfo<OptionsRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<OptionsRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that segmentation publishes mask as [H, W] int32 over the classes. */
 TEST(Small_SegmentationCollatorTargets, SegmentationPublishesTheMask)

@@ -179,10 +179,13 @@ namespace
     }
 }
 
+namespace
+{
 /** @brief Runs the extent case over each window geometry. */
 class Small_MaxPool2dExtent : public ::testing::TestWithParam<ExtentRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape() gives the extent of the row and agrees with the traced shape. */
 TEST_P(Small_MaxPool2dExtent, OutputShapeAgreesWithForward)
@@ -236,10 +239,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the forward refusal over each input and geometry the layer does not take. */
 class Small_MaxPool2dForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward() refuses the row, names the reason and emits no node. */
 TEST_P(Small_MaxPool2dForwardRefusal, ForwardRefuses)
@@ -298,10 +304,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the output_shape refusal over each geometry and shape the layer does not take. */
 class Small_MaxPool2dShapeRefusal : public ::testing::TestWithParam<ShapeRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape() refuses the row and names the reason. */
 TEST_P(Small_MaxPool2dShapeRefusal, OutputShapeRefuses)

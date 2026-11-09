@@ -113,11 +113,14 @@ namespace
     }
 } // namespace
 
+namespace
+{
 /** @brief Runs the round trip over the schedules of its rows. */
 class Small_StepScheduleSectionRoundTrip : public ::testing::TestWithParam<StepSchedule>
 {
 
 };
+} // namespace
 
 /** @brief Tests that a schedule reads back from its section unchanged. */
 TEST_P(Small_StepScheduleSectionRoundTrip, AScheduleRoundTripsThroughItsSection)

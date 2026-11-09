@@ -48,6 +48,7 @@
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -471,5 +472,5 @@ TEST_P(Medium_DarknetLayers, EveryLayerMatchesItsDumpWithinTolerance)
 INSTANTIATE_TEST_SUITE_P(, Medium_DarknetLayers, ::testing::ValuesIn(K_FULL_BODY_CASES),
                          [](const ::testing::TestParamInfo<FullBodyCase>& info)
                          {
-                             return std::string(info.param.directory);
+                             return ::SushiAI::Test::parameter_name(info.param.directory);
                          });

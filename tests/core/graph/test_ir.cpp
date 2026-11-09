@@ -44,7 +44,8 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/graph/state_id.hpp>
+#include <SushiAI/graph/state_id.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -183,7 +184,7 @@ TEST_P(Small_IrMatmulRow, BuilderInfersMatmulShapesForEveryTranspositionCase)
 INSTANTIATE_TEST_SUITE_P(, Small_IrMatmulRow, ::testing::ValuesIn(K_MATMUL_ROWS),
                          [](const ::testing::TestParamInfo<MatmulRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 TEST(Small_Ir, BuilderRejectsAContractionMismatch)
@@ -407,7 +408,7 @@ TEST_P(Small_IrLifetimeRow, ActivationAndScratchAreTheOnlyLifetimesThatDoNotPers
 INSTANTIATE_TEST_SUITE_P(, Small_IrLifetimeRow, ::testing::ValuesIn(K_LIFETIME_ROWS),
                          [](const ::testing::TestParamInfo<LifetimeRow>& info)
                          {
-                             return std::string(Graph::lifetime_name(info.param.lifetime));
+                             return ::SushiAI::Test::parameter_name(Graph::lifetime_name(info.param.lifetime));
                          });
 
 /** @brief Tests that state_leaf returns the leaf bound to a state. */

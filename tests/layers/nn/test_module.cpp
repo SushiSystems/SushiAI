@@ -417,10 +417,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the shape case over each per-sample rank. */
 class Small_ModuleActivationShape : public ::testing::TestWithParam<ActivationShapeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that every activation returns the per-sample shape of the row unchanged. */
 TEST_P(Small_ModuleActivationShape, AnActivationReportsItsInputShapeAsItsOutputShape)
@@ -439,10 +442,13 @@ INSTANTIATE_TEST_SUITE_P(
                       ActivationShapeRow{"AnImage", Shape{4, 4, 3}}),
     [](const ::testing::TestParamInfo<ActivationShapeRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Runs the trace case over each activation. */
 class Small_ModuleActivationTrace : public ::testing::TestWithParam<ActivationRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the output_shape() of the activation of the row matches what it traces. */
 TEST_P(Small_ModuleActivationTrace, AnActivationsOutputShapeAgreesWithItsTrace)

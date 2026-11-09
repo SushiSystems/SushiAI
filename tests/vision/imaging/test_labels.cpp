@@ -38,7 +38,8 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/labels.hpp>
-#include <support/tolerance.hpp>
+#include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 
@@ -245,7 +246,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_ImagingLabelsBackground,
                                            BlankRow{"BlankLines", "\n  \n\t\r\n \r\n"}),
                          [](const ::testing::TestParamInfo<BlankRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 TEST(Small_ImagingLabels, AcceptsTabsRepeatedSpacesAndBlankLinesBetweenRows)
@@ -293,7 +294,7 @@ INSTANTIATE_TEST_SUITE_P(
                       {1, 2, 4, 6}}),
     [](const ::testing::TestParamInfo<LineEndingRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_ImagingLabels, AcceptsTheUnitSeparatorByteBetweenFields)
@@ -477,7 +478,7 @@ INSTANTIATE_TEST_SUITE_P(
                      {{0.5f, 0.5f, 0.25f, 0.25f}}}),
     [](const ::testing::TestParamInfo<DuplicateRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 TEST(Small_ImagingLabels, KeepsRowsThatDifferInOneValue)
@@ -512,7 +513,7 @@ INSTANTIATE_TEST_SUITE_P(
                          {0.5f, 0.375f, 0.75f, 0.5f}}),
     [](const ::testing::TestParamInfo<PolygonBoundsRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a polygon row keeps its points, in file order, beside its box. */

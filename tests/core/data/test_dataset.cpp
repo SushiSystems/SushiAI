@@ -50,6 +50,7 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/model_text/model_text.hpp>
+#include <support/test_names.hpp>
 
 #include "batch_rows.hpp"
 
@@ -323,7 +324,7 @@ INSTANTIATE_TEST_SUITE_P(
                                  "positive"}),
     [](const ::testing::TestParamInfo<ExtentCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that Rings refuses an option out of range and names it. */
@@ -338,7 +339,7 @@ TEST_P(Medium_RingsOption, RingsRefusesAnOptionOutOfRange)
 INSTANTIATE_TEST_SUITE_P(Options, Medium_RingsOption, ::testing::ValuesIn(option_cases()),
                          [](const ::testing::TestParamInfo<OptionCase>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 /** @brief Tests that two reads of one batch share its tensors and a read of another does not. */

@@ -794,7 +794,7 @@ namespace SushiAI::Eager
 namespace SushiAI::Eager
 {
     static_assert(
-        noexcept(RegionEmitter(std::declval<SushiBLAS::Engine&>(),
+        noexcept(RegionEmitter(std::declval<RuntimeBackend&>(),
                 std::declval<const RegionProgram&>(), std::declval<Graph::TensorPool&>(),
                 std::declval<const Graph::FusionSelector*>(), std::declval<RegionID>())),
         "RegionEmitter is noexcept");
@@ -926,7 +926,7 @@ namespace SushiAI::Eager
 namespace SushiAI::Eager
 {
     static_assert(
-        noexcept(Session(std::declval<SushiBLAS::Engine&>(), std::declval<StepExecutor&>(),
+        noexcept(Session(std::declval<ExecutionBackend&>(), std::declval<StepExecutor&>(),
                 std::declval<const RegionPartitioner&>(), std::declval<SessionOptions>())),
         "Session is noexcept");
     static_assert(

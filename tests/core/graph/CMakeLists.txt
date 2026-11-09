@@ -30,7 +30,6 @@ sushiai_add_test_program(OWNER graph
         test_fusion_selector.cpp
         test_host_evaluator.cpp
         test_in_memory_descent_recorder.cpp
-        test_in_memory_late_increment_recorder.cpp
         test_in_memory_precision_policy.cpp
         test_in_memory_step_recorder.cpp
         test_ir.cpp
@@ -48,7 +47,6 @@ sushiai_add_test_program(OWNER graph
         test_tensor_source.cpp
         test_traced.cpp
     DEVICE_SOURCES
-        test_in_memory_late_increment_recorder.cpp
     DEPENDS
         failure_expectations
         tensor_values)

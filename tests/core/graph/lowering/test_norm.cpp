@@ -40,7 +40,8 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
 #include <SushiAI/graph/lowering/norm.hpp>
-#include <SushiAI/graph/memory_plan.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -147,7 +148,7 @@ INSTANTIATE_TEST_SUITE_P(, Small_NormRow, ::testing::ValuesIn(K_EXPECTED_ROWS),
                          {
                              std::string name(Ops::name_of(info.param.op));
                              name.replace(0, name.find('.') + 1, "");
-                             return name;
+                             return ::SushiAI::Test::parameter_name(name);
                          });
 
 /** @brief Tests that the forward asks for three buffers, each of its own node, in slot order. */

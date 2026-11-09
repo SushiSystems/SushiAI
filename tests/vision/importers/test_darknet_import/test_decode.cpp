@@ -49,6 +49,7 @@
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -293,5 +294,5 @@ TEST_P(Medium_DarknetDecode, TheHeadsDecodeToTheDumpedRows)
 INSTANTIATE_TEST_SUITE_P(Models, Medium_DarknetDecode, ::testing::ValuesIn(list_models()),
                          [](const ::testing::TestParamInfo<DecodeModel>& info)
                          {
-                             return std::string(info.param.directory);
+                             return ::SushiAI::Test::parameter_name(info.param.directory);
                          });

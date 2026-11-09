@@ -248,6 +248,8 @@ TEST(Small_DepthwiseConv2d, TheWeightAndTheResultTakeTheInputElementType)
     EXPECT_EQ(graph.value(y).dtype, DType::Float64);
 }
 
+namespace
+{
 /** @brief Holds a layer, a batch, a sample and the per-sample shape the layer gives. */
 struct ExtentRow
 {
@@ -257,11 +259,15 @@ struct ExtentRow
     Shape sample;          /**< The per-sample input shape. */
     Shape expected;        /**< The per-sample shape the layer gives. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the extent promise over each stride and sample. */
 class Small_DepthwiseConv2dExtents : public ::testing::TestWithParam<ExtentRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape gives the expected extents and agrees with the traced shape. */
 TEST_P(Small_DepthwiseConv2dExtents, OutputShapeAgreesWithForward)
@@ -299,6 +305,8 @@ TEST(Small_DepthwiseConv2d, SamePaddedBuildsAPaddedLayerOfTheGivenStride)
     EXPECT_EQ(layer.geometry.dilation_w, 1);
 }
 
+namespace
+{
 /** @brief Holds the channel counts check_depthwise_channels() is asked about. */
 struct ChannelCountRow
 {
@@ -306,11 +314,15 @@ struct ChannelCountRow
     int64_t in_channels;  /**< The channel count entering the layer. */
     int64_t out_channels; /**< The channel count asked of the layer. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the channel count check over each pair it refuses. */
 class Small_DepthwiseConv2dChannelCheck : public ::testing::TestWithParam<ChannelCountRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the check refuses a pair of unequal counts and names both. */
 TEST_P(Small_DepthwiseConv2dChannelCheck, UnequalCountsAreRefused)
@@ -340,6 +352,8 @@ TEST(Medium_DepthwiseConv2dDeathTest, SamePaddedRefusesUnequalChannelCounts)
     SA_EXPECT_FATAL((void)DepthwiseConv2d::same_padded(4, 8, 3, 1), "keeps its channel count");
 }
 
+namespace
+{
 /** @brief Holds a layer, a batched input, whether it is NCHW, and the refusal forward meets. */
 struct ForwardRefusalRow
 {
@@ -349,11 +363,15 @@ struct ForwardRefusalRow
     bool nchw;             /**< Whether the input is converted to NCHW first. */
     std::string message;   /**< A substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the forward refusal over each layer and input it cannot take. */
 class Small_DepthwiseConv2dForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward refuses the row and names what the row says. */
 TEST_P(Small_DepthwiseConv2dForwardRefusal, ForwardRefuses)
@@ -387,17 +405,23 @@ INSTANTIATE_TEST_SUITE_P(
                           false, ""}),
     [](const ::testing::TestParamInfo<ForwardRefusalRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds a per-sample shape that output_shape refuses. */
 struct ShapeRefusalRow
 {
     std::string name; /**< The row's name. */
     Shape sample;     /**< The shape given to output_shape of a 4-channel layer. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the output_shape refusal over each sample it cannot take. */
 class Small_DepthwiseConv2dShapeRefusal : public ::testing::TestWithParam<ShapeRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape refuses the sample and names the shape the layer takes. */
 TEST_P(Small_DepthwiseConv2dShapeRefusal, OutputShapeRefuses)

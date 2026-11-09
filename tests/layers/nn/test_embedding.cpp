@@ -228,6 +228,8 @@ TEST(Small_Embedding, TwoGraphsNameTheSameTable)
     EXPECT_NE(layer.weight.id_in(second), Graph::K_NO_VALUE);
 }
 
+namespace
+{
 /** @brief Holds an element type of indices that Embedding refuses, and its printed name. */
 struct IndexTypeRow
 {
@@ -235,11 +237,15 @@ struct IndexTypeRow
     DType dtype;      /**< The element type of the index input. */
     std::string type; /**< The type name the message holds. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the index-type refusal over each element type other than int32. */
 class Small_EmbeddingIndexType : public ::testing::TestWithParam<IndexTypeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that an index input that is not int32 fails and declares nothing. */
 TEST_P(Small_EmbeddingIndexType, AnInputThatIsNotInt32Fails)
@@ -280,6 +286,8 @@ TEST(Small_Embedding, AnInputOfTheHighestRankFails)
     EXPECT_FALSE(layer.weight.declared());
 }
 
+namespace
+{
 /** @brief Holds a layer described wrongly and the substrings of the refusal. */
 struct WrongLayerRow
 {
@@ -290,11 +298,15 @@ struct WrongLayerRow
     std::string first;  /**< A substring the message holds. */
     std::string second; /**< A second substring the message holds. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the description refusal over each wrong description. */
 class Small_EmbeddingWrongLayer : public ::testing::TestWithParam<WrongLayerRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a layer described wrongly fails to trace and declares no table. */
 TEST_P(Small_EmbeddingWrongLayer, TheTraceIsRefused)
@@ -355,6 +367,8 @@ TEST(Small_Embedding, TheFactoryReadsTheTwoExtents)
     EXPECT_EQ(node->input_count(), 1u);
 }
 
+namespace
+{
 /** @brief Holds a factory row that does not fit and the substrings of the refusal. */
 struct FactoryRefusalRow
 {
@@ -365,11 +379,15 @@ struct FactoryRefusalRow
     std::string second;        /**< A second substring the message holds; empty for none. */
     std::string third;         /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the factory refusal over each row that does not fit. */
 class Small_EmbeddingFactoryRefusal : public ::testing::TestWithParam<FactoryRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the factory refuses the row and names the context and the cause. */
 TEST_P(Small_EmbeddingFactoryRefusal, TheFactoryRefuses)
@@ -527,12 +545,15 @@ TEST_F(Medium_GatherRows, GatherCopiesTheRowsItsIndexNames)
     expect_exact(read_tensor(pool.tensor(gathered.value())), gathered_on_host(table, 3, indices));
 }
 
+namespace
+{
 /** @brief Holds an index set the compiled step is replayed over. */
 struct ReplayRow
 {
     std::string name;                  /**< The row's name. */
     std::vector<std::int32_t> indices; /**< The index written before the replay. */
 };
+} // namespace
 
 /** @brief Provides the Engine and the replay rows of the replay case. */
 class Medium_GatherRowsReplay : public SaTest::EngineTest,
@@ -604,12 +625,15 @@ TEST_F(Medium_GatherRows, ScatterAddSumsTheRowsOfARepeatedIndex)
     EXPECT_EQ(got[4 * 2], 0.0) << "row 4 is named by no index";
 }
 
+namespace
+{
 /** @brief Holds how many times the step is replayed before the gradient is read again. */
 struct ReplayCountRow
 {
     std::string name; /**< The row's name. */
     int replays;      /**< The number of replays after the first run. */
 };
+} // namespace
 
 /** @brief Provides the Engine and the replay counts of the determinism case. */
 class Medium_GatherRowsDeterminism : public SaTest::EngineTest,

@@ -41,6 +41,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 namespace SushiAI
 {
@@ -678,7 +679,7 @@ namespace SushiAI
                                  ::testing::ValuesIn(K_FOLD_MISMATCHES),
                                  [](const ::testing::TestParamInfo<FoldMismatchRow>& info)
                                  {
-                                     return std::string(info.param.name);
+                                     return ::SushiAI::Test::parameter_name(info.param.name);
                                  });
 
         /** @brief Tests that a refused batchnorm_fold declares no value and emits no node. */

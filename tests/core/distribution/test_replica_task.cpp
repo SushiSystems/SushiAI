@@ -35,7 +35,8 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -134,5 +135,5 @@ INSTANTIATE_TEST_SUITE_P(Words, Small_ReplicaTaskDecodeRefusal,
                          ::testing::ValuesIn(decode_refusal_rows()),
                          [](const ::testing::TestParamInfo<DecodeRefusalRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

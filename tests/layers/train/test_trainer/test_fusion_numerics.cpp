@@ -39,6 +39,7 @@
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -382,6 +383,8 @@ namespace
         ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
         run.emitted = lowering.emitted_operations();
 
+        // A declined epilogue adds the bias through a ones vector, whose fill the pool queued.
+        SA_EXPECT_OK(pool.flush_constants(backend));
         SA_EXPECT_OK(recording.run());
         SaTest::TestEnvironment::runtime().wait().value();
 
@@ -700,7 +703,8 @@ TEST_F(Medium_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
 
     SushiBLAS::LateCountHold late_counts(SaTest::TestEnvironment::runtime());
     SushiRuntime::Graph tasks = SaTest::TestEnvironment::runtime().graph();
-    SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::runtime());
+    SushiBLAS::RuntimeScratchSource scratch_source(SaTest::TestEnvironment::runtime());
+    SushiBLAS::ScratchPool scratch(scratch_source);
     SushiBLAS::TaskRecorder recorder(tasks.recorder(), scratch, late_counts, engine.mode());
 
     // Recorded first: the edge can only run to the GEMM; see tests/layers/train/README.md.
@@ -758,7 +762,8 @@ TEST_F(Medium_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
 
     SushiBLAS::LateCountHold late_counts(SaTest::TestEnvironment::runtime());
     SushiRuntime::Graph tasks = SaTest::TestEnvironment::runtime().graph();
-    SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::runtime());
+    SushiBLAS::RuntimeScratchSource scratch_source(SaTest::TestEnvironment::runtime());
+    SushiBLAS::ScratchPool scratch(scratch_source);
     SushiBLAS::TaskRecorder recorder(tasks.recorder(), scratch, late_counts, engine.mode());
 
     const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_backend(backend);

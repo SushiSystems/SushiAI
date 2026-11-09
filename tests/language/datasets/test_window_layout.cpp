@@ -32,6 +32,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/datasets/window_layout.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Datasets;
@@ -106,5 +107,5 @@ INSTANTIATE_TEST_SUITE_P(
                    ""}),
     [](const ::testing::TestParamInfo<LayoutCase>& info)
     {
-        return std::string(info.param.label);
+        return ::SushiAI::Test::parameter_name(info.param.label);
     });

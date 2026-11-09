@@ -45,6 +45,7 @@
 #include <SushiAI/vision/datasets/sample_cache.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -297,9 +298,7 @@ TEST(Small_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
  * @brief Tests that the digits of a cache name are the 64-bit FNV-1a hash of the key text, so a
  *        cache written before the hash moved into its own module is still found.
  *
- * A memory source gives every file the stamp 0, so the key of images/a.jpg of four bytes at a
- * longest side of 320 is "images/a.jpg|4|0|320|0". Its hash, ec970685015c5c41, was computed in
- * Python from the offset basis 14695981039346656037 and the prime 1099511628211.
+ * The key is "images/a.jpg|4|0|320|2"; test_sample_cache.md derives its hash.
  */
 TEST(Small_DatasetsSampleCache, TheNameIsTheFNV1aHashOfTheKeyText)
 {
@@ -311,7 +310,7 @@ TEST(Small_DatasetsSampleCache, TheNameIsTheFNV1aHashOfTheKeyText)
     SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path path,
                             sample_cache_path("images/a.jpg", options, &files));
 
-    EXPECT_EQ(path.filename().string(), "a-ec970685015c5c41.saim");
+    EXPECT_EQ(path.filename().string(), "a-ec970485015c58db.saim");
 }
 
 /** @brief Tests that a list is pointed at the cache file of its image when the source holds one. */
@@ -384,4 +383,4 @@ INSTANTIATE_TEST_SUITE_P(
                                    "a longest side of -1", ""},
                       CacheRefusal{"ALongestSideOverMasks", "cache", 1, true,
                                    "a longest side of 1", "masks"}),
-    [](const ::testing::TestParamInfo<CacheRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<CacheRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });

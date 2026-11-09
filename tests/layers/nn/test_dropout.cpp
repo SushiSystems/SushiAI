@@ -177,17 +177,23 @@ TEST(Small_Dropout, ATraceWithoutAStatedSeedHasSeedZero)
     EXPECT_EQ(Trace::evaluation(builder).seed(), 0u);
 }
 
+namespace
+{
 /** @brief Holds a rate outside [0, 1). */
 struct RateRow
 {
     std::string name; /**< The row's name. */
     double rate;      /**< The rate both forms refuse. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the rate refusal over each rate outside its interval. */
 class Small_DropoutRate : public ::testing::TestWithParam<RateRow>
 {
 };
+} // namespace
 
 /** @brief Tests that both forms refuse the rate and return their input. */
 TEST_P(Small_DropoutRate, ARateOutsideItsIntervalFails)
@@ -240,6 +246,8 @@ TEST(Small_Dropout, TheFactoryReadsTheRate)
     EXPECT_EQ(node->ports()[0].shape, (Shape{6, 4}));
 }
 
+namespace
+{
 /** @brief Holds a factory row that does not fit and the substrings of the refusal. */
 struct FactoryRefusalRow
 {
@@ -250,11 +258,15 @@ struct FactoryRefusalRow
     std::string second; /**< A second substring the message holds. */
     std::string third;  /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the factory refusal over each row that does not fit. */
 class Small_DropoutFactoryRefusal : public ::testing::TestWithParam<FactoryRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the factory refuses the row and names the context and the cause. */
 TEST_P(Small_DropoutFactoryRefusal, TheFactoryRefuses)

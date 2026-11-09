@@ -1,7 +1,7 @@
 # tests/language/generation/test_cached_generator.cpp
 
 
-Suites: `Medium_CachedGeneration`, `Medium_CachedRefusal`, `Medium_CachedRing`, `Small_CachedGeneration`.
+Suites: `Medium_CachedGeneration`, `Medium_CachedRefusal`, `Medium_CachedRing`, `Medium_CachedSlide`, `Small_CachedGeneration`.
 
 Tests `CachedGenerator` in `modules/language/generation/include/SushiAI/language/generation/cached_generator.hpp` against `WindowGenerator`. The `Medium_` cases
 run decoders built from model files on the device: a learned table (two blocks), a rotary ring of two
@@ -26,7 +26,7 @@ Rows over the three decoders: after the prompt 4, 7, 1, 30, 2 the logits of the 
 
 ## AContextThatSlidesGivesTheTokensOfTheWindowGenerator
 
-Rows over the three decoders (12 tokens for the table, 26 for the rings): the tokens equal the window generator's across the slides. The counts of runs and compilations are not checked.
+Suite `Medium_CachedSlide`, rows over the table (12 tokens) and the one-block ring (26 tokens): the tokens equal the window generator's across the slides. The two-block ring is not a row: its second block reads keys and values cached from the first block's outputs, which attended to ids the window has since dropped, so past the first slide it differs from the window by design: the tokens agree up to the sixth. Its oracle is the wide cache of `ARingEqualsAWideCacheReadThroughItsLastPositions`. The counts of runs and compilations are not checked.
 
 ## ASecondPromptMatchesAFreshGenerator
 

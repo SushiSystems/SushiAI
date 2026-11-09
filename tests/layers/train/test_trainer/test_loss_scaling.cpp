@@ -59,7 +59,8 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/trainer.hpp>
-#include <SushiAI/train/training_graph.hpp>
+#include <SushiAI/train/training_graph.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -451,7 +452,7 @@ INSTANTIATE_TEST_SUITE_P(Directions, Medium_LossScalingDirection,
                                            DirectionRow{"BackingOff", true, K_OVERFLOWING_SCALE,
                                                         1000, 1}),
                          [](const ::testing::TestParamInfo<DirectionRow>& info)
-                         { return std::string(info.param.name); });
+                         { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /**
  * @brief Tests that an AdamW with the separate kernel refuses a loss scaler.

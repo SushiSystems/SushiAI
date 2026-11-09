@@ -80,17 +80,23 @@ TEST(Small_ClassifierObjective, TheObjectiveDeclaresTheTracedTargetShape)
     EXPECT_EQ(targets.shape, (Shape{K_BATCH, K_CLASSES}));
 }
 
+namespace
+{
 /** @brief Holds the element type a classifier is traced in. */
 struct DTypeRow
 {
     std::string name; /**< The row's name. */
     DType dtype;      /**< The element type the classifier is traced in. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the element-type promise over each traced element type. */
 class Small_ClassifierObjectiveDType : public ::testing::TestWithParam<DTypeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a classifier traced in an element type gets a target leaf of that type. */
 TEST_P(Small_ClassifierObjectiveDType, TheObjectiveKeepsTheTracedElementType)

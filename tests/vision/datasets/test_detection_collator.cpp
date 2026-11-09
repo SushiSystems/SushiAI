@@ -41,6 +41,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/detection_collator.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -96,7 +97,7 @@ INSTANTIATE_TEST_SUITE_P(
     Rows, Small_DetectionCollatorMakeRefusal,
     ::testing::Values(MakeRefusal{"ZeroClasses", 0, 4, "0 classes"},
                       MakeRefusal{"ZeroObjects", 3, 0, "0 objects"}),
-    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that detection publishes boxes, classes and valid with M slots per image. */
 TEST(Small_DetectionCollatorTargets, DetectionPublishesThreeRoles)

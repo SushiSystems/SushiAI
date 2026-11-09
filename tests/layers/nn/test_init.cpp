@@ -248,12 +248,15 @@ TEST_F(Medium_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
                             [](double value) { return value != 0.0; }));
 }
 
+namespace
+{
 /** @brief Holds the name of one state entry of the two-layer model. */
 struct EntryRow
 {
     std::string name;  /**< The row's name. */
     std::string entry; /**< The state entry compared. */
 };
+} // namespace
 
 /** @brief Provides the Engine and the entry rows of the seed case. */
 class Medium_InitStateSeed : public SaTest::EngineTest,

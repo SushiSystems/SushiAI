@@ -42,7 +42,8 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
-#include <SushiAI/graph/lowering/random.hpp>
+#include <SushiAI/graph/lowering/random.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Graph::DropoutResult;
@@ -156,7 +157,7 @@ TEST_P(Small_DropoutSeed, TheSiteSeedSurvivesItsAttributeSlots)
 INSTANTIATE_TEST_SUITE_P(, Small_DropoutSeed, ::testing::ValuesIn(K_SEEDS),
                          [](const ::testing::TestParamInfo<SeedCase>& info)
                          {
-                             return std::string(info.param.label);
+                             return ::SushiAI::Test::parameter_name(info.param.label);
                          });
 
 /** @brief Tests that the emitter refuses an input whose element type cannot carry a mask. */
@@ -185,7 +186,7 @@ TEST_P(Small_DropoutRate, DropoutRefusesARateOutsideZeroToOne)
 INSTANTIATE_TEST_SUITE_P(, Small_DropoutRate, ::testing::ValuesIn(K_REFUSED_RATES),
                          [](const ::testing::TestParamInfo<RateCase>& info)
                          {
-                             return std::string(info.param.label);
+                             return ::SushiAI::Test::parameter_name(info.param.label);
                          });
 
 /** @brief Tests that DROPOUT has the one row of the random table and no other. */

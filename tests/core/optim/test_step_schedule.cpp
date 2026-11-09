@@ -187,6 +187,8 @@ TEST(Small_StepSchedule, ValidateAcceptsAscendingSteps)
     EXPECT_TRUE(validate_step_schedule(schedule).is_ok());
 }
 
+namespace
+{
 /** @brief Holds a step list the check refuses and the words its refusal uses. */
 struct StepListRow
 {
@@ -194,12 +196,16 @@ struct StepListRow
     std::vector<double> scales;      /**< The scale of each step. */
     const char* message;             /**< A fragment of the refusal. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the step-list refusals as rows. */
 class Small_StepScheduleStepList : public ::testing::TestWithParam<StepListRow>
 {
 
 };
+} // namespace
 
 /** @brief Tests that the check refuses a step list that does not ascend or does not match. */
 TEST_P(Small_StepScheduleStepList, ValidateRefusesABadStepList)
@@ -219,6 +225,8 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_StepScheduleStepList,
                                            StepListRow{{400}, {0.1, 0.1}, "1 steps and 2 scales"},
                                            StepListRow{{400, 450}, {0.1}, "2 steps and 1 scales"}));
 
+namespace
+{
 /** @brief Holds a warm-up the check refuses and the words its refusal uses. */
 struct WarmupRow
 {
@@ -226,12 +234,16 @@ struct WarmupRow
     double power;            /**< The warm-up exponent. */
     const char* message;     /**< A fragment of the refusal. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the warm-up refusals as rows. */
 class Small_StepScheduleWarmup : public ::testing::TestWithParam<WarmupRow>
 {
 
 };
+} // namespace
 
 /** @brief Tests that the check refuses a negative warm-up length or exponent. */
 TEST_P(Small_StepScheduleWarmup, ValidateRefusesANegativeWarmupValue)

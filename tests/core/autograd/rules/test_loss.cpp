@@ -33,7 +33,8 @@
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/loss.hpp>
-#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <support/test_names.hpp>
 
 using SushiAI::Autograd::K_LOSS_RULES;
 using SushiAI::Autograd::starts_from_implicit_seed;
@@ -50,10 +51,13 @@ TEST(Small_LossRules, TheTablePairsEachLossOperationWithItsRule)
     EXPECT_EQ(K_LOSS_RULES[1].rule, &Autograd::nll_loss_backward);
 }
 
+namespace
+{
 /** @brief Holds one row of the loss rule table as the test parameter. */
 class Small_LossRuleRow : public ::testing::TestWithParam<Autograd::RuleEntry>
 {
 };
+} // namespace
 
 /** @brief Tests that the library reports a backward rule for the operation of the row. */
 TEST_P(Small_LossRuleRow, EachLossRowHasABackwardRule)
@@ -67,7 +71,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_LossRuleRow,
                          {
                              std::string name(Ops::name_of(info.param.op));
                              std::replace(name.begin(), name.end(), '.', '_');
-                             return name;
+                             return ::SushiAI::Test::parameter_name(name);
                          });
 
 /** @brief Tests that only the NLL loss seeds itself; its neighbour and other roots do not. */

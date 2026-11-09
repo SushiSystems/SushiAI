@@ -176,10 +176,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the trace case over a stack built by hand and one built from a model file. */
 class Small_LayerStackTrace : public ::testing::TestWithParam<StackSourceRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the stack of the row traces its layers in order to the last layer's shape. */
 TEST_P(Small_LayerStackTrace, TracesTheLayersInOrder)
@@ -293,10 +296,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the output shape case over each overload and each stack. */
 class Small_LayerStackOutputShape : public ::testing::TestWithParam<OutputShapeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the stack reports the per-sample shape of its last layer. */
 TEST_P(Small_LayerStackOutputShape, ReportsTheLastLayersOutputShape)

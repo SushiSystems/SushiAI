@@ -58,7 +58,8 @@
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_store.hpp>
-#include <SushiAI/vision/importers/darknet_weights.hpp>
+#include <SushiAI/vision/importers/darknet_weights.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -384,7 +385,7 @@ namespace
     template<typename Row>
     std::string row_name(const ::testing::TestParamInfo<Row>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     }
 } // namespace
 

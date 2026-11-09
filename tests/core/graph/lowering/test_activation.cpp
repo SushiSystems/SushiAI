@@ -45,7 +45,8 @@
 #include <SushiAI/graph/lowering/all.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
-#include <support/tolerance.hpp>
+#include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -157,7 +158,7 @@ INSTANTIATE_TEST_SUITE_P(, Small_ActivationRow, ::testing::ValuesIn(K_EXPECTED_R
                          {
                              std::string name(Ops::name_of(info.param.op));
                              name.replace(0, name.find('.') + 1, "");
-                             return name;
+                             return ::SushiAI::Test::parameter_name(name);
                          });
 
 /**

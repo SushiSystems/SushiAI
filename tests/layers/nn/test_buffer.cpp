@@ -288,6 +288,8 @@ TEST(Small_Buffer, DefiningTwiceWithOneDescriptionIsAccepted)
     EXPECT_EQ(buffer.initial_value(), 1.0);
 }
 
+namespace
+{
 /** @brief Holds the first description, the changed one and what the refusal names. */
 struct RedefineRow
 {
@@ -301,11 +303,15 @@ struct RedefineRow
     std::string first;   /**< A substring the message holds. */
     std::string second;  /**< A second substring the message holds. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the redefinition refusal over each field that can change. */
 class Small_BufferRedefine : public ::testing::TestWithParam<RedefineRow>
 {
 };
+} // namespace
 
 /** @brief Tests that define() with a changed description fails, names it and keeps the first. */
 TEST_P(Small_BufferRedefine, DefiningWithAChangedDescriptionFails)

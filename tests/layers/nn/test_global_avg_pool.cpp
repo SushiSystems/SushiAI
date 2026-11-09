@@ -128,17 +128,23 @@ TEST(Small_GlobalAvgPool, OutputShapeAgreesWithForward)
     EXPECT_EQ(traced_shape(1, 3, 9, 2), (Shape{1, oblong[0]}));
 }
 
+namespace
+{
 /** @brief Holds a name and a shape the layer refuses. */
 struct RefusedShapeRow
 {
     std::string name; /**< The row's name. */
     Shape shape;      /**< The shape given to output_shape or forward. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the output_shape refusal over each per-sample shape of the wrong rank. */
 class Small_GlobalAvgPoolShapeRefusal : public ::testing::TestWithParam<RefusedShapeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape() rejects a per-sample shape that is not rank 3. */
 TEST_P(Small_GlobalAvgPoolShapeRefusal, OutputShapeRefuses)
@@ -155,6 +161,8 @@ INSTANTIATE_TEST_SUITE_P(
                       RefusedShapeRow{"AShapeWithTheBatchAxis", Shape{4, 7, 5, 16}}),
     [](const ::testing::TestParamInfo<RefusedShapeRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds an input shape forward refuses and whether it is converted to NCHW. */
 struct ForwardRefusalRow
 {
@@ -162,11 +170,15 @@ struct ForwardRefusalRow
     Shape input;      /**< The input shape. */
     bool nchw;        /**< Whether the input is converted to NCHW first. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the forward refusal over each input the layer does not take. */
 class Small_GlobalAvgPoolForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward() rejects the input of the row. */
 TEST_P(Small_GlobalAvgPoolForwardRefusal, ForwardRefuses)

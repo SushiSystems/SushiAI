@@ -51,6 +51,7 @@
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -408,7 +409,7 @@ INSTANTIATE_TEST_SUITE_P(
     Rows, Small_DatasetsAugmentPipelineMakeRefusal,
     ::testing::Values(MakeRefusal{"ASizeOfZero", 0, 1, "a training size of 0"},
                       MakeRefusal{"ANegativeEpochCount", K_SIDE, -1, "-1 epochs of mosaic"}),
-    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that produce refuses a negative epoch. */
 TEST(Small_DatasetsAugmentPipeline, ProduceRefusesANegativeEpoch)

@@ -148,6 +148,9 @@ The same probe lowered with a selector that declines every form. The aux buffer 
 separate copy in `record_fused_gemm` (`modules/core/graph/source/lowering/fused.cpp`) and not by
 the epilogue. That is a different code path to the same buffer, and it must hold the same
 pre-activation. Deleting that write makes this case fail.
+The bias there is added by a rank-one update over a ones vector whose fill the pool queues, so the
+probe flushes the pool's constants after recording, as `CompiledStep::compile` does; without it the
+bias is never added and the spill is `x w` alone.
 
 ## ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove
 

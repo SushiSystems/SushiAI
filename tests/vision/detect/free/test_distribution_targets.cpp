@@ -35,7 +35,8 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/free/distribution_targets.hpp>
-#include <support/tolerance.hpp>
+#include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -67,6 +68,8 @@ namespace
     }
 } // namespace
 
+namespace
+{
 /** @brief Names one target and the weights of the four bins around it, a quarter of 0.8 each. */
 struct TargetRow
 {
@@ -74,12 +77,16 @@ struct TargetRow
     float target;                   /**< The distance of every side. */
     std::vector<float> bin_weights; /**< The weights of the four bins of one side. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs a row on a foreground anchor whose four sides all hold the row's target. */
 class Small_DetectDistributionTargetsRows : public ::testing::TestWithParam<TargetRow>
 {
 
 };
+} // namespace
 
 /** @brief Tests the two bins around the target of every side of a foreground anchor. */
 TEST_P(Small_DetectDistributionTargetsRows, EachSideWeighsTheTwoBinsAroundItsTarget)
@@ -102,7 +109,7 @@ INSTANTIATE_TEST_SUITE_P(
                       TargetRow{"PastTheCeilingClampsTo2p99", 5.0f,
                                 {0.0f, 0.0f, 0.01f * 0.2f, 0.99f * 0.2f}},
                       TargetRow{"BelowZeroClampsTo0", -1.0f, {1.0f * 0.2f, 0.0f, 0.0f, 0.0f}}),
-    [](const ::testing::TestParamInfo<TargetRow>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<TargetRow>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a background anchor, whose normalized weight is 0, weighs no bin. */
 TEST(Small_DetectDistributionTargets, ABackgroundAnchorWeighsNoBin)

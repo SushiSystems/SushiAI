@@ -187,7 +187,7 @@ INSTANTIATE_TEST_SUITE_P(
  * The computed second mask is the unit's own output, not a derived value; the test pins it until
  * the difference from the cfg is resolved.
  */
-TEST(Characterization_Small_DetectAnchorHeadAssignment,
+TEST(Small_DetectAnchorHeadAssignmentCharacterization,
      DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor)
 {
     const Masks cfg_masks = {{3, 4, 5}, {1, 2, 3}};

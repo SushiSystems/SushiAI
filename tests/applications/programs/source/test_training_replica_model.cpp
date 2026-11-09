@@ -42,7 +42,8 @@
 #include <SushiAI/distribution/replica_model.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/scratch_files/scratch_file.hpp>
+#include <SushiAI/scratch_files/scratch_file.hpp>
+#include <support/test_names.hpp>
 
 #include "cluster_test_files.hpp"
 #include "registries.hpp"
@@ -206,7 +207,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Medium_ReplicaFingerprintEntry,
                                            EntryCase{"ThroughMake", &fingerprint_by_make}),
                          [](const ::testing::TestParamInfo<EntryCase>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 /** @brief Tests that each part a replica's result depends on changes the fingerprint. */
@@ -234,7 +235,7 @@ INSTANTIATE_TEST_SUITE_P(
         ChangeCase{"TheArchitectureFile", "", "", " "}),
     [](const ::testing::TestParamInfo<ChangeCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that what only the master reads, or where output goes, is left out. */
@@ -258,7 +259,7 @@ INSTANTIATE_TEST_SUITE_P(
                    R"("epochs": 3, "checkpoint": "elsewhere.sushi",)", ""}),
     [](const ::testing::TestParamInfo<ChangeCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 namespace

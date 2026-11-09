@@ -131,6 +131,8 @@ TEST(Small_LinkedRows, ARowReferenceTakesThreeForms)
     EXPECT_EQ(object, 1u);
 }
 
+namespace
+{
 /** @brief Holds an attribute row, the rows above it and the substrings of the refusal. */
 struct RowReferenceRow
 {
@@ -143,11 +145,15 @@ struct RowReferenceRow
     std::string third;    /**< A third substring the message holds; empty for none. */
     std::string fourth;   /**< A fourth substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the row-reference refusal over each reference that does not fit. */
 class Small_LinkedRowsRefusal : public ::testing::TestWithParam<RowReferenceRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a row that is not above, and every other form, is refused by name. */
 TEST_P(Small_LinkedRowsRefusal, ARowReferenceThatDoesNotFitIsRefused)
@@ -188,6 +194,8 @@ TEST(Small_LinkedRows, ALinkedTypeIsFoundAndListed)
     EXPECT_EQ(registry.linked()[0].type, "follower");
 }
 
+namespace
+{
 /** @brief Holds a type name in use, the kind of entry that claims it again, and the name. */
 struct TypeInUseRow
 {
@@ -196,11 +204,15 @@ struct TypeInUseRow
     bool linked;        /**< Whether the second entry is a linked one; a node entry otherwise. */
     std::string quoted; /**< The quoted name the message holds. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the type-in-use refusal over each kind of entry. */
 class Small_LinkedRowsTypeInUse : public ::testing::TestWithParam<TypeInUseRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a type name already in use is refused whatever the kind of the entry. */
 TEST_P(Small_LinkedRowsTypeInUse, ATypeNameInUseIsRefused)

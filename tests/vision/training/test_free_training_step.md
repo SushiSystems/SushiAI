@@ -42,7 +42,7 @@ Every run's total is finite.
 A truth of one image against a batch of 2 makes `run` fail and counts no run. The reason of the
 refusal belongs to `check_truth_layout`.
 
-### MakeRefusesAPoolWithoutTheTensorsOfThePorts
+### MakeRefusesAPoolWithoutTheInputLeaf
 
 `make` over a pool that holds no tensor for a port fails with `InvalidDescription` naming "has no
 tensor in the training pool".

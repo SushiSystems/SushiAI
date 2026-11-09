@@ -112,6 +112,8 @@ TEST(Small_AvgPool2d, ForwardTracesThePooledShapeInNHWC)
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
+namespace
+{
 /** @brief Holds a layer geometry, the sample it pools and the per-sample shape it gives. */
 struct AgreementRow
 {
@@ -120,11 +122,15 @@ struct AgreementRow
     Shape sample;                 /**< The per-sample input shape. */
     Shape expected;               /**< The per-sample shape the layer gives. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the shape agreement over each kind of window. */
 class Small_AvgPool2dShape : public ::testing::TestWithParam<AgreementRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape() equals the expected shape and the traced per-sample shape. */
 TEST_P(Small_AvgPool2dShape, OutputShapeAgreesWithTheTracedShape)
@@ -146,6 +152,8 @@ INSTANTIATE_TEST_SUITE_P(
                                    Shape{5, 6, 1}}),
     [](const ::testing::TestParamInfo<AgreementRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds a geometry and a per-sample shape that output_shape refuses, with the message. */
 struct ShapeRefusalRow
 {
@@ -155,11 +163,15 @@ struct ShapeRefusalRow
     std::string first;            /**< A substring the message holds; empty for none. */
     std::string second;           /**< A second substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the output_shape refusal over each input it cannot take. */
 class Small_AvgPool2dShapeRefusal : public ::testing::TestWithParam<ShapeRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape() refuses the row and names what the row says. */
 TEST_P(Small_AvgPool2dShapeRefusal, OutputShapeRefuses)
@@ -183,6 +195,8 @@ INSTANTIATE_TEST_SUITE_P(
                         "AvgPool2d", "padding -1,0"}),
     [](const ::testing::TestParamInfo<ShapeRefusalRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds an input of forward, whether it is in NCHW layout, and the refusal it meets. */
 struct ForwardRefusalRow
 {
@@ -193,11 +207,15 @@ struct ForwardRefusalRow
     std::string first;            /**< A substring the message holds; empty for none. */
     std::string second;           /**< A second substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the forward refusal over each input and geometry it cannot take. */
 class Small_AvgPool2dForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward() refuses the row and names what the row says. */
 TEST_P(Small_AvgPool2dForwardRefusal, ForwardRefuses)

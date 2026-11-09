@@ -35,7 +35,8 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/distributed/buffer_view.hpp>
 #include <SushiAI/distribution/replica_position.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 using SushiAI::StatusCode;
 using SushiAI::Distribution::K_REPLICA_POSITION_BYTES;
@@ -129,5 +130,5 @@ TEST_P(Small_ReplicaPositionView, ReadRefusesAViewTooSmall)
 INSTANTIATE_TEST_SUITE_P(Views, Small_ReplicaPositionView, ::testing::ValuesIn(small_view_rows()),
                          [](const ::testing::TestParamInfo<SmallViewRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

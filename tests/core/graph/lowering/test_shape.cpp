@@ -34,7 +34,8 @@
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
-#include <SushiAI/graph/lowering/shape.hpp>
+#include <SushiAI/graph/lowering/shape.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Graph::LoweringRule;
@@ -89,5 +90,5 @@ INSTANTIATE_TEST_SUITE_P(, Small_ShapeRow, ::testing::ValuesIn(K_EXPECTED_ROWS),
                          {
                              std::string name(Ops::name_of(info.param.op));
                              name.replace(0, name.find('.') + 1, "");
-                             return name;
+                             return ::SushiAI::Test::parameter_name(name);
                          });

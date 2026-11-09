@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -100,24 +101,6 @@ namespace
 
                 EXPECT_EQ(report.compile_count, 1u);
                 EXPECT_EQ(trainer.compile_count(), 1u);
-            }
-
-            /**
-             * @brief Runs one step over batch @p index of @p dataset.
-             * @return Whether the first parameter read differently after the step than before.
-             */
-            bool step_moves_the_parameter(Train::Trainer& trainer, const Data::Dataset& dataset,
-                                          std::size_t index)
-            {
-                const std::vector<double> before = SaTest::read_tensor(slots[0].parameter);
-                Data::Batch batch;
-                if (!dataset.read(index % static_cast<std::size_t>(K_BATCHES), batch).is_ok())
-                    return false;
-
-                if (!trainer.run_step(batch).has_value())
-                    return false;
-
-                return SaTest::read_tensor(slots[0].parameter) != before;
             }
 
             /**
@@ -238,11 +221,21 @@ TEST_F(Medium_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteImmed
     SA_ASSERT_OK_AND_ASSIGN(auto dataset,
                             Data::SyntheticClassification::make(backend(), make_data_options()));
 
-    EXPECT_TRUE(step_moves_the_parameter(*trainer, *dataset, 0));
-    EXPECT_TRUE(step_moves_the_parameter(*trainer, *dataset, 1));
-    EXPECT_TRUE(step_moves_the_parameter(*trainer, *dataset, 2));
-    EXPECT_TRUE(step_moves_the_parameter(*trainer, *dataset, 3));
-    EXPECT_TRUE(step_moves_the_parameter(*trainer, *dataset, 4));
+    // Step 0 compiles; every later step must replay and change the loss it reports.
+    const std::vector<double> initial = SaTest::read_tensor(slots.back().parameter);
+    double previous_loss = 0.0;
+    for (std::size_t step = 0; step < 5; ++step)
+    {
+        Data::Batch batch;
+        ASSERT_TRUE(SaTest::status_is_ok(
+            dataset->read(step % static_cast<std::size_t>(K_BATCHES), batch)));
+        SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics, trainer->run_step(batch));
+        ASSERT_TRUE(std::isfinite(metrics.loss)) << "at step " << step;
+        if (step > 0)
+            EXPECT_NE(metrics.loss, previous_loss) << "the step stopped doing work at " << step;
+        previous_loss = metrics.loss;
+    }
+    EXPECT_NE(SaTest::read_tensor(slots.back().parameter), initial);
     EXPECT_EQ(trainer->compile_count(), 1u);
 }
 

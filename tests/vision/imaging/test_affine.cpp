@@ -887,10 +887,13 @@ TEST(Small_ImagingAffine, WarpedPolygonStaysInsideTheOutputWhenACrossingRoundsOu
     expect_vertex_inside(warped.polygons()[0][2], output, box);
 }
 
+namespace
+{
 /** @brief Rows of a box ratio and a polygon ratio and whether the polygon object survives. */
 class Small_ImagingAffinePolygonRatio : public ::testing::TestWithParam<RatioRow>
 {
 };
+} // namespace
 
 /** @brief Tests that an object with a polygon is filtered at the polygon ratio of the plan. */
 TEST_P(Small_ImagingAffinePolygonRatio, PolygonObjectIsFilteredAtThePolygonAreaRatio)

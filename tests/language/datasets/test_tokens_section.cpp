@@ -50,7 +50,8 @@
 #include <SushiAI/language/datasets/token_dataset.hpp>
 #include <SushiAI/language/datasets/token_file.hpp>
 #include <SushiAI/language/datasets/tokens_section.hpp>
-#include <SushiAI/language/text/token.hpp>
+#include <SushiAI/language/text/token.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Datasets;
@@ -193,7 +194,7 @@ INSTANTIATE_TEST_SUITE_P(
                   "the data block", "'shuffle'", "does not have"}),
     [](const ::testing::TestParamInfo<BlockCase>& info)
     {
-        return std::string(info.param.label);
+        return ::SushiAI::Test::parameter_name(info.param.label);
     });
 
 /** @brief Tests that a file that is not there fails and names no dataset. */

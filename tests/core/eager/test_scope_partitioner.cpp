@@ -585,9 +585,12 @@ TEST(Small_ScopePartitioner, TheLastSegmentSharesItsRegionWithItsBackward)
     EXPECT_EQ(direction_of_region_with_key(step.partition, 3u), Direction::Forward);
 }
 
+namespace
+{
 class Small_ScopePartitionerOperands : public ::testing::TestWithParam<StepKind>
 {
 };
+} // namespace
 
 /** @brief Tests that no node of a differentiated graph reads a value a higher key produces. */
 TEST_P(Small_ScopePartitionerOperands, EveryOperandComesFromALowerOrEqualKey)

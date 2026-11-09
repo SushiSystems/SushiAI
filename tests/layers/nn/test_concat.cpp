@@ -86,6 +86,8 @@ TEST(Small_Concat, CreateAcceptsOneInput)
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 6, 3}));
 }
 
+namespace
+{
 /** @brief Holds input shapes that Concat refuses and the substrings of the refusal. */
 struct RefusedInputsRow
 {
@@ -94,11 +96,15 @@ struct RefusedInputsRow
     std::string first;         /**< A substring the message holds. */
     std::string second;        /**< A second substring the message holds. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the refusal over each set of inputs create cannot join. */
 class Small_ConcatRefused : public ::testing::TestWithParam<RefusedInputsRow>
 {
 };
+} // namespace
 
 /** @brief Tests that create refuses the inputs and names the offending one. */
 TEST_P(Small_ConcatRefused, CreateRefusesTheInputs)

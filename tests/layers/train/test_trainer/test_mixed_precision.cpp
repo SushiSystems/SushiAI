@@ -205,6 +205,9 @@ TEST_F(Medium_MixedPrecision, TheCopiesAreTwoByteBuffers)
     // Tensors must carry the dtypes the IR claims; see tests/layers/train/README.md.
     prepare();
 
+    // The trainer's compile materialises the destinations, so a pool bound alone holds none.
+    make_trainer(1);
+
     std::vector<InsertedCast> halves;
     const auto& casts = built.casts.casts();
     std::copy_if(casts.begin(), casts.end(), std::back_inserter(halves),

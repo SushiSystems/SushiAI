@@ -50,6 +50,7 @@
 #include <SushiAI/optim/optimizer_registry.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -405,5 +406,5 @@ INSTANTIATE_TEST_SUITE_P(
                       UnknownKeyCase{"Kernel", R"({"kernel": "separate"})", "'kernel'", "'kernel'"}),
     [](const ::testing::TestParamInfo<UnknownKeyCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });

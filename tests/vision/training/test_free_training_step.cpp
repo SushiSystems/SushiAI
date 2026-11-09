@@ -261,8 +261,8 @@ TEST_F(Medium_FreeTrainingStep, ARefusedTruthCountsNoRun)
     EXPECT_EQ(model.step->run_count(), 0u);
 }
 
-/** @brief Tests that make refuses a pool that holds no tensor for a port, naming the port. */
-TEST_F(Medium_FreeTrainingStep, MakeRefusesAPoolWithoutTheTensorsOfThePorts)
+/** @brief Tests that make refuses an empty pool, whose input leaf has no tensor. */
+TEST_F(Medium_FreeTrainingStep, MakeRefusesAPoolWithoutTheInputLeaf)
 {
     TwoLevelCase model;
     model.prepare(backend());
@@ -272,7 +272,7 @@ TEST_F(Medium_FreeTrainingStep, MakeRefusesAPoolWithoutTheTensorsOfThePorts)
     SA_EXPECT_FAILURE(Vision::Training::FreeTrainingStep::make(backend(), *model.objective,
                                                                model.built, empty,
                                                                *model.optimizer, {}),
-                      StatusCode::InvalidDescription, "has no tensor in the training pool");
+                      StatusCode::InvalidDescription, "input leaf", "bind_parameters");
 }
 
 #if SA_ENABLE_PROFILER && SA_PROFILE_LEVEL >= 1

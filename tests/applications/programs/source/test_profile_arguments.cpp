@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using Apps::ProfileArguments;
@@ -58,6 +59,8 @@ TEST(Small_ProfileArguments, ALineWithoutTheFlagIsKept)
     EXPECT_FALSE(read_back.config.has_value());
 }
 
+namespace
+{
 /** @brief Holds a command line with the pair somewhere in it and what is left of it. */
 struct PairCase
 {
@@ -67,7 +70,10 @@ struct PairCase
     /** @brief The command line without its program name. */
     std::vector<const char*> words;
 };
+} // namespace
 
+namespace
+{
 /** @brief Holds a command line that is refused and the text its refusal carries. */
 struct RefusalCase
 {
@@ -80,6 +86,7 @@ struct RefusalCase
     /** @brief A part of the refusal's message. */
     const char* message;
 };
+} // namespace
 
 /** @brief Runs the rows of command lines that carry one --profile pair. */
 class Small_ProfileArgumentsPosition : public ::testing::TestWithParam<PairCase> {};
@@ -105,7 +112,7 @@ INSTANTIATE_TEST_SUITE_P(
         PairCase{"AfterThePositionals", {"m.json", "w.sushi", "e.json", "--profile", "p.json"}}),
     [](const ::testing::TestParamInfo<PairCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a flag with no path, a flag in place of the path and a repeat are refused. */
@@ -124,5 +131,5 @@ INSTANTIATE_TEST_SUITE_P(
                     "given twice"}),
     [](const ::testing::TestParamInfo<RefusalCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });

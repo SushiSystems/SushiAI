@@ -140,10 +140,13 @@ TEST(Small_ImagingFlip, PlanMakesExactlyOneDraw)
     EXPECT_EQ(random, replay);
 }
 
+namespace
+{
 /** @brief Rows of a flip probability, a seed and the decision it must give. */
 class Small_ImagingFlipDecision : public ::testing::TestWithParam<DecisionRow>
 {
 };
+} // namespace
 
 /** @brief Tests that probability 0 never flips and 1 always flips, each with one draw. */
 TEST_P(Small_ImagingFlipDecision, ProbabilityZeroNeverFlipsAndOneAlwaysFlips)

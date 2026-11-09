@@ -65,7 +65,8 @@
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/unflatten.hpp>
-#include <SushiAI/nn/upsample2d.hpp>
+#include <SushiAI/nn/upsample2d.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 
@@ -267,10 +268,13 @@ TEST(Small_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
     EXPECT_EQ(spelled, expected);
 }
 
+namespace
+{
 /** @brief Runs a case over each row of the registry's minimal objects. */
 class Small_LayerRegistryMinimal : public ::testing::TestWithParam<MinimalCase>
 {
 };
+} // namespace
 
 /** @brief Tests that the factory of the row builds a layer from its minimal object. */
 TEST_P(Small_LayerRegistryMinimal, TheFactoryBuildsFromAMinimalObject)
@@ -296,7 +300,7 @@ TEST_P(Small_LayerRegistryMinimal, TheFactoryRefusesAnUnknownKey)
 
 INSTANTIATE_TEST_SUITE_P(
     Rows, Small_LayerRegistryMinimal, ::testing::ValuesIn(K_MINIMAL_CASES),
-    [](const ::testing::TestParamInfo<MinimalCase>& info) { return std::string(info.param.type); });
+    [](const ::testing::TestParamInfo<MinimalCase>& info) { return ::SushiAI::Test::parameter_name(info.param.type); });
 
 namespace
 {
@@ -318,10 +322,13 @@ namespace
     }
 }
 
+namespace
+{
 /** @brief Runs a case over each key of the registry that has a layer type of its own. */
 class Small_LayerRegistryOwnType : public ::testing::TestWithParam<OwnTypeRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the key of the row builds the layer type it names. */
 TEST_P(Small_LayerRegistryOwnType, TheKeyBuildsItsOwnLayerType)
@@ -451,10 +458,13 @@ namespace
     }
 }
 
+namespace
+{
 /** @brief Runs a case over each spelling of a 3 by 3 kernel, as an integer and as a pair. */
 class Small_LayerRegistryKernelSpelling : public ::testing::TestWithParam<KernelSpellingRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the spelling of the row builds a 3 by 3 window with the stride and shape. */
 TEST_P(Small_LayerRegistryKernelSpelling, TheSpellingBuildsTheWindow)
@@ -488,10 +498,13 @@ INSTANTIATE_TEST_SUITE_P(
                           Shape{2, 2, 2}, geometry_of<NN::AvgPool2d>}),
     [](const ::testing::TestParamInfo<KernelSpellingRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Runs a case over each layer object a factory refuses, with the words it names. */
 class Small_LayerRegistryRefusal : public ::testing::TestWithParam<RefusedLayerRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the factory of the row refuses its object, naming the layer and the reason. */
 TEST_P(Small_LayerRegistryRefusal, TheLayerIsRefused)
@@ -749,10 +762,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the gradient case over each of the six parameters of the convolutional model. */
 class Small_LayerRegistryGradient : public ::testing::TestWithParam<ParameterRow>
 {
 };
+} // namespace
 
 /** @brief Tests that differentiating cross-entropy gives the parameter of the row a gradient. */
 TEST_P(Small_LayerRegistryGradient, CrossEntropyDifferentiatesToTheParameter)
@@ -840,10 +856,13 @@ namespace
     };
 }
 
+namespace
+{
 /** @brief Runs the chain refusal over each model file a layer stack cannot hold. */
 class Small_LayerRegistryChainRefusal : public ::testing::TestWithParam<ChainRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that build_layer_stack refuses the model file of the row. */
 TEST_P(Small_LayerRegistryChainRefusal, TheChainIsRefused)

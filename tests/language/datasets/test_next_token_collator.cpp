@@ -46,7 +46,8 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/datasets/next_token_collator.hpp>
 #include <SushiAI/language/text/token.hpp>
-#include <SushiAI/layer_rows/minimal_case.hpp>
+#include <SushiAI/layer_rows/minimal_case.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Datasets;
@@ -192,7 +193,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageDatasetsNextTokenCollatorMake,
                                                     "vocabulary of 0 tokens"}),
                          [](const ::testing::TestParamInfo<MakeCase>& info)
                          {
-                             return std::string(info.param.label);
+                             return ::SushiAI::Test::parameter_name(info.param.label);
                          });
 
 /** @brief Tests that ids that are no whole windows, and a batch of another shape, are refused. */
@@ -224,5 +225,5 @@ INSTANTIATE_TEST_SUITE_P(
         CollateCase{"NoLabelsRole", 8, DType::Int32, 6, false, "one role 'labels'", "", ""}),
     [](const ::testing::TestParamInfo<CollateCase>& info)
     {
-        return std::string(info.param.label);
+        return ::SushiAI::Test::parameter_name(info.param.label);
     });

@@ -48,6 +48,7 @@
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/language/text/vocabulary.hpp>
 #include <SushiAI/language/text/vocabulary_file.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Datasets;
@@ -130,7 +131,7 @@ namespace
     template <typename Case>
     std::string label_of(const ::testing::TestParamInfo<Case>& info)
     {
-        return std::string(info.param.label);
+        return ::SushiAI::Test::parameter_name(info.param.label);
     }
 } // namespace
 

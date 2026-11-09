@@ -78,6 +78,8 @@ TEST(Small_Add, CreateKeepsTheSharedShapeAsThePort)
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 6, 3}));
 }
 
+namespace
+{
 /** @brief Holds one input list the node refuses and the count the message names. */
 struct CountRow
 {
@@ -85,11 +87,15 @@ struct CountRow
     std::vector<Shape> shapes; /**< The input shapes given to create. */
     std::string given;         /**< The count the message names. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the input-count refusal over each count other than two. */
 class Small_AddCount : public ::testing::TestWithParam<CountRow>
 {
 };
+} // namespace
 
 /** @brief Tests that an input count other than two is refused and the count is named. */
 TEST_P(Small_AddCount, CreateRejectsTheCount)
@@ -108,17 +114,23 @@ INSTANTIATE_TEST_SUITE_P(
                       CountRow{"None", {}, "was given 0"}),
     [](const ::testing::TestParamInfo<CountRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds the shape pair that differs in one extent. */
 struct UnequalRow
 {
     std::string name; /**< The row's name. */
     Shape second;     /**< The second input; the first is [8, 6, 3]. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the unequal-shape refusal over each extent that can differ. */
 class Small_AddUnequal : public ::testing::TestWithParam<UnequalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that inputs differing in one extent are refused as unequal shapes. */
 TEST_P(Small_AddUnequal, CreateRejectsTheShape)
@@ -135,6 +147,8 @@ INSTANTIATE_TEST_SUITE_P(
                       UnequalRow{"Width", Shape{8, 12, 3}}),
     [](const ::testing::TestParamInfo<UnequalRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds the shapes of an input that is not a feature map and the index the message names. */
 struct RankRow
 {
@@ -142,11 +156,15 @@ struct RankRow
     std::vector<Shape> shapes; /**< The input shapes given to create. */
     std::string index;         /**< The input the message names. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the rank refusal over each position of the offending input. */
 class Small_AddRank : public ::testing::TestWithParam<RankRow>
 {
 };
+} // namespace
 
 /** @brief Tests that an input that is not rank 3 is refused and named by its index. */
 TEST_P(Small_AddRank, CreateRejectsTheInput)

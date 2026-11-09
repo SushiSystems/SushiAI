@@ -42,6 +42,7 @@
 #include <SushiAI/graph/node_range.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -124,7 +125,7 @@ INSTANTIATE_TEST_SUITE_P(
                       RangeCheck{"EndsBeforeItStarts", Graph::NodeRange{1, 0}, 3, false}),
     [](const ::testing::TestParamInfo<RangeCheck>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that the refusal of a range names its bounds. */

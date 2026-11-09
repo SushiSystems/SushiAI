@@ -45,6 +45,7 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 
 #include "cluster_test_files.hpp"
 #include "cluster_fabric.hpp"
@@ -270,5 +271,5 @@ INSTANTIATE_TEST_SUITE_P(
                       AnnouncedNames{"TheBareLabels", "left", "right"}),
     [](const ::testing::TestParamInfo<AnnouncedNames>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });

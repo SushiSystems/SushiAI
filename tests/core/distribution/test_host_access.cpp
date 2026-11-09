@@ -34,7 +34,8 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiAI/distribution/host_access.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <support/test_names.hpp>
 
 namespace
 {
@@ -112,5 +113,5 @@ TEST_P(Medium_HostAccess, ATensorIsHostVisibleWhenItsStorageIsSharedOrHostMemory
 INSTANTIATE_TEST_SUITE_P(Residencies, Medium_HostAccess, ::testing::ValuesIn(residency_rows()),
                          [](const ::testing::TestParamInfo<ResidencyRow>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });

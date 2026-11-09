@@ -32,6 +32,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <support/test_names.hpp>
 
 #include "worker_arguments.hpp"
 
@@ -48,6 +49,8 @@ namespace
     }
 } // namespace
 
+namespace
+{
 /** @brief Holds a flag and the command line it forms alone. */
 struct FlagCase
 {
@@ -57,7 +60,10 @@ struct FlagCase
     /** @brief The flag, which is the whole command line. */
     const char* flag;
 };
+} // namespace
 
+namespace
+{
 /** @brief Holds a command line the worker refuses. */
 struct RefusedCase
 {
@@ -67,6 +73,7 @@ struct RefusedCase
     /** @brief The command line after the program name. */
     std::vector<const char*> arguments;
 };
+} // namespace
 
 /** @brief Runs the rows of flags that ask for the version. */
 class Small_WorkerArgumentsVersion : public ::testing::TestWithParam<FlagCase> {};
@@ -92,7 +99,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_WorkerArgumentsVersion,
                                            FlagCase{"TheShortFlag", "-V"}),
                          [](const ::testing::TestParamInfo<FlagCase>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 /** @brief Tests that the help flags, short and long, ask for the usage. */
@@ -110,7 +117,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_WorkerArgumentsHelp,
                                            FlagCase{"TheShortFlag", "-h"}),
                          [](const ::testing::TestParamInfo<FlagCase>& info)
                          {
-                             return std::string(info.param.name);
+                             return ::SushiAI::Test::parameter_name(info.param.name);
                          });
 
 /** @brief Tests that another flag in the place of the training file, or no argument, is refused. */
@@ -125,7 +132,7 @@ INSTANTIATE_TEST_SUITE_P(
                       RefusedCase{"AnEmptyCommandLine", {}}),
     [](const ::testing::TestParamInfo<RefusedCase>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
 /** @brief Tests that a training file first is served, with every later argument forwarded. */

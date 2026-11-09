@@ -369,6 +369,8 @@ TEST(Small_BatchNorm2d, ATrainingTraceRequestsTheTwoRunningUpdates)
     EXPECT_EQ(list.updates()[0].source_scale, 1.0);
 }
 
+namespace
+{
 /** @brief Holds the element count per channel of a traced input and the factor it gives. */
 struct UnbiasedRow
 {
@@ -376,11 +378,15 @@ struct UnbiasedRow
     Shape input;        /**< The NHWC input the layer is traced over. */
     double count;       /**< The values per channel, batch times height times width. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the variance-factor promise over each count of values per channel. */
 class Small_BatchNorm2dUnbiased : public ::testing::TestWithParam<UnbiasedRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the variance update carries n / (n - 1) for n values per channel. */
 TEST_P(Small_BatchNorm2dUnbiased, TheVarianceUpdateCarriesTheUnbiasedFactor)
@@ -557,6 +563,8 @@ TEST(Small_BatchNorm2d, EvaluationOverOneValuePerChannelTraces)
     EXPECT_EQ(graph.value(y).shape, (Shape{1, 1, 1, 3}));
 }
 
+namespace
+{
 /** @brief Holds a trace form, an input it refuses and the substrings of the refusal. */
 struct FormRefusalRow
 {
@@ -569,11 +577,15 @@ struct FormRefusalRow
     std::string second; /**< A second substring the message holds. */
     std::string third;  /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the input refusal over each form and each input it does not take. */
 class Small_BatchNorm2dFormRefusal : public ::testing::TestWithParam<FormRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the form refuses the input, names why, and declares nothing. */
 TEST_P(Small_BatchNorm2dFormRefusal, TheInputIsRefused)
@@ -623,6 +635,8 @@ INSTANTIATE_TEST_SUITE_P(
                        "BatchNorm2d(3)", "NHWC", ""}),
     [](const ::testing::TestParamInfo<FormRefusalRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds a layer description that cannot trace and the substrings of the refusal. */
 struct WrongLayerRow
 {
@@ -633,11 +647,15 @@ struct WrongLayerRow
     std::string second;  /**< A second substring the message holds. */
     std::string third;   /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the description refusal over each wrong description. */
 class Small_BatchNorm2dWrongLayer : public ::testing::TestWithParam<WrongLayerRow>
 {
 };
+} // namespace
 
 /** @brief Tests that a layer described wrongly fails to trace and declares nothing. */
 TEST_P(Small_BatchNorm2dWrongLayer, TheTraceIsRefused)
@@ -736,6 +754,8 @@ TEST(Small_BatchNorm2d, TheFactoryReadsTheChannelsAndTheTwoConstants)
     EXPECT_EQ(node->input_count(), 1u);
 }
 
+namespace
+{
 /** @brief Holds a factory row that does not fit and the substrings of the refusal. */
 struct FactoryRefusalRow
 {
@@ -746,11 +766,15 @@ struct FactoryRefusalRow
     std::string second; /**< A second substring the message holds. */
     std::string third;  /**< A third substring the message holds; empty for none. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the factory refusal over each row that does not fit. */
 class Small_BatchNorm2dFactoryRefusal : public ::testing::TestWithParam<FactoryRefusalRow>
 {
 };
+} // namespace
 
 /** @brief Tests that the factory refuses the row and names the context and the cause. */
 TEST_P(Small_BatchNorm2dFactoryRefusal, TheFactoryRefuses)

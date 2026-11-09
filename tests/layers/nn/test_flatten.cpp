@@ -111,6 +111,8 @@ TEST(Small_Flatten, AnNHWCInputYieldsAnNHWCResult)
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
+namespace
+{
 /** @brief Holds a batched input, its per-sample shape and the per-sample shape Flatten gives. */
 struct RankRow
 {
@@ -119,11 +121,15 @@ struct RankRow
     Shape sample;      /**< The per-sample input shape. */
     Shape flattened;   /**< The per-sample shape Flatten gives. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the flattening promise over each input rank. */
 class Small_FlattenRank : public ::testing::TestWithParam<RankRow>
 {
 };
+} // namespace
 
 /** @brief Tests that output_shape and the traced shape fold every axis after the batch. */
 TEST_P(Small_FlattenRank, TheInnerAxesFold)
@@ -142,6 +148,8 @@ INSTANTIATE_TEST_SUITE_P(
                       RankRow{"AVector", Shape{2, 7}, Shape{7}, Shape{7}}),
     [](const ::testing::TestParamInfo<RankRow>& info) { return info.param.name; });
 
+namespace
+{
 /** @brief Holds an input shape Flatten refuses and whether it is tagged NCHW. */
 struct RefusedInputRow
 {
@@ -149,11 +157,15 @@ struct RefusedInputRow
     Shape input;      /**< The input shape, batch axis included. */
     bool nchw;        /**< Whether the input is tagged NCHW. */
 };
+} // namespace
 
+namespace
+{
 /** @brief Runs the forward refusal over each input Flatten does not take. */
 class Small_FlattenRefused : public ::testing::TestWithParam<RefusedInputRow>
 {
 };
+} // namespace
 
 /** @brief Tests that forward refuses the input. */
 TEST_P(Small_FlattenRefused, ForwardRefuses)

@@ -131,7 +131,9 @@ TEST(Small_InMemoryRegionPartitioner, JournalsTheNodeCountAndTheSegmentsOfEachCa
 TEST(Small_InMemoryRegionPartitioner, ReturnsTheCutOfTheInnerPartitioner)
 {
     const InMemoryRegionPartitioner inner(two_regions());
-    const InMemoryRegionPartitioner partitioner(inner);
+    // Through the port, so the wrapping constructor is chosen and not the copy constructor.
+    const Eager::RegionPartitioner& port = inner;
+    const InMemoryRegionPartitioner partitioner(port);
     const Graph::Graph graph;
 
     const Partition cut = partitioner.assign(graph, {}, Autograd::Provenance{});

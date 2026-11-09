@@ -65,6 +65,7 @@
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
 #include <support/tolerance.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -340,7 +341,7 @@ namespace
     /** @brief Names a test after the reader of its row. */
     std::string keys_row_name(const ::testing::TestParamInfo<KeysRow>& info)
     {
-        return std::string(info.param.reader);
+        return ::SushiAI::Test::parameter_name(info.param.reader);
     }
 
     /** @brief Checks the keys one row of the reader table lists. */
@@ -372,7 +373,7 @@ namespace
     /** @brief Names a test after its row. */
     std::string key_kind_row_name(const ::testing::TestParamInfo<KeyKindRow>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     }
 
     /** @brief Checks that a key of the wrong kind is refused before any file is read. */
@@ -405,7 +406,7 @@ namespace
     /** @brief Names a test after the task of its row. */
     std::string task_row_name(const ::testing::TestParamInfo<TaskRow>& info)
     {
-        return std::string(info.param.task);
+        return ::SushiAI::Test::parameter_name(info.param.task);
     }
 
     /** @brief Checks the fit and the keys of one task. */
@@ -416,7 +417,7 @@ namespace
     /** @brief Names a test after the index of the row of the task table it runs over. */
     std::string task_index_name(const ::testing::TestParamInfo<std::size_t>& info)
     {
-        return std::string(task_table()[info.param].name);
+        return ::SushiAI::Test::parameter_name(task_table()[info.param].name);
     }
 
     /** @brief Runs a check over the index of each row of the task table. */
@@ -460,7 +461,7 @@ namespace
     /** @brief Names a test after its row. */
     std::string positive_refusal_name(const ::testing::TestParamInfo<PositiveRefusal>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     }
 
     /** @brief Checks the refusals of the binary row. */
@@ -493,7 +494,7 @@ namespace
     /** @brief Names a test after its row. */
     std::string ignore_refusal_name(const ::testing::TestParamInfo<IgnoreRefusal>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     }
 
     /** @brief Checks the refusals of the segmentation row. */
@@ -575,7 +576,7 @@ namespace
     /** @brief Names a test after its row. */
     std::string section_refusal_name(const ::testing::TestParamInfo<SectionRefusal>& info)
     {
-        return std::string(info.param.name);
+        return ::SushiAI::Test::parameter_name(info.param.name);
     }
 
     /** @brief Builds each section the refusals decide on values, over a root no test creates. */

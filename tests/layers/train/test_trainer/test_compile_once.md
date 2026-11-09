@@ -36,10 +36,11 @@ file is the one home of the promise; the copy in `test_convergence.cpp` is delet
 ## EveryReplayDispatchesRatherThanReportingCompleteImmediately
 
 This test looks at a replay that dispatches nothing from the outside. Such a run() returns
-successfully, so the parameters never move and the loss goes flat. It shows from the second
-replay onward when the first replay still runs off the state the compilation left. One check per
-replay, five in all: the step over that batch changes the first parameter. The old case compared
-each loss with the one before it, which a changed loss does not prove.
+successfully, so the parameters never move and the loss goes flat. Step 0 compiles the step;
+from step 1 on, each replay must report a loss other than the step before it. After the five
+steps the final layer's bias, the last parameter, must have moved. The bias is the probe because
+the default initialisation zeroes the final weight, which leaves the first layer's gradient at
+zero on the first step.
 
 ## TheVeryFirstRunDispatchesRatherThanReportingCompleteOverAnEmptyBaseline
 

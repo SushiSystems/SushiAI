@@ -42,6 +42,7 @@
 #include <SushiAI/vision/datasets/load_sample_mask.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
+#include <support/test_names.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
@@ -187,7 +188,7 @@ INSTANTIATE_TEST_SUITE_P(
                                   "the mask has 3 channels"},
                       MaskRefusal{"AnotherSizeThanItsImage", 1, ImageSize{2, 2}, ImageSize{2, 4},
                                   "the mask is 2 by 2 pixels; its image is 2 by 4"}),
-    [](const ::testing::TestParamInfo<MaskRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<MaskRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a target size of no pixel fails. */
 TEST(Small_DatasetsFitMask, ATargetSizeOfNoPixelIsRefused)
@@ -222,7 +223,7 @@ INSTANTIATE_TEST_SUITE_P(
                                     "sample 0 has no mask"},
                       SampleRefusal{"AMaskFileOutsideTheList", 0, 4u,
                                     "sample 0 names the mask file 4 of a list of 1 files"}),
-    [](const ::testing::TestParamInfo<SampleRefusal>& info) { return std::string(info.param.name); });
+    [](const ::testing::TestParamInfo<SampleRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that an absent mask file is reported with its path. */
 TEST(Medium_DatasetsLoadSampleMask, AnAbsentMaskFileIsReported)

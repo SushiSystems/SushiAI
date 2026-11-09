@@ -35,6 +35,7 @@
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
 #include <SushiAI/graph/lowering/unlowered.hpp>
+#include <support/test_names.hpp>
 
 namespace SushiAI
 {
@@ -70,9 +71,7 @@ namespace SushiAI
                                  ::testing::ValuesIn(Graph::K_UNLOWERED),
                                  [](const ::testing::TestParamInfo<OpID>& info)
                                  {
-                                     std::string name(Ops::name_of(info.param));
-                                     name.replace(0, name.find('.') + 1, "");
-                                     return name;
+                                     return parameter_name(Ops::name_of(info.param));
                                  });
 
     } // namespace Test

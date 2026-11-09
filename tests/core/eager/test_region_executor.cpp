@@ -54,7 +54,7 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/in_memory_descent_recorder.hpp>
-#include <SushiAI/graph/in_memory_late_increment_recorder.hpp>
+#include <support/in_memory_late_increment_recorder.hpp>
 #include <SushiAI/graph/in_memory_step_recorder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
@@ -407,7 +407,7 @@ TEST_F(Medium_RegionExecutor, ALateTrailingTaskReplaysAfterItsRecorderIsGone)
     SushiBLAS::Tensor count = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int32,
                                                     SushiRuntime::Residency::Host);
     count.data_as<std::int32_t>()[0] = 2;
-    Graph::InMemoryLateIncrementRecorder update(out, count);
+    SushiAI::Test::InMemoryLateIncrementRecorder update(out, count);
 
     // The first step records the update through a recorder that dies with record_trailing().
     run_with_trailing(harness, update);
