@@ -11,13 +11,15 @@ The design is docs/agent/2026_10_07_ERROR_CONTRACT_AND_NAMING/SPEC.md, section 2
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
 from collections import Counter
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Protocol
 
 K_RENAME_MAP = Path("tools/naming/rename_map.tsv")
 K_CODE_ROOTS = ("include", "src", "tests", "apps", "examples")
@@ -275,48 +277,133 @@ def literals_of(text: str) -> Counter[str]:
     return Counter(token.text for token in tokenize(text) if token.kind == "literal")
 
 
-def read_rename_map(path: Path) -> list[RenameEntry]:
-    """Returns the rows of a rename map.
+def parse_rename_map(text: str, origin: str) -> list[RenameEntry]:
+    """Returns the rows of a rename map text.
+
+    Args:
+        text: The text of the map.
+        origin: The name the refusals use for the text.
 
     Raises:
-        RenameRefusedError: The file is absent, its header is not K_COLUMNS or a row is malformed.
+        RenameRefusedError: The header is not K_COLUMNS or a row is malformed.
     """
-    if not path.is_file():
-        raise RenameRefusedError(f"no rename map at {path}")
-    lines = path.read_text(encoding="utf-8").splitlines()
+    lines = text.splitlines()
     if not lines or tuple(lines[0].split("\t")) != K_COLUMNS:
-        raise RenameRefusedError(f"{path}: the header must read {' '.join(K_COLUMNS)}")
+        raise RenameRefusedError(f"{origin}: the header must read {' '.join(K_COLUMNS)}")
     entries: list[RenameEntry] = []
     for number, line in enumerate(lines[1:], start=2):
         cells = line.split("\t")
         if len(cells) != len(K_COLUMNS) or not (cells[4].isdigit() and cells[5].isdigit()):
             raise RenameRefusedError(
-                f"{path}:{number}: a row has {len(K_COLUMNS)} cells and two counts"
+                f"{origin}:{number}: a row has {len(K_COLUMNS)} cells and two counts"
             )
         entries.append(RenameEntry(*cells[:4], int(cells[4]), int(cells[5]), *cells[6:]))
     return entries
 
 
-def write_rename_map(path: Path, entries: Iterable[RenameEntry]) -> None:
-    """Writes the rows as a tab-separated file under the K_COLUMNS header."""
+def format_rename_map(entries: Iterable[RenameEntry]) -> str:
+    """Returns the rows as tab-separated text under the K_COLUMNS header."""
     lines = ["\t".join(K_COLUMNS)]
     for entry in entries:
         lines.append("\t".join(str(getattr(entry, column)) for column in K_COLUMNS))
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    return "\n".join(lines) + "\n"
 
 
-def source_files(root: Path) -> Iterator[Path]:
-    """Yields every C++ file under the code roots of a repository, in path order."""
-    for top in K_CODE_ROOTS:
-        for path in sorted((root / top).rglob("*")):
-            if path.is_file() and path.suffix in K_CODE_SUFFIXES:
-                yield path
+def write_rename_map(path: Path, entries: Iterable[RenameEntry]) -> None:
+    """Writes the rows as a tab-separated file under the K_COLUMNS header."""
+    path.write_text(format_rename_map(entries), encoding="utf-8", newline="\n")
 
 
-def read_source(path: Path) -> str:
-    """Returns a file's text with its line endings as they are on disk."""
-    with path.open(encoding="utf-8", newline="") as stream:
-        return stream.read()
+class RepositoryFiles(Protocol):
+    """Gives the tools the text files of a repository without saying where they live."""
+
+    def texts(
+        self, roots: Iterable[str], suffixes: Iterable[str], errors: str = "strict"
+    ) -> dict[str, str]:
+        """Returns the text of each file below the roots with one of the suffixes, by relative path.
+
+        The roots come in the order given and the files of one root in path order. Line endings
+        are kept as they are.
+        """
+
+    def read(self, name: str | Path) -> str | None:
+        """Returns the text of one file, None when there is none."""
+
+    def write(self, name: str, text: str) -> None:
+        """Replaces the text of one file, line endings kept as given."""
+
+
+class DiskRepository:
+    """Reads and writes the files of a repository on disk."""
+
+    def __init__(self, root: Path) -> None:
+        """Remembers the root the relative paths hang from."""
+        self.root = root
+
+    def texts(
+        self, roots: Iterable[str], suffixes: Iterable[str], errors: str = "strict"
+    ) -> dict[str, str]:
+        """Returns the text of each file below the roots with one of the suffixes, by relative path."""
+        wanted = tuple(suffixes)
+        found: dict[str, str] = {}
+        for top in roots:
+            for path in sorted((self.root / top).rglob("*")):
+                if path.is_file() and path.suffix in wanted:
+                    with path.open(encoding="utf-8", errors=errors, newline="") as stream:
+                        found[path.relative_to(self.root).as_posix()] = stream.read()
+        return found
+
+    def read(self, name: str | Path) -> str | None:
+        """Returns the text of one file, None when the path names no file."""
+        path = self.root / name
+        if not path.is_file():
+            return None
+        return path.read_text(encoding="utf-8")
+
+    def write(self, name: str, text: str) -> None:
+        """Replaces the text of one file, line endings kept as given."""
+        with (self.root / name).open("w", encoding="utf-8", newline="") as stream:
+            stream.write(text)
+
+
+class MemoryRepository:
+    """Holds the files of a repository as a mapping of relative path to text."""
+
+    def __init__(self, files: Mapping[str, str]) -> None:
+        """Remembers the files."""
+        self.files = dict(files)
+
+    def texts(
+        self, roots: Iterable[str], suffixes: Iterable[str], errors: str = "strict"
+    ) -> dict[str, str]:
+        """Returns the text of each file below the roots with one of the suffixes, by relative path."""
+        wanted = tuple(suffixes)
+        return {
+            name: self.files[name]
+            for top in roots
+            for name in sorted(self.files, key=lambda name: name.split("/"))
+            if name.startswith(f"{top}/") and PurePosixPath(name).suffix in wanted
+        }
+
+    def read(self, name: str | Path) -> str | None:
+        """Returns the text of one file, None when the memory holds none."""
+        return self.files.get(Path(name).as_posix())
+
+    def write(self, name: str, text: str) -> None:
+        """Replaces the text of one file."""
+        self.files[name] = text
+
+
+def load_rename_map(files: RepositoryFiles, name: str | Path) -> list[RenameEntry]:
+    """Returns the rows of the rename map a repository holds under a name.
+
+    Raises:
+        RenameRefusedError: The map is absent, its header is not K_COLUMNS or a row is malformed.
+    """
+    text = files.read(name)
+    if text is None:
+        raise RenameRefusedError(f"no rename map at {name}")
+    return parse_rename_map(text, str(name))
 
 
 def _rewrite_comment(comment: str, names: RenameNames, outcome: Rewrite) -> str:
@@ -396,7 +483,7 @@ def rewrite(text: str, names: RenameNames) -> Rewrite:
     return outcome
 
 
-def find_collisions(root: Path, entries: Iterable[RenameEntry]) -> list[str]:
+def find_collisions(files: RepositoryFiles, entries: Iterable[RenameEntry]) -> list[str]:
     """Returns one line per new name that some file under the code roots already uses as a token."""
     wanted: dict[tuple[str | None, str], str] = {}
     for entry in entries:
@@ -404,9 +491,9 @@ def find_collisions(root: Path, entries: Iterable[RenameEntry]) -> list[str]:
             qualifier, _, name = entry.new_name.rpartition("::")
             wanted[(qualifier or None, name)] = entry.old_name
     found: list[str] = []
-    for path in source_files(root):
+    for shown, text in files.texts(K_CODE_ROOTS, K_CODE_SUFFIXES).items():
         before: tuple[Token | None, Token | None] = (None, None)
-        for token in tokenize(read_source(path)):
+        for token in tokenize(text):
             if token.kind == "identifier":
                 last, earlier = before
                 qualified = last is not None and last.kind == "scope" and earlier is not None
@@ -416,7 +503,6 @@ def find_collisions(root: Path, entries: Iterable[RenameEntry]) -> list[str]:
                 ]
                 for key in dict.fromkeys(keys):
                     if key in wanted:
-                        shown = path.relative_to(root).as_posix()
                         found.append(
                             f"{shown}: {token.text} exists; {wanted.pop(key)} cannot take it"
                         )
@@ -444,12 +530,23 @@ def uncommitted_paths(root: Path) -> list[str]:
     return [line[3:] for line in result.stdout.splitlines() if line.strip()]
 
 
+def check_literals_unchanged(shown: str, original: str, rewritten: str) -> None:
+    """Refuses a rewrite whose string or character literals differ from the original's.
+
+    Raises:
+        RenameError: The literals of the two texts differ.
+    """
+    if literals_of(original) != literals_of(rewritten):
+        raise RenameError(f"{shown}: a string literal would change")
+
+
 def apply_rename(
     root: Path,
     entries: list[RenameEntry],
     dry_run: bool,
     list_uncommitted: Callable[[Path], list[str]] = uncommitted_paths,
     kinds: Iterable[str] | None = None,
+    files: RepositoryFiles | None = None,
 ) -> dict[str, Rewrite]:
     """Returns the rewrite of every file the map changes, and writes them unless dry_run.
 
@@ -459,11 +556,13 @@ def apply_rename(
         dry_run: Whether to leave the tree as it is.
         list_uncommitted: The reader of the freeze, replaced in tests.
         kinds: The kinds to apply; None applies every row marked rename.
+        files: Where the files live; the folder at root when None.
 
     Raises:
         RenameRefusedError: The tree holds uncommitted work under the code roots.
         RenameError: A new name is taken, a literal changed or an old name survived.
     """
+    repository = DiskRepository(root) if files is None else files
     if not dry_run:
         dirty = list_uncommitted(root)
         if dirty:
@@ -472,18 +571,15 @@ def apply_rename(
             )
     wanted = None if kinds is None else frozenset(kinds)
     applied = [entry for entry in entries if wanted is None or entry.kind in wanted]
-    collisions = find_collisions(root, applied)
+    collisions = find_collisions(repository, applied)
     if collisions:
         raise RenameError("; ".join(collisions))
     names = RenameNames.from_entries(entries, wanted)
     changed: dict[str, Rewrite] = {}
     survivors: list[str] = []
-    for path in source_files(root):
-        original = read_source(path)
+    for shown, original in repository.texts(K_CODE_ROOTS, K_CODE_SUFFIXES).items():
         outcome = rewrite(original, names)
-        shown = path.relative_to(root).as_posix()
-        if literals_of(original) != literals_of(outcome.text):
-            raise RenameError(f"{shown}: a string literal would change")
+        check_literals_unchanged(shown, original, outcome.text)
         if rewrite(outcome.text, names).counts:
             raise RenameError(f"{shown}: a second pass would rename a token again")
         survivors.extend(f"{shown}:{left}" for left in outcome.unresolved)
@@ -494,13 +590,35 @@ def apply_rename(
         raise RenameError(f"{len(survivors)} old enumerator names survive:\n  {listed}")
     if not dry_run:
         for shown, outcome in changed.items():
-            with (root / shown).open("w", encoding="utf-8", newline="") as stream:
-                stream.write(outcome.text)
+            repository.write(shown, outcome.text)
     return changed
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Runs the tool from the command line and returns its exit code."""
+def report_lines(changed: Mapping[str, Rewrite], dry_run: bool) -> list[str]:
+    """Returns the lines the command line prints: one for each changed file, then the total."""
+    lines = []
+    for shown, outcome in changed.items():
+        mentions = outcome.comment_mentions
+        left = f", {mentions} comment mentions left" if mentions else ""
+        lines.append(f"{shown}: {sum(outcome.counts.values())}{left}")
+    verb = "would rename" if dry_run else "renamed"
+    total = sum(sum(outcome.counts.values()) for outcome in changed.values())
+    lines.append(f"{verb} {total} tokens in {len(changed)} files")
+    return lines
+
+
+def main(
+    argv: list[str] | None = None,
+    files: RepositoryFiles | None = None,
+    list_uncommitted: Callable[[Path], list[str]] = uncommitted_paths,
+) -> int:
+    """Runs the tool from the command line and returns its exit code.
+
+    Args:
+        argv: The command line without the program name; the process's own when None.
+        files: Where the files live; the folder the command line names when None.
+        list_uncommitted: The reader of the freeze, replaced in tests.
+    """
     parser = argparse.ArgumentParser(description="Applies the rename map to the C++ tree.")
     parser.add_argument("root", nargs="?", type=Path, default=Path.cwd())
     parser.add_argument("--map", type=Path, help=f"default: {K_RENAME_MAP.as_posix()}")
@@ -512,19 +630,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     arguments = parser.parse_args(argv)
     kinds = None if arguments.kind is None else (arguments.kind,)
+    repository = DiskRepository(arguments.root) if files is None else files
+    map_name = Path(os.path.abspath(arguments.map)) if arguments.map else K_RENAME_MAP
     try:
-        entries = read_rename_map(arguments.map or arguments.root / K_RENAME_MAP)
-        changed = apply_rename(arguments.root, entries, arguments.dry_run, kinds=kinds)
+        entries = load_rename_map(repository, map_name)
+        changed = apply_rename(
+            arguments.root,
+            entries,
+            arguments.dry_run,
+            list_uncommitted=list_uncommitted,
+            kinds=kinds,
+            files=repository,
+        )
     except RenameError as error:
         print(f"apply_rename: refused: {error}", file=sys.stderr)
         return K_EXIT_REFUSED if isinstance(error, RenameRefusedError) else K_EXIT_UNSAFE
-    for shown, outcome in changed.items():
-        mentions = outcome.comment_mentions
-        left = f", {mentions} comment mentions left" if mentions else ""
-        print(f"{shown}: {sum(outcome.counts.values())}{left}")
-    verb = "would rename" if arguments.dry_run else "renamed"
-    total = sum(sum(outcome.counts.values()) for outcome in changed.values())
-    print(f"{verb} {total} tokens in {len(changed)} files")
+    for line in report_lines(changed, arguments.dry_run):
+        print(line)
     return K_EXIT_CLEAN
 
 

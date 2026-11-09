@@ -2,7 +2,11 @@
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under the Apache License 2.0. See LICENSE.
-"""Tests the rename map builder and the tool that applies a rename map."""
+"""Tests the rename map builder and the tool that applies a rename map.
+
+The rules run on repositories held in memory; the disk reader, the writer and git each keep a
+medium case.
+"""
 
 from __future__ import annotations
 
@@ -13,9 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from collections import Counter
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -24,15 +26,19 @@ from naming.apply_rename import (  # noqa: E402
     K_EXIT_REFUSED,
     K_EXIT_UNSAFE,
     K_RENAME_MAP,
+    DiskRepository,
+    MemoryRepository,
     RenameEntry,
     RenameError,
     RenameNames,
     RenameRefusedError,
-    Rewrite,
     apply_rename,
+    check_literals_unchanged,
     code_only,
+    format_rename_map,
+    load_rename_map,
     main,
-    read_rename_map,
+    parse_rename_map,
     rewrite,
     tokenize,
     uncommitted_paths,
@@ -94,27 +100,14 @@ int f()
 K_DOCUMENT = "`MAX_RANK` bounds a shape. `Layout::NHWC` is the default; MAX_RANK again.\n"
 K_MODEL = '{"layout": "nhwc", "units": 4}\n'
 K_COMMAND = 'parser.add_argument("--max-rank", type=int)\n'
-
-
-def _tree(folder: str, files: dict[str, str]) -> Path:
-    """Returns the root of a fixture tree holding the given files."""
-    root = Path(folder)
-    for name, text in files.items():
-        path = root / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8", newline="")
-    return root
-
-
-def _fixture(folder: str) -> Path:
-    """Returns the root of the fixture every map test reads."""
-    return _tree(folder, {
-        "include/demo/demo.hpp": K_HEADER,
-        "src/demo.cpp": K_SOURCE,
-        "docs/guides/DEMO.md": K_DOCUMENT,
-        "examples/model.json": K_MODEL,
-        "cli/commands/run.py": K_COMMAND,
-    })
+K_FIXTURE_FILES = {
+    "include/demo/demo.hpp": K_HEADER,
+    "src/demo.cpp": K_SOURCE,
+    "docs/guides/DEMO.md": K_DOCUMENT,
+    "examples/model.json": K_MODEL,
+    "cli/commands/run.py": K_COMMAND,
+}
+K_ROOT = Path("repo")
 
 
 def _entry(kind: str, old: str, new: str, status: str = "rename") -> RenameEntry:
@@ -135,8 +128,52 @@ K_ENTRIES = (
 )
 
 
+def _repository(files: dict[str, str]) -> MemoryRepository:
+    """Returns a repository held in memory."""
+    return MemoryRepository(files)
+
+
+def _with_map(files: dict[str, str]) -> MemoryRepository:
+    """Returns a repository held in memory that carries the rename map of K_ENTRIES."""
+    return MemoryRepository({**files, K_RENAME_MAP.as_posix(): format_rename_map(K_ENTRIES)})
+
+
+def _apply(files: dict[str, str], **keywords):
+    """Returns the repository and the result of a dry run or a real run of K_ENTRIES over files."""
+    repository = _repository(files)
+    changed = apply_rename(
+        K_ROOT,
+        list(K_ENTRIES),
+        dry_run=keywords.pop("dry_run", False),
+        list_uncommitted=lambda _: [],
+        files=repository,
+        **keywords,
+    )
+    return repository, changed
+
+
+def _run_main(repository: MemoryRepository, *arguments: str) -> tuple[int, str]:
+    """Returns the exit code and the printed text of one command line over a repository in memory."""
+    printed = io.StringIO()
+    with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(io.StringIO()):
+        code = main([str(K_ROOT), *arguments], files=repository, list_uncommitted=lambda _: [])
+    return code, printed.getvalue()
+
+
+def _disk_tree(folder: str, files: dict[str, str]) -> Path:
+    """Writes the files below a folder on disk and returns the folder."""
+    root = Path(folder)
+    for name, text in files.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8", newline="")
+    return root
+
+
 class MappingRuleTest(unittest.TestCase):
     """Checks the spelling rules of SPEC 2.13."""
+
+    K_TEST_SIZE = "small"
 
     def test_writes_an_enumerator_in_pascal_case(self) -> None:
         """Capitalises each underscore-separated part and lower-cases the rest."""
@@ -172,11 +209,12 @@ class MappingRuleTest(unittest.TestCase):
 class BuildRenameMapTest(unittest.TestCase):
     """Checks which names the builder lists and how it classes them."""
 
+    K_TEST_SIZE = "small"
+
     @classmethod
     def setUpClass(cls) -> None:
-        """Builds the map of the fixture tree once."""
-        with tempfile.TemporaryDirectory() as folder:
-            entries = build_rename_map(_fixture(folder))
+        """Builds the map of the fixture repository once."""
+        entries = build_rename_map(_repository(K_FIXTURE_FILES))
         cls.rows = {(entry.kind, entry.old_name): entry for entry in entries}
 
     def _row(self, kind: str, old: str) -> RenameEntry:
@@ -191,21 +229,22 @@ class BuildRenameMapTest(unittest.TestCase):
         self.assertEqual(row.declaring_file, "include/demo/demo.hpp")
         self.assertEqual((row.occurrences, row.document_occurrences), (3, 2))
 
-    def test_prefixes_a_constant_whose_name_holds_a_digit(self) -> None:
-        """Writes K_ and the present spelling, as SPEC 2.13 words the rule."""
-        self.assertEqual(self._row("constant", "IM2COL").new_name, "K_IM2COL")
-        self.assertEqual(
-            self._row("constant", "MAXPOOL2D_BACKWARD").new_name, "K_MAXPOOL2D_BACKWARD"
+    def test_prefixes_a_constant_with_k_and_its_present_spelling(self) -> None:
+        """Writes K_ and the present spelling, as SPEC 2.13 words the rule, for a name with a digit and an array."""
+        rows = (
+            ("IM2COL", "K_IM2COL"),
+            ("MAXPOOL2D_BACKWARD", "K_MAXPOOL2D_BACKWARD"),
+            ("LINEAR_KEYS", "K_LINEAR_KEYS"),
         )
-
-    def test_reads_an_array_constant(self) -> None:
-        """Takes the name before the array brackets."""
-        self.assertEqual(self._row("constant", "LINEAR_KEYS").new_name, "K_LINEAR_KEYS")
+        for old, new in rows:
+            with self.subTest(constant=old):
+                self.assertEqual(self._row("constant", old).new_name, new)
 
     def test_skips_what_is_already_right_or_is_a_function(self) -> None:
         """Lists no K_ constant, no constexpr function and no constexpr operator."""
         for name in ("K_LIMIT", "twice", "operator", "value"):
-            self.assertNotIn(("constant", name), self.rows)
+            with self.subTest(name=name):
+                self.assertNotIn(("constant", name), self.rows)
 
     def test_excludes_a_trait_variable_template(self) -> None:
         """Keeps the D12 exemption as an excluded row with its reason."""
@@ -244,30 +283,42 @@ class BuildRenameMapTest(unittest.TestCase):
         self.assertNotIn(("enumerator", "Scalar::BETA1"), self.rows)
 
     def test_drops_the_interface_prefix(self) -> None:
-        """Renames IShape and leaves ILayer to a person because Layer exists."""
+        """Renames IShape to Shape."""
         self.assertEqual(self._row("interface", "IShape").new_name, "Shape")
         self.assertEqual(self._row("interface", "IShape").status, "rename")
+
+    def test_leaves_an_interface_to_a_person_when_its_new_name_exists(self) -> None:
+        """Marks ILayer by_hand because Layer exists."""
         row = self._row("interface", "ILayer")
         self.assertEqual((row.new_name, row.status), ("Layer", "by_hand"))
         self.assertIn("already a token", row.reason)
 
-    def test_lists_no_forward_declaration_and_no_word_that_starts_with_i(self) -> None:
-        """Leaves out a class that is only declared ahead, and a class named Image."""
+    def test_lists_no_forward_declaration(self) -> None:
+        """Leaves out a class that is only declared ahead."""
         self.assertNotIn(("interface", "IForward"), self.rows)
+
+    def test_lists_no_word_that_starts_with_i(self) -> None:
+        """Leaves out a class named Image."""
         self.assertNotIn(("interface", "Image"), self.rows)
 
     def test_excludes_a_prefixed_macro(self) -> None:
-        """Keeps SA_CHECK and gives OLD_CHECK the prefix."""
+        """Keeps SA_ and SUSHIAI_ macros as they are."""
         self.assertEqual(self._row("macro", "SA_CHECK").status, "excluded")
         self.assertEqual(self._row("macro", "SUSHIAI_VERSION").status, "excluded")
+
+    def test_gives_an_unprefixed_macro_the_prefix(self) -> None:
+        """Gives OLD_CHECK the SA_ prefix."""
         self.assertEqual(self._row("macro", "OLD_CHECK").new_name, "SA_OLD_CHECK")
 
-    def test_lists_sibling_names_apart(self) -> None:
-        """Marks an enumerator reached through a SushiBLAS alias, and a sibling constant."""
+    def test_lists_a_sibling_enumerator_apart(self) -> None:
+        """Marks an enumerator reached through a SushiBLAS alias."""
         row = self._row("sibling_enumerator", "DType::FLOAT32")
         self.assertEqual(
             (row.new_name, row.status, row.occurrences), ("DType::Float32", "sibling", 1)
         )
+
+    def test_lists_a_sibling_constant_apart(self) -> None:
+        """Marks a constant a sibling's namespace declares."""
         self.assertEqual(self._row("sibling_name", "MAX_RANK").status, "sibling")
 
     def test_counts_a_sibling_enumerator_under_its_namespace(self) -> None:
@@ -275,18 +326,16 @@ class BuildRenameMapTest(unittest.TestCase):
         row = self._row("sibling_enumerator", "DataType::FLOAT64")
         self.assertEqual((row.status, row.occurrences), ("sibling", 1))
 
-    def test_excludes_the_string_that_spells_a_renamed_name(self) -> None:
-        """Lists the JSON spelling of an enumerator as a string that stays."""
-        row = self._row("string_spelling", "nhwc")
-        self.assertEqual(
-            (row.new_name, row.status, row.declaring_file),
-            ("nhwc", "excluded", "examples/model.json"),
+    def test_excludes_a_string_or_a_flag_that_spells_a_renamed_name(self) -> None:
+        """Lists the JSON spelling of an enumerator and a command line flag of the CLI as strings that stay."""
+        rows = (
+            ("nhwc", "examples/model.json"),
+            ("max_rank", "cli/commands/run.py"),
         )
-
-    def test_excludes_the_flag_that_spells_a_renamed_name(self) -> None:
-        """Lists a command line flag of the CLI as a string that stays."""
-        row = self._row("string_spelling", "max_rank")
-        self.assertEqual((row.status, row.declaring_file), ("excluded", "cli/commands/run.py"))
+        for key, file in rows:
+            with self.subTest(spelling=key):
+                row = self._row("string_spelling", key)
+                self.assertEqual((row.new_name, row.status, row.declaring_file), (key, "excluded", file))
 
     def test_lists_an_unscoped_enum_once_per_file(self) -> None:
         """Keeps the enumerators of two enums of one name apart, each in its file's row."""
@@ -294,53 +343,53 @@ class BuildRenameMapTest(unittest.TestCase):
             "src/a.cpp": "enum Scalar : std::size_t { BETA1, SCALAR_COUNT };\n",
             "src/b.cpp": "enum Scalar : std::size_t { MOMENTUM, SCALAR_COUNT };\n",
         }
-        with tempfile.TemporaryDirectory() as folder:
-            rows = [
-                (entry.declaring_file, entry.reason.rpartition(": ")[2])
-                for entry in build_rename_map(_tree(folder, files))
-                if entry.kind == "unscoped_enum"
-            ]
+        rows = [
+            (entry.declaring_file, entry.reason.rpartition(": ")[2])
+            for entry in build_rename_map(_repository(files))
+            if entry.kind == "unscoped_enum"
+        ]
         self.assertEqual(
             rows, [("src/a.cpp", "BETA1, SCALAR_COUNT"), ("src/b.cpp", "MOMENTUM, SCALAR_COUNT")]
         )
 
     def test_lists_a_type_that_shares_an_enumerator_name(self) -> None:
         """Excludes the class SGD, so its tokens are not unresolved uses of Kind::SGD."""
-        files = {"src/a.cpp": "enum class Kind : int { SGD };\nclass SGD { };\nSGD make();\n"}
-        with tempfile.TemporaryDirectory() as folder:
-            entries = build_rename_map(_tree(folder, files))
-            unresolved = list_unresolved(Path(folder), entries)
+        repository = _repository(
+            {"src/a.cpp": "enum class Kind : int { SGD };\nclass SGD { };\nSGD make();\n"}
+        )
+        entries = build_rename_map(repository)
         rows = {(entry.kind, entry.old_name): entry for entry in entries}
         self.assertEqual(rows[("type_name", "SGD")].status, "excluded")
         self.assertEqual(rows[("enumerator", "Kind::SGD")].new_name, "Kind::Sgd")
-        self.assertEqual(unresolved, [])
+        self.assertEqual(list_unresolved(repository, entries), [])
 
     def test_lists_the_tokens_no_qualifier_resolves(self) -> None:
         """Names the file and the line of a bare token that spells a renamed enumerator."""
-        files = {"src/a.cpp": "enum class Kind : int { SGD };\nconst int SGD = 1;\n"}
-        with tempfile.TemporaryDirectory() as folder:
-            entries = build_rename_map(_tree(folder, files))
-            self.assertEqual(list_unresolved(Path(folder), entries), ["src/a.cpp:2: SGD"])
+        repository = _repository({"src/a.cpp": "enum class Kind : int { SGD };\nconst int SGD = 1;\n"})
+        entries = build_rename_map(repository)
+        self.assertEqual(list_unresolved(repository, entries), ["src/a.cpp:2: SGD"])
 
-    def test_round_trips_through_the_file(self) -> None:
-        """Reads back the rows it wrote."""
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "map.tsv"
-            entries = sorted(self.rows.values(), key=lambda entry: (entry.kind, entry.old_name))
-            write_rename_map(path, entries)
-            self.assertEqual(read_rename_map(path), entries)
+    def test_round_trips_through_its_text(self) -> None:
+        """Reads back the rows it formatted."""
+        entries = sorted(self.rows.values(), key=lambda entry: (entry.kind, entry.old_name))
+        self.assertEqual(parse_rename_map(format_rename_map(entries), "map.tsv"), entries)
 
     def test_refuses_a_map_with_another_header(self) -> None:
-        """Raises for a file whose first line is not the column row."""
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "map.tsv"
-            path.write_text("old\tnew\n", encoding="utf-8")
-            with self.assertRaises(RenameRefusedError):
-                read_rename_map(path)
+        """Raises for a text whose first line is not the column row."""
+        with self.assertRaises(RenameRefusedError):
+            parse_rename_map("old\tnew\n", "map.tsv")
+
+    def test_refuses_an_absent_map(self) -> None:
+        """Raises, naming the map, for a repository that holds none."""
+        with self.assertRaises(RenameRefusedError) as raised:
+            load_rename_map(_repository({}), K_RENAME_MAP)
+        self.assertIn("no rename map at", str(raised.exception))
 
 
 class RewriteTest(unittest.TestCase):
     """Checks which tokens one pass over a text renames."""
+
+    K_TEST_SIZE = "small"
 
     def test_gives_the_text_back_from_its_tokens(self) -> None:
         """Loses no character when a text is lexed."""
@@ -364,26 +413,26 @@ class RewriteTest(unittest.TestCase):
         self.assertIn('#include "demo/MAX_RANK.hpp"', outcome.text)
 
     def test_renames_in_a_comment_only_after_a_reference_tag(self) -> None:
-        """Rewrites the names after @ref and @c and counts the plain mention it left."""
+        """Rewrites the names after @ref, @c and @see and counts the plain mention it left."""
         outcome = rewrite(K_SOURCE, _names(*K_ENTRIES))
         self.assertIn(
             "// MAX_RANK is the limit; see @ref K_MAX_RANK and @c Layout::Nhwc.", outcome.text
         )
         self.assertEqual(outcome.comment_mentions, 1)
         self.assertEqual(outcome.counts, {"MAX_RANK": 2, "Layout::NHWC": 2, "Kind::NUL": 1})
-
-    def test_renames_after_the_see_tag(self) -> None:
-        """Rewrites the name that follows @see."""
-        outcome = rewrite("/** @see MAX_RANK */\n", _names(*K_ENTRIES))
-        self.assertEqual(outcome.text, "/** @see K_MAX_RANK */\n")
-
-    def test_leaves_a_sibling_name_qualified_from_the_global_scope(self) -> None:
-        """Keeps a name whose chain opens with `::` after an operator or a keyword."""
-        text = (
-            "auto r = ::SushiBLAS::Core::MAX_RANK;\n"
-            "int f() { return ::SushiBLAS::Core::MAX_RANK; }\n"
+        self.assertEqual(
+            rewrite("/** @see MAX_RANK */\n", _names(*K_ENTRIES)).text, "/** @see K_MAX_RANK */\n"
         )
-        self.assertEqual(rewrite(text, _names(*K_ENTRIES)).text, text)
+
+    def test_leaves_a_name_a_sibling_qualifies(self) -> None:
+        """Keeps a name under a sibling namespace, one that opens at the global scope, and one under an enum the map does not rename."""
+        rows = (
+            "auto r = ::SushiBLAS::Core::MAX_RANK;\nint f() { return ::SushiBLAS::Core::MAX_RANK; }\n",
+            "int a = SushiBLAS::Core::MAX_RANK + sb::MAX_RANK + static_cast<int>(DType::MAX_RANK);\n",
+        )
+        for text in rows:
+            with self.subTest(text=text):
+                self.assertEqual(rewrite(text, _names(*K_ENTRIES)).text, text)
 
     def test_renames_an_enumerator_an_initialiser_uses(self) -> None:
         """Resolves a bare name anywhere in an enum body against that enum's own enumerators."""
@@ -392,14 +441,15 @@ class RewriteTest(unittest.TestCase):
         self.assertEqual(outcome.text, "enum class Kind { Null, Int = Null + 1 };\n")
         self.assertEqual(outcome.unresolved, [])
 
-    def test_renames_a_constant_an_initialiser_uses_and_no_declared_enumerator(self) -> None:
-        """Renames a constant in an initialiser and keeps an enumerator of the same spelling."""
-        text = "enum class Other { FIRST = MAX_RANK };\nenum Scalar { MAX_RANK, LAST };\n"
-        outcome = rewrite(text, _names(*K_ENTRIES))
-        self.assertEqual(
-            outcome.text,
-            "enum class Other { FIRST = K_MAX_RANK };\nenum Scalar { MAX_RANK, LAST };\n",
-        )
+    def test_renames_a_constant_an_initialiser_uses(self) -> None:
+        """Renames a constant in an initialiser."""
+        outcome = rewrite("enum class Other { FIRST = MAX_RANK };\n", _names(*K_ENTRIES))
+        self.assertEqual(outcome.text, "enum class Other { FIRST = K_MAX_RANK };\n")
+
+    def test_keeps_an_enumerator_that_spells_a_constant(self) -> None:
+        """Keeps an enumerator of the same spelling where its own enum declares it."""
+        text = "enum Scalar { MAX_RANK, LAST };\n"
+        self.assertEqual(rewrite(text, _names(*K_ENTRIES)).text, text)
 
     def test_lists_an_enumerator_reached_through_an_alias(self) -> None:
         """Leaves K::NUL and decltype(k)::NUL in place and reports each with its line."""
@@ -414,37 +464,33 @@ class RewriteTest(unittest.TestCase):
         text = "enum class Other { NHWC };\nauto a = DType::NHWC;\nNUL b;\n"
         self.assertEqual(rewrite(text, names).unresolved, [])
 
-    def test_applies_the_kinds_asked_for_and_protects_with_the_rest(self) -> None:
-        """Renames the enumerators alone and still keeps a name under an enum of the map."""
+    def test_applies_the_kinds_asked_for(self) -> None:
+        """Renames the enumerators alone and leaves the constant."""
         names = RenameNames.from_entries(K_ENTRIES, kinds=("enumerator",))
-        text = "int a = MAX_RANK + int(Layout::NHWC) + int(DType::MAX_RANK);\n"
-        self.assertEqual(
-            rewrite(text, names).text,
-            "int a = MAX_RANK + int(Layout::Nhwc) + int(DType::MAX_RANK);\n",
-        )
+        text = "int a = MAX_RANK + int(Layout::NHWC);\n"
+        self.assertEqual(rewrite(text, names).text, "int a = MAX_RANK + int(Layout::Nhwc);\n")
 
-    def test_leaves_a_name_a_sibling_qualifies(self) -> None:
-        """Keeps a name under a sibling namespace and under an enum the map does not rename."""
-        text = (
-            "int a = SushiBLAS::Core::MAX_RANK + sb::MAX_RANK"
-            " + static_cast<int>(DType::MAX_RANK);\n"
-        )
-        self.assertEqual(rewrite(text, _names(*K_ENTRIES)).text, text)
+    def test_protects_a_name_under_an_enum_of_the_map_when_one_kind_runs(self) -> None:
+        """Keeps a name under an enum of the map although only the enumerators are renamed."""
+        names = RenameNames.from_entries(K_ENTRIES, kinds=("enumerator",))
+        text = "int a = int(DType::MAX_RANK);\n"
+        self.assertEqual(rewrite(text, names).text, text)
 
     def test_renames_a_name_under_a_namespace_of_its_own(self) -> None:
         """Renames a constant qualified by a namespace that is no enum."""
         outcome = rewrite("int a = Demo::MAX_RANK;\n", _names(*K_ENTRIES))
         self.assertEqual(outcome.text, "int a = Demo::K_MAX_RANK;\n")
 
-    def test_renames_the_declaration_inside_the_enum_body(self) -> None:
-        """Renames the bare enumerator where its enum declares it, and no other enum's."""
-        text = (
-            "enum class Layout : std::uint8_t\n{\n    NHWC = 1, /**< NHWC. */\n    NCHW,\n};\n"
-            "enum class Other { NHWC };\n"
-        )
+    def test_renames_the_declaration_inside_its_own_enum_body(self) -> None:
+        """Renames the bare enumerator where its enum declares it."""
+        text = "enum class Layout : std::uint8_t\n{\n    NHWC = 1, /**< NHWC. */\n    NCHW,\n};\n"
         outcome = rewrite(text, _names(*K_ENTRIES))
         self.assertIn("    Nhwc = 1, /**< NHWC. */\n    NCHW,", outcome.text)
-        self.assertIn("enum class Other { NHWC };", outcome.text)
+
+    def test_keeps_the_declaration_inside_another_enum_body(self) -> None:
+        """Keeps another enum's enumerator of the same spelling."""
+        text = "enum class Other { NHWC };\n"
+        self.assertEqual(rewrite(text, _names(*K_ENTRIES)).text, text)
 
     def test_renames_inside_a_macro_body(self) -> None:
         """Renames a constant a #define uses."""
@@ -458,144 +504,162 @@ class RewriteTest(unittest.TestCase):
 
 
 class ApplyRenameTest(unittest.TestCase):
-    """Checks the tree-wide run, its dry run and its refusals."""
+    """Checks the tree-wide run, its dry run and its refusals, on a repository held in memory."""
+
+    K_TEST_SIZE = "small"
 
     def test_dry_run_counts_and_writes_nothing(self) -> None:
         """Returns the per-file counts and leaves every file as it was."""
-        with tempfile.TemporaryDirectory() as folder:
-            root = _fixture(folder)
-            changed = apply_rename(
-                root, list(K_ENTRIES), dry_run=True, list_uncommitted=lambda _: ["src/x.cpp"]
+        repository, changed = _apply(K_FIXTURE_FILES, dry_run=True)
+        self.assertEqual(
+            {name: sum(outcome.counts.values()) for name, outcome in changed.items()},
+            {"include/demo/demo.hpp": 3, "src/demo.cpp": 5},
+        )
+        self.assertEqual(repository.files, K_FIXTURE_FILES)
+
+    def test_writes_the_renamed_text(self) -> None:
+        """Replaces the text of a file that holds an old name."""
+        repository, _ = _apply({"src/a.cpp": "int a = MAX_RANK;\n"})
+        self.assertEqual(repository.files["src/a.cpp"], "int a = K_MAX_RANK;\n")
+
+    def test_rewrites_the_apps_and_the_examples(self) -> None:
+        """Renames under apps/ and examples/ as under src/."""
+        files = {"apps/a.cpp": "int a = MAX_RANK;\n", "examples/b.cpp": "int b = MAX_RANK;\n"}
+        repository, changed = _apply(files)
+        self.assertEqual(sorted(changed), ["apps/a.cpp", "examples/b.cpp"])
+        self.assertEqual(repository.files["examples/b.cpp"], "int b = K_MAX_RANK;\n")
+
+    def test_applies_one_kind_of_the_map(self) -> None:
+        """Renames the constants and leaves the enumerators for a run of their own."""
+        text = "int a = MAX_RANK + int(Layout::NHWC);\n"
+        repository, _ = _apply({"src/a.cpp": text}, kinds=("constant",))
+        self.assertEqual(repository.files["src/a.cpp"], "int a = K_MAX_RANK + int(Layout::NHWC);\n")
+
+    def test_refuses_a_rewrite_that_changes_a_literal(self) -> None:
+        """Raises, naming the file, when the literals of a file differ after the rewrite."""
+        with self.assertRaises(RenameError) as raised:
+            check_literals_unchanged(
+                "src/a.cpp", 'const char* name = "MAX_RANK";\n', 'const char* name = "K_MAX_RANK";\n'
             )
-            self.assertEqual({name: sum(o.counts.values()) for name, o in changed.items()},
-                             {"include/demo/demo.hpp": 3, "src/demo.cpp": 5})
-            self.assertEqual((root / "src/demo.cpp").read_text(encoding="utf-8"), K_SOURCE)
+        self.assertIn("src/a.cpp: a string literal would change", str(raised.exception))
+
+    def test_accepts_a_rewrite_that_keeps_its_literals(self) -> None:
+        """Raises nothing when only code tokens differ."""
+        check_literals_unchanged(
+            "src/a.cpp", 'int a = MAX_RANK; const char* n = "x";\n', 'int a = K_MAX_RANK; const char* n = "x";\n'
+        )
+
+    def test_refuses_an_old_enumerator_that_survives(self) -> None:
+        """Raises, names the token and writes nothing when no qualifier resolves an old name."""
+        text = "using K = Kind;\nauto a = K::NUL + int(Kind::NUL);\n"
+        repository = _repository({"src/a.cpp": text})
+        with self.assertRaises(RenameError) as raised:
+            apply_rename(
+                K_ROOT, list(K_ENTRIES), dry_run=False, list_uncommitted=lambda _: [], files=repository
+            )
+        self.assertNotIsInstance(raised.exception, RenameRefusedError)
+        self.assertIn("src/a.cpp:2: K::NUL", str(raised.exception))
+        self.assertEqual(repository.files["src/a.cpp"], text)
+
+    def test_refuses_a_tree_with_uncommitted_work(self) -> None:
+        """Raises before writing when the freeze does not hold."""
+        repository = _repository(K_FIXTURE_FILES)
+        with self.assertRaises(RenameRefusedError):
+            apply_rename(
+                K_ROOT,
+                list(K_ENTRIES),
+                dry_run=False,
+                list_uncommitted=lambda _: ["src/demo.cpp"],
+                files=repository,
+            )
+        self.assertEqual(repository.files, K_FIXTURE_FILES)
+
+    def test_refuses_a_new_name_that_exists(self) -> None:
+        """Raises when the tree already holds the new spelling as a token."""
+        repository = _repository({"src/a.cpp": "int K_MAX_RANK = 1;\nint a = MAX_RANK;\n"})
+        with self.assertRaises(RenameError) as raised:
+            apply_rename(K_ROOT, list(K_ENTRIES), dry_run=True, files=repository)
+        self.assertNotIsInstance(raised.exception, RenameRefusedError)
+        self.assertIn("K_MAX_RANK exists", str(raised.exception))
+
+
+class CommandLineTest(unittest.TestCase):
+    """Checks what the command line prints and returns, on a repository held in memory."""
+
+    K_TEST_SIZE = "small"
+
+    def test_command_line_reports_a_dry_run(self) -> None:
+        """Prints one line per file and the total, and returns 0."""
+        code, printed = _run_main(_with_map(K_FIXTURE_FILES), "--dry-run")
+        self.assertEqual(code, K_EXIT_CLEAN)
+        self.assertIn("src/demo.cpp: 5, 1 comment mentions left", printed)
+        self.assertIn("would rename 8 tokens in 2 files", printed)
+
+    def test_command_line_applies_one_kind(self) -> None:
+        """Counts the enumerator tokens alone under --kind enumerator."""
+        code, printed = _run_main(_with_map(K_FIXTURE_FILES), "--dry-run", "--kind", "enumerator")
+        self.assertEqual(code, K_EXIT_CLEAN)
+        self.assertIn("would rename 5 tokens in 2 files", printed)
+
+    def test_command_line_refuses_a_repository_without_a_map(self) -> None:
+        """Returns 2 when the repository holds no rename map."""
+        code, _ = _run_main(_repository({"src/a.cpp": "int K_MAX_RANK = MAX_RANK;\n"}), "--dry-run")
+        self.assertEqual(code, K_EXIT_REFUSED)
+
+    def test_command_line_refuses_a_name_that_is_taken(self) -> None:
+        """Returns 1 for a new name the tree already uses."""
+        repository = _with_map({"src/a.cpp": "int K_MAX_RANK = MAX_RANK;\n"})
+        code, _ = _run_main(repository, "--dry-run")
+        self.assertEqual(code, K_EXIT_UNSAFE)
+
+
+class DiskRepositoryTest(unittest.TestCase):
+    """Checks the tools over files on disk: the walk, the line endings, the map file and git."""
+
+    K_TEST_SIZE = "medium"
+
+    def test_lists_the_files_as_the_repository_in_memory_does(self) -> None:
+        """Gives the same names and texts for the code roots, the Markdown and the JSON."""
+        files = {**K_FIXTURE_FILES, "build/skip.cpp": "int x;\n", "src/note.txt": "text\n"}
+        with tempfile.TemporaryDirectory() as folder:
+            disk = DiskRepository(_disk_tree(folder, files))
+            memory = MemoryRepository(files)
+            for roots, suffixes in ((("include", "src"), (".hpp", ".cpp")), (("docs",), (".md",)), (("examples",), (".json",))):
+                with self.subTest(roots=roots):
+                    self.assertEqual(disk.texts(roots, suffixes), memory.texts(roots, suffixes))
 
     def test_writes_the_tree_and_keeps_line_endings(self) -> None:
         """Renames on disk and leaves CRLF line endings as they were."""
         with tempfile.TemporaryDirectory() as folder:
-            root = _tree(folder, {"src/a.cpp": "int a = MAX_RANK;\r\nint b = 0;\r\n"})
+            root = _disk_tree(folder, {"src/a.cpp": "int a = MAX_RANK;\r\nint b = 0;\r\n"})
             apply_rename(root, list(K_ENTRIES), dry_run=False, list_uncommitted=lambda _: [])
             self.assertEqual(
                 (root / "src/a.cpp").read_bytes(), b"int a = K_MAX_RANK;\r\nint b = 0;\r\n"
             )
 
-    def test_rewrites_the_apps_and_the_examples(self) -> None:
-        """Renames under apps/ and examples/ as under src/."""
-        files = {"apps/a.cpp": "int a = MAX_RANK;\n", "examples/b.cpp": "int b = MAX_RANK;\n"}
+    def test_command_line_writes_the_renamed_files(self) -> None:
+        """Reads the map from the repository folder and renames the files below it."""
         with tempfile.TemporaryDirectory() as folder:
-            root = _tree(folder, files)
-            changed = apply_rename(
-                root, list(K_ENTRIES), dry_run=False, list_uncommitted=lambda _: []
-            )
-            self.assertEqual(sorted(changed), ["apps/a.cpp", "examples/b.cpp"])
-            self.assertEqual(
-                (root / "examples/b.cpp").read_text(encoding="utf-8"), "int b = K_MAX_RANK;\n"
-            )
-
-    def test_applies_one_kind_of_the_map(self) -> None:
-        """Renames the constants and leaves the enumerators for a run of their own."""
-        text = "int a = MAX_RANK + int(Layout::NHWC);\n"
-        with tempfile.TemporaryDirectory() as folder:
-            root = _tree(folder, {"src/a.cpp": text})
-            apply_rename(
-                root,
-                list(K_ENTRIES),
-                dry_run=False,
-                list_uncommitted=lambda _: [],
-                kinds=("constant",),
-            )
-            self.assertEqual(
-                (root / "src/a.cpp").read_text(encoding="utf-8"),
-                "int a = K_MAX_RANK + int(Layout::NHWC);\n",
-            )
-
-    def test_refuses_a_rewrite_that_changes_a_literal(self) -> None:
-        """Raises when the literals of a file differ after the rewrite."""
-
-        def careless(text: str, _: RenameNames) -> Rewrite:
-            return Rewrite(text.replace('"MAX_RANK"', '"K_MAX_RANK"'), Counter({"MAX_RANK": 1}))
-
-        with tempfile.TemporaryDirectory() as folder:
-            root = _tree(folder, {"src/a.cpp": 'const char* name = "MAX_RANK";\n'})
-            with mock.patch("naming.apply_rename.rewrite", careless):
-                with self.assertRaises(RenameError) as raised:
-                    apply_rename(root, list(K_ENTRIES), dry_run=True)
-            self.assertIn("src/a.cpp: a string literal would change", str(raised.exception))
-
-    def test_refuses_an_old_enumerator_that_survives(self) -> None:
-        """Raises, names the token and writes nothing when no qualifier resolves an old name."""
-        text = "using K = Kind;\nauto a = K::NUL + int(Kind::NUL);\n"
-        with tempfile.TemporaryDirectory() as folder:
-            root = _tree(folder, {"src/a.cpp": text})
-            with self.assertRaises(RenameError) as raised:
-                apply_rename(root, list(K_ENTRIES), dry_run=False, list_uncommitted=lambda _: [])
-            self.assertNotIsInstance(raised.exception, RenameRefusedError)
-            self.assertIn("src/a.cpp:2: K::NUL", str(raised.exception))
-            self.assertEqual((root / "src/a.cpp").read_text(encoding="utf-8"), text)
-
-    def test_refuses_a_tree_with_uncommitted_work(self) -> None:
-        """Raises before writing when the freeze does not hold."""
-        with tempfile.TemporaryDirectory() as folder:
-            root = _fixture(folder)
-            with self.assertRaises(RenameRefusedError):
-                apply_rename(
-                    root,
-                    list(K_ENTRIES),
-                    dry_run=False,
-                    list_uncommitted=lambda _: ["src/demo.cpp"],
-                )
-            self.assertEqual((root / "src/demo.cpp").read_text(encoding="utf-8"), K_SOURCE)
-
-    def test_refuses_a_new_name_that_exists(self) -> None:
-        """Raises when the tree already holds the new spelling as a token."""
-        with tempfile.TemporaryDirectory() as folder:
-            root = _tree(folder, {"src/a.cpp": "int K_MAX_RANK = 1;\nint a = MAX_RANK;\n"})
-            with self.assertRaises(RenameError) as raised:
-                apply_rename(root, list(K_ENTRIES), dry_run=True)
-            self.assertNotIsInstance(raised.exception, RenameRefusedError)
-            self.assertIn("K_MAX_RANK exists", str(raised.exception))
-
-    def test_command_line_reports_a_dry_run(self) -> None:
-        """Prints one line per file and the total, and returns 0."""
-        with tempfile.TemporaryDirectory() as folder:
-            root = _fixture(folder)
+            root = _disk_tree(folder, {"src/a.cpp": "int a = MAX_RANK;\n"})
             (root / K_RENAME_MAP).parent.mkdir(parents=True)
             write_rename_map(root / K_RENAME_MAP, list(K_ENTRIES))
-            printed = io.StringIO()
-            with contextlib.redirect_stdout(printed):
-                code = main([folder, "--dry-run"])
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = main([folder], list_uncommitted=lambda _: [])
             self.assertEqual(code, K_EXIT_CLEAN)
-            self.assertIn("src/demo.cpp: 5, 1 comment mentions left", printed.getvalue())
-            self.assertIn("would rename 8 tokens in 2 files", printed.getvalue())
+            self.assertEqual((root / "src/a.cpp").read_text(encoding="utf-8"), "int a = K_MAX_RANK;\n")
 
-    def test_command_line_applies_one_kind(self) -> None:
-        """Counts the enumerator tokens alone under --kind enumerator."""
+    def test_round_trips_through_the_file(self) -> None:
+        """Reads back from disk the rows it wrote."""
         with tempfile.TemporaryDirectory() as folder:
-            root = _fixture(folder)
-            (root / K_RENAME_MAP).parent.mkdir(parents=True)
-            write_rename_map(root / K_RENAME_MAP, list(K_ENTRIES))
-            printed = io.StringIO()
-            with contextlib.redirect_stdout(printed):
-                code = main([folder, "--dry-run", "--kind", "enumerator"])
-            self.assertEqual(code, K_EXIT_CLEAN)
-            self.assertIn("would rename 5 tokens in 2 files", printed.getvalue())
-
-    def test_command_line_exit_codes_of_a_refusal(self) -> None:
-        """Returns 2 without a map and 1 for a name that is taken."""
-        with tempfile.TemporaryDirectory() as folder:
-            root = _tree(folder, {"src/a.cpp": "int K_MAX_RANK = MAX_RANK;\n"})
-            with contextlib.redirect_stderr(io.StringIO()):
-                self.assertEqual(main([folder, "--dry-run"]), K_EXIT_REFUSED)
-                (root / K_RENAME_MAP).parent.mkdir(parents=True)
-                write_rename_map(root / K_RENAME_MAP, list(K_ENTRIES))
-                self.assertEqual(main([folder, "--dry-run"]), K_EXIT_UNSAFE)
+            path = Path(folder) / "map.tsv"
+            write_rename_map(path, list(K_ENTRIES))
+            self.assertEqual(load_rename_map(DiskRepository(Path(folder)), "map.tsv"), list(K_ENTRIES))
 
     @unittest.skipUnless(shutil.which("git"), "git is not installed")
     def test_reads_the_freeze_from_git(self) -> None:
         """Lists an untracked file under a code root by its path, whatever the user's git shows."""
         with tempfile.TemporaryDirectory() as folder:
-            root = _tree(folder, {"src/a.cpp": "int a;\n", "docs/NOTE.md": "note\n"})
+            root = _disk_tree(folder, {"src/a.cpp": "int a;\n", "docs/NOTE.md": "note\n"})
             subprocess.run(
                 ["git", "-C", folder, "init", "--quiet"], check=True, capture_output=True
             )

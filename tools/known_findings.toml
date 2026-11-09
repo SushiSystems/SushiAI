@@ -1,6 +1,0 @@
-[[finding]]
-checker = "testing/check_test_sizes.py"
-rule = "rule_unsized_python_test"
-path = "tools/tests/test_naming.py"
-count = 4
-backlog = "RW-149"

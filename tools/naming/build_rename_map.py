@@ -23,16 +23,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from naming.apply_rename import (  # noqa: E402
     K_CODE_ROOTS,
+    K_CODE_SUFFIXES,
     K_COLUMNS,
     K_SIBLING_NAMESPACES,
     K_RENAME_MAP,
     K_STATUS_RENAME,
+    DiskRepository,
     RenameEntry,
     RenameNames,
+    RepositoryFiles,
     code_only,
-    read_source,
     rewrite,
-    source_files,
     tokenize,
     write_rename_map,
 )
@@ -104,17 +105,14 @@ def upper_snake(name: str) -> str:
 class Tree:
     """Holds the texts of one repository that the scanners read."""
 
-    def __init__(self, root: Path) -> None:
-        """Remembers the root; files are read when a scanner first asks."""
-        self.root = root
+    def __init__(self, files: RepositoryFiles) -> None:
+        """Remembers where the files live; they are read when a scanner first asks."""
+        self.files = files
 
     @cached_property
     def sources(self) -> dict[str, str]:
         """Returns the text of every C++ file under the code roots, by relative path."""
-        return {
-            path.relative_to(self.root).as_posix(): read_source(path)
-            for path in source_files(self.root)
-        }
+        return self.files.texts(K_CODE_ROOTS, K_CODE_SUFFIXES)
 
     @cached_property
     def code(self) -> dict[str, str]:
@@ -153,9 +151,8 @@ class Tree:
                     add(token.text[token.text.index('"') + 1:-1], file)
         for top, suffix, pattern in (*((top, ".json", K_JSON_STRING) for top in K_JSON_ROOTS),
                                      (K_CLI_ROOT, ".py", K_CLI_FLAG)):
-            for path in sorted((self.root / top).rglob(f"*{suffix}")):
-                shown = path.relative_to(self.root).as_posix()
-                for match in pattern.finditer(path.read_text(encoding="utf-8", errors="replace")):
+            for shown, text in self.files.texts([top], [suffix], errors="replace").items():
+                for match in pattern.finditer(text):
                     add(match.group(match.lastindex or 0), shown)
         return seen
 
@@ -164,11 +161,9 @@ class Tree:
         """Returns the word counts and the `Qualifier::name` counts of every Markdown file."""
         words: Counter[str] = Counter()
         pairs: Counter[tuple[str, str]] = Counter()
-        for top in K_DOCUMENT_ROOTS:
-            for path in sorted((self.root / top).rglob("*.md")):
-                text = path.read_text(encoding="utf-8", errors="replace")
-                words.update(re.findall(r"[A-Za-z_]\w*", text))
-                pairs.update(re.findall(r"(?=\b(\w+)::(\w+)\b)", text))
+        for text in self.files.texts(K_DOCUMENT_ROOTS, [".md"], errors="replace").values():
+            words.update(re.findall(r"[A-Za-z_]\w*", text))
+            pairs.update(re.findall(r"(?=\b(\w+)::(\w+)\b)", text))
         return words, pairs
 
 
@@ -435,9 +430,9 @@ def count_occurrences(tree: Tree, declarations: list[Declaration]) -> dict[Decla
     return counts
 
 
-def build_rename_map(root: Path) -> list[RenameEntry]:
+def build_rename_map(files: RepositoryFiles) -> list[RenameEntry]:
     """Returns the rows of the rename map for one repository, sorted by kind, old name and file."""
-    tree = Tree(root)
+    tree = Tree(files)
     declarations = _merged(found for scanner in K_SCANNERS for found in scanner(tree))
     counts = count_occurrences(tree, declarations)
     words, pairs = tree.documents
@@ -461,13 +456,12 @@ def build_rename_map(root: Path) -> list[RenameEntry]:
     return sorted(entries, key=lambda entry: (entry.kind, entry.old_name, entry.declaring_file))
 
 
-def list_unresolved(root: Path, entries: list[RenameEntry]) -> list[str]:
+def list_unresolved(files: RepositoryFiles, entries: list[RenameEntry]) -> list[str]:
     """Returns `file:line: name` for each token a run of the whole map would leave unresolved."""
     names = RenameNames.from_entries(entries)
     found: list[str] = []
-    for path in source_files(root):
-        shown = path.relative_to(root).as_posix()
-        found.extend(f"{shown}:{left}" for left in rewrite(read_source(path), names).unresolved)
+    for shown, text in files.texts(K_CODE_ROOTS, K_CODE_SUFFIXES).items():
+        found.extend(f"{shown}:{left}" for left in rewrite(text, names).unresolved)
     return found
 
 
@@ -477,13 +471,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("root", nargs="?", type=Path, default=Path.cwd())
     parser.add_argument("--output", type=Path, help=f"default: {K_RENAME_MAP.as_posix()}")
     arguments = parser.parse_args(argv)
-    entries = build_rename_map(arguments.root)
+    files = DiskRepository(arguments.root)
+    entries = build_rename_map(files)
     write_rename_map(arguments.output or arguments.root / K_RENAME_MAP, entries)
     sizes = Counter((entry.kind, entry.status) for entry in entries)
     for (kind, status), count in sorted(sizes.items()):
         print(f"{kind}\t{status}\t{count}")
     print(f"total\t\t{len(entries)}")
-    unresolved = list_unresolved(arguments.root, entries)
+    unresolved = list_unresolved(files, entries)
     for left in unresolved:
         print(f"unresolved: {left}")
     print(f"unresolved\t\t{len(unresolved)}")

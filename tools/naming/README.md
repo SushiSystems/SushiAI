@@ -114,6 +114,11 @@ again.
 
 `--dry-run` prints `path: count` per file and the total, and writes nothing.
 
+Both tools read and write the tree through the `RepositoryFiles` port of `apply_rename.py`.
+`DiskRepository` is the folder on disk; `MemoryRepository` holds the files as a mapping of path
+to text, which is what their tests use. `main` of `apply_rename.py` takes the port and the
+freeze reader as arguments and defaults to the disk and `git status`.
+
 `--kind` applies the `rename` rows of one kind: `enumerator`, `constant`, `interface` or `macro`.
 The whole map is still read, so the rows left out keep protecting their enums and names.
 
