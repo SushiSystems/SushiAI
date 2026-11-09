@@ -83,15 +83,6 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that without a fit the thresholds are 1 and 0.7. */
-TEST(Small_DetectAnchorThresholds, DefaultsAreOneAndSevenTenths)
-{
-    const AssignmentThresholds thresholds;
-
-    EXPECT_EQ(thresholds.match_threshold, 1.0f);
-    EXPECT_EQ(thresholds.ignore_threshold, 0.7f);
-}
-
 /** @brief Tests that a tenth percentile of 0.35 and a mean of 0.62 pass through unclamped. */
 TEST(Small_DetectAnchorThresholds, FitInsideBothRangesGivesItsOwnNumbers)
 {

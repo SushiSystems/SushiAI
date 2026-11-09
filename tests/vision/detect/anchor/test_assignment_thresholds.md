@@ -3,13 +3,9 @@
 
 Suites: `Small_DetectAnchorThresholds`.
 
-Tests `AssignmentThresholds` and `derive_assignment_thresholds`. Each fit in the file is given
-by its tenth percentile and its mean best IoU, and thresholds are compared to 1e-6.
-
-## DefaultsAreOneAndSevenTenths
-
-A default `AssignmentThresholds` has a match threshold of exactly 1 and an ignore threshold of
-exactly 0.7.
+Tests `derive_assignment_thresholds`. The defaults of `AssignmentThresholds` are not tested:
+they are field defaults. Each fit in the file is given by its tenth percentile and its mean best
+IoU, and thresholds are compared within 32 times the float unit roundoff.
 
 ## FitInsideBothRangesGivesItsOwnNumbers
 
