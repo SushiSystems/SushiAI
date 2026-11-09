@@ -39,22 +39,66 @@
 using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
 
-/** @brief Tests that elements, their text, their order and their lines are read. */
-TEST(Small_DatasetsXmlElement, ElementsTextAndLinesAreRead)
+namespace
 {
-    SA_ASSERT_OK_AND_ASSIGN(const XMLElement root,
-                            parse_xml("<a>\n  <b> one </b>\n  <c><d>two</d></c>\n  <b/>\n</a>\n"));
+    /** @brief Holds a document of a root, three children, one of them with a child, over 5 lines. */
+    const std::string K_DOCUMENT = "<a>\n  <b> one </b>\n  <c><d>two</d></c>\n  <b/>\n</a>\n";
+
+    /** @brief Holds a document that opens with a byte order mark, a declaration and comments. */
+    const std::string K_SKIPPED_MARKUP =
+        "\xEF\xBB\xBF<?xml version=\"1.0\"?>\n<!-- head -->\n"
+        "<a verified=\"yes\" note='x > y'><!-- in --><b k=\"v\"/>t</a>\n"
+        "<!-- tail -->\n";
+
+    /** @brief Returns count open tags of the element e, one per line. */
+    std::string nested_open_elements(std::int32_t count)
+    {
+        std::string text;
+        for (std::int32_t level = 0; level < count; ++level)
+            text += "<e>\n";
+
+        return text;
+    }
+} // namespace
+
+/** @brief Tests that the children of an element are read in order, with their names. */
+TEST(Small_DatasetsXmlElement, ChildrenAreReadInOrderWithTheirNames)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const XMLElement root, parse_xml(K_DOCUMENT));
 
     EXPECT_EQ(root.name, "a");
-    EXPECT_EQ(root.line, 1u);
-    EXPECT_TRUE(root.text.empty());
     ASSERT_EQ(root.children.size(), 3u);
     EXPECT_EQ(root.children[0].name, "b");
+    EXPECT_EQ(root.children[1].name, "c");
+    EXPECT_EQ(root.children[1].children[0].name, "d");
+    EXPECT_EQ(root.children[2].name, "b");
+}
+
+/** @brief Tests that the text of an element is trimmed and an element without text holds none. */
+TEST(Small_DatasetsXmlElement, TheTextOfAnElementIsTrimmed)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const XMLElement root, parse_xml(K_DOCUMENT));
+
+    EXPECT_TRUE(root.text.empty());
     EXPECT_EQ(root.children[0].text, "one");
-    EXPECT_EQ(root.children[0].line, 2u);
     EXPECT_EQ(root.children[1].children[0].text, "two");
-    EXPECT_EQ(root.children[2].line, 4u);
     EXPECT_TRUE(root.children[2].text.empty());
+}
+
+/** @brief Tests that each element carries the line it opened on. */
+TEST(Small_DatasetsXmlElement, EachElementCarriesTheLineItOpenedOn)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const XMLElement root, parse_xml(K_DOCUMENT));
+
+    EXPECT_EQ(root.line, 1u);
+    EXPECT_EQ(root.children[0].line, 2u);
+    EXPECT_EQ(root.children[2].line, 4u);
+}
+
+/** @brief Tests that find_child returns the first child of a name and null for another. */
+TEST(Small_DatasetsXmlElement, FindChildReturnsTheFirstChildOfAName)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const XMLElement root, parse_xml(K_DOCUMENT));
 
     EXPECT_EQ(root.find_child("b"), &root.children[0]);
     EXPECT_EQ(root.find_child("c"), &root.children[1]);
@@ -73,17 +117,20 @@ TEST(Small_DatasetsXmlElement, TheFiveEntitiesAreReplaced)
 /** @brief Tests that a declaration, a byte order mark, comments and attributes are passed. */
 TEST(Small_DatasetsXmlElement, TheDeclarationCommentsAndAttributesAreSkipped)
 {
-    const std::string text = "\xEF\xBB\xBF<?xml version=\"1.0\"?>\n<!-- head -->\n"
-                             "<a verified=\"yes\" note='x > y'><!-- in --><b k=\"v\"/>t</a>\n"
-                             "<!-- tail -->\n";
-
-    SA_ASSERT_OK_AND_ASSIGN(const XMLElement root, parse_xml(text));
+    SA_ASSERT_OK_AND_ASSIGN(const XMLElement root, parse_xml(K_SKIPPED_MARKUP));
 
     EXPECT_EQ(root.name, "a");
-    EXPECT_EQ(root.line, 3u);
     EXPECT_EQ(root.text, "t");
     ASSERT_EQ(root.children.size(), 1u);
     EXPECT_EQ(root.children[0].name, "b");
+}
+
+/** @brief Tests that the lines of the skipped markup are counted in the line of the root. */
+TEST(Small_DatasetsXmlElement, TheLinesOfSkippedMarkupAreCounted)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const XMLElement root, parse_xml(K_SKIPPED_MARKUP));
+
+    EXPECT_EQ(root.line, 3u);
 }
 
 /** @brief Tests that a closing tag of another name is refused with both lines. */
@@ -131,7 +178,7 @@ TEST(Small_DatasetsXmlElement, AMalformedAttributeIsRefused)
                       "attribute 'k' has no '='");
 }
 
-/** @brief Tests that a document with no element, or with two roots, is refused. */
+/** @brief Tests that a document with no element, with text only or with two roots is refused. */
 TEST(Small_DatasetsXmlElement, ADocumentNeedsExactlyOneRoot)
 {
     SA_EXPECT_FAILURE(parse_xml("\n\n"), StatusCode::InvalidFile, "line 3", "holds no element");
@@ -139,6 +186,11 @@ TEST(Small_DatasetsXmlElement, ADocumentNeedsExactlyOneRoot)
                       "text stands where an element must open");
     SA_EXPECT_FAILURE(parse_xml("<a/>\n<b/>"), StatusCode::InvalidFile, "line 2",
                       "content follows the root element 'a'");
+}
+
+/** @brief Tests that a name that does not open with a letter or an underscore is refused. */
+TEST(Small_DatasetsXmlElement, ANameMustOpenWithALetterOrAnUnderscore)
+{
     SA_EXPECT_FAILURE(parse_xml("<1a/>"), StatusCode::InvalidFile, "line 1",
                       "a name must open with");
 }
@@ -146,10 +198,7 @@ TEST(Small_DatasetsXmlElement, ADocumentNeedsExactlyOneRoot)
 /** @brief Tests that elements open at once beyond K_XML_MAX_DEPTH are refused. */
 TEST(Small_DatasetsXmlElement, NestingBeyondTheDepthIsRefused)
 {
-    std::string deep;
-    for (std::int32_t level = 0; level <= K_XML_MAX_DEPTH; ++level)
-        deep += "<e>\n";
-
-    SA_EXPECT_FAILURE(parse_xml(deep), StatusCode::InvalidFile, "line 65",
+    SA_EXPECT_FAILURE(parse_xml(nested_open_elements(K_XML_MAX_DEPTH + 1)),
+                      StatusCode::InvalidFile, "line 65",
                       "more than 64 elements are open at once");
 }

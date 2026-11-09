@@ -4,14 +4,27 @@
 Suites: `Small_DatasetsXmlElement`.
 
 Tests `parse_xml` and `XMLElement` in
-`modules/vision/datasets/include/SushiAI/vision/datasets/xml_element.hpp` over strings.
+`modules/vision/datasets/include/SushiAI/vision/datasets/xml_element.hpp` over strings. Two
+documents are shared by several cases: `K_DOCUMENT`, a root `a` with the children `b`, `c` and an
+empty `b` over five lines, and `K_SKIPPED_MARKUP`.
 
-## ElementsTextAndLinesAreRead
+## ChildrenAreReadInOrderWithTheirNames
 
-A root `a` on line 1 with the children `b`, `c` and an empty `b` reads with no text of its own
-and three children. The first `b` has the text "one" and the line 2, the `d` inside `c` has
-the text "two", and the last `b` has the line 4 and no text. `find_child` returns the first
-`b` for "b", the `c` for "c" and null for "e".
+A root `a` with the children `b`, `c` and an empty `b` reads as three children in that order; `c`
+holds one child `d`.
+
+## TheTextOfAnElementIsTrimmed
+
+The root holds no text, the first `b` holds "one" for the text " one ", the `d` inside `c` holds
+"two", and the last `b` holds none.
+
+## EachElementCarriesTheLineItOpenedOn
+
+The root opens on line 1, the first `b` on line 2 and the last `b` on line 4.
+
+## FindChildReturnsTheFirstChildOfAName
+
+`find_child` returns the first `b` for "b", the `c` for "c" and null for "e".
 
 ## TheFiveEntitiesAreReplaced
 
@@ -20,8 +33,13 @@ The text `a &amp; b &lt;c&gt; &quot;d&quot; &apos;e&apos;` reads as `a & b <c> "
 ## TheDeclarationCommentsAndAttributesAreSkipped
 
 A document with a byte order mark, an XML declaration, comments before, inside and after the
-root, and attributes on the root and its child reads as the root `a` on line 3 with the text
-"t" and one child `b`.
+root, and attributes on the root and its child reads as the root `a` with the text "t" and one
+child `b`.
+
+## TheLinesOfSkippedMarkupAreCounted
+
+The same document gives the root the line 3, since the declaration and the first comment take
+the lines 1 and 2.
 
 ## AClosingTagOfAnotherNameIsRefused
 
@@ -53,9 +71,12 @@ Each of these fails with `InvalidFile`: a CDATA section ("line 2", "CDATA"), a D
 ## ADocumentNeedsExactlyOneRoot
 
 Each of these fails with `InvalidFile`: two empty lines ("line 3", "holds no element"), bare
-text ("line 1", "text stands where an element must open"), a second root ("line 2",
-"content follows the root element 'a'") and the name `1a` ("line 1",
-"a name must open with").
+text ("line 1", "text stands where an element must open") and a second root ("line 2",
+"content follows the root element 'a'").
+
+## ANameMustOpenWithALetterOrAnUnderscore
+
+The name `1a` fails with `InvalidFile`, "line 1" and "a name must open with".
 
 ## NestingBeyondTheDepthIsRefused
 

@@ -1,11 +1,12 @@
 # tests/vision/datasets/test_stored_pixels.cpp
 
 
-Suites: `Small_DatasetsStoredPixels`.
+Suites: `Small_DatasetsStoredPixels` and `Medium_DatasetsStoredPixels`.
 
 Tests `StoredPixels` and `read_stored_pixels` in
-`modules/vision/datasets/include/SushiAI/vision/datasets/stored_pixels.hpp`. Three cases read
-a file written under the system's temporary directory and the others read a string stream.
+`modules/vision/datasets/include/SushiAI/vision/datasets/stored_pixels.hpp`. The `Medium_`
+cases read a file written under the system's temporary directory and the `Small_` cases read a
+string stream.
 
 ## ByteCountIsTheProductOfTheExtents
 
@@ -13,8 +14,13 @@ a file written under the system's temporary directory and the others read a stri
 
 ## InterleavedBytesAreCopiedFromTheOffset
 
-Over a file of the bytes 0 to 19, interleaved pixels of 2 rows, 3 columns and two channels at
+Over a stream of the bytes 0 to 19, interleaved pixels of 2 rows, 3 columns and two channels at
 offset 5 read as an image of that shape holding the bytes 5 to 16.
+
+## AFileIsOpenedAndItsPixelsAreCopied
+
+The file form of `read_stored_pixels` over a written file of the bytes 0 to 19 gives the same
+bytes 5 to 16.
 
 ## PlanarBytesAreInterleaved
 
@@ -23,8 +29,8 @@ Planar pixels of 2 by 2 with three channels at offset 1, stored as the planes 1,
 
 ## APlaneLongerThanOneChunkIsCopiedWhole
 
-Planar pixels of 100 by 100 with two channels read so that, at every 997th pixel, channel 0
-holds the byte of the first plane and channel 1 the byte of the second.
+Planar pixels of 100 by 100 with two channels read so that every pixel holds, in channel 0, the
+byte of the first plane and, in channel 1, the byte of the second at the same place.
 
 ## AFileThatEndsEarlyIsInvalid
 

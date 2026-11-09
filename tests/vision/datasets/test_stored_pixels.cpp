@@ -65,6 +65,20 @@ namespace
         pixels.layout = layout;
         return pixels;
     }
+
+    /** @brief Returns two stored planes of plane_bytes each as one image of two channels. */
+    std::vector<std::uint8_t> interleaved_planes(const std::vector<std::uint8_t>& stored,
+                                                 std::size_t plane_bytes)
+    {
+        std::vector<std::uint8_t> bytes;
+        for (std::size_t pixel = 0; pixel < plane_bytes; ++pixel)
+        {
+            bytes.push_back(stored[pixel]);
+            bytes.push_back(stored[plane_bytes + pixel]);
+        }
+
+        return bytes;
+    }
 } // namespace
 
 /** @brief Tests that the byte count is height times width times channels. */
@@ -76,6 +90,22 @@ TEST(Small_DatasetsStoredPixels, ByteCountIsTheProductOfTheExtents)
 /** @brief Tests that interleaved bytes are copied as they are, starting at the offset. */
 TEST(Small_DatasetsStoredPixels, InterleavedBytesAreCopiedFromTheOffset)
 {
+    const std::vector<std::uint8_t> stored = Support::rising_bytes(20, 0);
+    std::istringstream in(std::string(stored.begin(), stored.end()), std::ios::binary);
+
+    Image image;
+    SA_EXPECT_OK(read_stored_pixels(
+        in, pixels_at(5, ImageSize{2, 3}, 2, PlaneLayout::Interleaved), image));
+
+    EXPECT_EQ(image.height(), 2);
+    EXPECT_EQ(image.width(), 3);
+    EXPECT_EQ(image.channels(), 2);
+    EXPECT_EQ(bytes_of(image), Support::rising_bytes(12, 5));
+}
+
+/** @brief Tests that the file form opens a file and copies the pixels at the offset. */
+TEST(Medium_DatasetsStoredPixels, AFileIsOpenedAndItsPixelsAreCopied)
+{
     const Support::ScratchDirectory scratch("sushiai_test_datasets_stored_interleaved");
     const std::filesystem::path file = scratch.write("pixels.bin", Support::rising_bytes(20, 0));
 
@@ -83,9 +113,6 @@ TEST(Small_DatasetsStoredPixels, InterleavedBytesAreCopiedFromTheOffset)
     SA_EXPECT_OK(read_stored_pixels(
         file, pixels_at(5, ImageSize{2, 3}, 2, PlaneLayout::Interleaved), image));
 
-    EXPECT_EQ(image.height(), 2);
-    EXPECT_EQ(image.width(), 3);
-    EXPECT_EQ(image.channels(), 2);
     EXPECT_EQ(bytes_of(image), Support::rising_bytes(12, 5));
 }
 
@@ -114,15 +141,11 @@ TEST(Small_DatasetsStoredPixels, APlaneLongerThanOneChunkIsCopiedWhole)
     SA_EXPECT_OK(
         read_stored_pixels(in, pixels_at(0, ImageSize{100, 100}, 2, PlaneLayout::Planar), image));
 
-    for (std::size_t pixel = 0; pixel < plane_bytes; pixel += 997)
-    {
-        EXPECT_EQ(image.data()[pixel * 2], stored[pixel]) << "pixel " << pixel;
-        EXPECT_EQ(image.data()[pixel * 2 + 1], stored[plane_bytes + pixel]) << "pixel " << pixel;
-    }
+    EXPECT_EQ(bytes_of(image), interleaved_planes(stored, plane_bytes));
 }
 
 /** @brief Tests that a file that ends inside the pixels is invalid and named. */
-TEST(Small_DatasetsStoredPixels, AFileThatEndsEarlyIsInvalid)
+TEST(Medium_DatasetsStoredPixels, AFileThatEndsEarlyIsInvalid)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_stored_short");
     const std::filesystem::path file = scratch.write("short.bin", Support::rising_bytes(10, 0));
@@ -135,7 +158,7 @@ TEST(Small_DatasetsStoredPixels, AFileThatEndsEarlyIsInvalid)
 }
 
 /** @brief Tests that a path that names no file is invalid and named. */
-TEST(Small_DatasetsStoredPixels, AFileThatCannotBeOpenedIsInvalid)
+TEST(Medium_DatasetsStoredPixels, AFileThatCannotBeOpenedIsInvalid)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_stored_absent");
 
