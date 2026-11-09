@@ -14,7 +14,7 @@ and `scales=.1,.1`. A `[yolo]` section states a mask, one class, `jitter=.3` and
 ## WritesTheSolverAsSGD
 
 The `optimizer` section has three keys: the type "sgd", a `momentum` of 0.9 and a
-`weight_decay` of 0.0005, each within 1e-12. It has no `learning_rate`.
+`weight_decay` of 0.0005, each equal to the value parsed from the text. It has no `learning_rate`.
 
 ## WritesTheRateAsAStepSchedule
 

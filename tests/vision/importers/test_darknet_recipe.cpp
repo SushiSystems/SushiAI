@@ -46,7 +46,6 @@
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_recipe.hpp>
 #include <SushiAI/vision/importers/darknet_training.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Importers::DarknetConfig;
@@ -67,21 +66,7 @@ namespace
         return SushiAI::Test::require_value(SushiAI::Test::require_value(value.at(key, key)).as_real(key));
     }
 
-    namespace SaTest = SushiAI::Test;
-
     using SushiAI::Test::require_value;
-    /**
-     * @brief Holds the tolerance of every double a test reads back, absolute: 16384 times the
-     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-12.
-     */
-    constexpr double K_DOUBLE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
-    /**
-     * @brief Holds the tolerance of every float a test reads back, absolute: 32 times the float
-     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
-     */
-    constexpr float K_FLOAT_TOLERANCE =
-        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds a [net] section with a solver, a schedule and three keys without a place. */
     constexpr std::string_view K_SOLVER =
@@ -129,12 +114,8 @@ TEST(Small_DarknetRecipe, WritesTheSolverAsSGD)
     EXPECT_EQ(optimizer.keys().size(), 3u);
     EXPECT_EQ(string_of(optimizer, "type"),
               "sgd");
-    EXPECT_NEAR(real_of(optimizer, "momentum"),
-                0.9,
-                K_DOUBLE_TOLERANCE);
-    EXPECT_NEAR(real_of(optimizer, "weight_decay"),
-                0.0005,
-                K_DOUBLE_TOLERANCE);
+    EXPECT_EQ(real_of(optimizer, "momentum"), 0.9);
+    EXPECT_EQ(real_of(optimizer, "weight_decay"), 0.0005);
     EXPECT_FALSE(optimizer.has("learning_rate"));
 }
 
@@ -147,12 +128,12 @@ TEST(Small_DarknetRecipe, WritesTheRateAsAStepSchedule)
     SA_ASSERT_OK_AND_ASSIGN(const Optim::StepSchedule schedule,
                             Optim::read_step_schedule_section(
                                 require_value(recipe.training.at("schedule", "the recipe"))));
-    EXPECT_NEAR(schedule.base_rate, 0.001, K_DOUBLE_TOLERANCE);
+    EXPECT_EQ(schedule.base_rate, 0.001);
     EXPECT_EQ(schedule.warmup_iterations, 100);
     EXPECT_EQ(schedule.steps, (std::vector<std::int64_t>{1600, 1800}));
     ASSERT_EQ(schedule.scales.size(), 2u);
-    EXPECT_NEAR(schedule.scales[0], 0.1, K_DOUBLE_TOLERANCE);
-    EXPECT_NEAR(schedule.scales[1], 0.1, K_DOUBLE_TOLERANCE);
+    EXPECT_EQ(schedule.scales[0], 0.1);
+    EXPECT_EQ(schedule.scales[1], 0.1);
 }
 
 /** @brief Tests that the objective section is "anchor" and reads back as the head's options. */
@@ -168,7 +149,7 @@ TEST(Small_DarknetRecipe, WritesTheSharedHeadOptionsAsTheAnchorObjective)
 
     SA_ASSERT_OK_AND_ASSIGN(const Vision::Detect::Anchor::HeadTrainingOptions options,
                             Vision::Detect::Anchor::read_head_training_section(objective));
-    EXPECT_NEAR(options.thresholds.ignore_threshold, 0.7f, K_FLOAT_TOLERANCE);
+    EXPECT_EQ(options.thresholds.ignore_threshold, 0.7f);
     EXPECT_EQ(options.box_gradient, Vision::Detect::BoxGradient::DarknetCompatible);
 }
 
