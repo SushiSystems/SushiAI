@@ -27,34 +27,62 @@
  * @brief Tests that every row of the task table can be called and looked up exactly.
  * @author Mustafa Garip
  */
-
+#include <cstddef>
 #include <set>
+#include <string>
 #include <string_view>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/datasets/task_table.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 
-/** @brief Tests that no row of the table leaves its collator factory or its builder null. */
-TEST(Small_DatasetsTaskTableRows, EveryRowPointsAtAFactoryAndABuilder)
+namespace
 {
-    for (const TaskEntry& row : task_table())
+    /** @brief Runs a check over the index of each row of the task table. */
+    class Small_DatasetsTaskTableRows : public ::testing::TestWithParam<std::size_t>
     {
-        EXPECT_NE(row.make_collator, nullptr) << row.name;
-        EXPECT_NE(row.build, nullptr) << row.name;
+    };
+
+    /** @brief Names a test after the task of its row. */
+    std::string row_name(const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return std::string(task_table()[info.param].name);
     }
+
+    /** @brief Returns each name that a second row of the task table repeats. */
+    std::vector<std::string> repeated_names()
+    {
+        std::set<std::string_view> seen;
+        std::vector<std::string> repeated;
+        for (const TaskEntry& row : task_table())
+        {
+            if (!seen.insert(row.name).second)
+                repeated.emplace_back(row.name);
+        }
+
+        return repeated;
+    }
+} // namespace
+
+/** @brief Tests that a row of the table does not leave its collator factory or builder null. */
+TEST_P(Small_DatasetsTaskTableRows, EveryRowPointsAtAFactoryAndABuilder)
+{
+    EXPECT_NE(task_table()[GetParam()].make_collator, nullptr);
+    EXPECT_NE(task_table()[GetParam()].build, nullptr);
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsTaskTableRows,
+                         ::testing::Range<std::size_t>(0, task_table().size()), row_name);
+
 /** @brief Tests that no two rows share a name, so a lookup has one answer. */
-TEST(Small_DatasetsTaskTableRows, NoTwoRowsShareAName)
+TEST(Small_DatasetsTaskTableLookup, NoTwoRowsShareAName)
 {
-    std::set<std::string_view> names;
-    for (const TaskEntry& row : task_table())
-        EXPECT_TRUE(names.insert(row.name).second) << row.name;
+    EXPECT_EQ(repeated_names(), std::vector<std::string>{});
 }
 
 /** @brief Tests that a lookup matches the whole name in its own case and nothing else. */
-TEST(Small_DatasetsTaskTableRows, ALookupMatchesTheWholeNameAndItsCase)
+TEST(Small_DatasetsTaskTableLookup, ALookupMatchesTheWholeNameAndItsCase)
 {
     ASSERT_NE(find_task("detection"), nullptr);
     EXPECT_EQ(find_task("Detection"), nullptr);

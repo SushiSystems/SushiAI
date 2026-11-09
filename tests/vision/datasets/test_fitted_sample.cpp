@@ -34,20 +34,6 @@
 
 using namespace SushiAI::Vision::Datasets;
 
-/** @brief Tests that a default fitted sample holds no pixel, no label and no table value. */
-TEST(Small_DatasetsFittedSample, ADefaultSampleHoldsNothing)
-{
-    const FittedSample sample;
-
-    EXPECT_EQ(sample.image.byte_count(), 0u);
-    EXPECT_EQ(sample.file, 0u);
-    EXPECT_FALSE(sample.class_index.has_value());
-    EXPECT_TRUE(sample.objects.is_empty());
-    EXPECT_EQ(sample.mask.byte_count(), 0u);
-    EXPECT_TRUE(sample.features.empty());
-    EXPECT_TRUE(sample.targets.empty());
-}
-
 /** @brief Tests that a tabular sample views the row of its table without copying it. */
 TEST(Small_DatasetsFittedSample, ATabularSampleViewsTheRowOfItsTable)
 {

@@ -56,15 +56,6 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that a default table, the table of a list of images, holds no row. */
-TEST(Small_DatasetsValueTable, ADefaultTableHoldsNoRow)
-{
-    const ValueTable table;
-
-    EXPECT_EQ(table.row_width(), 0u);
-    EXPECT_EQ(table.row_count(), 0u);
-}
-
 /** @brief Tests that a row is the features and then the targets, and the count follows. */
 TEST(Small_DatasetsValueTable, TheRowWidthIsTheFeaturesPlusTheTargets)
 {

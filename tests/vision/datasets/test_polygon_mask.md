@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_polygon_mask.cpp
 
 
-Suites: `Small_DatasetsPolygonMask`.
+Suites: `Small_DatasetsPolygonMask` and `Small_DatasetsPolygonMaskRefusal`.
 
 Tests `paint_polygon_mask` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/polygon_mask.hpp` over masks of 4 by
@@ -23,6 +23,6 @@ An empty label set over the background 3 gives sixteen bytes of 3.
 
 ## RefusesAnObjectItCannotPaint
 
-An object with a box and no polygon fails with `InvalidDescription`, "paint_polygon_mask",
-"object 0" and "no polygon". An object of class 255 fails with `InvalidDescription`,
-"the class 255" and "0 to 254".
+One row each: an object with a box and no polygon fails with `InvalidDescription`,
+"paint_polygon_mask", "object 0" and "no polygon"; an object of class 255 fails with
+`InvalidDescription`, "the class 255" and "0 to 254".

@@ -30,3 +30,13 @@ Each test file has a page beside it that says what its cases pin.
 | `test_batch_inputs.cpp, test_classification_collator.cpp, test_detection_collator.cpp` | [`test_batch_inputs.md`](test_batch_inputs.md) |
 | `test_pipeline_table.cpp, test_fit_pipeline.cpp, test_augment_pipeline.cpp` | [`test_pipeline_table.md`](test_pipeline_table.md) |
 | `test_binary_collator.cpp, test_multi_label_collator.cpp, test_regression_collator.cpp, test_segmentation_collator.cpp` | [`test_binary_collator.md`](test_binary_collator.md) |
+| `test_collator.cpp` | [`test_collator.md`](test_collator.md) |
+| `test_fitted_sample.cpp` | [`test_fitted_sample.md`](test_fitted_sample.md) |
+| `test_image_extensions.cpp` | [`test_image_extensions.md`](test_image_extensions.md) |
+| `test_load_sample_mask.cpp` | [`test_load_sample_mask.md`](test_load_sample_mask.md) |
+| `test_mnist.cpp` | [`test_mnist.md`](test_mnist.md) |
+| `test_reader_table.cpp` | [`test_reader_table.md`](test_reader_table.md) |
+| `test_sample.cpp` | [`test_sample.md`](test_sample.md) |
+| `test_sample_pipeline.cpp` | [`test_sample_pipeline.md`](test_sample_pipeline.md) |
+| `test_task_table.cpp` | [`test_task_table.md`](test_task_table.md) |
+| `test_value_table.cpp` | [`test_value_table.md`](test_value_table.md) |

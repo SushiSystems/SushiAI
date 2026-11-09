@@ -1,51 +1,57 @@
 # tests/vision/datasets/test_image_folder.cpp
 
 
-Suites: `Small_DatasetsImageFolder`.
+Suites: `Small_DatasetsImageFolder` and `Medium_DatasetsImageFolder`.
 
 Tests `read_image_folder` in
-`modules/vision/datasets/include/SushiAI/vision/datasets/image_folder.hpp` and
-`has_image_extension` in
-`modules/vision/datasets/include/SushiAI/vision/datasets/image_extensions.hpp`. The folder
-cases write one-byte files under the system's temporary directory.
-
-## ImageExtensionsIgnoreCase
-
-`has_image_extension` is true for `a.jpg`, `a.JPEG`, `dir/a.PNG` and `a.saim`, and false for
-`a.txt`, `a.jpg.bak` and `jpg`.
+`modules/vision/datasets/include/SushiAI/vision/datasets/image_folder.hpp`. The `Small_` cases list
+one-byte files from a `MemorySource` under the folder `data`; the `Medium_` cases write them under
+the system's temporary directory. The extensions a file may have are tested in
+`test_image_extensions.cpp`.
 
 ## ClassesAreTheSortedFolderNames
 
-The folders zebra, ant and moth give the class names ant, moth, zebra and a class count of 3.
-Sample i of the three has the class i, no stored pixels and no object.
+The folders `zebra`, `ant` and `moth` give the class names ant, moth, zebra, a class count of 3 and
+the sample classes 0, 1, 2.
+
+## ASampleNamesNoStoredPixelsAndNoObject
+
+A listed sample has no `stored` pixels and no object, since the image is decoded when read.
 
 ## AClassListsItsImageFilesSortedAtAnyDepth
 
-The list holds four files in the order `cat/a.JPG`, `cat/b.png`, `cat/more/c.saim`,
-`dog/a.png`, and leaves `cat/notes.txt` out. The third sample has the class 0 and the fourth
-the class 1.
+The folder `cat` holds `b.png`, `a.JPG`, `notes.txt` and `c.saim` in a folder `more`; `dog` holds `a.png`. The
+four samples are `cat/a.JPG`, `cat/b.png`, `cat/more/c.saim` and `dog/a.png`, of the classes 0, 0, 0
+and 1; the text file is left out.
 
 ## ASplitNamesAFolderOfTheRoot
 
-The split "val" gives the classes no and yes and two samples. The file `val/stray.png` and the
-folder `train` add nothing.
+With the split "val", the class names are no and yes and there are two samples, so the folder
+`train` is not read.
+
+## AFileDirectlyInTheSplitIsNoClass
+
+A file `val/stray.png` beside the class folder `no` adds no class and no sample.
 
 ## AFolderWithoutAnImageIsStillAClass
 
-With an empty folder `a` and one image in `b`, the class count is 2 and the one sample has the
-class 1.
+An empty folder `a` and a folder `b` with one image give a class count of 2 and a sample of class 1.
+
+## ASplitWithoutAClassFolderIsRefused
+
+A split holding only a file fails with `InvalidFile`, "flat" and "no class folder".
+
+## ASplitWithoutAnImageIsRefused
+
+A split whose class folder holds only a text file fails with `InvalidFile`, "text" and "no image
+file".
 
 ## AnAbsentSplitIsNotFound
 
-The split "train" in an empty root fails with `FileNotFound` and "train".
+A split that is not a directory fails with `FileNotFound` and "train". It reaches the file system,
+so it is `Medium_`.
 
-## ASplitWithoutAClassOrAnImageIsRefused
+## ClassFoldersOnDiskBecomeSortedClasses
 
-A split holding only a file fails with `InvalidFile`, "flat" and "no class folder". A split
-whose one class folder holds only a text file fails with `InvalidFile`, "text" and
-"no image file".
-
-## FoldersServedFromMemoryBecomeSortedClasses
-
-A `MemorySource` holding `cat/1.png`, `dog/2.png`, `dog/deeper/3.jpg` and `dog/readme.txt` below
-`data/train` gives the classes `cat` and `dog` and three samples, of the classes 0, 1 and 1.
+The file-system form of `read_image_folder` lists written folders `dog` (one image, one below
+`deeper`) and `cat`: the classes cat and dog, and the sample classes 0, 1, 1.

@@ -27,28 +27,85 @@
  * @brief Tests that an image extension is judged by name, and only decoded formats pass.
  * @author Mustafa Garip
  */
-
+#include <cctype>
 #include <filesystem>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/datasets/image_extensions.hpp>
 
 using SushiAI::Vision::Datasets::has_image_extension;
 
-/** @brief Tests that image formats the codecs do not decode are refused. */
-TEST(Small_DatasetsImageExtensions, FormatsTheCodecsDoNotDecodeAreRefused)
+namespace
 {
-    EXPECT_FALSE(has_image_extension("a.gif"));
-    EXPECT_FALSE(has_image_extension("a.bmp"));
-    EXPECT_FALSE(has_image_extension("a.tiff"));
-    EXPECT_FALSE(has_image_extension("a.webp"));
+    /** @brief Runs has_image_extension over the name of each format the codecs do not decode. */
+    class Small_DatasetsImageExtensionsUndecoded : public ::testing::TestWithParam<std::string>
+    {
+    };
+
+    /** @brief Runs has_image_extension over each name an image extension is taken from. */
+    class Small_DatasetsImageExtensionsTaken : public ::testing::TestWithParam<std::string>
+    {
+    };
+
+    /** @brief Runs has_image_extension over each name that holds no whole image extension. */
+    class Small_DatasetsImageExtensionsNoExtension : public ::testing::TestWithParam<std::string>
+    {
+    };
+
+    /** @brief Names a test after a path, with every character that is no letter or digit as _. */
+    std::string path_row_name(const ::testing::TestParamInfo<std::string>& info)
+    {
+        std::string name = info.param;
+        for (char& letter : name)
+        {
+            if (!std::isalnum(static_cast<unsigned char>(letter)))
+                letter = '_';
+        }
+
+        return name;
+    }
+
+    /** @brief Names a test after the extension of its row. */
+    std::string extension_row_name(const ::testing::TestParamInfo<std::string>& info)
+    {
+        return info.param.substr(info.param.find('.') + 1);
+    }
+} // namespace
+
+/** @brief Tests that an image format the codecs do not decode is refused. */
+TEST_P(Small_DatasetsImageExtensionsUndecoded, FormatsTheCodecsDoNotDecodeAreRefused)
+{
+    EXPECT_FALSE(has_image_extension(GetParam()));
 }
 
-/** @brief Tests that the path is judged by its name, so an absent file is still an image. */
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsImageExtensionsUndecoded,
+                         ::testing::Values("a.gif", "a.bmp", "a.tiff", "a.webp"),
+                         extension_row_name);
+
+/** @brief Tests that an image extension is matched without regard to case, at any depth. */
+TEST_P(Small_DatasetsImageExtensionsTaken, ImageExtensionsIgnoreCase)
+{
+    EXPECT_TRUE(has_image_extension(GetParam()));
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsImageExtensionsTaken,
+                         ::testing::Values("a.jpg", "a.JPEG", "dir/a.PNG", "a.saim"),
+                         path_row_name);
+
+/** @brief Tests that a name with another, a double or no extension is refused. */
+TEST_P(Small_DatasetsImageExtensionsNoExtension, ANameWithoutAnImageExtensionIsRefused)
+{
+    EXPECT_FALSE(has_image_extension(GetParam()));
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsImageExtensionsNoExtension,
+                         ::testing::Values("a.txt", "a.jpg.bak", "jpg"), path_row_name);
+
+/** @brief Tests that the path is judged by its name alone, so no file need exist. */
 TEST(Small_DatasetsImageExtensions, TheFileIsNotOpened)
 {
     const std::filesystem::path absent =
         std::filesystem::path("sushiai_no_such_directory") / "no_such_image.png";
 
-    ASSERT_FALSE(std::filesystem::exists(absent));
     EXPECT_TRUE(has_image_extension(absent));
 }

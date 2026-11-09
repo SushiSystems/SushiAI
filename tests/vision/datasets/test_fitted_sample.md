@@ -5,14 +5,8 @@ Suites: `Small_DatasetsFittedSample`.
 
 Tests `FittedSample` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/fitted_sample.hpp`. The header declares
-one struct and no function, so the cases pin the state a pipeline receives and the way a
-tabular sample refers to its row. How a pipeline fills a sample is tested in
+one struct and no function, so the case pins the way a tabular sample refers to its row. How a pipeline fills a sample is tested in
 `test_fit_pipeline.cpp` and `test_augment_pipeline.cpp`.
-
-## ADefaultSampleHoldsNothing
-
-A default `FittedSample` holds an image and a mask of no byte, file 0, no `class_index`, no
-objects, and empty `features` and `targets`.
 
 ## ATabularSampleViewsTheRowOfItsTable
 

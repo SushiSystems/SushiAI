@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_reader_table.cpp
 
 
-Suites: `Small_DatasetsReaderTableRows`.
+Suites: `Small_DatasetsReaderTableRows` and `Small_DatasetsReaderTableLookup`.
 
 Tests `reader_table` and `find_reader` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/reader_table.hpp`. The names of the
@@ -11,7 +11,7 @@ those cases leave out: no row has a null reader, and a lookup is exact.
 
 ## EveryRowPointsAtAReader
 
-`read` is not null in any row.
+One test per row, named after its reader: `read` is not null.
 
 ## NoTwoRowsShareAName
 

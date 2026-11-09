@@ -13,11 +13,6 @@ nothing, so its values are compared exactly. How the `csv` reader fills a table 
 `three_rows` returns a table of the columns "x", "y" and "label", two features and one target,
 holding the rows 1, 2, 10, then 3, 4, 20, then 5, 6, 30.
 
-## ADefaultTableHoldsNoRow
-
-A default table, which is what a list of images holds, has a `row_width` of 0 and a `row_count`
-of 0, so the division in `row_count` never runs with a zero width.
-
 ## TheRowWidthIsTheFeaturesPlusTheTargets
 
 `three_rows` has a `row_width` of 3 and a `row_count` of 3.

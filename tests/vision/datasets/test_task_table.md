@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_task_table.cpp
 
 
-Suites: `Small_DatasetsTaskTableRows`.
+Suites: `Small_DatasetsTaskTableRows` and `Small_DatasetsTaskTableLookup`.
 
 Tests `task_table` and `find_task` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/task_table.hpp`. The names of the six
@@ -11,7 +11,7 @@ those cases leave out: no row has a null function, and a lookup is exact.
 
 ## EveryRowPointsAtAFactoryAndABuilder
 
-`make_collator` and `build` are not null in any row.
+One test per row, named after its task: `make_collator` and `build` are not null.
 
 ## NoTwoRowsShareAName
 

@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
@@ -66,6 +67,39 @@ namespace
     std::vector<int> bytes_of(const Image& mask)
     {
         return std::vector<int>(mask.data(), mask.data() + mask.byte_count());
+    }
+
+    /** @brief Holds a way to add an object the mask cannot paint and the message it earns. */
+    struct RefusalRow
+    {
+        std::string name;                 /**< The row's name. */
+        void (*add)(Labels&);             /**< Adds the object to a label set. */
+        std::string first;                /**< The first text the message holds. */
+        std::string second;               /**< The second text the message holds. */
+        std::string third;                /**< The third text the message holds; may be empty. */
+    };
+
+    /** @brief Runs paint_polygon_mask over each object it cannot paint. */
+    class Small_DatasetsPolygonMaskRefusal : public ::testing::TestWithParam<RefusalRow>
+    {
+    };
+
+    /** @brief Names a test after its row. */
+    std::string refusal_row_name(const ::testing::TestParamInfo<RefusalRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Adds a box of class 1 that has no polygon. */
+    void add_boxed(Labels& labels)
+    {
+        labels.add(1, PixelBox{0.0f, 0.0f, 2.0f, 2.0f});
+    }
+
+    /** @brief Adds a square polygon of class 255. */
+    void add_class_255(Labels& labels)
+    {
+        add_rectangle(labels, 255, 0.0f, 0.0f, 2.0f, 2.0f);
     }
 } // namespace
 
@@ -107,19 +141,20 @@ TEST(Small_DatasetsPolygonMask, NoObjectIsTheBackgroundEverywhere)
     EXPECT_EQ(bytes_of(mask), std::vector<int>(16, 3));
 }
 
-/** @brief Tests each refusal: an object with no polygon and a class no byte names. */
-TEST(Small_DatasetsPolygonMask, RefusesAnObjectItCannotPaint)
+/** @brief Tests that an object the mask cannot paint is refused, naming the cause. */
+TEST_P(Small_DatasetsPolygonMaskRefusal, RefusesAnObjectItCannotPaint)
 {
+    Labels labels;
+    GetParam().add(labels);
     Image mask;
 
-    Labels boxed;
-    boxed.add(1, PixelBox{0.0f, 0.0f, 2.0f, 2.0f});
-    SA_EXPECT_FAILURE(paint_polygon_mask(boxed, K_SIZE, K_MASK_VOID, mask),
-                      StatusCode::InvalidDescription, "paint_polygon_mask", "object 0",
-                      "no polygon");
-
-    Labels wide;
-    add_rectangle(wide, 255, 0.0f, 0.0f, 2.0f, 2.0f);
-    SA_EXPECT_FAILURE(paint_polygon_mask(wide, K_SIZE, K_MASK_VOID, mask),
-                      StatusCode::InvalidDescription, "the class 255", "0 to 254");
+    SA_EXPECT_FAILURE(paint_polygon_mask(labels, K_SIZE, K_MASK_VOID, mask),
+                      StatusCode::InvalidDescription, GetParam().first, GetParam().second, GetParam().third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsPolygonMaskRefusal,
+    ::testing::Values(
+        RefusalRow{"ObjectWithoutAPolygon", add_boxed, "paint_polygon_mask", "object 0", "no polygon"},
+        RefusalRow{"ClassNoByteNames", add_class_255, "the class 255", "0 to 254", ""}),
+    refusal_row_name);

@@ -27,31 +27,61 @@
  * @brief Tests that every row of the reader table can be called and looked up exactly.
  * @author Mustafa Garip
  */
-
+#include <cstddef>
 #include <set>
+#include <string>
 #include <string_view>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/datasets/reader_table.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 
-/** @brief Tests that no row of the table leaves its reader null. */
-TEST(Small_DatasetsReaderTableRows, EveryRowPointsAtAReader)
+namespace
 {
-    for (const ReaderEntry& row : reader_table())
-        EXPECT_NE(row.read, nullptr) << row.name;
+    /** @brief Runs a check over the index of each row of the reader table. */
+    class Small_DatasetsReaderTableRows : public ::testing::TestWithParam<std::size_t>
+    {
+    };
+
+    /** @brief Names a test after the reader of its row. */
+    std::string row_name(const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return std::string(reader_table()[info.param].name);
+    }
+
+    /** @brief Returns each name that a second row of the reader table repeats. */
+    std::vector<std::string> repeated_names()
+    {
+        std::set<std::string_view> seen;
+        std::vector<std::string> repeated;
+        for (const ReaderEntry& row : reader_table())
+        {
+            if (!seen.insert(row.name).second)
+                repeated.emplace_back(row.name);
+        }
+
+        return repeated;
+    }
+} // namespace
+
+/** @brief Tests that a row of the table does not leave its reader null. */
+TEST_P(Small_DatasetsReaderTableRows, EveryRowPointsAtAReader)
+{
+    EXPECT_NE(reader_table()[GetParam()].read, nullptr);
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsReaderTableRows,
+                         ::testing::Range<std::size_t>(0, reader_table().size()), row_name);
+
 /** @brief Tests that no two rows share a name, so a lookup has one answer. */
-TEST(Small_DatasetsReaderTableRows, NoTwoRowsShareAName)
+TEST(Small_DatasetsReaderTableLookup, NoTwoRowsShareAName)
 {
-    std::set<std::string_view> names;
-    for (const ReaderEntry& row : reader_table())
-        EXPECT_TRUE(names.insert(row.name).second) << row.name;
+    EXPECT_EQ(repeated_names(), std::vector<std::string>{});
 }
 
 /** @brief Tests that a lookup matches the whole name in its own case and nothing else. */
-TEST(Small_DatasetsReaderTableRows, ALookupMatchesTheWholeNameAndItsCase)
+TEST(Small_DatasetsReaderTableLookup, ALookupMatchesTheWholeNameAndItsCase)
 {
     ASSERT_NE(find_reader("yolo_txt"), nullptr);
     EXPECT_EQ(find_reader("YOLO_TXT"), nullptr);

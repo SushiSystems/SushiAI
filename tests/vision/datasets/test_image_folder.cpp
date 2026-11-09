@@ -27,7 +27,6 @@
  * @brief Tests the reader of a dataset kept as one folder of images per class.
  * @author Mustafa Garip
  */
-
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -38,7 +37,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/vision/datasets/image_extensions.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/image_folder.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
@@ -47,13 +46,23 @@ using SushiAI::StatusCode;
 
 namespace
 {
-    /** @brief Returns options that read one split of a directory. */
-    ImageFolderOptions options_of(const Support::ScratchDirectory& scratch, const char* split)
+    /** @brief Returns options that read one split of the folder data. */
+    ImageFolderOptions options_of(const char* split)
     {
         ImageFolderOptions options;
-        options.root = scratch.path();
+        options.root = "data";
         options.split = split;
         return options;
+    }
+
+    /** @brief Returns a source holding a one-byte file at each path below the folder data. */
+    MemorySource source_of(const std::vector<std::string>& files)
+    {
+        MemorySource source;
+        for (const std::string& file : files)
+            source.add_file("data/" + file, "x");
+
+        return source;
     }
 
     /** @brief Returns the path of a sample's file below a directory, with forward slashes. */
@@ -62,133 +71,134 @@ namespace
     {
         return list.files[list.samples[sample].file].lexically_relative(base).generic_string();
     }
-} // namespace
 
-/** @brief Tests that the image extensions are matched without regard to case. */
-TEST(Small_DatasetsImageFolder, ImageExtensionsIgnoreCase)
-{
-    EXPECT_TRUE(has_image_extension("a.jpg"));
-    EXPECT_TRUE(has_image_extension("a.JPEG"));
-    EXPECT_TRUE(has_image_extension("dir/a.PNG"));
-    EXPECT_TRUE(has_image_extension("a.saim"));
-    EXPECT_FALSE(has_image_extension("a.txt"));
-    EXPECT_FALSE(has_image_extension("a.jpg.bak"));
-    EXPECT_FALSE(has_image_extension("jpg"));
-}
+    /** @brief Returns the class index of each sample of a list, in order. */
+    std::vector<std::int32_t> classes_of(const SampleList& list)
+    {
+        std::vector<std::int32_t> classes;
+        for (const Sample& sample : list.samples)
+            classes.push_back(sample.class_index.value_or(-1));
+
+        return classes;
+    }
+} // namespace
 
 /** @brief Tests that the classes are the folder names in sorted order. */
 TEST(Small_DatasetsImageFolder, ClassesAreTheSortedFolderNames)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_classes");
-    scratch.write("zebra/1.png", {1});
-    scratch.write("ant/1.jpg", {1});
-    scratch.write("moth/1.jpeg", {1});
+    const MemorySource source = source_of({"zebra/1.png", "ant/1.jpg", "moth/1.jpeg"});
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of(scratch, "")));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of(""), source));
 
     EXPECT_EQ(list.class_names, (std::vector<std::string>{"ant", "moth", "zebra"}));
     EXPECT_EQ(list.class_count, 3);
-    ASSERT_EQ(list.samples.size(), 3u);
+    EXPECT_EQ(classes_of(list), (std::vector<std::int32_t>{0, 1, 2}));
+}
 
-    for (std::size_t i = 0; i < list.samples.size(); ++i)
-    {
-        EXPECT_EQ(list.samples[i].class_index, static_cast<std::int32_t>(i));
-        EXPECT_FALSE(list.samples[i].stored.has_value());
-        EXPECT_TRUE(list.samples[i].objects.is_empty());
-    }
+/** @brief Tests that a listed sample names no stored pixels and no object. */
+TEST(Small_DatasetsImageFolder, ASampleNamesNoStoredPixelsAndNoObject)
+{
+    const MemorySource source = source_of({"ant/1.jpg"});
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of(""), source));
+
+    ASSERT_EQ(list.samples.size(), 1u);
+    EXPECT_FALSE(list.samples[0].stored.has_value());
+    EXPECT_TRUE(list.samples[0].objects.is_empty());
 }
 
 /** @brief Tests that a class lists its image files sorted by path, at any depth. */
 TEST(Small_DatasetsImageFolder, AClassListsItsImageFilesSortedAtAnyDepth)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_files");
-    scratch.write("cat/b.png", {1});
-    scratch.write("cat/a.JPG", {1});
-    scratch.write("cat/notes.txt", {1});
-    scratch.write("cat/more/c.saim", {1});
-    scratch.write("dog/a.png", {1});
+    const MemorySource source = source_of(
+        {"cat/b.png", "cat/a.JPG", "cat/notes.txt", "cat/more/c.saim", "dog/a.png"});
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of(scratch, "")));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of(""), source));
 
     ASSERT_EQ(list.samples.size(), 4u);
     EXPECT_EQ(list.files.size(), 4u);
-    EXPECT_EQ(relative_file(list, 0, scratch.path()), "cat/a.JPG");
-    EXPECT_EQ(relative_file(list, 1, scratch.path()), "cat/b.png");
-    EXPECT_EQ(relative_file(list, 2, scratch.path()), "cat/more/c.saim");
-    EXPECT_EQ(relative_file(list, 3, scratch.path()), "dog/a.png");
-    EXPECT_EQ(list.samples[2].class_index, 0);
-    EXPECT_EQ(list.samples[3].class_index, 1);
+    EXPECT_EQ(relative_file(list, 0, "data"), "cat/a.JPG");
+    EXPECT_EQ(relative_file(list, 1, "data"), "cat/b.png");
+    EXPECT_EQ(relative_file(list, 2, "data"), "cat/more/c.saim");
+    EXPECT_EQ(relative_file(list, 3, "data"), "dog/a.png");
+    EXPECT_EQ(classes_of(list), (std::vector<std::int32_t>{0, 0, 0, 1}));
 }
 
-/** @brief Tests that a split names a folder of the root, and a file there is no class. */
+/** @brief Tests that a split names a folder of the root. */
 TEST(Small_DatasetsImageFolder, ASplitNamesAFolderOfTheRoot)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_split");
-    scratch.write("train/no/1.png", {1});
-    scratch.write("val/no/1.png", {1});
-    scratch.write("val/yes/1.png", {1});
-    scratch.write("val/stray.png", {1});
+    const MemorySource source = source_of({"train/no/1.png", "val/no/1.png", "val/yes/1.png"});
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of(scratch, "val")));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of("val"), source));
 
     EXPECT_EQ(list.class_names, (std::vector<std::string>{"no", "yes"}));
     EXPECT_EQ(list.samples.size(), 2u);
 }
 
+/** @brief Tests that a file directly in the split is no class. */
+TEST(Small_DatasetsImageFolder, AFileDirectlyInTheSplitIsNoClass)
+{
+    const MemorySource source = source_of({"val/no/1.png", "val/stray.png"});
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of("val"), source));
+
+    EXPECT_EQ(list.class_names, (std::vector<std::string>{"no"}));
+    EXPECT_EQ(list.samples.size(), 1u);
+}
+
 /** @brief Tests that a folder without an image is still a class, so indices stay put. */
 TEST(Small_DatasetsImageFolder, AFolderWithoutAnImageIsStillAClass)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_empty_class");
-    scratch.make_directory("a");
-    scratch.write("b/1.png", {1});
+    MemorySource source = source_of({"b/1.png"});
+    source.add_directory("data/a");
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of(scratch, "")));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options_of(""), source));
 
     EXPECT_EQ(list.class_count, 2);
-    ASSERT_EQ(list.samples.size(), 1u);
-    EXPECT_EQ(list.samples[0].class_index, 1);
+    EXPECT_EQ(classes_of(list), (std::vector<std::int32_t>{1}));
 }
 
-/** @brief Tests that a split that is not a directory is reported as absent. */
-TEST(Small_DatasetsImageFolder, AnAbsentSplitIsNotFound)
+/** @brief Tests that a split with no class folder is refused. */
+TEST(Small_DatasetsImageFolder, ASplitWithoutAClassFolderIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_absent");
+    const MemorySource source = source_of({"flat/1.png"});
 
-    SA_EXPECT_FAILURE(read_image_folder(options_of(scratch, "train")), StatusCode::FileNotFound,
-                      "train");
-}
-
-/** @brief Tests that a split with no class folder, or with no image, is refused. */
-TEST(Small_DatasetsImageFolder, ASplitWithoutAClassOrAnImageIsRefused)
-{
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_nothing");
-    scratch.write("flat/1.png", {1});
-    scratch.write("text/a/readme.txt", {1});
-
-    SA_EXPECT_FAILURE(read_image_folder(options_of(scratch, "flat")), StatusCode::InvalidFile,
+    SA_EXPECT_FAILURE(read_image_folder(options_of("flat"), source), StatusCode::InvalidFile,
                       "flat", "no class folder");
-    SA_EXPECT_FAILURE(read_image_folder(options_of(scratch, "text")), StatusCode::InvalidFile,
+}
+
+/** @brief Tests that a split whose class folders hold no image is refused. */
+TEST(Small_DatasetsImageFolder, ASplitWithoutAnImageIsRefused)
+{
+    const MemorySource source = source_of({"text/a/readme.txt"});
+
+    SA_EXPECT_FAILURE(read_image_folder(options_of("text"), source), StatusCode::InvalidFile,
                       "text", "no image file");
 }
 
-/** @brief Tests that class folders served from memory become classes in sorted order. */
-TEST(Small_DatasetsImageFolder, FoldersServedFromMemoryBecomeSortedClasses)
+/** @brief Tests that a split that is not a directory is reported as absent. */
+TEST(Medium_DatasetsImageFolder, AnAbsentSplitIsNotFound)
 {
-    MemorySource source;
-    source.add_file("data/train/dog/2.png", "x");
-    source.add_file("data/train/dog/deeper/3.jpg", "x");
-    source.add_file("data/train/dog/readme.txt", "x");
-    source.add_file("data/train/cat/1.png", "x");
-
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_absent");
     ImageFolderOptions options;
-    options.root = "data";
+    options.root = scratch.path();
     options.split = "train";
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options, source));
+    SA_EXPECT_FAILURE(read_image_folder(options), StatusCode::FileNotFound, "train");
+}
+
+/** @brief Tests that the file-system form lists the class folders written to disk. */
+TEST(Medium_DatasetsImageFolder, ClassFoldersOnDiskBecomeSortedClasses)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_disk");
+    scratch.write("dog/2.png", {1});
+    scratch.write("dog/deeper/3.jpg", {1});
+    scratch.write("cat/1.png", {1});
+    ImageFolderOptions options;
+    options.root = scratch.path();
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options));
 
     EXPECT_EQ(list.class_names, (std::vector<std::string>{"cat", "dog"}));
-    ASSERT_EQ(list.samples.size(), 3u);
-    EXPECT_EQ(list.samples[0].class_index, 0);
-    EXPECT_EQ(list.samples[1].class_index, 1);
-    EXPECT_EQ(list.samples[2].class_index, 1);
+    EXPECT_EQ(classes_of(list), (std::vector<std::int32_t>{0, 1, 1}));
 }
