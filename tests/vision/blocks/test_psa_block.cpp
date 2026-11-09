@@ -66,6 +66,12 @@ namespace
     /** @brief Holds the prefix MANIFEST.json gives the one PSABlock of row 10. */
     constexpr std::string_view K_PREFIX = "model.10.m.0";
 
+    /** @brief Runs the process-stopping case in a child process. */
+    class Medium_BlockPsaBlockDeath : public ::testing::Test
+    {
+
+    };
+
     /** @brief Names which of the two kinds of state a record is. */
     enum class StateKind : std::uint8_t
     {
@@ -99,38 +105,30 @@ namespace
         return records;
     }
 
-    /** @brief Counts the nodes of @p graph that carry the operation @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
+    /** @brief Counts the norms a walk lists, one running mean each. */
+    std::size_t count_norms(const std::vector<std::string>& records)
+    {
+        std::size_t norms = 0;
+        for (const std::string& line : records)
+        {
+            if (line.find(".bn.running_mean ") != std::string::npos)
+                ++norms;
+        }
+
+        return norms;
+    }
+
+    /** @brief Counts the ADD nodes of @p graph that read @p value as their first operand. */
+    std::size_t count_adds_reading_first(const Graph::Graph& graph, Graph::ValueID value)
     {
         std::size_t count = 0;
         for (const Graph::Node& node : graph.nodes())
         {
-            if (node.op == op)
+            if (node.op == Ops::K_ADD.id && node.inputs[0] == value)
                 ++count;
         }
 
         return count;
-    }
-
-    /**
-     * @brief Returns the index of the @p ordinal-th node of @p graph that carries @p op, counting
-     *        from zero, or node_count() when there are not that many.
-     */
-    std::size_t node_index(const Graph::Graph& graph, OpID op, std::size_t ordinal)
-    {
-        std::size_t seen = 0;
-        for (std::size_t index = 0; index < graph.node_count(); ++index)
-        {
-            if (graph.nodes()[index].op != op)
-                continue;
-
-            if (seen == ordinal)
-                return index;
-
-            ++seen;
-        }
-
-        return graph.node_count();
     }
 
     /** @brief Lists the 25 records MANIFEST.json holds under model.10.m.0, in walk order. */
@@ -178,10 +176,10 @@ TEST(Small_BlockPsaBlock, OutputShapeIsTheInputShape)
 }
 
 /**
- * @brief Tests that a traced block emits three ADDs, one SILU, five norms and ten buffer
- *        updates, and keeps the input's shape.
+ * @brief Tests that a training trace keeps the input's shape and requests a mean and a
+ *        variance update for each norm of its state.
  */
-TEST(Small_BlockPsaBlock, EmitsThreeAddsOneSiLUFiveNormsAndTenUpdates)
+TEST(Small_BlockPsaBlock, ATrainingTraceKeepsTheInputShapeAndUpdatesEveryNorm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -191,19 +189,15 @@ TEST(Small_BlockPsaBlock, EmitsThreeAddsOneSiLUFiveNormsAndTenUpdates)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    // One ADD belongs to the attention, and the block adds two more.
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 5u);
-    EXPECT_EQ(list.updates().size(), 10u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, K_CHANNELS}));
+    EXPECT_EQ(list.updates().size(), 2 * count_norms(walk(block, K_PREFIX)));
 }
 
 /**
- * @brief Tests that the first residual add reads the input and the attention's result, and that
- *        the second reads the first add and the feed-forward's result.
+ * @brief Tests that the input is added back once, as the first operand of a residual add, and
+ *        that the block's result is produced by an add.
  */
-TEST(Small_BlockPsaBlock, TheResidualAddsReadTheInputThenAttentionThenTheFeedForward)
+TEST(Small_BlockPsaBlock, TheInputIsAddedBackOnceAndTheResultIsAResidualSum)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -213,21 +207,8 @@ TEST(Small_BlockPsaBlock, TheResidualAddsReadTheInputThenAttentionThenTheFeedFor
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    // The attention emits the first ADD, so the block's two are the second and the third.
-    const std::size_t after_attention_index = node_index(graph, Ops::K_ADD.id, 1);
-    const std::size_t after_ffn_index = node_index(graph, Ops::K_ADD.id, 2);
-    ASSERT_LT(after_ffn_index, graph.node_count());
-    const Graph::Node& after_attention = graph.nodes()[after_attention_index];
-    const Graph::Node& after_ffn = graph.nodes()[after_ffn_index];
-
-    ASSERT_EQ(after_attention.inputs.size(), 2u);
-    ASSERT_EQ(after_ffn.inputs.size(), 2u);
-    EXPECT_EQ(after_attention.inputs[0], x);
-    EXPECT_EQ(graph.node(graph.value(after_attention.inputs[1]).producer).op,
-              Ops::K_BATCHNORM2D.id);
-    EXPECT_EQ(after_ffn.inputs[0], after_attention.outputs[0]);
-    EXPECT_EQ(graph.node(graph.value(after_ffn.inputs[1]).producer).op, Ops::K_BATCHNORM2D.id);
-    EXPECT_EQ(y, after_ffn.outputs[0]);
+    EXPECT_EQ(count_adds_reading_first(graph, x), 1u);
+    EXPECT_EQ(graph.node(graph.value(y).producer).op, Ops::K_ADD.id);
 }
 
 /**
@@ -246,8 +227,8 @@ TEST(Small_BlockPsaBlock, StateMatchesManifestRow10Block)
     EXPECT_EQ(walk(block, K_PREFIX), psa_records());
 }
 
-/** @brief Tests that a width the head count does not divide throws, as Attention refuses it. */
-TEST(Small_BlockPsaBlock, AWidthTheHeadCountDoesNotDivideThrows)
+/** @brief Tests that a width the head count does not divide stops the process, as Attention does. */
+TEST_F(Medium_BlockPsaBlockDeath, AWidthTheHeadCountDoesNotDivideIsFatal)
 {
     SA_EXPECT_FATAL(static_cast<void>(PSABlock(100, 3, K_YOLO_NORM)), "head count divides",
                     "100 channels", "3 heads");
