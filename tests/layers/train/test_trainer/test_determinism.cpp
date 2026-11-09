@@ -24,13 +24,15 @@
 
 /**
  * @file test_determinism.cpp
- * @brief Tests that training, initialisation, the dataset and a replayed step repeat bit for bit.
+ * @brief Tests that training, initialisation and a replayed step repeat bit for bit.
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
@@ -61,8 +63,6 @@ using Graph::TensorPool;
 
 namespace
 {
-    class Medium_Determinism : public ::testing::Test {};
-
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 8;
@@ -70,7 +70,15 @@ namespace
     constexpr int64_t K_HIDDEN = 12;
     constexpr int64_t K_CLASSES = 4;
     constexpr int64_t K_BATCHES = 4;
+    constexpr int64_t K_EPOCHS = 2;
     constexpr std::uint64_t K_DATA_SEED = 0x0D37E4'C0FFEEull;
+
+    /** @brief The optimizers a run is repeated with. */
+    enum class Descent
+    {
+        SgdWithMomentum,
+        AdamW
+    };
 
     /** @brief The synthetic problem every run below trains on. */
     Data::SyntheticOptions data_options()
@@ -83,6 +91,43 @@ namespace
         options.seed = K_DATA_SEED;
         return options;
     }
+
+    /**
+     * @brief Owns a fresh Engine and the classifier bound on it, as every run here needs.
+     *
+     * Each rig builds its own Engine, and that is part of the contract: set_seed() leaves the
+     * monotonic RNG offset counter alone, so two generators built on one engine draw different
+     * streams from one seed.
+     */
+    class Rig
+    {
+        public:
+            /** @brief Makes the engine, its backend and the pool over it. */
+            Rig() : backend(SaTest::TestEnvironment::runtime(), engine), pool(engine) {}
+
+            /** @brief Traces the classifier, binds its parameters and leaves them uninitialised. */
+            [[nodiscard]] Status prepare()
+            {
+                SA_TRY_ASSIGN(built, Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
+                SA_TRY_ASSIGN(state, NN::ModelState::create(engine, model));
+                SA_TRY_ASSIGN(slots, Train::bind_parameters(backend, built, *state, pool));
+                return Status();
+            }
+
+            /** @brief Draws the starting point of the parameters from the default seed. */
+            [[nodiscard]] Status initialise()
+            {
+                return NN::initialize(backend, *state);
+            }
+
+            SushiBLAS::Engine engine{SaTest::TestEnvironment::runtime()};   /**< @brief Owns the device state. */
+            SushiAI::RuntimeExecutionBackend backend;                       /**< @brief Runs the steps. */
+            MLP model{NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES}};
+            Train::TrainingGraph built;                                     /**< @brief Holds the graph. */
+            std::optional<NN::ModelState> state;                            /**< @brief Holds the parameters. */
+            TensorPool pool;                                                /**< @brief Holds the values. */
+            std::vector<Optim::ParameterSlot> slots;                        /**< @brief Pairs them with gradients. */
+    };
 
     /**
      * @struct RunResult
@@ -105,45 +150,36 @@ namespace
      * @return The run, or the first failure of a library call.
      * @see tests/layers/train/README.md
      */
-    [[nodiscard]] Result<RunResult> train_once(int64_t epochs, bool use_adam)
+    [[nodiscard]] Result<RunResult> train_once(int64_t epochs, Descent descent)
     {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
-
-        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-        SA_TRY_ASSIGN(Train::TrainingGraph built,
-                      Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
-
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-        TensorPool pool(engine);
-        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(backend, built, state, pool));
-        SA_TRY(NN::initialize(backend, state));
+        Rig rig;
+        SA_TRY(rig.prepare());
+        SA_TRY(rig.initialise());
 
         SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                      Data::SyntheticClassification::make(backend, data_options()));
+                      Data::SyntheticClassification::make(rig.backend, data_options()));
 
         std::unique_ptr<Optim::Optimizer> optimizer;
-        if (use_adam)
+        if (descent == Descent::AdamW)
         {
             Optim::AdamWOptions adam;
             adam.learning_rate = 0.02;
-            SA_TRY_ASSIGN(optimizer, Optim::AdamW::make(backend, slots, adam));
+            SA_TRY_ASSIGN(optimizer, Optim::AdamW::make(rig.backend, rig.slots, adam));
         }
         else
         {
             Optim::SGDOptions sgd;
             sgd.learning_rate = 0.15;
             sgd.momentum = 0.9;
-            SA_TRY_ASSIGN(optimizer, Optim::SGD::make(backend, slots, sgd));
+            SA_TRY_ASSIGN(optimizer, Optim::SGD::make(rig.backend, rig.slots, sgd));
         }
 
         Train::TrainerOptions options;
         options.track_metrics = false;
-        const auto objective = SaTest::classifier_objective(built);
+        const auto objective = SaTest::classifier_objective(rig.built);
         SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(backend, built, pool, objective, *optimizer,
-                                           options));
+                      Train::Trainer::make(rig.backend, rig.built, rig.pool, objective,
+                                           *optimizer, options));
 
         RunResult result;
         for (int64_t epoch = 0; epoch < epochs; ++epoch)
@@ -158,7 +194,7 @@ namespace
             }
         }
 
-        for (const Optim::ParameterSlot& slot : slots)
+        for (const Optim::ParameterSlot& slot : rig.slots)
         {
             result.names.push_back(slot.name);
             result.parameters.push_back(SaTest::read_tensor_bytes(slot.parameter));
@@ -190,167 +226,134 @@ namespace
                 << " onward - the run is not reproducible";
         }
     }
+
+    /** @brief Runs the optimizer given as the row twice and compares the two runs. */
+    class Medium_DeterminismRun : public ::testing::TestWithParam<Descent> {};
+
+    /** @brief Holds two classifiers bound on two engines, ready to be initialised. */
+    class Medium_DeterminismInitialisation : public ::testing::TestWithParam<std::size_t>
+    {
+        protected:
+            /** @brief Prepares and initialises both rigs from the one default seed. */
+            void SetUp() override
+            {
+                ASSERT_TRUE(SaTest::status_is_ok(first.prepare()));
+                ASSERT_TRUE(SaTest::status_is_ok(second.prepare()));
+                ASSERT_TRUE(SaTest::status_is_ok(first.initialise()));
+                ASSERT_TRUE(SaTest::status_is_ok(second.initialise()));
+            }
+
+            Rig first;   /**< @brief The first classifier. */
+            Rig second;  /**< @brief The second classifier. */
+    };
+
+    /** @brief Holds a classifier whose step runs once, with its gradient bytes kept. */
+    class Medium_DeterminismReplay : public ::testing::TestWithParam<std::size_t>
+    {
+        protected:
+            /** @brief Runs the step once on batch 0 and keeps the gradient of the row's slot. */
+            void SetUp() override
+            {
+                ASSERT_TRUE(SaTest::status_is_ok(rig.prepare()));
+                SA_ASSERT_OK_AND_ASSIGN(
+                    dataset, Data::SyntheticClassification::make(rig.backend, data_options()));
+                ASSERT_TRUE(SaTest::status_is_ok(rig.initialise()));
+
+                // A zero learning rate keeps the parameters fixed; see tests/layers/train/README.md.
+                Optim::SGDOptions frozen;
+                frozen.learning_rate = 0.0;
+                SA_ASSERT_OK_AND_ASSIGN(optimizer,
+                                        Optim::SGD::make(rig.backend, rig.slots, frozen));
+
+                Train::TrainerOptions options;
+                options.track_metrics = false;
+                objective = std::make_unique<Train::CrossEntropyObjective>(
+                    SaTest::classifier_objective(rig.built));
+                SA_ASSERT_OK_AND_ASSIGN(
+                    trainer, Train::Trainer::make(rig.backend, rig.built, rig.pool, *objective,
+                                                  *optimizer, options));
+
+                ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
+                SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics, trainer->run_step(batch));
+                EXPECT_TRUE(std::isfinite(metrics.loss));
+                reference = SaTest::read_tensor_bytes(rig.slots[GetParam()].gradient);
+            }
+
+            /** @brief Replays the step and expects the row's gradient to keep its bytes. */
+            void expect_replay_stable()
+            {
+                SA_EXPECT_OK(trainer->run_step(batch));
+
+                const std::vector<unsigned char> again =
+                    SaTest::read_tensor_bytes(rig.slots[GetParam()].gradient);
+                EXPECT_EQ(SaTest::first_difference(reference, again), reference.size())
+                    << "a replay produced a different gradient for '"
+                    << rig.slots[GetParam()].name << "'";
+            }
+
+            Rig rig;                                                      /**< @brief The classifier. */
+            std::unique_ptr<Data::SyntheticClassification> dataset;       /**< @brief Feeds it. */
+            std::unique_ptr<Optim::SGD> optimizer;                        /**< @brief Leaves it fixed. */
+            std::unique_ptr<Train::CrossEntropyObjective> objective;      /**< @brief Scores a step. */
+            std::unique_ptr<Train::Trainer> trainer;                      /**< @brief Runs the steps. */
+            Data::Batch batch;                                            /**< @brief Holds batch 0. */
+            std::vector<unsigned char> reference;                         /**< @brief Holds the first gradient. */
+    };
+
+    /** @brief Names a row by its optimizer. */
+    std::string descent_name(const ::testing::TestParamInfo<Descent>& info)
+    {
+        return info.param == Descent::AdamW ? "AdamW" : "SgdWithMomentum";
+    }
 }
 
 /**
- * @brief Tests that two SGD-with-momentum runs of two epochs agree byte for byte.
+ * @brief Tests that two runs of two epochs with the row's optimizer agree byte for byte.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
+TEST_P(Medium_DeterminismRun, TwoIdenticalRunsAgreeByteForByte)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const RunResult first, train_once(2, false));
-    SA_ASSERT_OK_AND_ASSIGN(const RunResult second, train_once(2, false));
+    SA_ASSERT_OK_AND_ASSIGN(const RunResult first, train_once(K_EPOCHS, GetParam()));
+    SA_ASSERT_OK_AND_ASSIGN(const RunResult second, train_once(K_EPOCHS, GetParam()));
 
     ASSERT_FALSE(first.losses.empty());
     expect_identical(first, second);
 }
 
-/**
- * @brief Tests that two AdamW runs of two epochs agree byte for byte.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const RunResult first, train_once(2, true));
-    SA_ASSERT_OK_AND_ASSIGN(const RunResult second, train_once(2, true));
-
-    expect_identical(first, second);
-}
+INSTANTIATE_TEST_SUITE_P(Optimizers, Medium_DeterminismRun,
+                         ::testing::Values(Descent::SgdWithMomentum, Descent::AdamW),
+                         descent_name);
 
 /**
- * @brief Tests that two initialisations from one seed produce identical parameter bytes.
+ * @brief Tests that two initialisations from one seed give the row's parameter the same bytes.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
+TEST_P(Medium_DeterminismInitialisation, InitialisationFromOneSeedIsBitwiseIdentical)
 {
-    using Weights = std::vector<std::vector<unsigned char>>;
+    ASSERT_EQ(first.slots.size(), 4u);
+    ASSERT_EQ(second.slots.size(), 4u);
 
-    const auto initialise = []() -> Result<Weights>
-    {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
+    const std::vector<unsigned char> a = SaTest::read_tensor_bytes(first.slots[GetParam()].parameter);
+    const std::vector<unsigned char> b = SaTest::read_tensor_bytes(second.slots[GetParam()].parameter);
 
-        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-        SA_TRY_ASSIGN(Train::TrainingGraph built,
-                      Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
-
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-        TensorPool pool(engine);
-        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(backend, built, state, pool));
-        SA_TRY(NN::initialize(backend, state));
-
-        Weights weights;
-        for (const Optim::ParameterSlot& slot : slots)
-            weights.push_back(SaTest::read_tensor_bytes(slot.parameter));
-
-        return weights;
-    };
-
-    SA_ASSERT_OK_AND_ASSIGN(const Weights first, initialise());
-    SA_ASSERT_OK_AND_ASSIGN(const Weights second, initialise());
-
-    ASSERT_EQ(first.size(), second.size());
-    for (std::size_t i = 0; i < first.size(); ++i)
-        EXPECT_EQ(SaTest::first_difference(first[i], second[i]), first[i].size())
-            << "parameter " << i << " initialised differently from the same seed";
+    EXPECT_EQ(SaTest::first_difference(a, b), a.size())
+        << "'" << first.slots[GetParam()].name << "' initialised differently from the same seed";
 }
+
+INSTANTIATE_TEST_SUITE_P(Parameters, Medium_DeterminismInitialisation,
+                         ::testing::Values(0u, 1u, 2u, 3u));
 
 /**
- * @brief Tests that two synthetic datasets built from one seed hold identical bytes.
+ * @brief Tests that five replays of one compiled step on fixed inputs keep the row's gradient bytes.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
+TEST_P(Medium_DeterminismReplay, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
 {
-    SushiBLAS::Engine first_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend first_backend(SaTest::TestEnvironment::runtime(),
-                                                   first_engine);
-    SushiBLAS::Engine second_engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend second_backend(SaTest::TestEnvironment::runtime(),
-                                                    second_engine);
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> first,
-                            Data::SyntheticClassification::make(first_backend, data_options()));
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> second,
-                            Data::SyntheticClassification::make(second_backend, data_options()));
-
-    ASSERT_EQ(first->batch_count(), second->batch_count());
-
-    for (std::size_t b = 0; b < first->batch_count(); ++b)
-    {
-        Data::Batch first_batch;
-        ASSERT_TRUE(SaTest::status_is_ok(first->read(b, first_batch)));
-        const std::vector<unsigned char> a = SaTest::read_tensor_bytes(first_batch.inputs);
-        Data::Batch second_batch;
-        ASSERT_TRUE(SaTest::status_is_ok(second->read(b, second_batch)));
-        const std::vector<unsigned char> c = SaTest::read_tensor_bytes(second_batch.inputs);
-        EXPECT_EQ(SaTest::first_difference(a, c), a.size()) << "inputs of batch " << b;
-
-        ASSERT_EQ(first_batch.targets.size(), 1u);
-        ASSERT_EQ(second_batch.targets.size(), 1u);
-        EXPECT_EQ(first_batch.targets.front().role, second_batch.targets.front().role);
-
-        const std::vector<unsigned char> t =
-            SaTest::read_tensor_bytes(first_batch.targets.front().values);
-        const std::vector<unsigned char> u =
-            SaTest::read_tensor_bytes(second_batch.targets.front().values);
-        EXPECT_EQ(SaTest::first_difference(t, u), t.size()) << "labels of batch " << b;
-    }
+    expect_replay_stable();
+    expect_replay_stable();
+    expect_replay_stable();
+    expect_replay_stable();
+    expect_replay_stable();
 }
 
-/**
- * @brief Tests that replaying one compiled step on fixed inputs yields identical gradient bytes.
- * @see tests/layers/train/README.md
- */
-TEST_F(Medium_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
-{
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
-    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
-
-    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
-                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
-
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-    TensorPool pool(engine);
-    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(backend, built, state, pool));
-    SA_EXPECT_OK(NN::initialize(backend, state));
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(backend, data_options()));
-
-    Optim::SGDOptions frozen;
-    frozen.learning_rate = 0.0;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(backend, slots, frozen));
-
-    Train::TrainerOptions options;
-    options.track_metrics = false;
-    const auto objective = SaTest::classifier_objective(built);
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(backend, built, pool, objective,
-                                                 *optimizer, options));
-
-    // A zero learning rate keeps the parameters fixed; see tests/layers/train/README.md.
-    Data::Batch dataset_batch;
-    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
-    SA_EXPECT_OK(trainer->run_step(dataset_batch));
-
-    std::vector<std::vector<unsigned char>> reference;
-    for (const Optim::ParameterSlot& slot : slots)
-        reference.push_back(SaTest::read_tensor_bytes(slot.gradient));
-
-    for (int replay = 1; replay < 6; ++replay)
-    {
-        SA_EXPECT_OK(trainer->run_step(dataset_batch));
-
-        for (std::size_t i = 0; i < slots.size(); ++i)
-        {
-            const std::vector<unsigned char> again = SaTest::read_tensor_bytes(slots[i].gradient);
-            EXPECT_EQ(SaTest::first_difference(reference[i], again), reference[i].size())
-                << "replay " << replay << " produced a different gradient for '"
-                << slots[i].name << "'";
-        }
-    }
-}
+INSTANTIATE_TEST_SUITE_P(Parameters, Medium_DeterminismReplay, ::testing::Values(0u, 1u, 2u, 3u));

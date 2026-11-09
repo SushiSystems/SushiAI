@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_determinism.cpp
 
 
-Suites: `Medium_Determinism`.
+Suites: `Medium_DeterminismRun`, `Medium_DeterminismInitialisation` and `Medium_DeterminismReplay`.
 
 This file tests bit-for-bit reproducibility from end to end.
 
@@ -17,9 +17,14 @@ The file sits in the regression tier because every failure here is silent. A mod
 a slightly different place each run still converges and still reports good accuracy. The defect
 shows on the day someone needs to reproduce a result.
 
-Every test in this file builds a fresh Engine per run, and that is part of the contract. SushiBLAS's
+Every test in this file builds a fresh Engine per run (the helper `Rig`), and that is part of the contract. SushiBLAS's
 set_seed() leaves the engine's monotonic RNG offset counter alone, so two generators built on one
 engine draw different streams from one seed. dataset.hpp documents this.
+
+## Rig
+
+One fresh Engine, its backend, the pool over it and the classifier bound on them. A run, an
+initialisation and a replay each build their own, so two of them share nothing.
 
 ## train_once
 
@@ -32,34 +37,27 @@ differ in nothing, so a difference in their output is a finding.
 The loss is read out of device memory as a float. Two identical runs must produce the same float,
 so `==` is the right comparison. EXPECT_NEAR would admit that the two runs might differ.
 
-## TwoIdenticalTrainingRunsAgreeByteForByte
+## TwoIdenticalRunsAgreeByteForByte
 
-The run is two epochs with momentum. That is enough steps for a reordered reduction to accumulate a
-visible difference. With momentum, step N depends on every step before it, so a single divergent
-bit cannot cancel out.
-
-## TwoIdenticalAdamWRunsAgreeByteForByte
-
-AdamW divides by the square root of an accumulated second moment. After that division a one-ULP
-difference in the gradient is more than one ULP.
+One row per optimizer, `SgdWithMomentum` and `AdamW`. The run is two epochs. With momentum, step N
+depends on every step before it, so a single divergent bit cannot cancel out. AdamW divides by the
+square root of an accumulated second moment, so after that division a one-ULP difference in the
+gradient is more than one ULP. The two rows replace two cases that differed in the optimizer alone.
 
 ## InitialisationFromOneSeedIsBitwiseIdentical
 
-The starting point has to be identical before anything downstream can be. Initialisation is also
-the only part of the run that goes through the device RNG and not through arithmetic.
-
-## TheSyntheticDatasetIsBitwiseIdentical
-
-The existing dataset coverage compares through EXPECT_DOUBLE_EQ, which tolerates four ULP and
-cannot see a sign difference on a zero. A dataset is either reproducible or it is not, so this test
-compares the bytes.
+One row per parameter of the model (four). The starting point has to be identical before anything
+downstream can be. Initialisation is also the only part of the run that goes through the device RNG
+and not through arithmetic. The dataset's reproducibility is held by `test_dataset.cpp` and by
+`TwoDatasetsOfOneSeedHoldTheSameInputs` in `test_convergence.cpp`, so it is not repeated here.
 
 ## ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable
 
-This is the narrowest form of the claim, with the optimizer and the RNG removed: the same compiled
-plan and the same buffers, run twice. Anything the runtime does non-deterministically shows up here
-with nothing else to blame it on. A work-stealing reduction, an atomic accumulation and a
-scheduler-dependent order are the candidates.
+One row per parameter. This is the narrowest form of the claim, with the optimizer and the RNG
+removed: the same compiled plan and the same buffers, run once and then five times more. Each
+replay leaves the row's gradient with the bytes the first run gave it. Anything the runtime does
+non-deterministically shows up here with nothing else to blame it on. A work-stealing reduction, an
+atomic accumulation and a scheduler-dependent order are the candidates.
 
 The optimizer's learning rate is zero. That keeps the parameters fixed, so every replay sees the
 state the one before it saw.
