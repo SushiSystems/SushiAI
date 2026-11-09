@@ -69,8 +69,13 @@ namespace
     /** @brief The factor the batch value is scaled by before it is blended in. */
     constexpr double K_SOURCE_SCALE = 2.0;
 
-    /** @brief The rounded operations of one blended element: two products, a sum and a scale. */
-    constexpr std::size_t K_BLEND_OPERATIONS = 4;
+    /**
+     * @brief The rounded operations on the longest path to one blended element: the scale
+     *        rounds 1 - momentum and then its product with the running value, the axpy rounds
+     *        momentum * scale and then its product with the batch value, and the sum of the two
+     *        rounds once; each path is 3 deep, and the paths run side by side.
+     */
+    constexpr std::size_t K_BLEND_OPERATIONS = 3;
 
     /** @brief The state identity the bind cases give the buffer their update targets. */
     constexpr std::uint64_t K_TARGET_STATE = 7;

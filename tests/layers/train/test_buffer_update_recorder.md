@@ -31,7 +31,8 @@ tasks of the backend. `slot_count()` is the row's count and `record_into_step` r
 
 One slot over one float64 element. After one replay the element equals the
 `NN::updated_statistic` of its running value and its batch value, with momentum 0.1 and a source
-scale of 2, within four rounded operations of double. The rows are the pairs (1, 0.25), (-2, 3),
+scale of 2, within three rounded operations of double: the scale rounds 1 - momentum and the product, the
+axpy rounds momentum * scale and the product, and one sum joins the two. The rows are the pairs (1, 0.25), (-2, 3),
 (0.5, -1) and (4, 2).
 
 ## BindRefusesATargetTheStateLacks
