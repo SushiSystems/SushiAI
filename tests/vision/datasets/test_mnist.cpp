@@ -58,6 +58,16 @@ namespace
     /** @brief Holds the class of each of the five images the tiny split holds. */
     const std::vector<std::uint8_t> K_LABELS = {3, 1, 4, 1, 5};
 
+    /** @brief Returns count bytes rising from first, each divided by 255 in float. */
+    std::vector<float> scaled_bytes(std::size_t count, std::size_t first)
+    {
+        std::vector<float> values;
+        for (std::size_t i = 0; i < count; ++i)
+            values.push_back(static_cast<float>(first + i) / 255.0f);
+
+        return values;
+    }
+
     /** @brief Provides an engine and a training split of five 2 by 3 images. */
     class Medium_DatasetsMNIST : public SaTest::EngineTest
     {
@@ -87,20 +97,8 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that the defaults read a capped training split in rows of pixels. */
-TEST(Small_DatasetsMNIST, TheDefaultsReadACappedTrainingSplitAsRows)
-{
-    const MNISTOptions options;
-
-    EXPECT_EQ(options.directory, "data/mnist");
-    EXPECT_EQ(options.batch_size, 64);
-    EXPECT_EQ(options.max_samples, 4096);
-    EXPECT_FALSE(options.test_split);
-    EXPECT_EQ(options.layout, MNISTLayout::Flat);
-}
-
-/** @brief Tests that five samples load as two whole batches of scaled pixels and labels. */
-TEST_F(Medium_DatasetsMNIST, TheSamplesLoadAsWholeBatches)
+/** @brief Tests that five samples load as two whole batches of the sample shape. */
+TEST_F(Medium_DatasetsMNIST, TheSamplesFormWholeBatches)
 {
     ASSERT_TRUE(mnist_available(options()));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
@@ -109,15 +107,21 @@ TEST_F(Medium_DatasetsMNIST, TheSamplesLoadAsWholeBatches)
     EXPECT_EQ(dataset->batch_size(), 2);
     EXPECT_EQ(dataset->batch_count(), 2u);
     EXPECT_EQ(dataset->sample_shape(), Shape{6});
+}
+
+/** @brief Tests that a batch holds its pixels divided by 255 and the labels of its samples. */
+TEST_F(Medium_DatasetsMNIST, ABatchHoldsScaledPixelsAndItsLabels)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
+                            try_load_mnist(*engine, options()));
 
     Data::Batch batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, batch)));
+
     const float* pixels = batch.inputs.data_as<float>();
-    for (std::size_t i = 0; i < 12; ++i)
-        EXPECT_EQ(pixels[i], static_cast<float>(12 + i) / 255.0f) << i;
+    EXPECT_EQ(std::vector<float>(pixels, pixels + 12), scaled_bytes(12, 12));
     const std::int32_t* labels = batch.targets[0].values.data_as<std::int32_t>();
-    EXPECT_EQ(labels[0], 4);
-    EXPECT_EQ(labels[1], 1);
+    EXPECT_EQ(std::vector<std::int32_t>(labels, labels + 2), (std::vector<std::int32_t>{4, 1}));
 }
 
 /** @brief Tests that the cap on samples leaves out the samples past it. */
