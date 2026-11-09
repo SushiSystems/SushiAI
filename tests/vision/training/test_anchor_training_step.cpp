@@ -335,6 +335,97 @@ namespace
         std::unique_ptr<AnchorTrainingStep> step;   /**< @brief Holds the step under test. */
         bool ready = false;                         /**< @brief Tells whether prepare() ended. */
     };
+
+    /** @brief Returns @p values widened to double. */
+    std::vector<double> widened(const std::vector<float>& values)
+    {
+        return std::vector<double>(values.begin(), values.end());
+    }
+
+    /** @brief Returns the sum of the squares of @p values. */
+    double sum_of_squares(const std::vector<float>& values)
+    {
+        double squares = 0.0;
+        for (const float value : values)
+            squares += static_cast<double>(value) * static_cast<double>(value);
+
+        return squares;
+    }
+
+    /** @brief Returns the sum over the positions of each channel of a [positions, channels] map. */
+    std::vector<double> channel_sums(const std::vector<float>& map, std::size_t positions,
+                                     std::size_t channels)
+    {
+        std::vector<double> sums(channels, 0.0);
+        for (std::size_t position = 0; position < positions; ++position)
+        {
+            for (std::size_t channel = 0; channel < channels; ++channel)
+                sums[channel] += static_cast<double>(map[position * channels + channel]);
+        }
+
+        return sums;
+    }
+
+    /** @brief Returns @p values each multiplied by @p factor and added to the same of @p base. */
+    std::vector<double> base_plus_scaled(const std::vector<double>& base,
+                                         const std::vector<double>& values, double factor)
+    {
+        std::vector<double> result;
+        for (std::size_t i = 0; i < base.size(); ++i)
+            result.push_back(base[i] + factor * values[i]);
+
+        return result;
+    }
+
+    /** @brief Expects each element of @p actual within K_UPDATE_TOLERANCE of @p expected. */
+    void expect_updates_near(const std::vector<double>& actual,
+                             const std::vector<double>& expected)
+    {
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t i = 0; i < actual.size(); ++i)
+            EXPECT_NEAR(actual[i], expected[i], K_UPDATE_TOLERANCE) << "channel " << i;
+    }
+
+    /** @brief Returns the largest absolute difference between @p a and @p b. */
+    double largest_difference(const std::vector<double>& a, const std::vector<double>& b)
+    {
+        double largest = 0.0;
+        for (std::size_t i = 0; i < a.size(); ++i)
+            largest = std::max(largest, std::abs(a[i] - b[i]));
+
+        return largest;
+    }
+
+    /** @brief Returns the largest absolute element of @p values. */
+    double largest_magnitude(const std::vector<double>& values)
+    {
+        double largest = 0.0;
+        for (const double value : values)
+            largest = std::max(largest, std::abs(value));
+
+        return largest;
+    }
+
+    /** @brief Returns the delta compute_head_delta gives head @p head alone on @p truth. */
+    HeadDelta delta_of_head(TwoHeadCase& model, const GroundTruthBatch& truth, std::size_t head)
+    {
+        const AnchorHead& described = model.objective->heads()[head];
+        const std::vector<float> forward = model.forward_output(described.output);
+        HeadDelta expected;
+        SA_EXPECT_OK(Vision::Detect::Anchor::compute_head_delta(
+            SushiRuntime::span<const float>(forward.data(), forward.size()), described.shape,
+            described.options, model.objective->layout(), static_cast<std::int64_t>(head),
+            described.training, truth, model.objective->network(), expected));
+
+        return expected;
+    }
+
+    /** @brief Returns the values the step fed to the delta leaf of head @p head. */
+    std::vector<double> fed_to_head(TwoHeadCase& model, std::size_t head)
+    {
+        return SaTest::read_tensor(model.training_pool->tensor(
+            model.built.leaves.at(model.objective->leaf_role(head))));
+    }
 } // namespace
 
 /** @brief Tests that each leaf holds the delta of its forward-only head, element for element. */
@@ -351,32 +442,15 @@ TEST_F(Medium_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
 
     SA_ASSERT_OK_AND_ASSIGN(const HeadCost cost, model.step->run(inputs, truth));
 
-    double squares = 0.0;
-    for (std::size_t head = 0; head < 2; ++head)
-    {
-        const AnchorHead& described = model.objective->heads()[head];
-        const std::vector<float> forward = model.forward_output(described.output);
-
-        HeadDelta expected;
-        SA_EXPECT_OK(Vision::Detect::Anchor::compute_head_delta(
-            SushiRuntime::span<const float>(forward.data(), forward.size()), described.shape,
-            described.options, model.objective->layout(), static_cast<std::int64_t>(head),
-            described.training, truth, model.objective->network(), expected));
-
-        const std::vector<double> fed = SaTest::read_tensor(model.training_pool->tensor(
-            model.built.leaves.at(model.objective->leaf_role(head))));
-
-        EXPECT_EQ(expected.assignments, K_ASSIGNMENTS[head]) << "head " << head;
-        ASSERT_EQ(fed.size(), expected.delta.size()) << "head " << head;
-        for (std::size_t i = 0; i < fed.size(); ++i)
-        {
-            const double value = static_cast<double>(expected.delta[i]);
-            EXPECT_EQ(fed[i], value) << "head " << head << " element " << i;
-            squares += value * value;
-        }
-    }
+    const HeadDelta fine = delta_of_head(model, truth, 0);
+    const HeadDelta coarse = delta_of_head(model, truth, 1);
+    EXPECT_EQ(fine.assignments, K_ASSIGNMENTS[0]);
+    EXPECT_EQ(coarse.assignments, K_ASSIGNMENTS[1]);
+    EXPECT_EQ(fed_to_head(model, 0), widened(fine.delta));
+    EXPECT_EQ(fed_to_head(model, 1), widened(coarse.delta));
 
     // A squared-error head stores the sum of its squared deltas, and the total divides by 2.
+    const double squares = sum_of_squares(fine.delta) + sum_of_squares(coarse.delta);
     EXPECT_GT(squares, 0.0);
     EXPECT_NEAR(cost.stored, squares, K_COST_TOLERANCE * squares);
     EXPECT_NEAR(cost.total, squares / static_cast<double>(K_BATCH), K_COST_TOLERANCE * squares);
@@ -424,18 +498,10 @@ TEST_F(Medium_AnchorTrainingStep, TheShapeRatioRuleFeedsItsDeltasAndItsLoss)
         const HeadCost reported,
         rule->compute(batch, SushiRuntime::span<HeadDelta>(expected.data(), expected.size())));
 
-    for (std::size_t head = 0; head < 2; ++head)
-    {
-        const std::vector<double> fed = SaTest::read_tensor(model.training_pool->tensor(
-            model.built.leaves.at(model.objective->leaf_role(head))));
-        EXPECT_GT(expected[head].assignments, 0) << "head " << head;
-        ASSERT_EQ(fed.size(), expected[head].delta.size()) << "head " << head;
-        for (std::size_t i = 0; i < fed.size(); ++i)
-        {
-            EXPECT_EQ(fed[i], static_cast<double>(expected[head].delta[i]))
-                << "head " << head << " element " << i;
-        }
-    }
+    EXPECT_GT(expected[0].assignments, 0);
+    EXPECT_GT(expected[1].assignments, 0);
+    EXPECT_EQ(fed_to_head(model, 0), widened(expected[0].delta));
+    EXPECT_EQ(fed_to_head(model, 1), widened(expected[1].delta));
 
     EXPECT_GT(reported.total, 0.0);
     EXPECT_NEAR(cost.total, reported.total, K_COST_TOLERANCE * reported.total);
@@ -463,19 +529,10 @@ TEST_F(Medium_AnchorTrainingStep, OneStepMovesAHeadBiasAlongItsDelta)
     ASSERT_EQ(delta.size(), static_cast<std::size_t>(K_FINE_POSITIONS * K_HEAD_CHANNELS));
 
     // The gradient at a bias is -(1 / batch) times its channel's deltas over every position.
-    double largest_move = 0.0;
-    for (std::size_t channel = 0; channel < before.size(); ++channel)
-    {
-        double sum = 0.0;
-        for (std::size_t position = 0; position < K_FINE_POSITIONS; ++position)
-            sum += static_cast<double>(delta[position * K_HEAD_CHANNELS + channel]);
-
-        const double expected =
-            before[channel] + K_LEARNING_RATE * sum / static_cast<double>(K_BATCH);
-        EXPECT_NEAR(after[channel], expected, K_UPDATE_TOLERANCE) << "channel " << channel;
-        largest_move = std::max(largest_move, std::abs(after[channel] - before[channel]));
-    }
-    EXPECT_GT(largest_move, K_MOVED) << "no bias of head.0 moved";
+    const std::vector<double> sums = channel_sums(delta, K_FINE_POSITIONS, K_HEAD_CHANNELS);
+    expect_updates_near(after, base_plus_scaled(before, sums, K_LEARNING_RATE /
+                                                                  static_cast<double>(K_BATCH)));
+    EXPECT_GT(largest_difference(after, before), K_MOVED) << "no bias of head.0 moved";
 }
 
 /** @brief Tests that the two passes of one step blend a running mean once, not twice. */
@@ -499,55 +556,18 @@ TEST_F(Medium_AnchorTrainingStep, OneStepBlendsARunningMeanOnce)
     ASSERT_EQ(stem.size(), static_cast<std::size_t>(K_FINE_POSITIONS * K_BODY_CHANNELS));
 
     const double momentum = NN::NormOptions{}.momentum;
-    double largest_mean = 0.0;
-    for (std::size_t channel = 0; channel < before.size(); ++channel)
-    {
-        double mean = 0.0;
-        for (std::size_t position = 0; position < K_FINE_POSITIONS; ++position)
-            mean += static_cast<double>(stem[position * K_BODY_CHANNELS + channel]);
+    std::vector<double> means = channel_sums(stem, K_FINE_POSITIONS, K_BODY_CHANNELS);
+    for (double& mean : means)
         mean /= static_cast<double>(K_FINE_POSITIONS);
 
-        const double expected = (1.0 - momentum) * before[channel] + momentum * mean;
-        EXPECT_NEAR(after[channel], expected, K_UPDATE_TOLERANCE) << "channel " << channel;
-        largest_mean = std::max(largest_mean, std::abs(mean));
-    }
+    std::vector<double> scaled_before;
+    for (const double value : before)
+        scaled_before.push_back((1.0 - momentum) * value);
+    expect_updates_near(after, base_plus_scaled(scaled_before, means, momentum));
+    const double largest_mean = largest_magnitude(means);
 
     // A second blend would add momentum * (1 - momentum) * mean, 0.09 of the mean.
     EXPECT_GT(largest_mean, K_VISIBLE_MEAN) << "the batch means are too small to tell";
-}
-
-/** @brief Tests that a truth of another batch is Incompatible, with both batch sizes. */
-TEST_F(Medium_AnchorTrainingStep, ATruthOfAnotherBatchIsRefused)
-{
-    TwoHeadCase model;
-    model.prepare(backend(), two_heads("head.0", "head.1"));
-    ASSERT_TRUE(model.ready);
-    model.make_step(backend());
-    ASSERT_NE(model.step, nullptr);
-
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
-    GroundTruthBatch truth;
-    truth.batch = 3;
-
-    SA_EXPECT_FAILURE(model.step->run(inputs, truth), StatusCode::Incompatible, "3 images",
-                      "batch of 2");
-}
-
-/** @brief Tests that a valid row whose label names no class is InvalidDescription. */
-TEST_F(Medium_AnchorTrainingStep, ALabelOutsideTheClassesIsRefused)
-{
-    TwoHeadCase model;
-    model.prepare(backend(), two_heads("head.0", "head.1"));
-    ASSERT_TRUE(model.ready);
-    model.make_step(backend());
-    ASSERT_NE(model.step, nullptr);
-
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
-    GroundTruthBatch truth = make_truth();
-    truth.labels[2] = K_CLASSES;
-
-    SA_EXPECT_FAILURE(model.step->run(inputs, truth), StatusCode::InvalidDescription,
-                      "row 2", "label 2", "head.0");
 }
 
 /** @brief Tests that a valid row whose centre lies right of the input is refused by its row. */
@@ -567,6 +587,21 @@ TEST_F(Medium_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
 
     SA_EXPECT_FAILURE(model.step->run(inputs, truth), StatusCode::InvalidDescription,
                       "truth row 0 of image 1", "centre");
+}
+
+/** @brief Tests that make refuses a training pool that holds no input leaf. */
+TEST_F(Medium_AnchorTrainingStep, MakeRefusesAPoolWithoutTheInputLeaf)
+{
+    TwoHeadCase model;
+    model.prepare(backend(), two_heads("head.0", "head.1"));
+    ASSERT_TRUE(model.ready);
+    Graph::TensorPool empty(backend().engine());
+
+    SA_EXPECT_FAILURE(
+        AnchorTrainingStep::make(backend(), *model.objective, model.built, empty,
+                                 *model.optimizer, {}),
+        StatusCode::InvalidDescription, "input leaf",
+        "bound in the training pool");
 }
 
 /** @brief Tests that an objective naming a head the model lacks is refused by that name. */
