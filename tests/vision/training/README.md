@@ -718,3 +718,7 @@ The files below have a page beside them that says what each case pins.
 | `test_dice_objective.cpp` | [`test_dice_objective.md`](test_dice_objective.md) |
 | `test_pixel_targets.cpp` | [`test_pixel_targets.md`](test_pixel_targets.md) |
 | `test_dice_targets.cpp` | [`test_dice_targets.md`](test_dice_targets.md) |
+| `test_run_progress.cpp` | [`test_run_progress.md`](test_run_progress.md) |
+| `test_pixel_extents.cpp` | [`test_pixel_extents.md`](test_pixel_extents.md) |
+| `test_segmentation_metrics.cpp` | [`test_segmentation_metrics.md`](test_segmentation_metrics.md) |
+| `test_truth_from_roles.cpp` | [`test_truth_from_roles.md`](test_truth_from_roles.md) |

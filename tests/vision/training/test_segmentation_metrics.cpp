@@ -46,6 +46,7 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/tensor_source.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/step_view.hpp>
@@ -108,6 +109,34 @@ namespace
                 return std::move(made).value();
             }
     };
+
+    /**
+     * @brief Describes the tensors of a step that is refused before any element is read.
+     *
+     * A tensor it returns holds its extents and element type and no storage, so a case that uses
+     * one is decided on facts alone and needs no device.
+     */
+    class Small_VisionTrainingSegmentationMetrics : public ::testing::Test
+    {
+        protected:
+            /** @brief Returns a tensor of @p shape and @p dtype that holds no element. */
+            SushiBLAS::Tensor described(const Shape& shape, DType dtype)
+            {
+                return source.create(shape, dtype).value();
+            }
+
+            /** @brief Returns a batch whose mask role is described as INT32 [1, 2, 2]. */
+            Data::Batch described_batch()
+            {
+                Data::Batch batch;
+                batch.targets.push_back(Data::BatchTarget{std::string(Data::K_ROLE_MASK),
+                                                          described(Shape{1, 2, 2}, DType::Int32)});
+
+                return batch;
+            }
+
+            Graph::InMemoryTensorSource source; /**< @brief Makes the described tensors. */
+    };
 } // namespace
 
 /** @brief Tests both metrics against counts worked by hand, with one pixel ignored. */
@@ -133,16 +162,12 @@ TEST_F(Medium_VisionTrainingSegmentationMetrics, TheMetricsEqualTheHandCount)
     EXPECT_TRUE(mean_iou->is_fraction);
 }
 
-/** @brief Tests that a step with two outputs, no mask or a label out of bounds is refused. */
-TEST_F(Medium_VisionTrainingSegmentationMetrics, AStepThatDoesNotFitIsRefused)
+/** @brief Tests that a step that published two outputs is refused, naming the count. */
+TEST_F(Small_VisionTrainingSegmentationMetrics, AStepOfTwoOutputsIsRefused)
 {
-    const SushiBLAS::Tensor logits = make_logits(std::vector<double>(12, 0.0));
-    const Data::Batch batch = make_batch({0, 2, K_IGNORE, 1});
-    const Data::Batch bad_label = make_batch({0, 3, K_IGNORE, 1});
-    const Data::Batch no_mask;
+    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 3}, DType::Float32);
+    const Data::Batch batch = described_batch();
     const std::vector<Train::StepOutput> two{{"a", &logits}, {"b", &logits}};
-    const Train::StepOutput output{"output", &logits};
-    const SushiRuntime::span<const Train::StepOutput> one(&output, 1);
     Train::Metrics metrics;
 
     SA_EXPECT_FAILURE(
@@ -151,16 +176,84 @@ TEST_F(Medium_VisionTrainingSegmentationMetrics, AStepThatDoesNotFitIsRefused)
                             SushiRuntime::span<const Train::StepOutput>(two.data(), two.size())},
             K_EXTENTS, K_IGNORE, metrics),
         StatusCode::InvalidDescription, "published 2");
+    EXPECT_TRUE(metrics.all().empty());
+}
+
+/** @brief Tests that a batch with no mask role is refused, naming the role. */
+TEST_F(Small_VisionTrainingSegmentationMetrics, ABatchWithNoMaskIsRefused)
+{
+    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 3}, DType::Float32);
+    const Data::Batch no_mask;
+    const Train::StepOutput output{"output", &logits};
+    Train::Metrics metrics;
+
     SA_EXPECT_FAILURE(
-        measure_segmentation(Train::StepView{no_mask, 0.0, one}, K_EXTENTS, K_IGNORE, metrics),
+        measure_segmentation(
+            Train::StepView{no_mask, 0.0, SushiRuntime::span<const Train::StepOutput>(&output, 1)},
+            K_EXTENTS, K_IGNORE, metrics),
         StatusCode::InvalidDescription, "'mask'");
+    EXPECT_TRUE(metrics.all().empty());
+}
+
+/** @brief Tests that logits of another element count than the extents state are refused. */
+TEST_F(Small_VisionTrainingSegmentationMetrics, LogitsOfAnotherCountAreRefused)
+{
+    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 3}, DType::Float32);
+    const Data::Batch batch = described_batch();
+    const Train::StepOutput output{"output", &logits};
+    Train::Metrics metrics;
+
+    SA_EXPECT_FAILURE(
+        measure_segmentation(
+            Train::StepView{batch, 0.0, SushiRuntime::span<const Train::StepOutput>(&output, 1)},
+            PixelExtents{1, 2, 2, 4}, K_IGNORE, metrics),
+        StatusCode::Incompatible, "the logits");
+    EXPECT_TRUE(metrics.all().empty());
+}
+
+/** @brief Tests that more classes than the confusion matrix counts are refused. */
+TEST_F(Small_VisionTrainingSegmentationMetrics, MoreThanTheMostClassesTheMatrixCountsIsRefused)
+{
+    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 4097}, DType::Float32);
+    const Data::Batch batch = described_batch();
+    const Train::StepOutput output{"output", &logits};
+    Train::Metrics metrics;
+
+    SA_EXPECT_FAILURE(
+        measure_segmentation(
+            Train::StepView{batch, 0.0, SushiRuntime::span<const Train::StepOutput>(&output, 1)},
+            PixelExtents{1, 2, 2, 4097}, K_IGNORE, metrics),
+        StatusCode::InvalidDescription, "4097 classes", "at most 4096");
+    EXPECT_TRUE(metrics.all().empty());
+}
+
+/** @brief Tests that logits the host cannot read back are refused. */
+TEST_F(Small_VisionTrainingSegmentationMetrics, LogitsTheHostCannotReadAreRefused)
+{
+    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 3}, DType::Int32);
+    const Data::Batch batch = described_batch();
+    const Train::StepOutput output{"output", &logits};
+    Train::Metrics metrics;
+
+    SA_EXPECT_FAILURE(
+        measure_segmentation(
+            Train::StepView{batch, 0.0, SushiRuntime::span<const Train::StepOutput>(&output, 1)},
+            K_EXTENTS, K_IGNORE, metrics),
+        StatusCode::InvalidDescription, "the logits", "can be read back");
+    EXPECT_TRUE(metrics.all().empty());
+}
+
+/** @brief Tests that a label at the class count is refused, naming its pixel. */
+TEST_F(Medium_VisionTrainingSegmentationMetrics, ALabelOutOfBoundsIsRefused)
+{
+    const SushiBLAS::Tensor logits = make_logits(std::vector<double>(12, 0.0));
+    const Data::Batch bad_label = make_batch({0, 3, K_IGNORE, 1});
+    const Train::StepOutput output{"output", &logits};
+    const SushiRuntime::span<const Train::StepOutput> one(&output, 1);
+    Train::Metrics metrics;
+
     SA_EXPECT_FAILURE(
         measure_segmentation(Train::StepView{bad_label, 0.0, one}, K_EXTENTS, K_IGNORE, metrics),
         StatusCode::Incompatible, "true class of pixel 1", "is 3");
-    SA_EXPECT_FAILURE(
-        measure_segmentation(Train::StepView{batch, 0.0, one}, PixelExtents{1, 2, 2, 4},
-                             K_IGNORE, metrics),
-        StatusCode::Incompatible, "the logits");
-
     EXPECT_TRUE(metrics.all().empty());
 }

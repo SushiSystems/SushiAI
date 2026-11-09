@@ -84,3 +84,11 @@ TEST(Small_RunProgress, AThrowOfTheCallbackBecomesAFailure)
     EXPECT_FALSE(status.is_ok());
     EXPECT_NE(status.message().find("callback refused update"), std::string_view::npos);
 }
+
+/** @brief Tests that a throw that is no std::exception also comes back as a failure. */
+TEST(Small_RunProgress, AThrowThatIsNoStdExceptionBecomesAFailure)
+{
+    const Status status = notify_guarded([]() { throw 42; });
+
+    SA_EXPECT_FAILURE(status, StatusCode::DeviceFailed, "an exception of an unknown type");
+}
