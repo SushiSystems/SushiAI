@@ -10,7 +10,7 @@ sushiai_add_test_program(OWNER umbrella
     SOURCES test_SushiAI/test_engine_smoke.cpp test_SushiAI/compile_noexcept_surface.cpp
     DEVICE_SOURCES test_SushiAI/test_engine_smoke.cpp)
 
-# The distribution case compiles only where the library carries SA_DISTRIBUTED to its consumers.
+# The distribution headers of the noexcept unit compile only where the library carries SA_DISTRIBUTED to its consumers.
 if(SA_ENABLE_DISTRIBUTED)
     target_compile_definitions(sushiai_layers_umbrella_test_objects PRIVATE SA_TEST_DISTRIBUTED_BUILD)
 endif()
