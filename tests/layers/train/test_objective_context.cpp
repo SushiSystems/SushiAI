@@ -77,6 +77,18 @@ TEST(Small_ObjectiveContext, AnEmptyOutputSetListsNothing)
     EXPECT_TRUE(listed.empty());
 }
 
+/** @brief Tests that an output of another graph stops the process, naming the value. */
+TEST(Medium_ObjectiveContextDeathTest, AnOutputOfAnotherGraphStopsTheProcess)
+{
+    Graph::Graph other;
+    const Graph::GraphBuilder other_builder(other);
+    NN::ModelOutputs outputs;
+    SA_EXPECT_OK(outputs.add("foreign", other_builder.input(Shape{2, 3}, "foreign")));
+    const Graph::Graph graph;
+
+    SA_EXPECT_FATAL((void)Train::list_output_shapes(graph, outputs), "Value 0", "does not exist");
+}
+
 /** @brief Tests that the probe trace of a model gives its head shapes with no engine. */
 TEST(Small_ObjectiveContext, AProbeTraceGivesTheShapesWithoutAnEngine)
 {

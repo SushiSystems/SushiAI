@@ -1,7 +1,8 @@
 # tests/layers/train/test_objective_context.cpp
 
 
-Suites: `Small_ObjectiveContext`, `Small_ObjectiveContextFind`.
+Suites: `Small_ObjectiveContext`, `Small_ObjectiveContextFind` and
+`Medium_ObjectiveContextDeathTest`.
 
 Tests `Train::list_output_shapes` and `Train::find_output_shape`. No case needs an engine.
 
@@ -13,6 +14,11 @@ the list has two entries with those names and shapes, in that order.
 ## AnEmptyOutputSetListsNothing
 
 An empty `ModelOutputs` over an empty graph gives an empty list.
+
+## AnOutputOfAnotherGraphStopsTheProcess
+
+`list_output_shapes` over a graph that does not hold the value an output names stops the process
+with "Value 0 does not exist". A death test, so it is `Medium_`.
 
 ## AProbeTraceGivesTheShapesWithoutAnEngine
 

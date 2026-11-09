@@ -384,6 +384,23 @@ TEST_F(Small_ObjectiveScore, AnObjectiveWithoutMetricsMeasuresNothing)
     EXPECT_TRUE(metrics.all().empty());
 }
 
+/** @brief Tests that the lookup returns the tensor the pool holds for the declared leaf. */
+TEST_F(Small_ObjectiveScore, FindLeafTensorReturnsTheTensorThePoolHolds)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    ObjectiveLeaves leaves;
+    const Graph::ValueID targets = builder.input(Shape{2, 3}, "targets");
+    leaves.add("targets", targets);
+    Graph::TensorPool pool(backend.engine());
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* const found,
+                            Train::find_leaf_tensor(leaves, "targets", pool));
+
+    EXPECT_EQ(found, &pool.tensor(targets));
+}
+
 /** @brief Tests that a leaf the objective did not declare, or the pool does not hold, is named. */
 TEST_P(Small_ObjectiveLeafLookup, ALeafWithoutATensorIsNamed)
 {

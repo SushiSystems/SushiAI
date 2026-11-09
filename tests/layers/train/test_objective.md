@@ -88,6 +88,11 @@ wiring of the objective to the leaf.
 
 `measure` of the same objective succeeds and adds no metric.
 
+## FindLeafTensorReturnsTheTensorThePoolHolds
+
+A declared leaf whose tensor the pool materialised is returned as the pool's own tensor, not a copy:
+the pointer equals the address of `pool.tensor(id)`.
+
 ## ALeafWithoutATensorIsNamed
 
 `find_leaf_tensor` fails with `InvalidDescription`. The rows are a leaf that was not declared
