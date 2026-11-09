@@ -32,18 +32,31 @@
 #include <gtest/gtest.h>
 #include <SushiAI/vision/darknet_training_cases/darknet_training.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
+#include <support/tolerance.hpp>
 
 namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    /** @brief Returns @p count times the float unit roundoff. */
+    constexpr double units(double count)
+    {
+        return count * TestSupport::unit_roundoff<float>();
+    }
+
+    /**
+     * @brief Holds the share of its first cost that the cost of 200 steps on one batch
+     *        must fall under: the Darknet share 0.226 plus a tenth of it, rounded up.
+     */
+    constexpr double K_OVERFIT_COST_SHARE = 0.25;
+
     /**
      * @brief States what yolov7-tiny.cfg and its two training runs hold (REPORT 21 and 22).
      *
      * Of the inference-mode runs only the `*_plain_pool*` ones are valid (REPORT 25 and 28).
      * `yolov7_tiny_train_step` is a training-mode run, which the defect does not reach.
-     * A delta is held to 1e-6 absolute (PLAN 4.7), a box entry to 1e-4 besides (REPORT 11).
-     * Bounds are 1.5 times the 2026-10-12 run's largest difference (tests/vision/importers/README.md).
+     * Bounds are multiples of the float unit roundoff u, each the smallest power of two not
+     * tighter than the earlier decimal bound (PLAN 4.7, REPORT 11, importers README).
      */
     SaTest::DarknetTrainingCase describe_model()
     {
@@ -53,18 +66,18 @@ namespace
         training.step_run = "yolov7_tiny_train_step";
         training.box_loss = SushiAI::Vision::Detect::Anchor::BoxLoss::CompleteIoU;
         training.objectness_target = SushiAI::Vision::Detect::Anchor::ObjectnessTarget::BestIoU;
-        training.bounds.host_delta = {1e-6, 1e-4, 1e-6};
-        training.bounds.host_cost_relative = 1e-5;
-        training.bounds.head_absolute = 2e-2;
-        training.bounds.head_relative = 1e-4;
-        training.bounds.yolo_absolute = 3e-2;
-        training.bounds.step_delta = {1.5e-3, 1.5e-4, 7.5e-3};
-        training.bounds.step_cost_relative = 1e-3;
-        training.bounds.head_update_share = 7e-3;
-        training.bounds.update_relative = 1e-3;
-        training.bounds.rolling_absolute = 1e-5;
+        training.bounds.host_delta = {units(32), units(2048), units(32)};
+        training.bounds.host_cost_relative = units(256);
+        training.bounds.head_absolute = units(524288);
+        training.bounds.head_relative = units(2048);
+        training.bounds.yolo_absolute = units(524288);
+        training.bounds.step_delta = {units(32768), units(4096), units(131072)};
+        training.bounds.step_cost_relative = units(32768);
+        training.bounds.head_update_share = units(131072);
+        training.bounds.update_relative = units(32768);
+        training.bounds.rolling_absolute = units(256);
         training.overfit_steps = 200;
-        training.overfit_cost_share = 0.25;
+        training.overfit_cost_share = K_OVERFIT_COST_SHARE;
         return training;
     }
 
@@ -91,7 +104,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheTrainingOptionsMatchTheDumpedSetting
 
 /**
  * @brief Tests that the delta computed from each dumped head of one image has Darknet's
- *        assignments exactly, its delta within the host bounds and its stored cost to 1e-5.
+ *        assignments exactly, its delta within the host bounds and its stored cost to 256 u.
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltaOfADumpedHeadMatchesDarknet)
 {
@@ -100,7 +113,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltaOfADumpedHeadMatchesDarknet)
 
 /**
  * @brief Tests that the delta computed from each dumped head of the two-image step equals the
- *        step's dumped delta within the host bounds, and its stored cost to 1e-5.
+ *        step's dumped delta within the host bounds, and its stored cost to 256 u.
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltaOfATwoImageHeadMatchesDarknet)
 {
@@ -130,7 +143,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltasOfTheStepMatchDarknet)
 /**
  * @brief Tests that the weight and bias gradients of the convolution before each head, times
  *        minus the batch, equal the dumped updates within the head update share of the
- *        dump's largest magnitude plus 1e-3 of the entry.
+ *        dump's largest magnitude plus 32768 u of the entry.
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheUpdatesOfTheHeadConvolutionsMatchDarknet)
 {
@@ -151,7 +164,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheFirstConvolutionReceivesAGradient)
 
 /**
  * @brief Tests that the rolling mean and variance of the first batch norm equal the dump
- *        before the step and are within 1e-5 of it after one blend.
+ *        before the step and are within 256 u of it after one blend.
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMatchDarknet)
 {
