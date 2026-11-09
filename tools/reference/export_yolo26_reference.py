@@ -324,6 +324,39 @@ def _describe_tensor(tensor: ExportedTensor) -> dict[str, Any]:
     }
 
 
+def place_reference_files(
+    names: Sequence[str], tests_dir: Path, external_weights: Path | None
+) -> list[tuple[str, Path]]:
+    """Returns the path each file is written to, one entry for each folder that K_DESTINATIONS names.
+
+    The weights file goes to external_weights alone when that folder is given.
+    """
+    targets = [
+        (name, tests_dir / folder / name) for name in names for folder in K_DESTINATIONS[name]
+    ]
+    if external_weights is not None:
+        targets = [(name, path) for name, path in targets if name != K_WEIGHTS_FILE]
+        targets.append((K_WEIGHTS_FILE, external_weights / K_WEIGHTS_FILE))
+    return targets
+
+
+def check_fixture_ceiling(
+    targets: Sequence[tuple[str, Path]], sizes: dict[str, int], tests_dir: Path
+) -> None:
+    """Refuses a placement that puts more than the fixture ceiling into one fixture folder.
+
+    Raises:
+        FixtureTooLargeError: The files of one fixture folder would exceed the fixture ceiling.
+    """
+    for folder in {tests_dir / folder for folders in K_DESTINATIONS.values() for folder in folders}:
+        in_folder = sum(sizes[name] for name, path in targets if path.parent == folder)
+        if in_folder > K_FIXTURE_CEILING_BYTES:
+            raise FixtureTooLargeError(
+                f"{in_folder} bytes in {folder} exceed the {K_FIXTURE_CEILING_BYTES} byte "
+                "ceiling; pass --external-weights DIR to keep weights.sushi outside it",
+            )
+
+
 def write_reference_files(
     payloads: dict[str, bytes],
     manifest: str,
@@ -338,23 +371,13 @@ def write_reference_files(
         FixtureTooLargeError: The files of one fixture folder would exceed the fixture ceiling.
     """
     contents = {**payloads, K_MANIFEST_NAME: manifest.encode("utf-8")}
-    targets = [
-        (name, tests_dir / folder / name) for name in contents for folder in K_DESTINATIONS[name]
-    ]
-    if external_weights is not None:
-        targets = [(name, path) for name, path in targets if name != K_WEIGHTS_FILE]
-        targets.append((K_WEIGHTS_FILE, external_weights / K_WEIGHTS_FILE))
-    for folder in {tests_dir / folder for folders in K_DESTINATIONS.values() for folder in folders}:
-        in_folder = sum(len(contents[name]) for name, path in targets if path.parent == folder)
-        if in_folder > K_FIXTURE_CEILING_BYTES:
-            raise FixtureTooLargeError(
-                f"{in_folder} bytes in {folder} exceed the {K_FIXTURE_CEILING_BYTES} byte "
-                "ceiling; pass --external-weights DIR to keep weights.sushi outside it",
-            )
+    sizes = {name: len(data) for name, data in contents.items()}
+    targets = place_reference_files(list(contents), tests_dir, external_weights)
+    check_fixture_ceiling(targets, sizes, tests_dir)
     for name, path in targets:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(contents[name])
-    return {name: len(data) for name, data in contents.items()}
+    return sizes
 
 
 def guard_network() -> list[str]:
