@@ -3,20 +3,9 @@
 
 Suites: `Small_DetectAnchorLayout`.
 
-Tests `shape_iou` over two `AnchorSize` values and `validate_anchor_layout` over a layout of
-six anchors split between two heads.
-
-## ShapeIoUOfASizeWithItselfIsOne
-
-`shape_iou` of 0.3 x 0.7 with itself is 1 to 1e-6.
-
-## ShapeIoUOfAContainedSizeIsTheRatioOfTheAreas
-
-`shape_iou` of 0.2 x 0.4 and 0.1 x 0.2 is 0.25 in either order.
-
-## ShapeIoUOfCrossedSizesCountsTheSharedRectangle
-
-`shape_iou` of 0.4 x 0.1 and 0.1 x 0.4 is 1/7.
+Tests `validate_anchor_layout` over a layout of six anchors split between two heads, and
+`shape_iou` of a size with no area. The hand values of `shape_iou` are in
+`test_anchor_size.cpp`.
 
 ## ShapeIoUWithAZeroAreaIsZero
 
@@ -26,10 +15,15 @@ six anchors split between two heads.
 
 `validate_anchor_layout` is ok for the two-head layout.
 
-## AcceptsASharedAnchorAndAnAnchorNoHeadUses
+## AcceptsASharedAnchor
 
-With the masks {3, 4, 5} and {1, 2, 3}, where anchor 3 is shared and anchor 0 unused, the
-layout is accepted.
+With the masks {0, 1, 2, 3} and {3, 4, 5}, where anchor 3 is shared and every anchor is used,
+the layout is accepted.
+
+## AcceptsAnAnchorNoHeadUses
+
+With the masks {3, 4, 5} and {1, 2}, where anchor 0 is unused and none is shared, the layout is
+accepted.
 
 ## RefusesAnIndexPastTheAnchors
 

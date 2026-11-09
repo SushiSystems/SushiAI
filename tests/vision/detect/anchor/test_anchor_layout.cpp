@@ -24,7 +24,7 @@
 
 /**
  * @file test_anchor_layout.cpp
- * @brief Tests the IoU of two anchor sizes and the check of an anchor layout on hand cases.
+ * @brief Tests the check of an anchor layout and the IoU of a size with no area.
  * @author Mustafa Garip
  */
 
@@ -33,7 +33,6 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
-#include <support/tolerance.hpp>
 
 namespace
 {
@@ -42,13 +41,6 @@ namespace
     using SushiAI::Vision::Detect::Anchor::AnchorSize;
     using SushiAI::Vision::Detect::Anchor::shape_iou;
     using SushiAI::Vision::Detect::Anchor::validate_anchor_layout;
-
-    /**
-     * @brief Holds the absolute tolerance of an IoU whose terms float32 rounds once each: 32 times
-     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
-     */
-    constexpr float K_IOU_TOLERANCE =
-        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Returns six anchors of rising area and two heads of three slots each. */
     AnchorLayout make_two_head_layout()
@@ -60,35 +52,6 @@ namespace
         return layout;
     }
 } // namespace
-
-/** @brief Tests that shape_iou of a size with itself is 1. */
-TEST(Small_DetectAnchorLayout, ShapeIoUOfASizeWithItselfIsOne)
-{
-    const AnchorSize size{0.3f, 0.7f};
-
-    EXPECT_NEAR(shape_iou(size, size), 1.0f, K_IOU_TOLERANCE);
-}
-
-/** @brief Tests that shape_iou of a contained size is the ratio of the two areas. */
-TEST(Small_DetectAnchorLayout, ShapeIoUOfAContainedSizeIsTheRatioOfTheAreas)
-{
-    const AnchorSize outer{0.2f, 0.4f};
-    const AnchorSize inner{0.1f, 0.2f};
-
-    // The inner area is 0.02 and the union is the outer area, 0.08.
-    EXPECT_NEAR(shape_iou(outer, inner), 0.25f, K_IOU_TOLERANCE);
-    EXPECT_NEAR(shape_iou(inner, outer), 0.25f, K_IOU_TOLERANCE);
-}
-
-/** @brief Tests that shape_iou of a wide and a tall size counts the rectangle they share. */
-TEST(Small_DetectAnchorLayout, ShapeIoUOfCrossedSizesCountsTheSharedRectangle)
-{
-    const AnchorSize wide{0.4f, 0.1f};
-    const AnchorSize tall{0.1f, 0.4f};
-
-    // The shared rectangle is 0.1 by 0.1 and the union is 0.04 + 0.04 - 0.01.
-    EXPECT_NEAR(shape_iou(wide, tall), 1.0f / 7.0f, K_IOU_TOLERANCE);
-}
 
 /** @brief Tests that shape_iou with a zero area is 0, and 0 for two zero areas. */
 TEST(Small_DetectAnchorLayout, ShapeIoUWithAZeroAreaIsZero)
@@ -110,11 +73,22 @@ TEST(Small_DetectAnchorLayout, AcceptsOneHeadPerGroupOfAnchors)
     EXPECT_TRUE(status.is_ok()) << status.message();
 }
 
-/** @brief Tests that two heads may share an anchor and an anchor may belong to no head. */
-TEST(Small_DetectAnchorLayout, AcceptsASharedAnchorAndAnAnchorNoHeadUses)
+/** @brief Tests that two heads may share an anchor. */
+TEST(Small_DetectAnchorLayout, AcceptsASharedAnchor)
 {
     AnchorLayout layout = make_two_head_layout();
-    layout.head_anchors = {{3, 4, 5}, {1, 2, 3}};
+    layout.head_anchors = {{0, 1, 2, 3}, {3, 4, 5}};
+
+    const SushiAI::Status status = validate_anchor_layout(layout);
+
+    EXPECT_TRUE(status.is_ok()) << status.message();
+}
+
+/** @brief Tests that an anchor no head uses is accepted. */
+TEST(Small_DetectAnchorLayout, AcceptsAnAnchorNoHeadUses)
+{
+    AnchorLayout layout = make_two_head_layout();
+    layout.head_anchors = {{3, 4, 5}, {1, 2}};
 
     const SushiAI::Status status = validate_anchor_layout(layout);
 
