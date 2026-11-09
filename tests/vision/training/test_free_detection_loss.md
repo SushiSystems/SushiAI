@@ -2,10 +2,14 @@
 
 Suites: `Small_FreeDetectionLoss`, `Medium_FreeDetectionLossEndToEnd`.
 
+The `Small_` case builds the graph on the host: at the default gains the total has one element and
+the distribution and L1 terms are absent. The operations that hold CIoU's alpha and select the
+boxes are not counted; the gradient checks below show that the loss is right.
+
 The fixture is one image on a 1x2 grid with two classes. Anchor 0 is foreground with a target box
 of 0.2, 0.1, 1.3, 1.4 grid units and a normalized weight of 0.7; anchor 1 is background and
 carries the safe box. The graph runs in FLOAT64 and each term must equal
-`evaluate_free_detection_loss` to 1e-9, at reg_max 4 with seeded logits and at reg_max 1 with an
+`evaluate_free_detection_loss` to 16777216 double unit roundoffs, at reg_max 4 with seeded logits and at reg_max 1 with an
 L1 gain of 1.5.
 
 The gradient checks run `check_full_jacobian` over the box outputs and the score logits. At

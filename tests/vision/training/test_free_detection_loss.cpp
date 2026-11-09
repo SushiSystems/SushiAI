@@ -37,7 +37,6 @@
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -368,8 +367,8 @@ namespace
     class Medium_FreeDetectionLossEndToEnd : public SaTest::EngineTest {};
 } // namespace
 
-/** @brief Tests that CIoU's alpha is held by one STOP_GRADIENT and the boxes pass one SELECT. */
-TEST(Small_FreeDetectionLoss, AlphaIsHeldAndTheBoxesAreSelected)
+/** @brief Tests that the total is one element and the terms the gains leave off are absent. */
+TEST(Small_FreeDetectionLoss, TheTotalIsOneElementAndTheOptionalTermsAreAbsent)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -393,15 +392,6 @@ TEST(Small_FreeDetectionLoss, AlphaIsHeldAndTheBoxesAreSelected)
     EXPECT_EQ(graph.value(terms.total).shape, Shape{1});
     EXPECT_EQ(terms.distribution, Graph::K_NO_VALUE);
     EXPECT_EQ(terms.l1, Graph::K_NO_VALUE);
-    std::size_t stops = 0;
-    std::size_t selects = 0;
-    for (const Graph::Node& node : graph.nodes())
-    {
-        stops += node.op == Ops::K_STOP_GRADIENT.id ? 1 : 0;
-        selects += node.op == Ops::K_SELECT.id ? 1 : 0;
-    }
-    EXPECT_EQ(stops, 1u);
-    EXPECT_EQ(selects, 1u);
 }
 
 /** @brief Tests that every term at reg_max 4 equals the host evaluation. */

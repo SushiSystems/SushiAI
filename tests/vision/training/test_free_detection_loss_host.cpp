@@ -131,6 +131,71 @@ namespace
         gains.l1_gain = 5.0f;
         return gains;
     }
+
+    /** @brief Names a level whose array has the wrong size and what the refusal names. */
+    struct WrongSizedArray
+    {
+        const char* name;           /**< Names the row in the test name. */
+        LevelRow (*make)();         /**< Builds the level. */
+        const char* array;          /**< Names the array the message refuses. */
+        const char* holds;          /**< States how many values the rows need. */
+    };
+
+    /** @brief Provides the levels with an array of another size than their rows need. */
+    class Small_FreeDetectionLossHostSizes : public ::testing::TestWithParam<WrongSizedArray>
+    {
+
+    };
+
+    /** @brief Names the arguments of an evaluation that is refused and what the refusal names. */
+    struct NotPositive
+    {
+        const char* name;           /**< Names the row in the test name. */
+        LevelRow level;             /**< The level given. */
+        std::int64_t batch;         /**< The batch given. */
+        double score_sum;           /**< The score sum given. */
+        const char* count;          /**< States the setting that is not positive. */
+    };
+
+    /** @brief Returns a level of no regression bins. */
+    LevelRow level_of_no_bins()
+    {
+        LevelRow row;
+        row.reg_max = 0;
+        return row;
+    }
+
+    /** @brief Returns a level of no classes. */
+    LevelRow level_of_no_classes()
+    {
+        LevelRow row;
+        row.classes = 0;
+        return row;
+    }
+
+    /** @brief Provides the settings that are not positive. */
+    class Small_FreeDetectionLossHostSettings : public ::testing::TestWithParam<NotPositive>
+    {
+
+    };
+
+    /** @brief Returns a level whose score array is one value short of its rows. */
+    LevelRow level_with_short_scores()
+    {
+        LevelRow row;
+        row.classes = 2;
+        row.scores = {0.0, 0.0, 0.0};
+        row.target_scores = {0.0, 0.0};
+        return row;
+    }
+
+    /** @brief Returns a level whose box mask is two values for rows of four. */
+    LevelRow level_with_short_mask()
+    {
+        LevelRow row;
+        row.box_mask = {1.0, 1.0};
+        return row;
+    }
 } // namespace
 
 /** @brief Tests that the class term is the logistic cross-entropy over the score sum. */
@@ -256,38 +321,36 @@ TEST(Small_FreeDetectionLossHost, LevelsAddTheirTerms)
 }
 
 /** @brief Tests that an array of another size than its rows need is refused naming it. */
-TEST(Small_FreeDetectionLossHost, AnArrayOfAnotherSizeIsRefusedNamingIt)
+TEST_P(Small_FreeDetectionLossHostSizes, AnArrayOfAnotherSizeIsRefusedNamingIt)
 {
-    LevelRow scores;
-    scores.classes = 2;
-    scores.scores = {0.0, 0.0, 0.0};
-    scores.target_scores = {0.0, 0.0};
-    LevelRow mask;
-    mask.box_mask = {1.0, 1.0};
-
-    SA_EXPECT_FAILURE(evaluate({scores}, FreeLossGains{}),
-                      SushiAI::StatusCode::InvalidDescription, "scores", "hold 3 values");
-    SA_EXPECT_FAILURE(evaluate({mask}, FreeLossGains{}),
-                      SushiAI::StatusCode::InvalidDescription, "box mask", "hold 2 values");
+    SA_EXPECT_FAILURE(evaluate({GetParam().make()}, FreeLossGains{}),
+                      SushiAI::StatusCode::InvalidDescription, GetParam().array,
+                      GetParam().holds);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_FreeDetectionLossHostSizes,
+    ::testing::Values(WrongSizedArray{"Scores", &level_with_short_scores, "scores", "hold 3 values"},
+                      WrongSizedArray{"BoxMask", &level_with_short_mask, "box mask",
+                                      "hold 2 values"}),
+    [](const ::testing::TestParamInfo<WrongSizedArray>& info) { return std::string(info.param.name); });
 
 /** @brief Tests that a setting below one, or a score sum that is not above 0, is refused. */
-TEST(Small_FreeDetectionLossHost, ASettingThatIsNotPositiveIsRefused)
+TEST_P(Small_FreeDetectionLossHostSettings, ASettingThatIsNotPositiveIsRefused)
 {
-    LevelRow regression;
-    regression.reg_max = 0;
-    LevelRow classes;
-    classes.classes = 0;
+    const NotPositive& row = GetParam();
 
-    SA_EXPECT_FAILURE(evaluate({regression}, FreeLossGains{}),
-                      SushiAI::StatusCode::InvalidDescription, "reg_max 0", "positive");
-    SA_EXPECT_FAILURE(evaluate({classes}, FreeLossGains{}),
-                      SushiAI::StatusCode::InvalidDescription, "0 classes", "positive");
-    SA_EXPECT_FAILURE(evaluate({LevelRow()}, FreeLossGains{}, 0),
-                      SushiAI::StatusCode::InvalidDescription, "batch of 0", "positive");
-    SA_EXPECT_FAILURE(evaluate({LevelRow()}, FreeLossGains{}, 1, 0.0),
-                      SushiAI::StatusCode::InvalidDescription, "score sum", "positive");
+    SA_EXPECT_FAILURE(evaluate({row.level}, FreeLossGains{}, row.batch, row.score_sum),
+                      SushiAI::StatusCode::InvalidDescription, row.count, "positive");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_FreeDetectionLossHostSettings,
+    ::testing::Values(NotPositive{"RegMax", level_of_no_bins(), 1, 1.0, "reg_max 0"},
+                      NotPositive{"Classes", level_of_no_classes(), 1, 1.0, "0 classes"},
+                      NotPositive{"Batch", LevelRow(), 0, 1.0, "batch of 0"},
+                      NotPositive{"ScoreSum", LevelRow(), 1, 0.0, "score sum"}),
+    [](const ::testing::TestParamInfo<NotPositive>& info) { return std::string(info.param.name); });
 
 /** @brief Tests that a run of no level has every term 0. */
 TEST(Small_FreeDetectionLossHost, NoLevelGivesNoLoss)
