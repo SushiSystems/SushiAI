@@ -21,25 +21,27 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_anchor_clustering.cpp
- * @brief Tests the anchors derived from seeded label boxes and the sequence that seeds them.
+ * @brief Tests the anchors derived from seeded label boxes.
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <limits>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_clustering.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
-#include <SushiAI/vision/detect/anchor/seeded_sequence.hpp>
+#include <support/splitmix64.hpp>
 #include <support/tolerance.hpp>
 
 namespace
@@ -50,7 +52,6 @@ namespace
     using SushiAI::Vision::Detect::Anchor::AnchorSize;
     using SushiAI::Vision::Detect::Anchor::cluster_anchors;
     using SushiAI::Vision::Detect::Anchor::ClusteringOptions;
-    using SushiAI::Vision::Detect::Anchor::Detail::SeededSequence;
 
     /** @brief Holds the seed of the jitter every ladder of this file is generated with. */
     constexpr std::uint64_t K_LADDER_SEED = 0xA03ull;
@@ -63,6 +64,9 @@ namespace
 
     /** @brief Holds the largest share a side is jittered by. */
     constexpr double K_JITTER = 0.02;
+
+    /** @brief Holds 2^53, the divisor that turns the upper 53 bits of a number into a unit. */
+    constexpr double K_UNIT_DIVISOR = 9007199254740992.0;
 
     /**
      * @brief Holds the relative tolerance of a recovered centre's side: 2.5 times the 0.02 jitter,
@@ -83,6 +87,51 @@ namespace
     constexpr float K_SIDE_TOLERANCE =
         static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
+    /** @brief Holds a ladder seed under test and the name of its row. */
+    struct LadderSeed
+    {
+        std::string name;   /**< The row's name. */
+        std::uint64_t seed; /**< The seed of the clustering. */
+    };
+
+    /** @brief Holds one options set the clustering refuses and the name of its row. */
+    struct RefusedOptions
+    {
+        std::string name;          /**< The row's name. */
+        ClusteringOptions options; /**< The options outside their range. */
+    };
+
+    /** @brief Runs the ladder under one clustering seed. */
+    class Small_DetectAnchorClusteringLadder : public ::testing::TestWithParam<LadderSeed>
+    {
+
+    };
+
+    /** @brief Runs one options set the clustering refuses. */
+    class Small_DetectAnchorClusteringOptions : public ::testing::TestWithParam<RefusedOptions>
+    {
+
+    };
+
+    /** @brief Names a ladder row by its name field. */
+    std::string ladder_name(const ::testing::TestParamInfo<LadderSeed>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names an options row by its name field. */
+    std::string options_name(const ::testing::TestParamInfo<RefusedOptions>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Returns draw @p index of the ladder jitter as a double in [0, 1). */
+    double draw_jitter_unit(std::uint64_t index)
+    {
+        return static_cast<double>(TestSupport::reference_splitmix64(K_LADDER_SEED, index) >> 11) /
+               K_UNIT_DIVISOR;
+    }
+
     /** @brief Returns the centre of rung @p rung: 0.03 x 0.05 times 1.8 per rung. */
     AnchorSize make_rung(std::int64_t rung)
     {
@@ -93,16 +142,18 @@ namespace
     /** @brief Returns K_BOXES_PER_RUNG jittered boxes at each of K_RUNGS rungs, rung by rung. */
     std::vector<AnchorSize> make_ladder()
     {
-        SeededSequence jitter(K_LADDER_SEED);
         std::vector<AnchorSize> boxes;
         boxes.reserve(static_cast<std::size_t>(K_RUNGS) * K_BOXES_PER_RUNG);
+        std::uint64_t draw = 0;
         for (std::int64_t rung = 0; rung < K_RUNGS; ++rung)
         {
             const double scale = std::pow(1.8, static_cast<double>(rung));
             for (std::size_t box = 0; box < K_BOXES_PER_RUNG; ++box)
             {
-                const double width_factor = 1.0 + K_JITTER * (2.0 * jitter.next_unit() - 1.0);
-                const double height_factor = 1.0 + K_JITTER * (2.0 * jitter.next_unit() - 1.0);
+                const double width_factor =
+                    1.0 + K_JITTER * (2.0 * draw_jitter_unit(draw++) - 1.0);
+                const double height_factor =
+                    1.0 + K_JITTER * (2.0 * draw_jitter_unit(draw++) - 1.0);
                 boxes.push_back(AnchorSize{static_cast<float>(0.03 * scale * width_factor),
                                            static_cast<float>(0.05 * scale * height_factor)});
             }
@@ -116,6 +167,14 @@ namespace
         ClusteringOptions options;
         options.count = K_RUNGS;
         options.seed = seed;
+        return options;
+    }
+
+    /** @brief Returns the options of a clustering to one anchor, which the refusal rows alter. */
+    ClusteringOptions make_single_options()
+    {
+        ClusteringOptions options;
+        options.count = 1;
         return options;
     }
 
@@ -134,6 +193,23 @@ namespace
         }
     }
 
+    /** @brief Expects @p anchor to equal @p box on both sides within K_SIDE_TOLERANCE. */
+    void expect_anchor_equals(const AnchorSize& anchor, const AnchorSize& box)
+    {
+        EXPECT_NEAR(anchor.width, box.width, K_SIDE_TOLERANCE);
+        EXPECT_NEAR(anchor.height, box.height, K_SIDE_TOLERANCE);
+    }
+
+    /** @brief Returns the area of every anchor of @p anchors, in order. */
+    std::vector<float> measure_areas(const std::vector<AnchorSize>& anchors)
+    {
+        std::vector<float> areas;
+        areas.reserve(anchors.size());
+        for (const AnchorSize& anchor : anchors)
+            areas.push_back(anchor.width * anchor.height);
+        return areas;
+    }
+
     /** @brief Returns the bit pattern of @p value. */
     std::uint64_t read_bits(double value)
     {
@@ -149,42 +225,43 @@ namespace
         std::memcpy(&bits, &value, sizeof(bits));
         return bits;
     }
+
+    /** @brief Returns the bits of every width and height of @p anchors, in order. */
+    std::vector<std::uint32_t> read_anchor_bits(const std::vector<AnchorSize>& anchors)
+    {
+        std::vector<std::uint32_t> bits;
+        bits.reserve(anchors.size() * 2);
+        for (const AnchorSize& anchor : anchors)
+        {
+            bits.push_back(read_bits(anchor.width));
+            bits.push_back(read_bits(anchor.height));
+        }
+        return bits;
+    }
+
+    /** @brief Returns the options outside their range, one row each. */
+    std::vector<RefusedOptions> make_refused_options()
+    {
+        std::vector<RefusedOptions> rows;
+        rows.push_back({"ACountOfZero", make_single_options()});
+        rows.back().options.count = 0;
+        rows.push_back({"ZeroIterations", make_single_options()});
+        rows.back().options.max_iterations = 0;
+        rows.push_back({"ANegativeSweepCount", make_single_options()});
+        rows.back().options.max_refinement_sweeps = -1;
+        rows.push_back({"ANegativeSmallestSide", make_single_options()});
+        rows.back().options.min_side = -0.5f;
+        rows.push_back({"ANaNSmallestSide", make_single_options()});
+        rows.back().options.min_side = std::numeric_limits<float>::quiet_NaN();
+        return rows;
+    }
 } // namespace
 
-/** @brief Tests the first eight numbers of seed 0 against the published SplitMix64 sequence. */
-TEST(Small_DetectAnchorClustering, SequenceOfSeedZeroMatchesThePublishedNumbers)
-{
-    const std::uint64_t published[8] = {
-        0xE220A8397B1DCDAFull, 0x6E789E6AA1B965F4ull, 0x06C45D188009454Full,
-        0xF88BB8A8724C81ECull, 0x1B39896A51A8749Bull, 0x53CB9F0C747EA2EAull,
-        0x2C829ABE1F4532E1ull, 0xC584133AC916AB3Cull};
-
-    SeededSequence sequence(0);
-
-    for (const std::uint64_t expected : published)
-        EXPECT_EQ(sequence.next(), expected);
-}
-
-/** @brief Tests that the unit draw is the upper 53 bits of the next number over 2^53. */
-TEST(Small_DetectAnchorClustering, UnitDrawIsTheUpperBitsOfTheNextNumber)
-{
-    SeededSequence sequence(0);
-
-    const double unit = sequence.next_unit();
-
-    // 0xE220A8397B1DCDAF is the first published number; 53 bits over 2^53 is exact in double.
-    EXPECT_EQ(read_bits(unit), read_bits(static_cast<double>(0xE220A8397B1DCDAFull >> 11) /
-                                         9007199254740992.0));
-    EXPECT_GE(unit, 0.0);
-    EXPECT_LT(unit, 1.0);
-}
-
-/** @brief Tests that the default seed recovers every rung of the ladder within 5 %. */
-TEST(Small_DetectAnchorClustering, LadderIsRecoveredWithinFivePercent)
+/** @brief Tests that the default seed and another seed each recover every rung within 5 %. */
+TEST_P(Small_DetectAnchorClusteringLadder, EverySeedRecoversEveryRung)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
-    ClusteringOptions options;
-    options.count = K_RUNGS;
+    const ClusteringOptions options = make_ladder_options(GetParam().seed);
 
     const Result<AnchorClustering> outcome = cluster_anchors(boxes, options);
 
@@ -200,6 +277,11 @@ TEST(Small_DetectAnchorClustering, LadderIsRecoveredWithinFivePercent)
     EXPECT_LE(clustering.refinement_sweeps, options.max_refinement_sweeps);
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorClusteringLadder,
+                         ::testing::Values(LadderSeed{"TheDefaultSeed", ClusteringOptions{}.seed},
+                                           LadderSeed{"AnotherSeed", 0x1234ull}),
+                         ladder_name);
+
 /** @brief Tests that the anchors come back in ascending area. */
 TEST(Small_DetectAnchorClustering, AnchorsAreInAscendingArea)
 {
@@ -209,24 +291,9 @@ TEST(Small_DetectAnchorClustering, AnchorsAreInAscendingArea)
         cluster_anchors(boxes, make_ladder_options(0x5355534849ull));
 
     ASSERT_TRUE(outcome.has_value()) << outcome.status().message();
-    const std::vector<AnchorSize>& anchors = outcome.value().anchors;
-    for (std::size_t index = 1; index < anchors.size(); ++index)
-    {
-        EXPECT_LT(anchors[index - 1].width * anchors[index - 1].height,
-                  anchors[index].width * anchors[index].height);
-    }
-}
-
-/** @brief Tests that another seed still recovers every rung within 5 %. */
-TEST(Small_DetectAnchorClustering, AnotherSeedStillRecoversTheLadder)
-{
-    const std::vector<AnchorSize> boxes = make_ladder();
-
-    const Result<AnchorClustering> outcome = cluster_anchors(boxes, make_ladder_options(0x1234));
-
-    ASSERT_TRUE(outcome.has_value()) << outcome.status().message();
-    expect_rungs_recovered(outcome.value().anchors);
-    EXPECT_GT(outcome.value().mean_best_iou, 0.95);
+    const std::vector<float> areas = measure_areas(outcome.value().anchors);
+    EXPECT_EQ(std::adjacent_find(areas.begin(), areas.end(), std::greater_equal<float>()),
+              areas.end());
 }
 
 /** @brief Tests that 1 % of the boxes at 0.9 x 0.9 leave every centre within 5 %. */
@@ -255,14 +322,7 @@ TEST(Small_DetectAnchorClustering, TwoRunsAreBitIdentical)
 
     ASSERT_TRUE(first.has_value()) << first.status().message();
     ASSERT_TRUE(second.has_value()) << second.status().message();
-    ASSERT_EQ(first.value().anchors.size(), second.value().anchors.size());
-    for (std::size_t index = 0; index < first.value().anchors.size(); ++index)
-    {
-        EXPECT_EQ(read_bits(first.value().anchors[index].width),
-                  read_bits(second.value().anchors[index].width));
-        EXPECT_EQ(read_bits(first.value().anchors[index].height),
-                  read_bits(second.value().anchors[index].height));
-    }
+    EXPECT_EQ(read_anchor_bits(first.value().anchors), read_anchor_bits(second.value().anchors));
     EXPECT_EQ(read_bits(first.value().mean_best_iou), read_bits(second.value().mean_best_iou));
     EXPECT_EQ(read_bits(first.value().mean_best_iou_before_refinement),
               read_bits(second.value().mean_best_iou_before_refinement));
@@ -334,11 +394,9 @@ TEST(Small_DetectAnchorClustering, LeavesOutAZeroAndANaNSide)
     EXPECT_EQ(clustering.boxes_rejected, 2);
     EXPECT_EQ(clustering.boxes_used, 15);
     ASSERT_EQ(clustering.anchors.size(), 3u);
-    for (std::size_t index = 0; index < 3; ++index)
-    {
-        EXPECT_NEAR(clustering.anchors[index].width, kept[index].width, K_SIDE_TOLERANCE);
-        EXPECT_NEAR(clustering.anchors[index].height, kept[index].height, K_SIDE_TOLERANCE);
-    }
+    expect_anchor_equals(clustering.anchors[0], kept[0]);
+    expect_anchor_equals(clustering.anchors[1], kept[1]);
+    expect_anchor_equals(clustering.anchors[2], kept[2]);
     EXPECT_NEAR(clustering.mean_best_iou, 1.0, K_MEAN_TOLERANCE);
 }
 
@@ -356,28 +414,19 @@ TEST(Small_DetectAnchorClustering, LeavesOutABoxAtTheSmallestSide)
     EXPECT_EQ(outcome.value().boxes_rejected, 2);
     EXPECT_EQ(outcome.value().boxes_used, 1);
     ASSERT_EQ(outcome.value().anchors.size(), 1u);
-    EXPECT_NEAR(outcome.value().anchors[0].width, 0.25f, K_SIDE_TOLERANCE);
-    EXPECT_NEAR(outcome.value().anchors[0].height, 0.5f, K_SIDE_TOLERANCE);
+    expect_anchor_equals(outcome.value().anchors[0], AnchorSize{0.25f, 0.5f});
 }
 
-/** @brief Tests that each option outside its range is InvalidDescription. */
-TEST(Small_DetectAnchorClustering, RefusesOptionsOutsideTheirRange)
+/** @brief Tests that an option outside its range is InvalidDescription. */
+TEST_P(Small_DetectAnchorClusteringOptions, AnOptionOutsideItsRangeIsRefused)
 {
     const std::vector<AnchorSize> boxes = {{0.25f, 0.5f}, {0.5f, 0.25f}};
-    ClusteringOptions valid;
-    valid.count = 1;
-    std::vector<ClusteringOptions> refused(5, valid);
-    refused[0].count = 0;
-    refused[1].max_iterations = 0;
-    refused[2].max_refinement_sweeps = -1;
-    refused[3].min_side = -0.5f;
-    refused[4].min_side = std::numeric_limits<float>::quiet_NaN();
 
-    for (const ClusteringOptions& options : refused)
-    {
-        const Result<AnchorClustering> outcome = cluster_anchors(boxes, options);
+    const Result<AnchorClustering> outcome = cluster_anchors(boxes, GetParam().options);
 
-        ASSERT_FALSE(outcome.has_value());
-        EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
-    }
+    ASSERT_FALSE(outcome.has_value());
+    EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DetectAnchorClusteringOptions,
+                         ::testing::ValuesIn(make_refused_options()), options_name);
