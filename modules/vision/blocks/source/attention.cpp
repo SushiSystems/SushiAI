@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -42,6 +43,22 @@ namespace SushiAI
 {
     namespace Vision::Blocks
     {
+        Status check_attention_heads(int64_t channels, int64_t head_count) noexcept
+        {
+            SA_FAIL_IF(channels <= 0 || head_count <= 0 || channels % head_count != 0,
+                       StatusCode::InvalidDescription,
+                       "Attention needs a positive width that its head count divides; got "
+                       "{} channels and {} heads",
+                       channels, head_count);
+            SA_FAIL_IF(channels / head_count < Detail::K_SMALLEST_HEAD_WIDTH,
+                       StatusCode::InvalidDescription,
+                       "Attention needs at least {} channels per head, because the key "
+                       "width is half of them; got {} channels and {} heads",
+                       Detail::K_SMALLEST_HEAD_WIDTH, channels, head_count);
+
+            return Status();
+        }
+
         namespace
         {
             /** @brief Holds the side of the positional convolution's window. */
@@ -49,19 +66,12 @@ namespace SushiAI
 
             /**
              * @brief Returns channels / head_count, the value width of one head.
-             * @pre @p channels is positive, a multiple of @p head_count, and holds
-             *      Detail::K_SMALLEST_HEAD_WIDTH channels per head; make_c2psa_node checks it.
+             * @pre check_attention_heads() accepts both counts; make_c2psa_node checks a row.
              */
             [[nodiscard]] int64_t divide_into_heads(int64_t channels, int64_t head_count)
             {
-                SA_FATAL_IF(channels <= 0 || head_count <= 0 || channels % head_count != 0,
-                            "Attention needs a positive width that its head count divides; got "
-                            "{} channels and {} heads",
-                            channels, head_count);
-                SA_FATAL_IF(channels / head_count < Detail::K_SMALLEST_HEAD_WIDTH,
-                            "Attention needs at least {} channels per head, because the key "
-                            "width is half of them; got {} channels and {} heads",
-                            Detail::K_SMALLEST_HEAD_WIDTH, channels, head_count);
+                const Status checked = check_attention_heads(channels, head_count);
+                SA_FATAL_IF(!checked.is_ok(), "{}", checked.message());
 
                 return channels / head_count;
             }

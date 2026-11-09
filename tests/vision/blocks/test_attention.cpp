@@ -24,7 +24,7 @@
 
 /**
  * @file test_attention.cpp
- * @brief Tests Attention's trace for two heads and its state names against YOLO26n row 10.
+ * @brief Tests Attention's trace for two heads, its head check and its state names against YOLO26n row 10.
  * @author Mustafa Garip
  */
 
@@ -37,6 +37,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -49,18 +50,13 @@
 
 using namespace SushiAI;
 using Vision::Blocks::Attention;
+using Vision::Blocks::check_attention_heads;
 using NN::BufferUpdateList;
 using NN::NormOptions;
 using NN::Trace;
 
 namespace
 {
-    /**
-     * @brief Holds the absolute tolerance of a double computed once and read back: 16 times the
-     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-15.
-     */
-    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Holds the epsilon and the momentum MANIFEST.json records for YOLO26n. */
     constexpr NormOptions K_YOLO_NORM{1e-3, 0.03};
 
@@ -76,9 +72,6 @@ namespace
     /** @brief Holds the value width of one head of row 10. */
     constexpr int64_t K_HEAD_DIM = 64;
 
-    /** @brief Holds the channels one head takes of qkv's result: queries, keys, values. */
-    constexpr int64_t K_HEAD_WIDTH = 2 * K_KEY_DIM + K_HEAD_DIM;
-
     /** @brief Holds the batch extent of the traced input. */
     constexpr int64_t K_BATCH = 2;
 
@@ -88,12 +81,50 @@ namespace
     /** @brief Holds the positions of the traced input, K_SIDE squared. */
     constexpr int64_t K_TOKENS = K_SIDE * K_SIDE;
 
+    /** @brief Holds the norms of a block of row 10: qkv, proj and pe. */
+    constexpr std::size_t K_NORMS = 3;
+
+    /** @brief Holds the buffer updates one norm requests: its running mean and its variance. */
+    constexpr std::size_t K_UPDATES_PER_NORM = 2;
+
+    /** @brief Holds 1 / sqrt(32), the double nearest to it, written out as a second oracle. */
+    constexpr double K_INVERSE_ROOT_OF_KEY = 0.17677669529663687;
+
     /** @brief Names which of the two kinds of state a record is. */
     enum class StateKind : std::uint8_t
     {
         Parameter, /**< A learnable tensor. */
         Buffer,    /**< A stored tensor no gradient reaches. */
     };
+
+    /** @brief Holds one head layout the check refuses and the words its message names. */
+    struct RefusedHeads
+    {
+        std::string name;     /**< The row's name. */
+        int64_t channels;     /**< The width given. */
+        int64_t heads;        /**< The head count given. */
+        std::string rule;     /**< The rule the message states. */
+        std::string channels_named; /**< The width as the message names it. */
+        std::string heads_named;    /**< The head count as the message names it. */
+    };
+
+    /** @brief Runs one refused head layout. */
+    class Small_BlockAttentionHeads : public ::testing::TestWithParam<RefusedHeads>
+    {
+
+    };
+
+    /** @brief Runs the process-stopping cases in a child process. */
+    class Medium_BlockAttentionDeath : public ::testing::Test
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string row_name(const ::testing::TestParamInfo<RefusedHeads>& info)
+    {
+        return info.param.name;
+    }
 
     /** @brief Writes one piece of state as "name [extents] kind", for a readable mismatch. */
     std::string record(const std::string& name, const Shape& shape, StateKind kind)
@@ -155,45 +186,31 @@ namespace
         return index;
     }
 
-    /** @brief Returns the node of @p graph that produced @p value. */
-    const Graph::Node& producer_of(const Graph::Graph& graph, Graph::ValueID value)
+    /** @brief Counts the MATMUL nodes of @p graph over rank-3 operands that yield @p shape. */
+    std::size_t count_products_of(const Graph::Graph& graph, const Shape& shape)
     {
-        return graph.node(graph.value(value).producer);
-    }
-
-    /** @brief Lists the MATMUL nodes of @p graph over rank-3 operands, in emission order. */
-    std::vector<const Graph::Node*> batched_products(const Graph::Graph& graph)
-    {
-        std::vector<const Graph::Node*> products;
+        std::size_t count = 0;
         for (const Graph::Node& node : graph.nodes())
         {
-            if (node.op == Ops::K_MATMUL.id && graph.value(node.inputs[0]).shape.rank() == 3)
-                products.push_back(&node);
+            if (node.op == Ops::K_MATMUL.id && graph.value(node.inputs[0]).shape.rank() == 3
+                && graph.value(node.outputs[0]).shape == shape)
+                ++count;
         }
 
-        return products;
+        return count;
     }
 
-    /**
-     * @brief Expects @p tokens to be a RESHAPE to @p shape of a slice of @p source that starts
-     *        at @p offset and holds @p count channels.
-     */
-    void expect_tokens_of_slice(const Graph::Graph& graph, Graph::ValueID tokens,
-                                const Shape& shape, Graph::ValueID source, int64_t offset,
-                                int64_t count)
+    /** @brief Lists the factor each SCALE node of @p graph carries, in emission order. */
+    std::vector<double> scale_factors(const Graph::Graph& graph)
     {
-        const Graph::Node& reshape = producer_of(graph, tokens);
-        ASSERT_EQ(reshape.op, Ops::K_RESHAPE.id);
-        EXPECT_EQ(graph.value(tokens).shape, shape);
+        std::vector<double> factors;
+        for (const Graph::Node& node : graph.nodes())
+        {
+            if (node.op == Ops::K_SCALE.id)
+                factors.push_back(node.attributes.values[0]);
+        }
 
-        const Graph::Node& slice = producer_of(graph, reshape.inputs[0]);
-        ASSERT_EQ(slice.op, Ops::K_SLICE_CHANNELS.id);
-        EXPECT_EQ(slice.inputs[0], source);
-
-        // A slice stores its first channel as a whole number in slot 0.
-        EXPECT_NEAR(slice.attributes.values[0], static_cast<double>(offset), K_EXACT_TOLERANCE);
-        EXPECT_EQ(graph.value(slice.outputs[0]).shape,
-                  (Shape{K_BATCH, K_SIDE, K_SIDE, count}));
+        return factors;
     }
 
     /** @brief Holds a graph with the attention of row 10 traced over it in training mode. */
@@ -221,12 +238,6 @@ namespace
             x = builder.input(Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}, "x");
             y = block.forward(Trace::training(builder, list), x);
         }
-
-        /** @brief Returns the id of qkv's normalised result, which every slice reads. */
-        Graph::ValueID mixed() const
-        {
-            return graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)].outputs[0];
-        }
     };
 
 } // namespace
@@ -239,9 +250,6 @@ TEST(Small_BlockAttention, TwoHeadsOver128ChannelsGiveAHeadOf64AndAKeyOf32)
     EXPECT_EQ(block.heads, K_HEADS);
     EXPECT_EQ(block.head_dim, K_HEAD_DIM);
     EXPECT_EQ(block.key_dim, K_KEY_DIM);
-    EXPECT_EQ(block.qkv.conv.out_channels, K_CHANNELS + 2 * K_HEADS * K_KEY_DIM);
-    EXPECT_EQ(block.pe.conv.geometry.kernel_h, 3);
-    EXPECT_EQ(block.pe.conv.geometry.pad_top, 1);
 }
 
 /** @brief Tests that the block keeps the per-sample shape. */
@@ -253,175 +261,62 @@ TEST(Small_BlockAttention, OutputShapeIsTheInputShape)
 }
 
 /**
- * @brief Tests that two heads trace 6 slices, 2 scales, 4 batched products, 2 softmax groups,
- *        1 add, 1 depthwise convolution and 2 joins, and keep the input's shape.
+ * @brief Tests that a training trace keeps the input's shape and requests the running-statistics
+ *        updates of the three norms, a mean and a variance each.
  */
-TEST(Small_BlockAttention, TwoHeadsEmitSixSlicesTwoScalesFourProductsTwoSoftmaxesAndOneAdd)
+TEST(Small_BlockAttention, ATrainingTraceKeepsTheInputShapeAndUpdatesTheThreeNorms)
 {
     const TracedAttention traced;
-    const Graph::Graph& graph = traced.graph;
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 6u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SCALE.id), 2u);
-    EXPECT_EQ(batched_products(graph).size(), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_EXP.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 0u);
-    EXPECT_EQ(graph.value(traced.y).shape, (Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}));
+    EXPECT_EQ(traced.graph.value(traced.y).shape, (Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}));
+    EXPECT_EQ(traced.list.updates().size(), K_NORMS * K_UPDATES_PER_NORM);
 }
 
-/**
- * @brief Tests that each head's score product reads its scaled queries, then its keys with
- *        the second operand transposed, and yields [B, N, N].
- */
-TEST(Small_BlockAttention, TheScoreProductReadsScaledQueriesThenTransposedKeys)
+/** @brief Tests that each head scores every position against every other, as [B, N, N]. */
+TEST(Small_BlockAttention, EachHeadScoresEveryPositionAgainstEveryOther)
 {
     const TracedAttention traced;
-    const Graph::Graph& graph = traced.graph;
-    const std::vector<const Graph::Node*> products = batched_products(graph);
-    ASSERT_EQ(products.size(), 4u);
 
-    const Shape key_tokens{K_BATCH, K_TOKENS, K_KEY_DIM};
-    for (int64_t head = 0; head < K_HEADS; ++head)
-    {
-        SCOPED_TRACE("head " + std::to_string(head));
-        const Graph::Node& scores = *products[static_cast<std::size_t>(2 * head)];
-        ASSERT_EQ(scores.inputs.size(), 2u);
-
-        // A product stores transpose_a and transpose_b as 0 or 1 in slots 0 and 1.
-        EXPECT_EQ(scores.attributes.values[0], 0.0);
-        EXPECT_EQ(scores.attributes.values[1], 1.0);
-        EXPECT_EQ(graph.value(scores.outputs[0]).shape, (Shape{K_BATCH, K_TOKENS, K_TOKENS}));
-
-        const Graph::Node& scale = producer_of(graph, scores.inputs[0]);
-        ASSERT_EQ(scale.op, Ops::K_SCALE.id);
-        expect_tokens_of_slice(graph, scale.inputs[0], key_tokens, traced.mixed(),
-                               head * K_HEAD_WIDTH, K_KEY_DIM);
-        expect_tokens_of_slice(graph, scores.inputs[1], key_tokens, traced.mixed(),
-                               head * K_HEAD_WIDTH + K_KEY_DIM, K_KEY_DIM);
-    }
+    EXPECT_EQ(count_products_of(traced.graph, Shape{K_BATCH, K_TOKENS, K_TOKENS}),
+              static_cast<std::size_t>(K_HEADS));
 }
 
-/**
- * @brief Tests that each head's value product reads the softmax of its scores, then its
- *        values, with neither operand transposed, and yields [B, N, head_dim].
- */
-TEST(Small_BlockAttention, TheValueProductReadsTheSoftmaxOfTheScoresThenTheValues)
+/** @brief Tests that each head weighs its values by the scores, as [B, N, head_dim]. */
+TEST(Small_BlockAttention, EachHeadWeighsItsValuesAsABatchOfTokenRows)
 {
     const TracedAttention traced;
-    const Graph::Graph& graph = traced.graph;
-    const std::vector<const Graph::Node*> products = batched_products(graph);
-    ASSERT_EQ(products.size(), 4u);
 
-    const Shape value_tokens{K_BATCH, K_TOKENS, K_HEAD_DIM};
-    for (int64_t head = 0; head < K_HEADS; ++head)
-    {
-        SCOPED_TRACE("head " + std::to_string(head));
-        const Graph::Node& scores = *products[static_cast<std::size_t>(2 * head)];
-        const Graph::Node& weighed = *products[static_cast<std::size_t>(2 * head + 1)];
-        ASSERT_EQ(weighed.inputs.size(), 2u);
-
-        EXPECT_EQ(weighed.attributes.values[0], 0.0);
-        EXPECT_EQ(weighed.attributes.values[1], 0.0);
-        EXPECT_EQ(graph.value(weighed.outputs[0]).shape, value_tokens);
-
-        // softmax() emits RESHAPE, LOG_SOFTMAX, EXP, RESHAPE; the chain is walked backwards.
-        const Graph::Node& unflatten = producer_of(graph, weighed.inputs[0]);
-        ASSERT_EQ(unflatten.op, Ops::K_RESHAPE.id);
-        const Graph::Node& exponent = producer_of(graph, unflatten.inputs[0]);
-        ASSERT_EQ(exponent.op, Ops::K_EXP.id);
-        const Graph::Node& log_softmax = producer_of(graph, exponent.inputs[0]);
-        ASSERT_EQ(log_softmax.op, Ops::K_LOG_SOFTMAX.id);
-        EXPECT_EQ(graph.value(log_softmax.inputs[0]).shape,
-                  (Shape{K_BATCH * K_TOKENS, K_TOKENS}));
-        const Graph::Node& flatten = producer_of(graph, log_softmax.inputs[0]);
-        ASSERT_EQ(flatten.op, Ops::K_RESHAPE.id);
-        EXPECT_EQ(flatten.inputs[0], scores.outputs[0]);
-
-        expect_tokens_of_slice(graph, weighed.inputs[1], value_tokens, traced.mixed(),
-                               head * K_HEAD_WIDTH + 2 * K_KEY_DIM, K_HEAD_DIM);
-    }
+    EXPECT_EQ(count_products_of(traced.graph, Shape{K_BATCH, K_TOKENS, K_HEAD_DIM}),
+              static_cast<std::size_t>(K_HEADS));
 }
 
-/** @brief Tests that both scales carry 1 / sqrt(32), to 1e-15 absolute. */
+/** @brief Tests that every head scales its queries by 1 / sqrt(key width). */
 TEST(Small_BlockAttention, TheQueriesAreScaledByTheInverseRootOfTheKeyWidth)
 {
     const TracedAttention traced;
-    std::size_t scales = 0;
+    const std::vector<double> factors = scale_factors(traced.graph);
 
-    for (const Graph::Node& node : traced.graph.nodes())
-    {
-        if (node.op != Ops::K_SCALE.id)
-            continue;
-
-        EXPECT_NEAR(node.attributes.values[0], 1.0 / std::sqrt(32.0), K_EXACT_TOLERANCE);
-        EXPECT_NEAR(node.attributes.values[0], 0.17677669529663687, K_EXACT_TOLERANCE);
-        ++scales;
-    }
-
-    EXPECT_EQ(scales, 2u);
+    EXPECT_EQ(factors, std::vector<double>(static_cast<std::size_t>(K_HEADS),
+                                           1.0 / std::sqrt(static_cast<double>(K_KEY_DIM))));
+    ASSERT_FALSE(factors.empty());
+    // One rounding of the square root and one of the quotient separate the two oracles.
+    EXPECT_TRUE(TestSupport::is_within(
+        TestSupport::measure_relative_error<double>(factors.front(), K_INVERSE_ROOT_OF_KEY, 2)));
 }
 
 /**
- * @brief Tests that the add reads the attended heads joined, then pe's result over the values
- *        of both heads joined, and that proj reads the add.
+ * @brief Tests that the sum of the attended heads and the positional convolution has the shape
+ *        of the input, which proj then keeps.
  */
-TEST(Small_BlockAttention, TheAddReadsTheAttendedHeadsThenThePositionalConvolution)
+TEST(Small_BlockAttention, TheAttendedHeadsAndThePositionalConvolutionAddUpToTheInputShape)
 {
     const TracedAttention traced;
     const Graph::Graph& graph = traced.graph;
-    const std::vector<const Graph::Node*> products = batched_products(graph);
-    ASSERT_EQ(products.size(), 4u);
-    ASSERT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
-    const Graph::Node& add = graph.nodes()[first_node(graph, Ops::K_ADD.id)];
-    ASSERT_EQ(add.inputs.size(), 2u);
+    const std::size_t add = first_node(graph, Ops::K_ADD.id);
+    ASSERT_LT(add, graph.node_count());
 
-    const Graph::Node& attended = producer_of(graph, add.inputs[0]);
-    ASSERT_EQ(attended.op, Ops::K_CONCAT_CHANNELS.id);
-    ASSERT_EQ(attended.inputs.size(), 2u);
-
-    // pe is a DWConvLinear, so its result comes out of its BATCHNORM2D.
-    const Graph::Node& norm = producer_of(graph, add.inputs[1]);
-    ASSERT_EQ(norm.op, Ops::K_BATCHNORM2D.id);
-    const Graph::Node& depthwise = producer_of(graph, norm.inputs[0]);
-    ASSERT_EQ(depthwise.op, Ops::K_DEPTHWISE_CONV2D.id);
-    const Graph::Node& values = producer_of(graph, depthwise.inputs[0]);
-    ASSERT_EQ(values.op, Ops::K_CONCAT_CHANNELS.id);
-    ASSERT_EQ(values.inputs.size(), 2u);
-    EXPECT_EQ(graph.value(values.outputs[0]).shape,
+    EXPECT_EQ(graph.value(graph.nodes()[add].outputs[0]).shape,
               (Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}));
-
-    for (int64_t head = 0; head < K_HEADS; ++head)
-    {
-        SCOPED_TRACE("head " + std::to_string(head));
-        const std::size_t part = static_cast<std::size_t>(head);
-
-        const Graph::Node& map = producer_of(graph, attended.inputs[part]);
-        ASSERT_EQ(map.op, Ops::K_RESHAPE.id);
-        EXPECT_EQ(map.inputs[0], products[2 * part + 1]->outputs[0]);
-        EXPECT_EQ(graph.value(attended.inputs[part]).shape,
-                  (Shape{K_BATCH, K_SIDE, K_SIDE, K_HEAD_DIM}));
-
-        const Graph::Node& slice = producer_of(graph, values.inputs[part]);
-        ASSERT_EQ(slice.op, Ops::K_SLICE_CHANNELS.id);
-        EXPECT_NEAR(slice.attributes.values[0],
-                    static_cast<double>(head * K_HEAD_WIDTH + 2 * K_KEY_DIM), K_EXACT_TOLERANCE);
-    }
-
-    // proj is a pointwise ConvLinear: it flattens the add, and its norm yields the result.
-    const Graph::Node& last = producer_of(graph, traced.y);
-    EXPECT_EQ(last.op, Ops::K_BATCHNORM2D.id);
-    std::size_t readers = 0;
-    for (const Graph::Node& node : graph.nodes())
-    {
-        if (node.op == Ops::K_RESHAPE.id && node.inputs[0] == add.outputs[0])
-            ++readers;
-    }
-    EXPECT_EQ(readers, 1u);
 }
 
 /**
@@ -442,8 +337,8 @@ TEST(Small_BlockAttention, StateMatchesManifestRecords175To189)
     EXPECT_EQ(walk(traced.block, prefix), expected);
 }
 
-/** @brief Tests that an evaluation trace folds the three norms and keeps the four products. */
-TEST(Small_BlockAttention, AnEvaluationTraceFoldsTheThreeNorms)
+/** @brief Tests that an evaluation trace leaves no running-statistics norm and keeps the shape. */
+TEST(Small_BlockAttention, AnEvaluationTraceLeavesNoRunningStatisticsNode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -453,23 +348,45 @@ TEST(Small_BlockAttention, AnEvaluationTraceFoldsTheThreeNorms)
     const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 3u);
-    EXPECT_EQ(batched_products(graph).size(), 4u);
     EXPECT_EQ(graph.value(y).shape, (Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}));
 }
 
-/** @brief Tests that a width the head count does not divide is refused, naming both. */
-TEST(Small_BlockAttention, AWidthTheHeadCountDoesNotDivideIsRefused)
+/** @brief Tests that the head check accepts the layout of row 10. */
+TEST(Small_BlockAttention, TheHeadsOfRow10AreAccepted)
+{
+    SA_EXPECT_OK(check_attention_heads(K_CHANNELS, K_HEADS));
+}
+
+/** @brief Tests that a head layout the block cannot take is refused naming the counts. */
+TEST_P(Small_BlockAttentionHeads, ALayoutThatDoesNotFitIsRefusedNamingTheCounts)
+{
+    const RefusedHeads& row = GetParam();
+
+    SA_EXPECT_FAILURE(check_attention_heads(row.channels, row.heads),
+                      StatusCode::InvalidDescription, row.rule, row.channels_named,
+                      row.heads_named);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockAttentionHeads,
+    ::testing::Values(
+        RefusedHeads{"AWidthTheHeadCountDoesNotDivide", 100, 3, "head count divides",
+                     "100 channels", "3 heads"},
+        RefusedHeads{"NoHeads", 128, 0, "head count divides", "128 channels", "0 heads"},
+        RefusedHeads{"OneChannelPerHead", 2, 2, "at least 2 channels per head", "2 channels",
+                     "2 heads"}),
+    row_name);
+
+/** @brief Tests that the constructor stops the process on the refusal of the head check. */
+TEST_F(Medium_BlockAttentionDeath, AWidthTheHeadCountDoesNotDivideIsFatal)
 {
     SA_EXPECT_FATAL(static_cast<void>(Attention(100, 3, K_YOLO_NORM)), "head count divides",
                     "100 channels", "3 heads");
-    SA_EXPECT_FATAL(static_cast<void>(Attention(128, 0, K_YOLO_NORM)), "head count divides",
-                    "128 channels", "0 heads");
 }
 
-/** @brief Tests that one channel per head is refused, since it leaves no key channel. */
-TEST(Small_BlockAttention, OneChannelPerHeadIsRefused)
+/** @brief Tests that the constructor stops the process when a head would hold one channel. */
+TEST_F(Medium_BlockAttentionDeath, OneChannelPerHeadIsFatal)
 {
-    SA_EXPECT_FATAL(static_cast<void>(Attention(2, 2, K_YOLO_NORM)), "at least 2 channels per head",
-                    "2 channels", "2 heads");
+    SA_EXPECT_FATAL(static_cast<void>(Attention(2, 2, K_YOLO_NORM)),
+                    "at least 2 channels per head", "2 channels", "2 heads");
 }

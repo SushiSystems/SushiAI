@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <tuple>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
@@ -43,6 +44,15 @@ namespace SushiAI
 {
     namespace Vision::Blocks
     {
+        /**
+         * @brief Checks that @p head_count heads split @p channels into heads of at least two.
+         * @param channels The width of the input and of the output.
+         * @param head_count The number of heads.
+         * @return A success, or InvalidDescription naming both counts; the constructor stops on
+         *         the same refusal.
+         */
+        [[nodiscard]] Status check_attention_heads(int64_t channels, int64_t head_count) noexcept;
+
         /** @brief Attends every position of a feature map to every other, head by head. */
         struct Attention
         {
@@ -68,8 +78,8 @@ namespace SushiAI
              * @brief Builds the three convolutions over the width and the head count given.
              * @param channels The width of the input and of the output.
              * @param norm The epsilon and the momentum of the three normalisations.
-             * @pre @p channels is a positive multiple of @p head_count with two or more channels
-             *      per head; a width read from a document is checked before this call.
+             * @pre check_attention_heads() accepts @p channels and @p head_count; a width read
+             *      from a document is checked before this call.
              */
             Attention(int64_t channels, int64_t head_count, NN::NormOptions norm) noexcept;
 
