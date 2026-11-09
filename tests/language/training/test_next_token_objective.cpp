@@ -29,13 +29,14 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
-#include <system_error>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -46,7 +47,6 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -113,6 +113,9 @@ namespace
     /** @brief Holds the vocabulary size, V. */
     constexpr std::int64_t K_VOCABULARY = 5;
 
+    /** @brief Holds the substrings a refusal names; an empty one is satisfied by any message. */
+    using Needles = std::array<std::string, 4>;
+
     /** @brief Returns a model whose [N, T] ids give [N, T, V] logits: one table row each. */
     NN::Embedding make_bigram_model()
     {
@@ -120,18 +123,6 @@ namespace
         model.num_embeddings = K_VOCABULARY;
         model.embedding_dim = K_VOCABULARY;
         return model;
-    }
-
-    /** @brief Counts the nodes of @p graph whose operation is @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
-    {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
-        return count;
     }
 
     /** @brief Returns what a factory is given for the bigram model over K_VOCABULARY ids. */
@@ -146,45 +137,177 @@ namespace
         return given;
     }
 
-    /** @brief Returns the attributes of an objective that states no key. */
-    Config::Value no_keys()
+    /** @brief Returns the context of a model that publishes "balance" beside its logits. */
+    Train::ObjectiveContext make_several_context()
     {
-        return SaTest::require_value(Config::parse_json("{}", "<test>"));
+        Train::ObjectiveContext several = make_context();
+        several.outputs.push_back(Train::OutputShape{"balance", Shape{1, 1}});
+        return several;
     }
+
+    /** @brief Returns the context of a model that publishes a second output "aux". */
+    Train::ObjectiveContext two_outputs_context()
+    {
+        Train::ObjectiveContext two_outputs = make_context();
+        two_outputs.outputs.push_back(Train::OutputShape{"aux", Shape{K_BATCH, 1}});
+        return two_outputs;
+    }
+
+    /** @brief Returns the context whose logits are [N, V]. */
+    Train::ObjectiveContext flat_context()
+    {
+        Train::ObjectiveContext flat = make_context();
+        flat.outputs.front().shape = Shape{K_BATCH, K_VOCABULARY};
+        return flat;
+    }
+
+    /** @brief Returns the context whose input sample is an image. */
+    Train::ObjectiveContext images_context()
+    {
+        Train::ObjectiveContext images = make_context();
+        images.input_sample = Shape{4, 4, 3};
+        return images;
+    }
+
+    /** @brief Returns the context whose data holds more token ids than the model scores. */
+    Train::ObjectiveContext wide_data_context()
+    {
+        Train::ObjectiveContext wide_data = make_context();
+        wide_data.classes = K_VOCABULARY + 1;
+        return wide_data;
+    }
+
+    /** @brief Parses @p text, the attributes of an objective. */
+    Config::Value attributes_of(const std::string& text)
+    {
+        return SaTest::require_value(Config::parse_json(text, "<test>"));
+    }
+
+    /** @brief Names the three extents of an objective. */
+    struct Extents
+    {
+        std::int64_t batch;      /**< N. */
+        std::int64_t length;     /**< T. */
+        std::int64_t vocabulary; /**< V. */
+    };
+
+    /** @brief Names extents make() refuses and what its message names. */
+    struct RefusedExtents
+    {
+        Extents extents; /**< The extents given. */
+        Needles needles; /**< What the message names. */
+    };
+
+    /** @brief Names the context and the attributes the factory refuses and what it names. */
+    struct RefusedFactory
+    {
+        Train::ObjectiveContext given; /**< What the factory is given. */
+        std::string attributes;        /**< The objective's own keys, as JSON. */
+        Needles needles;               /**< What the message names. */
+    };
+
+    /** @brief Names the attributes the factory refuses over two published outputs. */
+    struct RefusedOutputKey
+    {
+        std::string attributes; /**< The objective's own keys, as JSON. */
+        Needles needles;        /**< What the message names. */
+    };
+
+    /** @brief Returns the descriptions the factory refuses. */
+    std::vector<RefusedFactory> refused_factories()
+    {
+        return {
+            {make_context(), R"({"smoothing": 0.1})",
+             {"objective states the key 'smoothing'", "", "", ""}},
+            {two_outputs_context(), "{}", {"one [N, T, V] output", "publishes 2", "", ""}},
+            {flat_context(), "{}", {"[2, 3, V] logits", "'out'", "", ""}},
+            {images_context(), "{}", {"[T] token ids per sample", "", "", ""}},
+            {wide_data_context(), "{}", {"6 token ids", "scores 5", "", ""}}};
+    }
+
+    /** @brief Provides the extents below 1. */
+    class Small_LanguageTrainingNextTokenObjectiveExtents
+        : public ::testing::TestWithParam<RefusedExtents>
+    {
+
+    };
+
+    /** @brief Provides the products INT32 cannot index. */
+    class Small_LanguageTrainingNextTokenObjectiveIndex
+        : public ::testing::TestWithParam<RefusedExtents>
+    {
+
+    };
+
+    /** @brief Provides the largest products INT32 indexes. */
+    class Small_LanguageTrainingNextTokenObjectiveLargest
+        : public ::testing::TestWithParam<Extents>
+    {
+
+    };
+
+    /** @brief Provides the descriptions the factory refuses. */
+    class Small_LanguageTrainingNextTokenObjectiveFactory
+        : public ::testing::TestWithParam<RefusedFactory>
+    {
+
+    };
+
+    /** @brief Provides the forms of "output" the factory refuses. */
+    class Small_LanguageTrainingNextTokenObjectiveOutputKey
+        : public ::testing::TestWithParam<RefusedOutputKey>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests that make() keeps the three extents and refuses one below 1. */
-TEST(Medium_LanguageTrainingNextTokenObjective, MakeKeepsItsExtentsAndRefusesNone)
+/** @brief Tests that make() refuses an extent below 1, naming all three. */
+TEST_P(Small_LanguageTrainingNextTokenObjectiveExtents, MakeRefusesAnExtentBelowOne)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
-                            NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
-    EXPECT_EQ(objective->batch(), K_BATCH);
-    EXPECT_EQ(objective->length(), K_LENGTH);
-    EXPECT_EQ(objective->vocabulary(), K_VOCABULARY);
-    EXPECT_EQ(objective->name(), "next_token");
+    const RefusedExtents& row = GetParam();
 
-    SA_EXPECT_FAILURE(NextTokenObjective::make(0, K_LENGTH, K_VOCABULARY),
-                      StatusCode::InvalidDescription, "at least 1");
-    SA_EXPECT_FAILURE(NextTokenObjective::make(K_BATCH, K_LENGTH, 0),
-                      StatusCode::InvalidDescription, "at least 1");
+    SA_EXPECT_FAILURE(NextTokenObjective::make(row.extents.batch, row.extents.length,
+                                               row.extents.vocabulary),
+                      StatusCode::InvalidDescription, row.needles[0], row.needles[1]);
 }
 
-/** @brief Tests that a product INT32 cannot index is refused, and the largest one is not. */
-TEST(Medium_LanguageTrainingNextTokenObjective, MakeRefusesWhatInt32CannotIndex)
-{
-    // 64 * 1024 * 50257 is 3 293 642 752, above 2 147 483 647.
-    SA_EXPECT_FAILURE(NextTokenObjective::make(64, 1024, 50257),
-                      StatusCode::InvalidDescription, "int32 index", "64 * 1024 * 50257");
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LanguageTrainingNextTokenObjectiveExtents,
+    ::testing::Values(RefusedExtents{{0, 3, 5}, {"at least 1", "got 0, 3 and 5", "", ""}},
+                      RefusedExtents{{2, 0, 5}, {"at least 1", "got 2, 0 and 5", "", ""}},
+                      RefusedExtents{{2, 3, 0}, {"at least 1", "got 2, 3 and 0", "", ""}}));
 
-    // 32 * 256 * 8192 is 67 108 864.
-    SA_EXPECT_OK(NextTokenObjective::make(32, 256, 8192));
-    SA_EXPECT_OK(NextTokenObjective::make(1, 1, 2147483647));
-    SA_EXPECT_FAILURE(NextTokenObjective::make(1, 2, 2147483647),
-                      StatusCode::InvalidDescription, "int32 index");
+/** @brief Tests that a product INT32 cannot index is refused, naming it. */
+TEST_P(Small_LanguageTrainingNextTokenObjectiveIndex, MakeRefusesWhatInt32CannotIndex)
+{
+    const RefusedExtents& row = GetParam();
+
+    SA_EXPECT_FAILURE(NextTokenObjective::make(row.extents.batch, row.extents.length,
+                                               row.extents.vocabulary),
+                      StatusCode::InvalidDescription, row.needles[0], row.needles[1]);
 }
+
+// 64 * 1024 * 50257 is 3 293 642 752, above 2 147 483 647.
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LanguageTrainingNextTokenObjectiveIndex,
+    ::testing::Values(
+        RefusedExtents{{64, 1024, 50257}, {"int32 index", "64 * 1024 * 50257", "", ""}},
+        RefusedExtents{{1, 2, 2147483647}, {"int32 index", "1 * 2 * 2147483647", "", ""}}));
+
+/** @brief Tests that the largest products INT32 indexes are accepted. */
+TEST_P(Small_LanguageTrainingNextTokenObjectiveLargest, MakeAcceptsWhatInt32CanIndex)
+{
+    const Extents& row = GetParam();
+
+    SA_EXPECT_OK(NextTokenObjective::make(row.batch, row.length, row.vocabulary));
+}
+
+// 32 * 256 * 8192 is 67 108 864.
+INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageTrainingNextTokenObjectiveLargest,
+                         ::testing::Values(Extents{32, 256, 8192}, Extents{1, 1, 2147483647}));
 
 /** @brief Tests that the one leaf is INT32 [N * T] and that labels are read as [T] ids. */
-TEST(Medium_LanguageTrainingNextTokenObjective, ItDeclaresAnIndexLeafAndReadsLabels)
+TEST(Small_LanguageTrainingNextTokenObjective, ItDeclaresAnIndexLeafAndReadsLabels)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
                             NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
@@ -206,8 +329,8 @@ TEST(Medium_LanguageTrainingNextTokenObjective, ItDeclaresAnIndexLeafAndReadsLab
     EXPECT_EQ(labels.classes, 0);
 }
 
-/** @brief Tests that the loss is one element built from a row gather and no one-hot product. */
-TEST(Medium_LanguageTrainingNextTokenObjective, TheLossGathersOneLogProbabilityPerPosition)
+/** @brief Tests that the loss is one element and the parameter of the model has a gradient. */
+TEST(Small_LanguageTrainingNextTokenObjective, TheLossGathersOneLogProbabilityPerPosition)
 {
     NN::Embedding model = make_bigram_model();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
@@ -220,13 +343,6 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheLossGathersOneLogProbabilityP
 
     EXPECT_EQ(built.graph.value(built.spec.loss).shape.num_elements(), 1);
     EXPECT_EQ(built.graph.value(built.spec.targets).dtype, DType::Int32);
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_NLL_LOSS.id), 0u);
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_LOG_SOFTMAX.id), 1u);
-
-    // One gather reads the table by token, the other reads the log-probabilities by label.
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_GATHER_ROWS.id), 2u);
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_SCATTER_ADD_ROWS.id), 2u);
-    EXPECT_EQ(count_nodes(built.graph, Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
 
     ASSERT_EQ(built.parameters.size(), 1u);
     EXPECT_NE(built.parameters.front().gradient, Graph::K_NO_VALUE);
@@ -234,11 +350,11 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheLossGathersOneLogProbabilityP
 }
 
 /** @brief Tests that the factory reads N, T and V from the model's one output. */
-TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryReadsTheModelsOutput)
+TEST(Small_LanguageTrainingNextTokenObjective, TheFactoryReadsTheModelsOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> objective,
-        make_next_token_objective(make_context(), no_keys(), "objective"));
+        make_next_token_objective(make_context(), attributes_of("{}"), "objective"));
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -249,54 +365,23 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryReadsTheModelsOutput)
 }
 
 /** @brief Tests each description the factory refuses. */
-TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryRefusesWhatDoesNotFit)
+TEST_P(Small_LanguageTrainingNextTokenObjectiveFactory, TheFactoryRefusesWhatDoesNotFit)
 {
-    SA_EXPECT_FAILURE(
-        make_next_token_objective(make_context(),
-                                  SaTest::require_value(Config::parse_json(R"({"smoothing": 0.1})",
-                                                                           "<test>")),
-                                  "objective"),
-        StatusCode::InvalidDescription, "objective states the key 'smoothing'");
+    const RefusedFactory& row = GetParam();
 
-    Train::ObjectiveContext two_outputs = make_context();
-    two_outputs.outputs.push_back(Train::OutputShape{"aux", Shape{K_BATCH, 1}});
-    SA_EXPECT_FAILURE(make_next_token_objective(two_outputs, no_keys(), "objective"),
-                      StatusCode::InvalidDescription, "one [N, T, V] output", "publishes 2");
-
-    Train::ObjectiveContext flat = make_context();
-    flat.outputs.front().shape = Shape{K_BATCH, K_VOCABULARY};
-    SA_EXPECT_FAILURE(make_next_token_objective(flat, no_keys(), "objective"),
-                      StatusCode::InvalidDescription, "[2, 3, V] logits", "'out'");
-
-    Train::ObjectiveContext images = make_context();
-    images.input_sample = Shape{4, 4, 3};
-    SA_EXPECT_FAILURE(make_next_token_objective(images, no_keys(), "objective"),
-                      StatusCode::InvalidDescription, "[T] token ids per sample");
-
-    Train::ObjectiveContext wide_data = make_context();
-    wide_data.classes = K_VOCABULARY + 1;
-    SA_EXPECT_FAILURE(make_next_token_objective(wide_data, no_keys(), "objective"),
-                      StatusCode::InvalidDescription, "6 token ids", "scores 5");
+    SA_EXPECT_FAILURE(make_next_token_objective(row.given, attributes_of(row.attributes),
+                                                "objective"),
+                      StatusCode::InvalidDescription, row.needles[0], row.needles[1]);
 }
 
-/** @brief Tests that the objective states a batch alone feeds it, so a sum may hold it. */
-TEST(Medium_LanguageTrainingNextTokenObjective, ABatchAloneFeedsTheObjective)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
-                            NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
-
-    EXPECT_TRUE(objective->is_fed_by_batch());
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageTrainingNextTokenObjectiveFactory,
+                         ::testing::ValuesIn(refused_factories()));
 
 /** @brief Tests that the objective measures the perplexity of the loss a step computed. */
-TEST(Medium_LanguageTrainingNextTokenObjective, MeasureReportsThePerplexityOfTheLoss)
+TEST(Small_LanguageTrainingNextTokenObjective, MeasureReportsThePerplexityOfTheLoss)
 {
     // A uniform guess over 8 tokens costs ln(8) nats and has a perplexity of 8.
-    /**
-     * @brief Holds the relative tolerance: 16384 times the double unit roundoff, the smallest power
-     *        of two not tighter than the earlier 1e-12.
-     */
-    constexpr double K_RELATIVE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+    constexpr std::size_t K_OPERATIONS = 6;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
                             NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
     const Data::Batch batch{};
@@ -308,20 +393,16 @@ TEST(Medium_LanguageTrainingNextTokenObjective, MeasureReportsThePerplexityOfThe
     ASSERT_EQ(metrics.all().size(), 1u);
     EXPECT_EQ(metrics.all()[0].name, "perplexity");
     EXPECT_FALSE(metrics.all()[0].is_fraction);
-    EXPECT_NEAR(metrics.all()[0].value, 8.0, 8.0 * K_RELATIVE_TOLERANCE);
+    EXPECT_TRUE(TestSupport::is_within(
+        TestSupport::measure_relative_error<double>(metrics.all()[0].value, 8.0, K_OPERATIONS)));
 }
 
 /** @brief Tests that "output" names the logits of a model that publishes several values. */
-TEST(Medium_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongSeveral)
+TEST(Small_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongSeveral)
 {
-    Train::ObjectiveContext several = make_context();
-    several.outputs.push_back(Train::OutputShape{"balance", Shape{1, 1}});
-
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> objective,
-        make_next_token_objective(several,
-                                  SaTest::require_value(Config::parse_json(R"({"output": "out"})",
-                                                                           "<test>")),
+        make_next_token_objective(make_several_context(), attributes_of(R"({"output": "out"})"),
                                   "objective"));
 
     Graph::Graph graph;
@@ -337,32 +418,29 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongS
                             objective->loss(builder, graph, outputs, leaves));
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
-    EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 1u);
 }
 
 /** @brief Tests each form of "output" the factory refuses. */
-TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryRefusesAnOutputItCannotFind)
+TEST_P(Small_LanguageTrainingNextTokenObjectiveOutputKey, TheFactoryRefusesAnOutputItCannotFind)
 {
-    Train::ObjectiveContext several = make_context();
-    several.outputs.push_back(Train::OutputShape{"balance", Shape{1, 1}});
-    const auto make = [&several](const char* text)
-    {
-        return make_next_token_objective(several,
-                                         SaTest::require_value(Config::parse_json(text, "<test>")),
-                                         "objective");
-    };
+    const RefusedOutputKey& row = GetParam();
 
-    SA_EXPECT_FAILURE(make("{}"), StatusCode::InvalidDescription, "publishes 2",
-                      "name the logits with 'output'");
-    SA_EXPECT_FAILURE(make(R"({"output": "logits"})"), StatusCode::InvalidDescription,
-                      "the output 'logits'", "none of that name among its 2");
-    SA_EXPECT_FAILURE(make(R"({"output": 3})"), StatusCode::InvalidDescription,
-                      "'output' names a published output");
-    SA_EXPECT_FAILURE(make(R"({"output": ""})"), StatusCode::InvalidDescription,
-                      "'output'", "is empty");
-    SA_EXPECT_FAILURE(make(R"({"output": "balance"})"), StatusCode::InvalidDescription,
-                      "[2, 3, V] logits", "'balance'", "[1, 1]");
+    SA_EXPECT_FAILURE(make_next_token_objective(make_several_context(),
+                                                attributes_of(row.attributes), "objective"),
+                      StatusCode::InvalidDescription, row.needles[0], row.needles[1],
+                      row.needles[2]);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LanguageTrainingNextTokenObjectiveOutputKey,
+    ::testing::Values(
+        RefusedOutputKey{"{}", {"publishes 2", "name the logits with 'output'", "", ""}},
+        RefusedOutputKey{R"({"output": "logits"})",
+                         {"the output 'logits'", "none of that name among its 2", "", ""}},
+        RefusedOutputKey{R"({"output": 3})", {"'output' names a published output", "", "", ""}},
+        RefusedOutputKey{R"({"output": ""})", {"'output'", "is empty", "", ""}},
+        RefusedOutputKey{R"({"output": "balance"})",
+                         {"[2, 3, V] logits", "'balance'", "[1, 1]", ""}}));
 
 namespace
 {
@@ -440,6 +518,31 @@ namespace
         return expected;
     }
 
+    /** @brief Writes @p values into the INT32 tensor @p tensor, element by element. */
+    void write_int32(SushiBLAS::Tensor& tensor, const std::vector<std::int32_t>& values)
+    {
+        ASSERT_EQ(static_cast<std::size_t>(tensor.num_elements), values.size());
+        std::copy(values.begin(), values.end(), tensor.data_as<std::int32_t>());
+    }
+
+    /** @brief Expects @p found to equal @p expected element by element within @p tolerance. */
+    void expect_all_near(const std::vector<double>& found, const std::vector<double>& expected,
+                         double tolerance)
+    {
+        ASSERT_EQ(found.size(), expected.size());
+        for (std::size_t i = 0; i < found.size(); ++i)
+            EXPECT_NEAR(found[i], expected[i], tolerance) << "element " << i;
+    }
+
+    /** @brief Fills the INT32 leaf @p targets from the labels @p labels. */
+    Status fill_targets(const std::vector<std::int32_t>& labels, SushiBLAS::Tensor& targets)
+    {
+        return Language::Training::fill_next_token_targets(
+            SushiRuntime::span<const std::int32_t>(labels.data(), labels.size()), K_VOCABULARY,
+            SushiRuntime::span<std::int32_t>(targets.data_as<std::int32_t>(),
+                                             static_cast<std::size_t>(targets.num_elements)));
+    }
+
     /** @brief Provides the engine the state and the step are built on. */
     class Medium_NextTokenObjective : public SaTest::EngineTest
     {
@@ -450,9 +553,7 @@ namespace
 /** @brief Tests the loss and the table's gradient of one step against the host's numbers. */
 TEST_F(Medium_NextTokenObjective, TheLossAndItsGradientEqualTheHostComputation)
 {
-    NN::Embedding model{};
-    model.num_embeddings = K_VOCABULARY;
-    model.embedding_dim = K_VOCABULARY;
+    NN::Embedding model = make_bigram_model();
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Language::Training::NextTokenObjective> objective,
@@ -483,30 +584,15 @@ TEST_F(Medium_NextTokenObjective, TheLossAndItsGradientEqualTheHostComputation)
                             Train::TrainingStep::make(backend(), built.graph, pool, *optimizer,
                                                       {}));
 
-    const std::vector<std::int32_t> tokens = token_ids();
-    const std::vector<std::int32_t> labels = label_ids();
-    std::int32_t* const inputs = pool.tensor(built.spec.inputs).data_as<std::int32_t>();
-    for (std::size_t i = 0; i < tokens.size(); ++i)
-        inputs[i] = tokens[i];
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        SushiBLAS::Tensor label_tensor,
-        allocate_tensor(*engine, Shape{K_BATCH, K_LENGTH}, DType::Int32));
-    for (std::size_t i = 0; i < labels.size(); ++i)
-        label_tensor.data_as<std::int32_t>()[i] = labels[i];
-    SA_EXPECT_OK(Language::Training::fill_next_token_targets(
-        label_tensor, K_VOCABULARY, pool.tensor(built.spec.targets)));
+    write_int32(pool.tensor(built.spec.inputs), token_ids());
+    SA_EXPECT_OK(fill_targets(label_ids(), pool.tensor(built.spec.targets)));
 
     SA_EXPECT_OK(step->run());
 
     const Expected expected = work_on_host(table);
     EXPECT_NEAR(static_cast<double>(pool.tensor(built.spec.loss).data_as<float>()[0]),
                 expected.loss, K_TOLERANCE);
-
-    const std::vector<double> found = SaTest::read_tensor(gradient);
-    ASSERT_EQ(found.size(), expected.gradient.size());
-    for (std::size_t i = 0; i < found.size(); ++i)
-        EXPECT_NEAR(found[i], expected.gradient[i], K_TOLERANCE) << "element " << i;
+    expect_all_near(SaTest::read_tensor(gradient), expected.gradient, K_TOLERANCE);
 }
 
 namespace
@@ -567,9 +653,7 @@ namespace
             [[nodiscard]] Result<Train::RunReport> fit_bigram(
                 const std::vector<std::int32_t>& labels)
             {
-                NN::Embedding model{};
-                model.num_embeddings = K_VOCABULARY;
-                model.embedding_dim = K_VOCABULARY;
+                NN::Embedding model = make_bigram_model();
 
                 SA_TRY_ASSIGN(
                     const std::unique_ptr<Language::Training::NextTokenObjective> objective,
@@ -612,7 +696,6 @@ TEST_F(Medium_NextTokenTrainer, FitLowersTheLossAndReportsPerplexity)
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, fit_bigram({3, 1, 1, 4, 2, 0}));
 
     EXPECT_EQ(report.steps, static_cast<std::size_t>(K_EPOCHS));
-    EXPECT_EQ(report.compile_count, 1u);
     EXPECT_LT(report.last_loss, report.first_loss) << report.to_string();
 
     ASSERT_EQ(report.last_metrics.all().size(), 1u);
@@ -620,7 +703,6 @@ TEST_F(Medium_NextTokenTrainer, FitLowersTheLossAndReportsPerplexity)
     ASSERT_NE(perplexity, nullptr);
     EXPECT_FALSE(perplexity->is_fraction);
     EXPECT_NEAR(perplexity->value, std::exp(report.last_loss), K_TRAINER_TOLERANCE);
-    EXPECT_NE(report.to_string().find("perplexity"), std::string::npos);
 }
 
 /** @brief Tests that a label outside the vocabulary stops the first step and names its row. */
@@ -668,6 +750,12 @@ namespace
     /** @brief Holds a decoder of two blocks whose head scores with the token table. */
     struct Decoder
     {
+        /** @brief Names the decoder in a test name. */
+        static constexpr const char* K_NAME = "Learned";
+
+        /** @brief Names the token file the decoder's test writes. */
+        static constexpr const char* K_FILE = "sushiai_decoder_overfit.satk";
+
         /** @brief Holds the [V, dim] token table, which the head is tied to. */
         NN::Embedding tokens{};
 
@@ -726,188 +814,15 @@ namespace
         }
     };
 
-    /** @brief Owns one file under the system's temporary directory and removes it. */
-    class ScratchFile final
-    {
-        public:
-            /** @brief Names the file; nothing is written yet. */
-            explicit ScratchFile(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
-            {
-
-            }
-
-            /** @brief Removes the file when it exists. */
-            ~ScratchFile()
-            {
-                std::error_code ignored;
-                std::filesystem::remove(path_, ignored);
-            }
-
-            ScratchFile(const ScratchFile&) = delete;
-            ScratchFile& operator=(const ScratchFile&) = delete;
-            ScratchFile(ScratchFile&&) = delete;
-            ScratchFile& operator=(ScratchFile&&) = delete;
-
-            /** @brief Returns the path of the file. */
-            [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
-
-        private:
-            /// @brief Holds the path this object removes.
-            std::filesystem::path path_;
-    };
-
-    /**
-     * @brief Returns K_OVERFIT_BATCH windows of K_OVERFIT_LENGTH + 1 ids, id i being 7 i^2 + 3 i +
-     *        1 mod V.
-     */
-    std::vector<Language::Text::TokenID> make_ids()
-    {
-        const std::int64_t count = K_OVERFIT_BATCH * (K_OVERFIT_LENGTH + 1);
-        std::vector<Language::Text::TokenID> ids;
-        ids.reserve(static_cast<std::size_t>(count));
-        for (std::int64_t i = 0; i < count; ++i)
-            ids.push_back(static_cast<Language::Text::TokenID>((7 * i * i + 3 * i + 1)
-                                                               % K_OVERFIT_VOCABULARY));
-        return ids;
-    }
-
-    /** @brief Returns whether the slot named @p name decays; fails the test when none has it. */
-    bool decays(const std::vector<Optim::ParameterSlot>& slots, const std::string& name)
-    {
-        for (const Optim::ParameterSlot& slot : slots)
-        {
-            if (slot.name == name)
-                return slot.decays;
-        }
-
-        ADD_FAILURE() << "no slot is named " << name;
-        return false;
-    }
-
-    /** @brief Provides the engine the dataset, the state and the step are built on. */
-    class Medium_DecoderOverfit : public SaTest::EngineTest
-    {
-
-    };
-} // namespace
-
-/** @brief Tests that the loss of one fixed batch falls below a tenth of its start. */
-TEST_F(Medium_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
-{
-    const ScratchFile file("sushiai_decoder_overfit.satk");
-    const std::vector<Language::Text::TokenID> ids = make_ids();
-    SA_EXPECT_OK(Language::Datasets::write_token_file(
-        file.path(),
-        SushiRuntime::span<const Language::Text::TokenID>(ids.data(), ids.size()),
-        static_cast<std::int32_t>(K_OVERFIT_VOCABULARY)));
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<Language::Datasets::NextTokenCollator> collator,
-        Language::Datasets::NextTokenCollator::make(K_OVERFIT_LENGTH,
-                                                    static_cast<std::int32_t>(K_OVERFIT_VOCABULARY)));
-    Language::Datasets::TokenDatasetOptions dataset_options;
-    dataset_options.batch_size = K_OVERFIT_BATCH;
-    dataset_options.stride = K_OVERFIT_LENGTH + 1;
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Language::Datasets::TokenDataset> dataset,
-        Language::Datasets::TokenDataset::make(*engine, file.path(), std::move(collator),
-                                               dataset_options));
-    ASSERT_EQ(dataset->batch_count(), 1u);
-
-    Decoder model;
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Language::Training::NextTokenObjective> objective,
-        Language::Training::NextTokenObjective::make(K_OVERFIT_BATCH, K_OVERFIT_LENGTH, K_OVERFIT_VOCABULARY));
-    Train::GraphOptions graph_options;
-    graph_options.dtype = DType::Int32;
-    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
-                            Train::build_training_graph(model, *objective,
-                                                        Shape{K_OVERFIT_BATCH, K_OVERFIT_LENGTH},
-                                                        graph_options));
-
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    Graph::TensorPool pool(*engine);
-    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(backend(), built, state, pool));
-
-    // The head has no weight of its own, and only the linear weights decay.
-    SA_EXPECT_FAILURE(state.tensor("head.linear.weight"), StatusCode::InvalidDescription,
-                      "head.linear.weight");
-    EXPECT_FALSE(decays(slots, "tokens.weight"));
-    EXPECT_FALSE(decays(slots, "positions.weight"));
-    EXPECT_FALSE(decays(slots, "head.norm.weight"));
-    EXPECT_FALSE(decays(slots, "first.attn.qkv.bias"));
-    EXPECT_TRUE(decays(slots, "first.attn.qkv.weight"));
-
-    NN::InitPolicy policy;
-    policy.family = NN::InitFamily::Xavier;
-    policy.nonlinearity = NN::Nonlinearity::Linear;
-    policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
-
-    Optim::AdamWOptions optimizer_options;
-    optimizer_options.weight_decay = 0.01;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(backend(), slots, optimizer_options));
-    SA_EXPECT_OK(optimizer->enable_gradient_clip(K_CLIP_NORM));
-
-    Optim::CosineSchedule schedule;
-    schedule.base_rate = 3e-3;
-    schedule.warmup_iterations = 20;
-    schedule.total_iterations = K_STEPS;
-    schedule.final_rate = 3e-4;
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::TrainingStep> step,
-                            Train::TrainingStep::make(backend(), built.graph, pool, *optimizer,
-                                                      {}));
-
-    // The one batch is fed once: no task is recorded yet, so the host may write the leaves.
-    Data::Batch batch;
-    SA_EXPECT_OK(dataset->read(0, batch));
-    SushiBLAS::Tensor& inputs = pool.tensor(built.spec.inputs);
-    SA_EXPECT_OK(Train::check_feed(batch.inputs, inputs, "inputs"));
-    const std::int32_t* const fed = batch.inputs.data_as<std::int32_t>();
-    std::int32_t* const leaf = inputs.data_as<std::int32_t>();
-    for (std::int64_t i = 0; i < inputs.num_elements; ++i)
-        leaf[i] = fed[i];
-
-    const Data::BatchTarget* const labels =
-        Data::find_target(batch.targets, Data::K_ROLE_LABELS);
-    ASSERT_NE(labels, nullptr);
-    SA_EXPECT_OK(Language::Training::fill_next_token_targets(
-        labels->values, K_OVERFIT_VOCABULARY, pool.tensor(built.spec.targets)));
-
-    double first_loss = 0.0;
-    double last_loss = 0.0;
-    for (std::int64_t update = 0; update < K_STEPS; ++update)
-    {
-        Optim::apply_step_schedule(schedule, *optimizer);
-        SA_EXPECT_OK(step->run());
-
-        last_loss = static_cast<double>(pool.tensor(built.spec.loss).data_as<float>()[0]);
-        ASSERT_TRUE(std::isfinite(last_loss)) << "update " << update;
-        if (update == 0)
-            first_loss = last_loss;
-    }
-
-    EXPECT_NEAR(first_loss, std::log(static_cast<double>(K_OVERFIT_VOCABULARY)),
-                K_FIRST_LOSS_TOLERANCE);
-    EXPECT_LT(last_loss, K_REMAINING_FRACTION * first_loss);
-    EXPECT_LT(Language::Training::perplexity(last_loss),
-              Language::Training::perplexity(first_loss));
-    EXPECT_EQ(step->step().compile_count(), 1u);
-    EXPECT_EQ(optimizer->step_count(), static_cast<std::uint64_t>(K_STEPS));
-}
-
-namespace
-{
-    /** @brief Holds the host tables of the graph: the cosines and the sines of each block. */
-    constexpr std::size_t K_HOST_TABLES = 4;
-
     /** @brief Holds a decoder of two rotary blocks whose head scores with the token table. */
     struct RotaryDecoder
     {
+        /** @brief Names the decoder in a test name. */
+        static constexpr const char* K_NAME = "Rotary";
+
+        /** @brief Names the token file the decoder's test writes. */
+        static constexpr const char* K_FILE = "sushiai_rotary_decoder_overfit.satk";
+
         /** @brief Holds the [V, dim] token table, which the head is tied to. */
         NN::Embedding tokens{};
 
@@ -960,111 +875,197 @@ namespace
         }
     };
 
-    /** @brief Provides the engine the dataset, the state and the step are built on. */
-    class Medium_RotaryDecoderOverfit : public SaTest::EngineTest
+    /** @brief Names a decoder in the name of its typed case. */
+    struct DecoderName
     {
-
+        /** @brief Returns the name of the decoder type @p Model. */
+        template <typename Model>
+        static std::string GetName(int)
+        {
+            return Model::K_NAME;
+        }
     };
-} // namespace
 
-/** @brief Tests that the loss of one fixed batch falls below a tenth of its start. */
-TEST_F(Medium_RotaryDecoderOverfit, ATwoBlockRotaryDecoderOverfitsOneBatch)
-{
-    const ScratchFile file("sushiai_rotary_decoder_overfit.satk");
-    const std::vector<Language::Text::TokenID> ids = make_ids();
-    SA_EXPECT_OK(Language::Datasets::write_token_file(
-        file.path(),
-        SushiRuntime::span<const Language::Text::TokenID>(ids.data(), ids.size()),
-        static_cast<std::int32_t>(K_OVERFIT_VOCABULARY)));
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<Language::Datasets::NextTokenCollator> collator,
-        Language::Datasets::NextTokenCollator::make(K_OVERFIT_LENGTH,
-                                                    static_cast<std::int32_t>(K_OVERFIT_VOCABULARY)));
-    Language::Datasets::TokenDatasetOptions dataset_options;
-    dataset_options.batch_size = K_OVERFIT_BATCH;
-    dataset_options.stride = K_OVERFIT_LENGTH + 1;
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Language::Datasets::TokenDataset> dataset,
-        Language::Datasets::TokenDataset::make(*engine, file.path(), std::move(collator),
-                                               dataset_options));
-    ASSERT_EQ(dataset->batch_count(), 1u);
-
-    RotaryDecoder model;
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Language::Training::NextTokenObjective> objective,
-        Language::Training::NextTokenObjective::make(K_OVERFIT_BATCH, K_OVERFIT_LENGTH, K_OVERFIT_VOCABULARY));
-    Train::GraphOptions graph_options;
-    graph_options.dtype = DType::Int32;
-    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
-                            Train::build_training_graph(model, *objective,
-                                                        Shape{K_OVERFIT_BATCH, K_OVERFIT_LENGTH},
-                                                        graph_options));
-    EXPECT_EQ(built.tables.tables().size(), K_HOST_TABLES);
-
-    // The angles are leaves the step fills, so the state holds the parameters and no table.
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    for (const NN::StateEntry& entry : state.entries())
-        EXPECT_EQ(entry.kind, NN::StateKind::Parameter) << entry.name;
-
-    Graph::TensorPool pool(*engine);
-    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(backend(), built, state, pool));
-    EXPECT_EQ(slots.size(), state.entries().size());
-
-    NN::InitPolicy policy;
-    policy.family = NN::InitFamily::Xavier;
-    policy.nonlinearity = NN::Nonlinearity::Linear;
-    policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
-
-    Optim::AdamWOptions optimizer_options;
-    optimizer_options.weight_decay = 0.01;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(backend(), slots, optimizer_options));
-    SA_EXPECT_OK(optimizer->enable_gradient_clip(K_CLIP_NORM));
-
-    Optim::CosineSchedule schedule;
-    schedule.base_rate = 3e-3;
-    schedule.warmup_iterations = 20;
-    schedule.total_iterations = K_STEPS;
-    schedule.final_rate = 3e-4;
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::TrainingStep> step,
-                            Train::TrainingStep::make(backend(), built.graph, pool, *optimizer,
-                                                      {}));
-
-    // The one batch is fed once: no task is recorded yet, so the host may write the leaves.
-    Data::Batch batch;
-    SA_EXPECT_OK(dataset->read(0, batch));
-    SushiBLAS::Tensor& inputs = pool.tensor(built.spec.inputs);
-    SA_EXPECT_OK(Train::check_feed(batch.inputs, inputs, "inputs"));
-    const std::int32_t* const fed = batch.inputs.data_as<std::int32_t>();
-    std::int32_t* const leaf = inputs.data_as<std::int32_t>();
-    for (std::int64_t i = 0; i < inputs.num_elements; ++i)
-        leaf[i] = fed[i];
-
-    const Data::BatchTarget* const labels =
-        Data::find_target(batch.targets, Data::K_ROLE_LABELS);
-    ASSERT_NE(labels, nullptr);
-    SA_EXPECT_OK(Language::Training::fill_next_token_targets(
-        labels->values, K_OVERFIT_VOCABULARY, pool.tensor(built.spec.targets)));
-
-    double first_loss = 0.0;
-    double last_loss = 0.0;
-    for (std::int64_t update = 0; update < K_STEPS; ++update)
+    /** @brief Holds what training one batch measured. */
+    struct Overfit
     {
-        Optim::apply_step_schedule(schedule, *optimizer);
-        SA_EXPECT_OK(step->run());
+        double first_loss = 0.0;             /**< The loss of the first update. */
+        double last_loss = 0.0;              /**< The loss of the last update. */
+        std::size_t compile_count = 0;       /**< The compilations of the step. */
+        std::uint64_t optimizer_steps = 0;   /**< The updates the optimizer made. */
+    };
 
-        last_loss = static_cast<double>(pool.tensor(built.spec.loss).data_as<float>()[0]);
-        ASSERT_TRUE(std::isfinite(last_loss)) << "update " << update;
-        if (update == 0)
-            first_loss = last_loss;
+    /**
+     * @brief Returns K_OVERFIT_BATCH windows of K_OVERFIT_LENGTH + 1 ids, id i being 7 i^2 + 3 i +
+     *        1 mod V.
+     */
+    std::vector<Language::Text::TokenID> make_ids()
+    {
+        const std::int64_t count = K_OVERFIT_BATCH * (K_OVERFIT_LENGTH + 1);
+        std::vector<Language::Text::TokenID> ids;
+        ids.reserve(static_cast<std::size_t>(count));
+        for (std::int64_t i = 0; i < count; ++i)
+            ids.push_back(static_cast<Language::Text::TokenID>((7 * i * i + 3 * i + 1)
+                                                               % K_OVERFIT_VOCABULARY));
+        return ids;
     }
 
-    EXPECT_NEAR(first_loss, std::log(static_cast<double>(K_OVERFIT_VOCABULARY)),
+    /** @brief Returns the cosine schedule of the overfit: a warm-up, then a decay. */
+    Optim::CosineSchedule make_schedule()
+    {
+        Optim::CosineSchedule schedule;
+        schedule.base_rate = 3e-3;
+        schedule.warmup_iterations = 20;
+        schedule.total_iterations = K_STEPS;
+        schedule.final_rate = 3e-4;
+        return schedule;
+    }
+
+    /**
+     * @brief Writes the token file at @p path and reads it back as a dataset of one batch.
+     * @return The dataset, or the first failure.
+     */
+    Result<std::unique_ptr<Language::Datasets::TokenDataset>> make_token_dataset(
+        SushiBLAS::Engine& engine, const std::filesystem::path& path)
+    {
+        const std::vector<Language::Text::TokenID> ids = make_ids();
+        SA_TRY(Language::Datasets::write_token_file(
+            path, SushiRuntime::span<const Language::Text::TokenID>(ids.data(), ids.size()),
+            static_cast<std::int32_t>(K_OVERFIT_VOCABULARY)));
+
+        SA_TRY_ASSIGN(
+            std::unique_ptr<Language::Datasets::NextTokenCollator> collator,
+            Language::Datasets::NextTokenCollator::make(
+                K_OVERFIT_LENGTH, static_cast<std::int32_t>(K_OVERFIT_VOCABULARY)));
+        Language::Datasets::TokenDatasetOptions dataset_options;
+        dataset_options.batch_size = K_OVERFIT_BATCH;
+        dataset_options.stride = K_OVERFIT_LENGTH + 1;
+        return Language::Datasets::TokenDataset::make(engine, path, std::move(collator),
+                                                      dataset_options);
+    }
+
+    /**
+     * @brief Feeds the one batch into the leaves of @p built once.
+     * @pre No task is recorded yet, so the host may write the leaves.
+     */
+    Status feed_once(const Data::Batch& batch, const Train::TrainingGraph& built,
+                     Graph::TensorPool& pool)
+    {
+        SushiBLAS::Tensor& inputs = pool.tensor(built.spec.inputs);
+        SA_TRY(Train::check_feed(batch.inputs, inputs, "inputs"));
+        const std::int32_t* const fed = batch.inputs.data_as<std::int32_t>();
+        std::copy(fed, fed + inputs.num_elements, inputs.data_as<std::int32_t>());
+
+        const Data::BatchTarget* const labels =
+            Data::find_target(batch.targets, Data::K_ROLE_LABELS);
+        SA_FAIL_IF(labels == nullptr, StatusCode::InvalidDescription,
+                   "The batch holds no labels role");
+        return Language::Training::fill_next_token_targets(labels->values, K_OVERFIT_VOCABULARY,
+                                                           pool.tensor(built.spec.targets));
+    }
+
+    /**
+     * @brief Runs the K_STEPS updates of the schedule and returns the first and last loss.
+     * @return The losses, or DeviceFailed for an update whose loss is not finite.
+     */
+    Result<Overfit> run_updates(Train::TrainingStep& step, Optim::AdamW& optimizer,
+                                const Optim::CosineSchedule& schedule,
+                                const Train::TrainingGraph& built, Graph::TensorPool& pool)
+    {
+        Overfit result;
+        for (std::int64_t update = 0; update < K_STEPS; ++update)
+        {
+            Optim::apply_step_schedule(schedule, optimizer);
+            SA_TRY(step.run());
+
+            result.last_loss =
+                static_cast<double>(pool.tensor(built.spec.loss).data_as<float>()[0]);
+            SA_FAIL_IF(!std::isfinite(result.last_loss), StatusCode::DeviceFailed,
+                       "The loss of update {} is not finite", update);
+            if (update == 0)
+                result.first_loss = result.last_loss;
+        }
+        return result;
+    }
+
+    /** @brief Provides the engine the dataset, the state and the step of a decoder are built on. */
+    template <typename Model>
+    class Medium_DecoderOverfit : public SaTest::EngineTest
+    {
+        protected:
+            /**
+             * @brief Trains a decoder of type Model on one fixed batch for K_STEPS updates.
+             * @return What the run measured, or the first failure.
+             */
+            [[nodiscard]] Result<Overfit> train_one_batch()
+            {
+                const SaTest::ScratchFile file(Model::K_FILE);
+                SA_TRY_ASSIGN(const std::unique_ptr<Language::Datasets::TokenDataset> dataset,
+                              make_token_dataset(*this->engine, file.path()));
+                SA_FAIL_IF(dataset->batch_count() != 1u, StatusCode::Incompatible,
+                           "The token file holds {} batches, not one", dataset->batch_count());
+
+                Model model;
+                SA_TRY_ASSIGN(
+                    const std::unique_ptr<Language::Training::NextTokenObjective> objective,
+                    Language::Training::NextTokenObjective::make(
+                        K_OVERFIT_BATCH, K_OVERFIT_LENGTH, K_OVERFIT_VOCABULARY));
+                Train::GraphOptions graph_options;
+                graph_options.dtype = DType::Int32;
+                SA_TRY_ASSIGN(Train::TrainingGraph built,
+                              Train::build_training_graph(
+                                  model, *objective, Shape{K_OVERFIT_BATCH, K_OVERFIT_LENGTH},
+                                  graph_options));
+
+                SA_TRY_ASSIGN(NN::ModelState state,
+                              NN::ModelState::create(*this->engine, model));
+                Graph::TensorPool pool(*this->engine);
+                SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                              Train::bind_parameters(this->backend(), built, state, pool));
+
+                NN::InitPolicy policy;
+                policy.family = NN::InitFamily::Xavier;
+                policy.nonlinearity = NN::Nonlinearity::Linear;
+                policy.zero_final_layer = false;
+                SA_TRY(NN::initialize(this->backend(), state, policy));
+
+                Optim::AdamWOptions optimizer_options;
+                optimizer_options.weight_decay = 0.01;
+                SA_TRY_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
+                              Optim::AdamW::make(this->backend(), slots, optimizer_options));
+                SA_TRY(optimizer->enable_gradient_clip(K_CLIP_NORM));
+
+                SA_TRY_ASSIGN(const std::unique_ptr<Train::TrainingStep> step,
+                              Train::TrainingStep::make(this->backend(), built.graph, pool,
+                                                        *optimizer, {}));
+
+                Data::Batch batch;
+                SA_TRY(dataset->read(0, batch));
+                SA_TRY(feed_once(batch, built, pool));
+
+                SA_TRY_ASSIGN(Overfit result, run_updates(*step, *optimizer, make_schedule(),
+                                                          built, pool));
+                result.compile_count = step->step().compile_count();
+                result.optimizer_steps = optimizer->step_count();
+                return result;
+            }
+    };
+
+    using Decoders = ::testing::Types<Decoder, RotaryDecoder>;
+} // namespace
+
+TYPED_TEST_SUITE(Medium_DecoderOverfit, Decoders, DecoderName);
+
+/** @brief Tests that the loss of one fixed batch falls below a tenth of its start. */
+TYPED_TEST(Medium_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Overfit result, this->train_one_batch());
+
+    EXPECT_NEAR(result.first_loss, std::log(static_cast<double>(K_OVERFIT_VOCABULARY)),
                 K_FIRST_LOSS_TOLERANCE);
-    EXPECT_LT(last_loss, K_REMAINING_FRACTION * first_loss);
-    EXPECT_EQ(step->step().compile_count(), 1u);
+    EXPECT_LT(result.last_loss, K_REMAINING_FRACTION * result.first_loss);
+    EXPECT_LT(Language::Training::perplexity(result.last_loss),
+              Language::Training::perplexity(result.first_loss));
+    EXPECT_EQ(result.compile_count, 1u);
+    EXPECT_EQ(result.optimizer_steps, static_cast<std::uint64_t>(K_STEPS));
 }

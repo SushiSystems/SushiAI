@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -40,7 +41,6 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -48,6 +48,7 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/language/training/expert_balance_objective.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
@@ -56,7 +57,6 @@
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/train/step_view.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Language::Training::ExpertBalanceObjective;
@@ -70,12 +70,8 @@ namespace
     /** @brief Holds the experts of each block the cases describe. */
     constexpr std::int64_t K_EXPERTS = 4;
 
-    /**
-     * @brief Holds the absolute Bounds the difference between a float32 share and the metric read
-     *        from it: 2 times the float unit roundoff, the smallest power of two not tighter than
-     *        the earlier 1e-7.
-     */
-    constexpr double K_TOLERANCE = 2.0 * TestSupport::unit_roundoff<float>();
+    /** @brief Holds the substrings a refusal names; an empty one is satisfied by any message. */
+    using Needles = std::array<std::string, 4>;
 
     /** @brief Returns the attributes of an objective that states no key. */
     Config::Value no_keys()
@@ -97,18 +93,81 @@ namespace
         return given;
     }
 
-    /** @brief Counts the nodes of @p graph whose operation is @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
+    /** @brief Returns the context of a model that publishes only its logits. */
+    Train::ObjectiveContext logits_only_context()
     {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
-        {
-            if (node.op == op)
-                ++count;
-        }
-
-        return count;
+        Train::ObjectiveContext plain = make_context();
+        plain.outputs.resize(1);
+        return plain;
     }
+
+    /** @brief Returns the context whose "balance2" output holds two elements. */
+    Train::ObjectiveContext wide_balance_context()
+    {
+        Train::ObjectiveContext wide = make_context();
+        wide.outputs[1].shape = Shape{1, 2};
+        return wide;
+    }
+
+    /** @brief Names the arguments make() refuses and what its message names. */
+    struct RefusedMake
+    {
+        std::vector<std::string> balances;     /**< The balance outputs given. */
+        std::vector<ExpertUsageOutput> usages; /**< The usage outputs given. */
+        Needles needles;                       /**< What the message names. */
+    };
+
+    /** @brief Names the balance outputs of a loss and the value it takes over fixed inputs. */
+    struct LossCase
+    {
+        std::vector<std::string> balances; /**< The balance outputs the objective averages. */
+        double loss;                       /**< Their mean when "balance2" is 2 and "balance3" is 4. */
+    };
+
+    /** @brief Names the context and the attributes the factory refuses and what it names. */
+    struct RefusedFactory
+    {
+        Train::ObjectiveContext given; /**< What the factory is given. */
+        std::string attributes;        /**< The objective's own keys, as JSON. */
+        Needles needles;               /**< What the message names. */
+    };
+
+    /** @brief Returns the descriptions the factory refuses. */
+    std::vector<RefusedFactory> refused_factories()
+    {
+        return {{make_context(), R"({"weight": 2})", {"objective states the key 'weight'", "", "", ""}},
+                {logits_only_context(), "{}",
+                 {"begin with 'balance'", "'usage'", "0 and 0", "among its 1"}},
+                {wide_balance_context(), "{}", {"'balance2'", "one element", "[1, 2]", ""}}};
+    }
+
+    /** @brief Names a usage the objective reads from a step that publishes "usage2" alone. */
+    struct RefusedUsage
+    {
+        std::string name;     /**< The usage output the objective reads. */
+        std::int64_t experts; /**< The experts it expects in that output. */
+        StatusCode code;      /**< The refusal. */
+        Needles needles;      /**< What the message names. */
+    };
+
+    /** @brief Provides the arguments make() refuses. */
+    class Small_LanguageTrainingExpertBalanceMake : public ::testing::TestWithParam<RefusedMake>
+    {
+
+    };
+
+    /** @brief Provides the balance outputs of the loss. */
+    class Small_LanguageTrainingExpertBalanceLoss : public ::testing::TestWithParam<LossCase>
+    {
+
+    };
+
+    /** @brief Provides the descriptions the factory refuses. */
+    class Small_LanguageTrainingExpertBalanceFactory
+        : public ::testing::TestWithParam<RefusedFactory>
+    {
+
+    };
 
     /** @brief Provides the engine the usage tensors of a step are allocated on. */
     class Medium_LanguageTrainingExpertBalanceMetrics : public SaTest::EngineTest
@@ -125,31 +184,33 @@ namespace
                 return std::move(made).value();
             }
     };
+
+    /** @brief Provides the usages measure() cannot read. */
+    class Medium_LanguageTrainingExpertBalanceUsage
+        : public Medium_LanguageTrainingExpertBalanceMetrics,
+          public ::testing::WithParamInterface<RefusedUsage>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests that make() keeps the names and refuses none, no name and no expert. */
-TEST(Small_LanguageTrainingExpertBalanceObjective, MakeKeepsItsOutputsAndRefusesNone)
+/** @brief Tests that make() refuses no balance, no usage, no name and a usage of no expert. */
+TEST_P(Small_LanguageTrainingExpertBalanceMake, MakeRefusesWhatCannotBeBalanced)
 {
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<ExpertBalanceObjective> objective,
-        ExpertBalanceObjective::make({"balance"}, {ExpertUsageOutput{"usage", K_EXPERTS}}));
+    const RefusedMake& row = GetParam();
 
-    EXPECT_EQ(objective->balances(), (std::vector<std::string>{"balance"}));
-    ASSERT_EQ(objective->usages().size(), 1u);
-    EXPECT_EQ(objective->usages().front().experts, K_EXPERTS);
-    EXPECT_EQ(objective->name(), "expert_balance");
-    EXPECT_TRUE(objective->is_fed_by_batch());
-
-    SA_EXPECT_FAILURE(ExpertBalanceObjective::make({}, {ExpertUsageOutput{"usage", 4}}),
-                      StatusCode::InvalidDescription, "at least one balance output",
-                      "0 and 1");
-    SA_EXPECT_FAILURE(ExpertBalanceObjective::make({"balance"}, {}),
-                      StatusCode::InvalidDescription, "1 and 0");
-    SA_EXPECT_FAILURE(ExpertBalanceObjective::make({""}, {ExpertUsageOutput{"usage", 4}}),
-                      StatusCode::InvalidDescription, "no name");
-    SA_EXPECT_FAILURE(ExpertBalanceObjective::make({"balance"}, {ExpertUsageOutput{"usage", 0}}),
-                      StatusCode::InvalidDescription, "'usage' of 0");
+    SA_EXPECT_FAILURE(ExpertBalanceObjective::make(row.balances, row.usages),
+                      StatusCode::InvalidDescription, row.needles[0], row.needles[1]);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LanguageTrainingExpertBalanceMake,
+    ::testing::Values(
+        RefusedMake{{}, {ExpertUsageOutput{"usage", 4}},
+                    {"at least one balance output", "0 and 1", "", ""}},
+        RefusedMake{{"balance"}, {}, {"1 and 0", "", "", ""}},
+        RefusedMake{{""}, {ExpertUsageOutput{"usage", 4}}, {"no name", "", "", ""}},
+        RefusedMake{{"balance"}, {ExpertUsageOutput{"usage", 0}}, {"'usage' of 0", "", "", ""}}));
 
 /** @brief Tests that the objective declares no leaf, requires no role and feeds nothing. */
 TEST(Small_LanguageTrainingExpertBalanceObjective, ItDeclaresNoLeafAndReadsNoRole)
@@ -169,8 +230,9 @@ TEST(Small_LanguageTrainingExpertBalanceObjective, ItDeclaresNoLeafAndReadsNoRol
 }
 
 /** @brief Tests that the loss of one balance is that output, and of two is half their sum. */
-TEST(Small_LanguageTrainingExpertBalanceObjective, TheLossIsTheMeanOfTheBalanceOutputs)
+TEST_P(Small_LanguageTrainingExpertBalanceLoss, TheLossIsTheMeanOfTheBalanceOutputs)
 {
+    const LossCase& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID first = builder.input(Shape{1, 1}, "first");
@@ -179,32 +241,25 @@ TEST(Small_LanguageTrainingExpertBalanceObjective, TheLossIsTheMeanOfTheBalanceO
     SA_EXPECT_OK(outputs.add("balance2", first));
     SA_EXPECT_OK(outputs.add("balance3", second));
     const Train::ObjectiveLeaves leaves;
-
     SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<ExpertBalanceObjective> single,
-        ExpertBalanceObjective::make({"balance3"}, {ExpertUsageOutput{"usage", K_EXPERTS}}));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID one,
-                            single->loss(builder, graph, outputs, leaves));
+        const std::unique_ptr<ExpertBalanceObjective> objective,
+        ExpertBalanceObjective::make(row.balances, {ExpertUsageOutput{"usage", K_EXPERTS}}));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            objective->loss(builder, graph, outputs, leaves));
 
-    EXPECT_EQ(graph.value(one).shape, (Shape{1}));
-    const Graph::Node& viewed = graph.node(graph.value(one).producer);
-    ASSERT_EQ(viewed.op, Ops::K_RESHAPE.id);
-    EXPECT_EQ(viewed.inputs[0], second);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SCALE.id), 0u);
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(first, {2.0}));
+    SA_EXPECT_OK(evaluator.write(second, {4.0}));
+    SA_EXPECT_OK(evaluator.run());
 
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<ExpertBalanceObjective> both,
-        ExpertBalanceObjective::make({"balance2", "balance3"},
-                                     {ExpertUsageOutput{"usage", K_EXPERTS}}));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID mean,
-                            both->loss(builder, graph, outputs, leaves));
-
-    EXPECT_EQ(graph.value(mean).shape, (Shape{1}));
-    const Graph::Node& halved = graph.node(graph.value(mean).producer);
-    ASSERT_EQ(halved.op, Ops::K_SCALE.id);
-    EXPECT_EQ(halved.attributes.get(0), 0.5);
-    EXPECT_EQ(graph.node(graph.value(halved.inputs[0]).producer).op, Ops::K_ADD.id);
+    EXPECT_EQ(graph.value(loss).shape, (Shape{1}));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> value, evaluator.read(loss));
+    EXPECT_EQ(value, (std::vector<double>{row.loss}));
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageTrainingExpertBalanceLoss,
+                         ::testing::Values(LossCase{{"balance3"}, 4.0},
+                                           LossCase{{"balance2", "balance3"}, 3.0}));
 
 /** @brief Tests that the factory pairs the outputs by the start of their names. */
 TEST(Small_LanguageTrainingExpertBalanceObjective, TheFactoryReadsTheOutputsByTheirNames)
@@ -223,26 +278,20 @@ TEST(Small_LanguageTrainingExpertBalanceObjective, TheFactoryReadsTheOutputsByTh
 }
 
 /** @brief Tests each description the factory refuses. */
-TEST(Small_LanguageTrainingExpertBalanceObjective, TheFactoryRefusesWhatDoesNotFit)
+TEST_P(Small_LanguageTrainingExpertBalanceFactory, TheFactoryRefusesWhatDoesNotFit)
 {
+    const RefusedFactory& row = GetParam();
+
     SA_EXPECT_FAILURE(
-        make_expert_balance_objective(make_context(),
-                                      SaTest::require_value(Config::parse_json(R"({"weight": 2})",
-                                                                               "<test>")),
-                                      "objective"),
-        StatusCode::InvalidDescription, "objective states the key 'weight'");
-
-    Train::ObjectiveContext plain = make_context();
-    plain.outputs.resize(1);
-    SA_EXPECT_FAILURE(make_expert_balance_objective(plain, no_keys(), "objective"),
-                      StatusCode::InvalidDescription, "begin with 'balance'", "'usage'",
-                      "0 and 0", "among its 1");
-
-    Train::ObjectiveContext wide = make_context();
-    wide.outputs[1].shape = Shape{1, 2};
-    SA_EXPECT_FAILURE(make_expert_balance_objective(wide, no_keys(), "objective"),
-                      StatusCode::InvalidDescription, "'balance2'", "one element", "[1, 2]");
+        make_expert_balance_objective(
+            row.given, SaTest::require_value(Config::parse_json(row.attributes, "<test>")),
+            "objective"),
+        StatusCode::InvalidDescription, row.needles[0], row.needles[1], row.needles[2],
+        row.needles[3]);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageTrainingExpertBalanceFactory,
+                         ::testing::ValuesIn(refused_factories()));
 
 /** @brief Tests that measure reports the extremes over every usage output of the step. */
 TEST_F(Medium_LanguageTrainingExpertBalanceMetrics, MeasureReportsTheSmallestAndLargestShare)
@@ -268,33 +317,38 @@ TEST_F(Medium_LanguageTrainingExpertBalanceMetrics, MeasureReportsTheSmallestAnd
     const Train::Metric* const largest = metrics.find("expert_usage_max");
     ASSERT_NE(smallest, nullptr);
     ASSERT_NE(largest, nullptr);
-    EXPECT_NEAR(smallest->value, 0.0625, K_TOLERANCE);
-    EXPECT_NEAR(largest->value, 0.5, K_TOLERANCE);
+    // Every share is a sum of powers of two, so float32 holds it exactly and the metric is exact.
+    EXPECT_EQ(smallest->value, 0.0625);
+    EXPECT_EQ(largest->value, 0.5);
     EXPECT_TRUE(smallest->is_fraction);
     EXPECT_TRUE(largest->is_fraction);
 }
 
 /** @brief Tests that measure refuses a usage the step lacks and one of another size. */
-TEST_F(Medium_LanguageTrainingExpertBalanceMetrics, MeasureRefusesAUsageItCannotRead)
+TEST_P(Medium_LanguageTrainingExpertBalanceUsage, MeasureRefusesAUsageItCannotRead)
 {
+    const RefusedUsage& row = GetParam();
     const SushiBLAS::Tensor even = make_usage({0.25, 0.25, 0.25, 0.25});
     const std::vector<Train::StepOutput> published = {Train::StepOutput{"usage2", &even}};
     const Data::Batch batch{};
     const Train::StepView step{
         batch, 0.0,
         SushiRuntime::span<const Train::StepOutput>(published.data(), published.size())};
-
     SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<ExpertBalanceObjective> absent,
-        ExpertBalanceObjective::make({"balance"}, {ExpertUsageOutput{"usage9", K_EXPERTS}}));
+        const std::unique_ptr<ExpertBalanceObjective> objective,
+        ExpertBalanceObjective::make({"balance"}, {ExpertUsageOutput{row.name, row.experts}}));
     Train::Metrics metrics;
-    SA_EXPECT_FAILURE(absent->measure(step, metrics), StatusCode::InvalidDescription,
-                      "'usage9'", "did not publish");
 
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<ExpertBalanceObjective> longer,
-        ExpertBalanceObjective::make({"balance"}, {ExpertUsageOutput{"usage2", 8}}));
-    SA_EXPECT_FAILURE(longer->measure(step, metrics), StatusCode::Incompatible,
-                      "the usage of the experts", "8 values", "holds 4");
+    SA_EXPECT_FAILURE(objective->measure(step, metrics), row.code, row.needles[0],
+                      row.needles[1], row.needles[2]);
+
     EXPECT_TRUE(metrics.all().empty());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_LanguageTrainingExpertBalanceUsage,
+    ::testing::Values(
+        RefusedUsage{"usage9", K_EXPERTS, StatusCode::InvalidDescription,
+                     {"'usage9'", "did not publish", "", ""}},
+        RefusedUsage{"usage2", 8, StatusCode::Incompatible,
+                     {"the usage of the experts", "8 values", "holds 4", ""}}));

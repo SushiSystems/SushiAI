@@ -44,7 +44,10 @@ positions, of minus the log-probability of each position's label. The objective 
 
 The `targets` leaf is int32 of `[R]`. `fill_next_token_targets` writes element `r` as
 `r * V + labels[r]`, on the host, once per batch: `R` integers. It checks every label against
-`V` first, so a refused batch leaves the leaf as it was.
+`V` first, so a refused batch leaves the leaf as it was. The fill has two overloads. One takes
+the labels and the leaf as spans of int32 and holds every rule of the fill: the counts, the size
+INT32 can index and the range of each label. The other takes tensors, refuses a tensor that is
+not int32 and passes their elements to the first.
 
 ### Why not the one-hot loss
 
@@ -119,15 +122,16 @@ call that module.
 
 ## Tests
 
-`tests/language/training/test_next_token_objective.cpp` and `test_training_next_token_targets.cpp`, in
-the suites `Medium_LanguageTrainingNextTokenObjective`, `Medium_LanguageTrainingNextTokenTargets`
-and `Small_LanguageTrainingPerplexity`. The second suite allocates tensors on an engine.
-`tests/language/training/test_expert_balance_objective.cpp` holds
-`Small_LanguageTrainingExpertBalanceObjective` and, on an engine,
-`Medium_LanguageTrainingExpertBalanceMetrics`.
-`tests/language/training/test_next_token_objective.cpp` compares the loss and its gradient with a
-host computation, `tests/language/training/test_next_token_objective.cpp` trains with it,
-`tests/language/training/test_next_token_objective.cpp` fits it through `Train::Trainer`, and
-`tests/language/registration/test_registration.cpp` trains a decoder of experts with and without the balance.
+`tests/language/training/` holds one file per header.
+
+| File | Suites | What they use |
+| --- | --- | --- |
+| `test_next_token_objective.cpp` | `Small_LanguageTrainingNextTokenObjective*`, `Medium_NextTokenObjective`, `Medium_NextTokenTrainer`, `Medium_DecoderOverfit` | The small suites build graphs and refuse descriptions on the host; the medium ones compare the loss and its gradient with a host computation, fit a bigram table through `Train::Trainer`, and overfit a learned-position decoder and a rotary decoder |
+| `test_next_token_targets.cpp` | `Small_LanguageTrainingNextTokenTargets*` | Spans of values and shape-only tensors |
+| `test_perplexity.cpp` | `Small_LanguageTrainingPerplexity*` | Doubles |
+| `test_expert_balance_objective.cpp` | `Small_LanguageTrainingExpertBalance*`, `Medium_LanguageTrainingExpertBalance*` | The host graph evaluator for the loss; an engine for the usage tensors of `measure` |
+
+`tests/language/registration/test_registration.cpp` trains a decoder of experts with and
+without the balance.
 
 Source: `docs/design/LANGUAGE/README.md`, phases 4 and 7.

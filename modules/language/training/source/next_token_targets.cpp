@@ -30,12 +30,48 @@
 #include <SushiAI/language/training/next_token_targets.hpp>
 
 #include <cstdint>
+#include <cstddef>
 #include <limits>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Language::Training
 {
+    Status fill_next_token_targets(SushiRuntime::span<const std::int32_t> labels,
+                                   std::int64_t vocabulary,
+                                   SushiRuntime::span<std::int32_t> targets) noexcept
+    {
+        SA_FAIL_IF(labels.size() != targets.size(), StatusCode::Incompatible,
+                   "The batch holds {} labels but the compiled step expects {}, one per "
+                   "position",
+                   labels.size(), targets.size());
+
+        const std::int64_t rows = static_cast<std::int64_t>(targets.size());
+        constexpr std::int64_t K_LARGEST_INDEX = std::numeric_limits<std::int32_t>::max();
+        SA_FAIL_IF(vocabulary < 1 || rows > K_LARGEST_INDEX / vocabulary,
+                   StatusCode::Incompatible,
+                   "{} positions over a vocabulary of {} cannot be indexed in {}", rows,
+                   vocabulary, dtype_name(DType::Int32));
+
+        for (std::int64_t row = 0; row < rows; ++row)
+        {
+            const std::int32_t label = labels[static_cast<std::size_t>(row)];
+            SA_FAIL_IF(label < 0 || label >= vocabulary, StatusCode::Incompatible,
+                       "The label of position {} is {} but the vocabulary holds {} tokens",
+                       row, label, vocabulary);
+        }
+
+        // Every label was checked, so a refused batch leaves the leaf as it was.
+        for (std::int64_t row = 0; row < rows; ++row)
+        {
+            targets[static_cast<std::size_t>(row)] = static_cast<std::int32_t>(
+                row * vocabulary + labels[static_cast<std::size_t>(row)]);
+        }
+
+        return Status();
+    }
+
     Status fill_next_token_targets(const SushiBLAS::Tensor& labels, std::int64_t vocabulary,
                                    SushiBLAS::Tensor& targets) noexcept
     {
@@ -45,32 +81,13 @@ namespace SushiAI::Language::Training
                    "as {}",
                    dtype_name(labels.dtype), dtype_name(targets.dtype),
                    dtype_name(DType::Int32));
-        SA_FAIL_IF(labels.num_elements != targets.num_elements, StatusCode::Incompatible,
-                   "The batch holds {} labels but the compiled step expects {}, one per "
-                   "position",
-                   labels.num_elements, targets.num_elements);
 
-        const std::int64_t rows = targets.num_elements;
-        constexpr std::int64_t K_LARGEST_INDEX = std::numeric_limits<std::int32_t>::max();
-        SA_FAIL_IF(vocabulary < 1 || rows > K_LARGEST_INDEX / vocabulary,
-                   StatusCode::Incompatible,
-                   "{} positions over a vocabulary of {} cannot be indexed in {}", rows,
-                   vocabulary, dtype_name(DType::Int32));
-
-        const std::int32_t* const label = labels.data_as<std::int32_t>();
-        for (std::int64_t row = 0; row < rows; ++row)
-        {
-            SA_FAIL_IF(label[row] < 0 || label[row] >= vocabulary, StatusCode::Incompatible,
-                       "The label of position {} is {} but the vocabulary holds {} tokens",
-                       row, label[row], vocabulary);
-        }
-
-        // Every label was checked, so a refused batch leaves the leaf as it was.
-        std::int32_t* const target = targets.data_as<std::int32_t>();
-        for (std::int64_t row = 0; row < rows; ++row)
-            target[row] = static_cast<std::int32_t>(row * vocabulary + label[row]);
-
-        return Status();
+        return fill_next_token_targets(
+            SushiRuntime::span<const std::int32_t>(labels.data_as<std::int32_t>(),
+                                                   static_cast<std::size_t>(labels.num_elements)),
+            vocabulary,
+            SushiRuntime::span<std::int32_t>(targets.data_as<std::int32_t>(),
+                                             static_cast<std::size_t>(targets.num_elements)));
     }
 
 } // namespace SushiAI::Language::Training

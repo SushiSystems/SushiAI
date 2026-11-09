@@ -29,12 +29,26 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Language::Training
 {
+    /**
+     * @brief Writes, for each of R labels, the index of its log-probability among R * V.
+     * @param labels R token ids, each in [0, vocabulary).
+     * @param vocabulary V, the last extent of the logits.
+     * @param targets R elements; element r becomes r * vocabulary + labels[r].
+     * @return Success, or Incompatible for another count, a label outside the vocabulary or
+     *         an R * V that INT32 cannot index; a refusal leaves @p targets as it was.
+     */
+    [[nodiscard]] Status fill_next_token_targets(SushiRuntime::span<const std::int32_t> labels,
+                                                 std::int64_t vocabulary,
+                                                 SushiRuntime::span<std::int32_t> targets) noexcept;
+
     /**
      * @brief Writes, for each of the R labels, the index of its log-probability among R * V.
      * @param labels INT32 token ids of any shape holding R elements, each in [0, vocabulary).
