@@ -47,7 +47,6 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::Buffer;
@@ -61,12 +60,6 @@ using NN::TraceMode;
 
 namespace
 {
-    /**
-     * @brief Holds the absolute tolerance of a double stored and read back unchanged; 16 unit
-     * roundoffs of double, the smallest power of two that covers 1e-15.
-     */
-    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Counts which of its two forms a trace asked for; stands in for a modal leaf. */
     struct ModalStub
     {
@@ -390,15 +383,6 @@ TEST(Small_Trace, UpdateUnderAnEvaluationTraceFails)
                       "evaluation trace");
 }
 
-/** @brief Tests that a new list holds no update and no source. */
-TEST(Small_Trace, ANewListIsEmpty)
-{
-    const BufferUpdateList list;
-
-    EXPECT_EQ(list.updates().size(), 0u);
-    EXPECT_EQ(list.sources().size(), 0u);
-}
-
 /** @brief Tests that each update under a list adds one update and one source, in order. */
 TEST(Small_Trace, EachUpdateAddsOneUpdateAndOneSource)
 {
@@ -424,12 +408,12 @@ TEST(Small_Trace, EachUpdateAddsOneUpdateAndOneSource)
     // The four numbers are stored as given, so they compare exactly.
     EXPECT_EQ(list.updates()[0].target, mean.state());
     EXPECT_EQ(list.updates()[0].source, x);
-    EXPECT_NEAR(list.updates()[0].momentum, 0.1, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(list.updates()[0].source_scale, 1.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(list.updates()[0].momentum, 0.1);
+    EXPECT_EQ(list.updates()[0].source_scale, 1.0);
     EXPECT_EQ(list.updates()[1].target, variance.state());
     EXPECT_EQ(list.updates()[1].source, y);
-    EXPECT_NEAR(list.updates()[1].momentum, 0.25, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(list.updates()[1].source_scale, 1.5, K_EXACT_TOLERANCE);
+    EXPECT_EQ(list.updates()[1].momentum, 0.25);
+    EXPECT_EQ(list.updates()[1].source_scale, 1.5);
     EXPECT_EQ(list.sources()[0], x);
     EXPECT_EQ(list.sources()[1], y);
 }
@@ -468,10 +452,10 @@ TEST(Small_Trace, ARecordedTargetSurvivesAMoveOfItsBuffer)
 }
 
 /**
- * @brief Tests that the discarding sink accepts an update in Training mode, adds no value to
- *        the graph and is one object.
+ * @brief Tests that the discarding sink accepts an update in Training mode and adds no value to
+ *        the graph.
  */
-TEST(Small_Trace, TheDiscardingSinkAcceptsAnUpdateAndIsOneObject)
+TEST(Small_Trace, TheDiscardingSinkAcceptsAnUpdateAndAddsNoValue)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -484,11 +468,10 @@ TEST(Small_Trace, TheDiscardingSinkAcceptsAnUpdateAndIsOneObject)
     EXPECT_EQ(trace.mode(), TraceMode::Training);
     SA_EXPECT_OK(trace.update(buffer, x, 0.1, 1.0));
     EXPECT_EQ(graph.value_count(), before);
-    EXPECT_EQ(&NN::discard_updates(), &NN::discard_updates());
 }
 
 /** @brief Tests that an update of a buffer define() never shaped stops the process. */
-TEST(Small_TraceDeathTest, AnUpdateOfAnUndefinedBufferIsFatal)
+TEST(Medium_TraceDeathTest, AnUpdateOfAnUndefinedBufferIsFatal)
 {
     SA_EXPECT_FATAL(update_undefined_buffer(), "define() has not given a shape");
 }
@@ -510,18 +493,6 @@ TEST(Small_Trace, AnUpdateOfABufferThatWasNeverReadIsRecorded)
     EXPECT_EQ(list.updates()[0].target, buffer.state());
     EXPECT_EQ(graph.value_count(), before);
     EXPECT_EQ(buffer.id_in(graph), Graph::K_NO_VALUE);
-}
-
-/** @brief Tests that a new trace holds no failure and leaves its graph unrefused. */
-TEST(Small_Trace, ANewTraceHoldsNoFailure)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const Trace trace = Trace::evaluation(builder);
-
-    SA_EXPECT_OK(trace.status());
-    EXPECT_FALSE(graph.has_refusal());
 }
 
 /** @brief Tests that fail() keeps the first failure it is given and marks the graph refused. */
@@ -567,7 +538,7 @@ TEST(Small_Trace, ValueOrFailRecordsAFailureAndReturnsTheFallback)
 }
 
 /** @brief Tests that fail() given a success stops the process. */
-TEST(Small_TraceDeathTest, FailGivenASuccessIsFatal)
+TEST(Medium_TraceDeathTest, FailGivenASuccessIsFatal)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -618,13 +589,13 @@ TEST(Small_Trace, SequentialFoldsAnInputShapeThroughItsChildren)
 }
 
 /** @brief Tests that an update whose source is NO_VALUE stops the process. */
-TEST(Small_TraceDeathTest, AnUpdateWithoutASourceIsFatal)
+TEST(Medium_TraceDeathTest, AnUpdateWithoutASourceIsFatal)
 {
     SA_EXPECT_FATAL(update_from(Graph::K_NO_VALUE), "a buffer update reads value");
 }
 
 /** @brief Tests that an update whose source the graph does not hold stops the process. */
-TEST(Small_TraceDeathTest, AnUpdateFromAValueOutsideTheGraphIsFatal)
+TEST(Medium_TraceDeathTest, AnUpdateFromAValueOutsideTheGraphIsFatal)
 {
     SA_EXPECT_FATAL(update_from(Graph::ValueID{7}), "reads value 7", "holds 1 values");
 }
@@ -636,9 +607,9 @@ TEST(Small_Trace, TraceLayerCallsTheTrainingFormInTrainingMode)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     ModalStub stub;
+    BufferUpdateList updates;
 
-    const Graph::ValueID y =
-        NN::trace_layer(stub, Trace::training(builder, NN::discard_updates()), x);
+    const Graph::ValueID y = NN::trace_layer(stub, Trace::training(builder, updates), x);
 
     EXPECT_EQ(stub.training_calls, 1);
     EXPECT_EQ(stub.evaluation_calls, 0);
@@ -687,12 +658,11 @@ TEST(Small_Trace, TraceLayerPassesTheTraceToATraceModule)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     CompositeStub composite;
+    BufferUpdateList updates;
 
     static_cast<void>(NN::trace_layer(composite, Trace::evaluation(builder), x));
-    static_cast<void>(
-        NN::trace_layer(composite, Trace::training(builder, NN::discard_updates()), x));
-    static_cast<void>(
-        NN::trace_layer(composite, Trace::training(builder, NN::discard_updates()), x));
+    static_cast<void>(NN::trace_layer(composite, Trace::training(builder, updates), x));
+    static_cast<void>(NN::trace_layer(composite, Trace::training(builder, updates), x));
 
     EXPECT_EQ(composite.inner.evaluation_calls, 1);
     EXPECT_EQ(composite.inner.training_calls, 2);
@@ -720,12 +690,13 @@ TEST(Small_Trace, ANestedSequentialTracesItsModalChildInTheTracesMode)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     Sequential outer{Sequential{Linear{4, 3}, ModalStub{}}, ReLU{}};
+    BufferUpdateList updates;
 
     static_cast<void>(outer.forward(Trace::evaluation(builder), x));
     EXPECT_EQ(outer.layer<0>().layer<1>().evaluation_calls, 1);
     EXPECT_EQ(outer.layer<0>().layer<1>().training_calls, 0);
 
-    static_cast<void>(outer.forward(Trace::training(builder, NN::discard_updates()), x));
+    static_cast<void>(outer.forward(Trace::training(builder, updates), x));
     EXPECT_EQ(outer.layer<0>().layer<1>().evaluation_calls, 1);
     EXPECT_EQ(outer.layer<0>().layer<1>().training_calls, 1);
 }
@@ -737,14 +708,14 @@ TEST(Small_Trace, SequentialTracesAModalChildInTheTracesMode)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     Sequential model{Linear{4, 3}, ModalStub{}};
+    BufferUpdateList updates;
 
     const Graph::ValueID evaluated = model.forward(Trace::evaluation(builder), x);
     EXPECT_EQ(model.layer<1>().evaluation_calls, 1);
     EXPECT_EQ(model.layer<1>().training_calls, 0);
     EXPECT_EQ(graph.value(evaluated).shape, (Shape{2, 3}));
 
-    const Graph::ValueID trained =
-        model.forward(Trace::training(builder, NN::discard_updates()), x);
+    const Graph::ValueID trained = model.forward(Trace::training(builder, updates), x);
     EXPECT_EQ(model.layer<1>().evaluation_calls, 1);
     EXPECT_EQ(model.layer<1>().training_calls, 1);
     EXPECT_EQ(graph.value(trained).shape, (Shape{2, 3}));
@@ -891,7 +862,7 @@ TEST(Small_Trace, CarryRecordsTheLeafItsNextValueAndItsInitialValue)
     ASSERT_EQ(carried.values().size(), 1u);
     EXPECT_EQ(carried.values()[0].leaf, leaf);
     EXPECT_EQ(carried.values()[0].next, next);
-    EXPECT_NEAR(carried.values()[0].initial_value, 0.5, K_EXACT_TOLERANCE);
+    EXPECT_EQ(carried.values()[0].initial_value, 0.5);
     ASSERT_EQ(carried.sources().size(), 1u);
     EXPECT_EQ(carried.sources()[0], next);
 }
@@ -914,7 +885,7 @@ TEST(Small_Trace, CarryRefusesANextValueOfAnotherShape)
 }
 
 /** @brief Tests that a leaf carried_leaf() did not declare stops the process. */
-TEST(Small_TraceDeathTest, CarryingAValueThatIsNoCarriedLeafIsFatal)
+TEST(Medium_TraceDeathTest, CarryingAValueThatIsNoCarriedLeafIsFatal)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

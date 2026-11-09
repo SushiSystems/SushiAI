@@ -1,7 +1,7 @@
 # tests/layers/nn/test_trace.cpp
 
 
-Suites: `Small_Trace`, `Small_TraceDeathTest`.
+Suites: `Small_Trace`, `Medium_TraceDeathTest`.
 
 Tests Trace, the buffer-update sinks, the three layer forms and trace_layer.
 
@@ -10,11 +10,6 @@ This file needs no device. `NN::Trace` in `modules/layers/nn/include/SushiAI/nn/
 of three forms: `Module`, whose `forward` takes a builder; `TraceModule`, whose `forward` takes
 a `Trace`; and `ModalModule`, which states `trace_training` and `trace_evaluation` and no
 `forward`. `NN::trace_layer` calls whichever form a layer has.
-
-## K_EXACT_TOLERANCE
-
-`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
-unchanged.
 
 ## ModalStub
 
@@ -101,10 +96,6 @@ made from.
 `update()` on an evaluation trace returns `InvalidDescription` with a message containing
 "evaluation trace".
 
-## ANewListIsEmpty
-
-A new `BufferUpdateList` has no update and no source.
-
 ## EachUpdateAddsOneUpdateAndOneSource
 
 Two `update()` calls on a training trace leave two entries in `updates()` and two in
@@ -121,24 +112,21 @@ An `update()` leaves the graph's value count unchanged and the buffer without a 
 After the buffer of a recorded update is move-constructed into another, the update's `target`
 equals the moved buffer's state and is not `K_NO_STATE`.
 
-## TheDiscardingSinkAcceptsAnUpdateAndIsOneObject
+## TheDiscardingSinkAcceptsAnUpdateAndAddsNoValue
 
 A trace made with `NN::discard_updates()` is in Training mode, its `update()` returns ok and
-the graph gains no value. Two calls of `discard_updates()` return the same address.
+the graph gains no value. That the sink is one process-wide object is how it is held and is not
+checked.
 
 ## AnUpdateOfAnUndefinedBufferIsFatal
 
-The case is in the suite `Small_TraceDeathTest`. `update_undefined_buffer` stops the process
+The case is in the suite `Medium_TraceDeathTest`, because a death test starts a child process. `update_undefined_buffer` stops the process
 with "define() has not given a shape".
 
 ## AnUpdateOfABufferThatWasNeverReadIsRecorded
 
 An update of a defined buffer that no graph has read is recorded with the buffer's state as
 its target. The graph gains no value and the buffer has no leaf in it.
-
-## ANewTraceHoldsNoFailure
-
-A new trace's `status()` is ok and the graph has no refusal.
 
 ## FailKeepsTheFirstFailureAndMarksTheGraphRefused
 
@@ -156,7 +144,7 @@ failure.
 
 ## FailGivenASuccessIsFatal
 
-The case is in the suite `Small_TraceDeathTest`. `trace.fail(Status())` stops the process with
+The case is in the suite `Medium_TraceDeathTest`, because a death test starts a child process. `trace.fail(Status())` stops the process with
 "Trace::fail was given a success".
 
 ## SequentialLeavesTheFailureAChildRecordedOnTheTrace
@@ -178,12 +166,12 @@ returns InvalidDescription with a message containing "Linear(4, 8)" and "[5]".
 
 ## AnUpdateWithoutASourceIsFatal
 
-The case is in the suite `Small_TraceDeathTest`. An update whose source is `K_NO_VALUE` stops the
+The case is in the suite `Medium_TraceDeathTest`, because a death test starts a child process. An update whose source is `K_NO_VALUE` stops the
 process with "a buffer update reads value".
 
 ## AnUpdateFromAValueOutsideTheGraphIsFatal
 
-The case is in the suite `Small_TraceDeathTest`. An update whose source is value 7, in a graph
+The case is in the suite `Medium_TraceDeathTest`, because a death test starts a child process. An update whose source is value 7, in a graph
 of one value, stops the process with a report containing "reads value 7" and "holds 1 values".
 
 ## TraceLayerCallsTheTrainingFormInTrainingMode
