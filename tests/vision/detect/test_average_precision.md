@@ -1,7 +1,7 @@
 # tests/vision/detect/test_average_precision.cpp
 
 
-Suites: `Small_AveragePrecision`.
+Suite: `Small_AveragePrecision`.
 
 Tests detection matching, the 101-point average precision and the validation table.
 
@@ -13,7 +13,8 @@ number from the recall and precision the detections produce.
 
 ## K_TOLERANCE
 
-`K_TOLERANCE` is 1e-12, the absolute tolerance of a metric, about 4500 float64 steps at 1.
+`K_TOLERANCE` is 16384 times the double unit roundoff, the absolute tolerance of a metric and the
+smallest power of two not tighter than the earlier 1e-12.
 
 ## K_FULL_AP
 
@@ -52,9 +53,9 @@ The file-local `add_image` passes three vectors to `AveragePrecision::add_image`
 
 ## HoldsTheTenReferenceThresholds
 
-`K_IOU_THRESHOLDS` has ten entries, and each equals a hexadecimal float literal that carries
-the float32 bits of `torch.linspace(0.5, 0.95, 10)`. The comparison is exact, so a threshold
-that rounds to a neighbouring float32 fails it.
+`K_IOU_THRESHOLDS` copied into a vector equals, in one comparison, ten hexadecimal float
+literals that carry the float32 bits of `torch.linspace(0.5, 0.95, 10)`. The comparison is exact,
+so a threshold that rounds to a neighbouring float32 fails it, and so does a wrong count.
 
 ## IntegratesAnEmptyCurveToOneHalf
 
@@ -71,11 +72,16 @@ follows it at higher recall.
 
 Two recall values with one precision value fail with a message containing "1 and 2".
 
-## PerfectDetectorScoresTheInterpolationCeiling
+## PerfectDetectorScoresTheInterpolationCeilingInEveryClass
 
-Two images each hold one box, of classes 0 and 1, and one detection that equals it. Both rows
-have precision 1, recall 1 and `K_FULL_AP` in both AP columns, and the four means are the same
-numbers.
+Two images each hold one box, of classes 0 and 1, and one detection that equals it. Both class
+rows have precision 1, recall 1 and `K_FULL_AP` in both AP columns. `expect_found_whole` states
+the four values once and the case calls it for each row.
+
+## PerfectDetectorMeansScoreTheInterpolationCeiling
+
+The same two images give a mean precision of 1, a mean recall of 1 and `K_FULL_AP` for both mean
+AP columns.
 
 ## NoDetectionsScoreZero
 
@@ -99,7 +105,8 @@ confidence point gives precision 0.5.
 ## TwoDetectionsOnOneBoxCountOneMatch
 
 Two detections equal `K_BOX_A` and a third equals `K_BOX_B`, all of class 0. The flags are 1
-for the first, 0 for the second and 1 for the third at all ten thresholds. The AP at IoU 0.5 is
+for the first, 0 for the second and 1 for the third at all ten thresholds, compared as one
+array of thirty values. The AP at IoU 0.5 is
 0.49 + 0.05 / 6 + 0.98 / 3 + 0.01 / 3, precision is 2/3 and recall is 1. Three matches give
 0.995.
 
@@ -175,9 +182,13 @@ image remains.
 
 ## RejectsMalformedImages
 
-`add_image` returns `InvalidDescription` for a detection array of 5 values ("[N, 6]", "got 5"), for one box with two
-classes ("4 values", "2 classes"), for a ground-truth class of -1 ("box 0", "negative class
--1"), for a detection class of 0.5 ("detection 0", "not a class index") and for a NaN score
-("detection 0", "score"). The accumulator still holds no image and no rows afterwards.
-`match_detections` returns `InvalidDescription` for a box without a class ("0 classes") and for a flag array of 9
-values ("need 10 values", "got 9").
+`add_image` returns `InvalidDescription` for a detection array of 5 values ("[N, 6]", "got 5"),
+for one box with two classes ("4 values", "2 classes"), for a ground-truth class of -1 ("box 0",
+"negative class -1"), for a detection class of 0.5 ("detection 0", "not a class index") and for a
+NaN score ("detection 0", "score"). The accumulator still holds no image and no rows afterwards.
+
+## RejectsMalformedMatchArrays
+
+`match_detections` returns `InvalidDescription` for a box without a class ("0 classes") and for a
+flag array of 9 values ("need 10 values", "got 9").
+

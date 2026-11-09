@@ -125,6 +125,24 @@ namespace
         SA_EXPECT_OK(add_image(metric, detections, boxes, classes));
         return metric.summarize();
     }
+
+    /** @brief Expects one class row of a detector that found its only box to sit at the ceiling. */
+    void expect_found_whole(const SushiAI::Vision::Detect::ClassMetrics& row)
+    {
+        EXPECT_NEAR(row.precision, 1.0, K_TOLERANCE);
+        EXPECT_NEAR(row.recall, 1.0, K_TOLERANCE);
+        EXPECT_NEAR(row.ap50, K_FULL_AP, K_TOLERANCE);
+        EXPECT_NEAR(row.ap50_95, K_FULL_AP, K_TOLERANCE);
+    }
+
+    /** @brief Returns the table of a detector that finds the box of each of two classes exactly. */
+    MetricsSummary summarize_perfect_detector()
+    {
+        AveragePrecision metric;
+        SA_EXPECT_OK(add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_BOX_A, {0}));
+        SA_EXPECT_OK(add_image(metric, make_row(K_BOX_B, 0.8f, 1.0f), K_BOX_B, {1}));
+        return metric.summarize();
+    }
 }
 
 /** @brief Tests that the ten thresholds carry the float32 bits of torch.linspace(0.5, 0.95, 10). */
@@ -134,9 +152,8 @@ TEST(Small_AveragePrecision, HoldsTheTenReferenceThresholds)
                                       0x1.4cccccp-1f, 0x1.666666p-1f, 0x1.8p-1f,
                                       0x1.99999ap-1f, 0x1.b33334p-1f, 0x1.ccccccp-1f,
                                       0x1.e66666p-1f};
-    ASSERT_EQ(SushiAI::Vision::Detect::K_IOU_THRESHOLDS.size(), expected.size());
-    for (std::size_t level = 0; level < expected.size(); ++level)
-        EXPECT_EQ(SushiAI::Vision::Detect::K_IOU_THRESHOLDS[level], expected[level]) << level;
+    const auto& thresholds = SushiAI::Vision::Detect::K_IOU_THRESHOLDS;
+    EXPECT_EQ(std::vector<float>(thresholds.begin(), thresholds.end()), expected);
 }
 
 /** @brief Tests that an empty curve integrates to the area under the line from 1 to 0. */
@@ -169,23 +186,22 @@ TEST(Small_AveragePrecision, RejectsCurvesOfUnequalLength)
                       StatusCode::InvalidDescription, "1 and 2");
 }
 
-/** @brief Tests that a detector that finds every box exactly scores 0.995 and not 1. */
-TEST(Small_AveragePrecision, PerfectDetectorScoresTheInterpolationCeiling)
+/** @brief Tests that each class of a detector that finds every box scores 0.995 and not 1. */
+TEST(Small_AveragePrecision, PerfectDetectorScoresTheInterpolationCeilingInEveryClass)
 {
-    AveragePrecision metric;
-    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_BOX_A, {0}));
-    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_B, 0.8f, 1.0f), K_BOX_B, {1}));
-    const MetricsSummary summary = metric.summarize();
+    const MetricsSummary summary = summarize_perfect_detector();
 
     // Recall 0 1 1 1, envelope 1 1 0 0: 100 points at 1 and the point at recall 1 at 0.
     ASSERT_EQ(summary.classes.size(), 2u);
-    for (const SushiAI::Vision::Detect::ClassMetrics& row : summary.classes)
-    {
-        EXPECT_NEAR(row.precision, 1.0, K_TOLERANCE);
-        EXPECT_NEAR(row.recall, 1.0, K_TOLERANCE);
-        EXPECT_NEAR(row.ap50, K_FULL_AP, K_TOLERANCE);
-        EXPECT_NEAR(row.ap50_95, K_FULL_AP, K_TOLERANCE);
-    }
+    expect_found_whole(summary.classes[0]);
+    expect_found_whole(summary.classes[1]);
+}
+
+/** @brief Tests that the means of a detector that finds every box sit at the same ceiling. */
+TEST(Small_AveragePrecision, PerfectDetectorMeansScoreTheInterpolationCeiling)
+{
+    const MetricsSummary summary = summarize_perfect_detector();
+
     EXPECT_NEAR(summary.precision, 1.0, K_TOLERANCE);
     EXPECT_NEAR(summary.recall, 1.0, K_TOLERANCE);
     EXPECT_NEAR(summary.map50, K_FULL_AP, K_TOLERANCE);
@@ -258,12 +274,11 @@ TEST(Small_AveragePrecision, TwoDetectionsOnOneBoxCountOneMatch)
                                                 make_row(K_BOX_B, 0.7f, 0.0f)});
     const std::vector<float> boxes = join({K_BOX_A, K_BOX_B});
     const std::vector<std::uint8_t> correct = match(detections, boxes, {0, 0});
-    for (std::size_t level = 0; level < K_IOU_THRESHOLD_COUNT; ++level)
-    {
-        EXPECT_EQ(correct[level], 1) << level;
-        EXPECT_EQ(correct[K_IOU_THRESHOLD_COUNT + level], 0) << level;
-        EXPECT_EQ(correct[2 * K_IOU_THRESHOLD_COUNT + level], 1) << level;
-    }
+    std::vector<std::uint8_t> expected_flags;
+    expected_flags.insert(expected_flags.end(), K_IOU_THRESHOLD_COUNT, 1);
+    expected_flags.insert(expected_flags.end(), K_IOU_THRESHOLD_COUNT, 0);
+    expected_flags.insert(expected_flags.end(), K_IOU_THRESHOLD_COUNT, 1);
+    EXPECT_EQ(correct, expected_flags);
 
     // Recall 1/2 1/2 1, precision 1 1/2 2/3; three matches would give 0.995 instead.
     const MetricsSummary summary = summarize_image(detections, boxes, {0, 0});
@@ -478,8 +493,14 @@ TEST(Small_AveragePrecision, RejectsMalformedImages)
                       StatusCode::InvalidDescription, "detection 0", "score");
     EXPECT_EQ(metric.image_count(), 0);
     EXPECT_TRUE(metric.summarize().classes.empty());
+}
 
+/** @brief Tests that match arrays of the wrong size are refused. */
+TEST(Small_AveragePrecision, RejectsMalformedMatchArrays)
+{
+    const std::vector<float> row = make_row(K_BOX_A, 0.9f, 0.0f);
     std::vector<std::uint8_t> correct(9);
+
     SA_EXPECT_FAILURE(SushiAI::Vision::Detect::match_detections(row, K_BOX_A, K_NO_CLASSES,
                                                                 correct),
                       StatusCode::InvalidDescription, "0 classes");
