@@ -1,7 +1,8 @@
 # tests/layers/nn/test_conv2d.cpp
 
 
-Suites: `Small_Conv2d`.
+Suites: `Small_Conv2d`, `Small_Conv2dShape`, `Small_Conv2dShapeRefusal`,
+`Small_Conv2dForwardRefusal`.
 
 Tests the 2-D convolution layer's trace, parameters, shape inference and rejections.
 
@@ -12,11 +13,6 @@ case reads a host-side graph, the layer's two parameters or the result of `outpu
 
 Two `static_assert` lines at file scope require `Conv2d` to be a `Module` and not a
 `ModuleContainer`.
-
-## K_EXACT_TOLERANCE
-
-`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
-unchanged.
 
 ## make_conv
 
@@ -41,6 +37,14 @@ the result's shape. It takes the layer by value, so a const layer can be traced 
 ## count_op
 
 `count_op` counts the nodes of one operation in the whole graph.
+
+## dilated
+
+`dilated` returns a copy of a layer with the given dilation on each axis.
+
+## expect_gradient_of
+
+`expect_gradient_of` checks that a gradient exists and has the shape of its parameter.
 
 ## ForwardOfAPaddedThreeByThreeKeepsTheSpatialExtents
 
@@ -84,38 +88,19 @@ The weight has role WEIGHT and the bias has role BIAS.
 After a second trace into the same graph the weight and the bias keep their value ids and
 `parameter_count` is 2.
 
-## OutputShapeAgreesWithForwardForAStridedWindow
+## Small_Conv2dShape.OutputShapeAgreesWithForward
 
-A 3x3 stride-2 unpadded window with sixteen filters maps [9, 12, 3] to [4, 5, 16], and the
-traced shape of a batch of two equals that shape with the batch extent in front. The four
-cases from here assert the literal and the agreement together.
-
-## OutputShapeAgreesWithForwardForAPaddedWindow
-
-A 5x5 window with padding 2 maps [7, 10, 2] to [7, 10, 4].
-
-## OutputShapeAgreesWithForwardForADilatedStridedWindow
-
-A 3x3 window with stride 2, padding 1 and dilations 2 by 3 maps [11, 13, 2] to [5, 5, 3].
-
-## OutputShapeAgreesWithForwardForAPointwiseWindow
-
-A 1x1 window with six filters maps [5, 7, 4] to [5, 7, 6]. This is the geometry for which
-`GraphBuilder::conv2d` emits no K_IM2COL.
+`output_shape` of the sample is the expected shape, and the shape traced over a batch is the
+expected shape with that batch in front. The rows are AStridedWindow (3x3, stride 2, [9, 12, 3]
+to [4, 5, 16]), APaddedWindow (5x5 padded by 2, [7, 10, 2] to [7, 10, 4]), ADilatedStridedWindow
+(3x3, stride 2, padding 1, dilation 2 by 3, [11, 13, 2] to [5, 5, 3]), APointwiseWindow
+([5, 7, 4] to [5, 7, 6]) and, for `same_padded` at stride 1, SamePaddedAtStrideOne (3x3,
+[7, 10, 4] to itself), SamePaddedPointwise and SamePaddedFiveByFive ([9, 6, 2] to [9, 6, 8]).
 
 ## SamePaddedPadsByHalfTheKernelAndDropsTheBias
 
 `Conv2d::same_padded(3, 16, 5, 2)` has 3 input and 16 output channels, a 5x5 kernel, stride 2
 on both axes, a pad of 2 on top and left, dilation 1 and `use_bias` false.
-
-## SamePaddedAtStrideOneKeepsTheSpatialExtents
-
-`same_padded(4, 4, 3, 1)` maps [7, 10, 4] to [7, 10, 4] in `output_shape()` and traces
-[2, 7, 10, 4] over a batch of two.
-
-## SamePaddedAtStrideOneKeepsTheExtentsForAPointwiseAndAFiveByFiveKernel
-
-Over [9, 6, 2], `same_padded(2, 8, 1, 1)` and `same_padded(2, 8, 5, 1)` both report [9, 6, 8].
 
 ## SamePaddedAtStrideTwoHalvesAnEvenExtent
 
@@ -130,7 +115,7 @@ declared and the graph holds no K_BIAS_ADD node.
 ## ANonZeroBiasInitReachesTheBiasParameter
 
 A layer with `bias_init` set to -4.5 traces a bias whose `init()` is a constant of -4.5 and
-whose role is `ParameterRole::Bias`. -4.5 is exact in binary.
+whose role is `ParameterRole::Bias`. -4.5 is exact in binary, so the constant is compared for equality.
 
 ## TheDefaultBiasInitIsTheConstantZero
 
@@ -141,76 +126,25 @@ A layer left at the default traces a bias whose `init()` is a constant of 0.0.
 With `bias_init` set to 1.25 the weight's `init()` is still `ParameterInit::Kind::FanScaled`
 and its role is `WEIGHT`.
 
-## OutputShapeRejectsANonPositiveInputChannelCount
+## Small_Conv2dShapeRefusal.OutputShapeRefuses
 
-A layer with `in_channels` 0 returns InvalidDescription with a message containing "Conv2d", "in=0"
-and "out=8".
+`output_shape` returns `InvalidDescription`, and the message holds the row's substrings. The rows
+are ANonPositiveInputChannelCount ("Conv2d", "in=0", "out=8"), ANonPositiveOutputChannelCount
+("in=3", "out=-1"), AWrongChannelCount ([8, 8, 4] for a Conv2d(3, 8): "[8, 8, 4]", "[H, W, 3]"),
+AFeatureVector ([3]), ABatchedShape ([2, 8, 3, 3], whose third extent equals the input channels
+so only the rank check can refuse it), AWindowThatDoesNotFit (5x5 over [4, 4, 3]: "5x5"),
+AZeroStride ("stride 0,0") and ANegativePadding ("padding -1,-1").
 
-## OutputShapeRejectsANonPositiveOutputChannelCount
+## Small_Conv2dForwardRefusal.ForwardRefuses
 
-A layer with `out_channels` -1 returns InvalidDescription with a message containing "Conv2d", "in=3"
-and "out=-1".
-
-## OutputShapeRejectsAWrongChannelCount
-
-A three-channel layer given [8, 8, 4] returns InvalidDescription. The message contains "Conv2d(3,
-8)", the shape "[8, 8, 4]" and the expected form "[H, W, 3]".
-
-## OutputShapeRejectsAFeatureVector
-
-`output_shape([3])` returns InvalidDescription with a message containing "Conv2d(3, 8)", "[3]" and
-"[H, W, 3]".
-
-## OutputShapeRejectsABatchedShape
-
-`output_shape([2, 8, 3, 3])` returns InvalidDescription with a message containing the shape and "[H,
-W, 3]". The third extent equals `in_channels`, so only the rank check can refuse this shape.
-
-## OutputShapeRejectsAWindowThatDoesNotFit
-
-A 5x5 window over [4, 4, 3] returns InvalidDescription with a message containing "Conv2d(3, 8)",
-"[4, 4, 3]" and "5x5".
-
-## OutputShapeRejectsAZeroStride
-
-A stride of 0 returns InvalidDescription with a message containing "Conv2d(3, 8)" and "stride 0,0".
-
-## OutputShapeRejectsANegativePadding
-
-A padding of -1 returns InvalidDescription with a message containing "Conv2d(3, 8)" and "padding
--1,-1".
-
-## ForwardRejectsAWrongChannelCount
-
-`forward()` on a [2, 8, 8, 4] input returns InvalidDescription with a message containing "Conv2d(3, 8)",
-"[8, 8, 4]" and "[H, W, 3]", the three strings OutputShapeRejectsAWrongChannelCount expects.
-The weight is not declared afterwards.
-
-## ForwardRejectsAnInputThatIsNotRankFour
-
-`forward()` on a [2, 3] input returns InvalidDescription with a message containing "Conv2d(3, 8)", "rank-4" and
-"[2, 3]", and the weight is not declared afterwards.
-
-## ForwardRejectsNonPositiveChannelCounts
-
-`forward()` on a layer with `out_channels` 0 returns InvalidDescription with a message containing "Conv2d",
-"in=3" and "out=0".
-
-## ForwardRejectsAWindowThatDoesNotFit
-
-`forward()` with a 5x5 window over a [2, 4, 4, 3] input returns InvalidDescription with a message containing
-"Conv2d(3, 8)", "[4, 4, 3]" and "5x5".
-
-## ForwardRejectsAnNCHWInput
-
-The input is [2, 3, 3, 3] converted to NCHW. Every extent is 3, so the permuted shape passes
-every check but the one on the layout tag. The message contains "Conv2d" and "NHWC". The node
-count and the value count are unchanged and neither parameter is declared, so the layer
-refuses before it writes anything to the graph.
+`forward` returns `InvalidDescription`, and the message holds the row's substrings. The graph
+gains no node and no value, and neither the weight nor the bias is declared. The rows are
+AWrongChannelCount ([2, 8, 8, 4]), AnInputThatIsNotRankFour ([2, 3]: "rank-4", "[2, 3]"),
+ANonPositiveChannelCount (out=0), AWindowThatDoesNotFit and AnNCHWInput (a [2, 3, 3, 3] input
+converted to NCHW; every extent is 3, so only the layout tag refuses it: "NHWC").
 
 ## DifferentiatingALossYieldsAGradientForTheWeightAndTheBias
 
 The layer's result is reduced with `spatial_mean` and passed to `NN::CrossEntropyLoss`.
-`Autograd::differentiate` returns two gradients, neither is `K_NO_VALUE`, and each has the shape
-of its parameter. The case checks that a gradient exists and has the right shape; it computes
-no number.
+`Autograd::differentiate` returns two gradients; the weight's gradient and the bias's gradient
+each exist and have the shape of their parameter. The case computes no number.

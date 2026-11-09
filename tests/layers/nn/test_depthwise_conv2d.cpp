@@ -248,43 +248,40 @@ TEST(Small_DepthwiseConv2d, TheWeightAndTheResultTakeTheInputElementType)
     EXPECT_EQ(graph.value(y).dtype, DType::Float64);
 }
 
-/** @brief Tests that output_shape() keeps the extents of a padded 3x3 window at stride 1. */
-TEST(Small_DepthwiseConv2d, OutputShapeAtStrideOneKeepsTheExtents)
+/** @brief Holds a layer, a batch, a sample and the per-sample shape the layer gives. */
+struct ExtentRow
 {
-    const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
+    std::string name;      /**< The row's name. */
+    DepthwiseConv2d layer; /**< The layer under test. */
+    int64_t batch;         /**< The batch extent of the trace. */
+    Shape sample;          /**< The per-sample input shape. */
+    Shape expected;        /**< The per-sample shape the layer gives. */
+};
 
-    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}).value(), (Shape{8, 6, 4}));
+/** @brief Runs the extent promise over each stride and sample. */
+class Small_DepthwiseConv2dExtents : public ::testing::TestWithParam<ExtentRow>
+{
+};
+
+/** @brief Tests that output_shape gives the expected extents and agrees with the traced shape. */
+TEST_P(Small_DepthwiseConv2dExtents, OutputShapeAgreesWithForward)
+{
+    const ExtentRow& row = GetParam();
+
+    EXPECT_EQ(row.layer.output_shape(row.sample).value(), row.expected);
+    EXPECT_EQ(traced_shape(row.layer, row.batch, row.sample), with_batch(row.batch, row.expected));
 }
 
-/** @brief Tests that output_shape() halves the extents of a padded 3x3 window at stride 2. */
-TEST(Small_DepthwiseConv2d, OutputShapeAtStrideTwoHalvesTheExtents)
-{
-    const DepthwiseConv2d layer = make_layer(4, 3, 2, 1);
-
-    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}).value(), (Shape{4, 3, 4}));
-}
-
-/** @brief Tests that output_shape() matches the traced shape at stride 1 and at stride 2. */
-TEST(Small_DepthwiseConv2d, OutputShapeAgreesWithForwardAtStrideOneAndTwo)
-{
-    const Shape sample{8, 6, 4};
-
-    const DepthwiseConv2d unit = make_layer(4, 3, 1, 1);
-    EXPECT_EQ(traced_shape(unit, 3, sample), with_batch(3, unit.output_shape(sample).value()));
-
-    const DepthwiseConv2d strided = make_layer(4, 3, 2, 1);
-    EXPECT_EQ(traced_shape(strided, 3, sample), with_batch(3, strided.output_shape(sample).value()));
-}
-
-/** @brief Tests that output_shape() drops the remainder of an odd extent at stride 2 and agrees. */
-TEST(Small_DepthwiseConv2d, OutputShapeAgreesWithForwardOverAnOddExtent)
-{
-    const DepthwiseConv2d layer = make_layer(4, 3, 2, 1);
-    const Shape sample{7, 9, 4};
-
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{4, 5, 4}));
-    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample).value()));
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DepthwiseConv2dExtents,
+    ::testing::Values(
+        ExtentRow{"StrideOneKeepsTheExtents", make_layer(4, 3, 1, 1), 3, Shape{8, 6, 4},
+                  Shape{8, 6, 4}},
+        ExtentRow{"StrideTwoHalvesTheExtents", make_layer(4, 3, 2, 1), 3, Shape{8, 6, 4},
+                  Shape{4, 3, 4}},
+        ExtentRow{"StrideTwoDropsTheRemainderOfAnOddExtent", make_layer(4, 3, 2, 1), 2,
+                  Shape{7, 9, 4}, Shape{4, 5, 4}}),
+    [](const ::testing::TestParamInfo<ExtentRow>& info) { return info.param.name; });
 
 /** @brief Tests that same_padded() sets the kernel, the stride, kernel / 2 pads and dilation 1. */
 TEST(Small_DepthwiseConv2d, SamePaddedBuildsAPaddedLayerOfTheGivenStride)
@@ -302,88 +299,82 @@ TEST(Small_DepthwiseConv2d, SamePaddedBuildsAPaddedLayerOfTheGivenStride)
     EXPECT_EQ(layer.geometry.dilation_w, 1);
 }
 
-/** @brief Tests that same_padded() throws when the input and output channel counts differ. */
-TEST(Small_DepthwiseConv2d, SamePaddedRefusesUnequalChannelCounts)
+/** @brief Tests that same_padded() stops the process when the channel counts differ. */
+TEST(Medium_DepthwiseConv2dDeathTest, SamePaddedRefusesUnequalChannelCounts)
 {
     SA_EXPECT_FATAL((void)DepthwiseConv2d::same_padded(4, 8, 3, 1), "keeps its channel count");
 }
 
-/** @brief Tests that forward() throws on a rank-2 input, naming the rank-4 requirement. */
-TEST(Small_DepthwiseConv2d, ForwardRejectsAnInputThatIsNotRankFour)
+/** @brief Holds a layer, a batched input, whether it is NCHW, and the refusal forward meets. */
+struct ForwardRefusalRow
 {
+    std::string name;      /**< The row's name. */
+    DepthwiseConv2d layer; /**< The layer under test. */
+    Shape input;           /**< The input shape, batch axis included. */
+    bool nchw;             /**< Whether the input is converted to NCHW first. */
+    std::string message;   /**< A substring the message holds; empty for none. */
+};
+
+/** @brief Runs the forward refusal over each layer and input it cannot take. */
+class Small_DepthwiseConv2dForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
+{
+};
+
+/** @brief Tests that forward refuses the row and names what the row says. */
+TEST_P(Small_DepthwiseConv2dForwardRefusal, ForwardRefuses)
+{
+    const ForwardRefusalRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
+    DepthwiseConv2d layer = row.layer;
+    Graph::ValueID x = builder.input(row.input, "x");
+    if (row.nchw)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID converted,
+                                builder.layout_convert(x, Graph::TensorLayout::NCHW));
+        x = converted;
+    }
 
-    DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueID x = builder.input(Shape{2, 16}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "rank-4");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, row.message);
 }
 
-/** @brief Tests that forward() throws on a rank-4 input tagged NCHW, naming NHWC. */
-TEST(Small_DepthwiseConv2d, ForwardRejectsAnNCHWInput)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DepthwiseConv2dForwardRefusal,
+    ::testing::Values(
+        ForwardRefusalRow{"AnInputThatIsNotRankFour", make_layer(4, 3, 1, 1), Shape{2, 16}, false,
+                          "rank-4"},
+        ForwardRefusalRow{"AnNCHWInput", make_layer(4, 3, 1, 1), Shape{2, 8, 8, 4}, true, "NHWC"},
+        ForwardRefusalRow{"AChannelCountThatDiffersFromTheLayer", make_layer(4, 3, 1, 1),
+                          Shape{2, 8, 8, 3}, false, "[H, W, 4]"},
+        ForwardRefusalRow{"ANonPositiveChannelCount", make_layer(0, 3, 1, 1), Shape{2, 8, 8, 4},
+                          false, "positive channel count"},
+        ForwardRefusalRow{"AWindowThatDoesNotFit", make_layer(4, 5, 1, 0), Shape{2, 4, 4, 4},
+                          false, ""}),
+    [](const ::testing::TestParamInfo<ForwardRefusalRow>& info) { return info.param.name; });
+
+/** @brief Holds a per-sample shape that output_shape refuses. */
+struct ShapeRefusalRow
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
+    std::string name; /**< The row's name. */
+    Shape sample;     /**< The shape given to output_shape of a 4-channel layer. */
+};
 
-    DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-
-    SA_EXPECT_FAILURE(layer.forward(builder, nchw), StatusCode::InvalidDescription, "NHWC");
-}
-
-/** @brief Tests that forward() throws when the input's channel count differs from the layer's. */
-TEST(Small_DepthwiseConv2d, ForwardRejectsAChannelCountThatDiffersFromTheLayer)
+/** @brief Runs the output_shape refusal over each sample it cannot take. */
+class Small_DepthwiseConv2dShapeRefusal : public ::testing::TestWithParam<ShapeRefusalRow>
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
+};
 
-    DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "[H, W, 4]");
-}
-
-/** @brief Tests that forward() throws on a non-positive channel count, naming it. */
-TEST(Small_DepthwiseConv2d, ForwardRejectsANonPositiveChannelCount)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    DepthwiseConv2d layer = make_layer(0, 3, 1, 1);
-    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription,
-                      "positive channel count");
-}
-
-/** @brief Tests that forward() throws when the window is larger than the input. */
-TEST(Small_DepthwiseConv2d, ForwardRejectsAWindowThatDoesNotFit)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    DepthwiseConv2d layer = make_layer(4, 5, 1, 0);
-    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 4}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() fails when the sample's channel count differs. */
-TEST(Small_DepthwiseConv2d, OutputShapeRejectsAChannelCountThatDiffersFromTheLayer)
+/** @brief Tests that output_shape refuses the sample and names the shape the layer takes. */
+TEST_P(Small_DepthwiseConv2dShapeRefusal, OutputShapeRefuses)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
 
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 5}), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(layer.output_shape(GetParam().sample), StatusCode::InvalidDescription,
                       "[H, W, 4]");
 }
 
-/** @brief Tests that output_shape() fails on a sample that is not an [H, W, C] shape. */
-TEST(Small_DepthwiseConv2d, OutputShapeRejectsASampleOfTheWrongRank)
-{
-    const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8}), StatusCode::InvalidDescription, "[H, W, 4]");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DepthwiseConv2dShapeRefusal,
+    ::testing::Values(ShapeRefusalRow{"AChannelCountThatDiffersFromTheLayer", Shape{8, 8, 5}},
+                      ShapeRefusalRow{"ASampleOfTheWrongRank", Shape{8, 8}}),
+    [](const ::testing::TestParamInfo<ShapeRefusalRow>& info) { return info.param.name; });
