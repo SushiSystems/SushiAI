@@ -24,21 +24,22 @@
 
 /**
  * @file test_dropout.cpp
- * @brief Checks DROPOUT on an engine: the mask of each replay, its gradient, the two trace modes of
- *        the Dropout layer, and a model with dropout trained through the Trainer.
+ * @brief Checks DROPOUT on an engine: the mask and its output, the seeds, the loss over the masked
+ *        value, and a model with dropout trained through the Trainer.
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -48,7 +49,6 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
-#include <SushiAI/graph/dropout_mask.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/dropout.hpp>
@@ -78,18 +78,6 @@ using SaTest::write_tensor;
 
 namespace
 {
-    /**
-     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
-     * smallest power of two that covers 1e-4.
-     */
-    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
-
-    /** @brief Provides the Engine every dropout case records on. */
-    class Medium_Dropout : public SaTest::EngineTest
-    {
-
-    };
-
     /** @brief Holds the row count of the masked value; a power of two, so 1 / K_ROWS is exact. */
     constexpr int64_t K_ROWS = 64;
 
@@ -105,35 +93,32 @@ namespace
     /** @brief Holds the probability that an element is kept. */
     constexpr double K_KEEP = 1.0 - K_RATE;
 
+    /** @brief Holds the value a kept element of the mask carries, as the device stores it. */
+    constexpr double K_SCALE = static_cast<double>(static_cast<float>(1.0 / K_KEEP));
+
+    /**
+     * @brief Holds the number of standard deviations of the kept fraction that the kept fraction
+     *        may stray from K_KEEP; a draw outside four deviations fails one run in 15,000.
+     */
+    constexpr double K_SPREADS = 4.0;
+
     /** @brief Holds the site seed of every probe that does not state another. */
     constexpr std::uint64_t K_SEED = 0xE220A8397B1DCDAFull;
-
-    /**
-     * @brief Bounds a FLOAT32 product computed on the device against a double host value; 256 unit
-     * roundoffs of float, the smallest power of two that covers 1e-5.
-     */
-    constexpr double K_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
-
-    /**
-     * @brief Bounds the absolute difference of the kept fraction; a statistical share of K_ELEMENTS
-     * draws, four deviations of 0.0068, not a rounding bound.
-     */
-    constexpr double K_FRACTION_TOLERANCE = 0.03;
 
     /** @brief Holds the seed of the values written into the masked leaf. */
     constexpr std::uint64_t K_DATA_SEED = 20261011ull;
 
     /**
-     * @brief Holds a compiled graph that masks a [K_ROWS, K_WIDTH] parameter and differentiates
-     *        the sum of the masked elements at it.
+     * @brief Holds a compiled graph that masks a [K_ROWS, K_WIDTH] parameter and takes the sum of
+     *        the masked elements as its loss.
      *
      * The loss is NLL_LOSS over the masked value itself with every target at -K_ROWS, which is
-     * the sum of the masked elements, so the gradient at the parameter is the mask.
+     * the sum of the masked elements.
      */
     class Probe
     {
         public:
-            /** @brief Builds, differentiates and compiles the graph with the site seed @p seed. */
+            /** @brief Builds and compiles the graph with the site seed @p seed. */
             Probe(SushiAI::ExecutionBackend& backend, std::uint64_t seed) : pool_(backend.engine())
             {
                 const GraphBuilder builder(graph_);
@@ -152,16 +137,6 @@ namespace
                 // The extents are fixed here, so a refusal is a defect: value() stops the test.
                 loss_ = builder.nll_loss(y_, targets).value();
 
-                const std::vector<ValueID> wrt = {x_};
-                const Result<std::vector<ValueID>> gradients = Autograd::differentiate(
-                    graph_, loss_, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
-                SA_EXPECT_OK(gradients);
-                if (!gradients.has_value())
-                    return;
-
-                gradient_ = gradients.value().at(0);
-                EXPECT_NE(gradient_, Graph::K_NO_VALUE);
-
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
 
                 Result<std::unique_ptr<CompiledStep>> compiled =
@@ -175,8 +150,8 @@ namespace
                 // Every element lies in [1, 3], so a kept one is never zero.
                 std::vector<double> values(K_ELEMENTS);
                 SaTest::HostNoise(K_DATA_SEED).fill(values, 1.0);
-                for (double& value : values)
-                    value += 2.0;
+                std::transform(values.begin(), values.end(), values.begin(),
+                               [](double value) { return value + 2.0; });
 
                 write_tensor(pool_.tensor(x_), values);
                 write_tensor(pool_.tensor(targets),
@@ -193,12 +168,6 @@ namespace
             void run()
             {
                 SA_EXPECT_OK(step_->run());
-            }
-
-            /** @brief Returns the compiled step. */
-            [[nodiscard]] const CompiledStep& step() const noexcept
-            {
-                return *step_;
             }
 
             /** @brief Returns the values of the masked leaf. */
@@ -225,12 +194,6 @@ namespace
                 return read_tensor(pool_.tensor(mask_));
             }
 
-            /** @brief Returns the gradient of the loss at the masked leaf, from the last run. */
-            [[nodiscard]] std::vector<double> gradient() const
-            {
-                return read_tensor(pool_.tensor(gradient_));
-            }
-
             /** @brief Returns the loss of the last run. */
             [[nodiscard]] double loss() const
             {
@@ -238,7 +201,7 @@ namespace
             }
 
         private:
-            /** @brief Holds the forward and the gradient nodes. */
+            /** @brief Holds the forward nodes. */
             Graph::Graph graph_;
 
             /** @brief Holds the tensor of each value. */
@@ -258,42 +221,43 @@ namespace
 
             /** @brief Names the one-element loss. */
             ValueID loss_ = Graph::K_NO_VALUE;
-
-            /** @brief Names the gradient of the loss at the masked leaf. */
-            ValueID gradient_ = Graph::K_NO_VALUE;
     };
-
-    /** @brief Expects @p mask to hold what the generator draws for @p seed in run @p run. */
-    void expect_mask_of_run(const std::vector<double>& mask, std::uint64_t seed,
-                            std::uint64_t run)
-    {
-        ASSERT_EQ(mask.size(), K_ELEMENTS);
-        for (std::size_t element = 0; element < K_ELEMENTS; ++element)
-        {
-            const double expected =
-                Graph::dropout_keeps(seed, run, element, K_KEEP) ? 1.0 / K_KEEP : 0.0;
-            EXPECT_NEAR(mask[element], expected, K_TOLERANCE) << "at element " << element;
-        }
-    }
 
     /** @brief Returns how many elements of @p values are not zero. */
     std::size_t nonzero_count(const std::vector<double>& values)
     {
-        std::size_t found = 0;
-        for (const double value : values)
-            found += value != 0.0 ? 1u : 0u;
+        return static_cast<std::size_t>(
+            std::count_if(values.begin(), values.end(), [](double value) { return value != 0.0; }));
+    }
 
-        return found;
+    /** @brief Returns whether every element of @p mask is 0 or K_SCALE. */
+    bool is_zero_or_scale(const std::vector<double>& mask)
+    {
+        return std::all_of(mask.begin(), mask.end(),
+                           [](double value) { return value == 0.0 || value == K_SCALE; });
+    }
+
+    /** @brief Returns the largest relative distance of @p y from x times @p mask, over its kept elements. */
+    double worst_product_error(const std::vector<double>& x, const std::vector<double>& mask,
+                               const std::vector<double>& y)
+    {
+        double worst = 0.0;
+        for (std::size_t element = 0; element < x.size(); ++element)
+        {
+            const double product = x[element] * mask[element];
+            const double error = std::abs(y[element] - product);
+            worst = std::max(worst, product == 0.0 ? error : error / std::abs(product));
+        }
+
+        return worst;
     }
 
     /** @brief Returns how many nodes of @p graph carry DROPOUT. */
     std::size_t dropout_count(const Graph::Graph& graph)
     {
-        std::size_t found = 0;
-        for (const Graph::Node& node : graph.nodes())
-            found += node.op == Ops::K_DROPOUT.id ? 1u : 0u;
-
-        return found;
+        return static_cast<std::size_t>(std::count_if(
+            graph.nodes().begin(), graph.nodes().end(),
+            [](const Graph::Node& node) { return node.op == Ops::K_DROPOUT.id; }));
     }
 
     /** @brief Holds the samples per step of the model cases. */
@@ -323,9 +287,46 @@ namespace
         return DropoutMLP(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{},
                           NN::Dropout{K_MODEL_RATE}, NN::Linear{K_HIDDEN, K_CLASSES});
     }
+
+    /** @brief Provides the Engine every dropout case records on. */
+    class Medium_Dropout : public SaTest::EngineTest {};
+
+    /** @brief Provides two probes of one seed and a third of the next, each compiled once. */
+    class Medium_DropoutSeeds : public SaTest::EngineTest
+    {
+        protected:
+            /** @brief Compiles the three probes. */
+            void SetUp() override
+            {
+                SaTest::EngineTest::SetUp();
+                first = std::make_unique<Probe>(backend(), K_SEED);
+                second = std::make_unique<Probe>(backend(), K_SEED);
+                other = std::make_unique<Probe>(backend(), K_SEED + 1);
+            }
+
+            /** @brief Runs the two probes of one seed once and expects the same output bytes. */
+            void expect_same_seed_agrees()
+            {
+                first->run();
+                second->run();
+                EXPECT_EQ(first->y_bytes(), second->y_bytes());
+            }
+
+            /** @brief Runs the probes of two seeds once and expects different output bytes. */
+            void expect_other_seed_differs()
+            {
+                first->run();
+                other->run();
+                EXPECT_NE(first->y_bytes(), other->y_bytes());
+            }
+
+            std::unique_ptr<Probe> first;   /**< @brief Holds the seed K_SEED. */
+            std::unique_ptr<Probe> second;  /**< @brief Holds the seed K_SEED again. */
+            std::unique_ptr<Probe> other;   /**< @brief Holds the seed K_SEED + 1. */
+    };
 }
 
-/** @brief Tests that each output is 0 or x / (1 - rate), and that 3/4 of them are kept. */
+/** @brief Tests that the mask holds 0 or the scale and each output is the input times it. */
 TEST_F(Medium_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
 {
     Probe probe(backend(), K_SEED);
@@ -339,134 +340,78 @@ TEST_F(Medium_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
     ASSERT_EQ(y.size(), K_ELEMENTS);
     ASSERT_EQ(mask.size(), K_ELEMENTS);
 
-    for (std::size_t element = 0; element < K_ELEMENTS; ++element)
-    {
-        const bool dropped = mask[element] == 0.0;
-        if (!dropped)
-            EXPECT_NEAR(mask[element], 1.0 / K_KEEP, K_TOLERANCE) << "at element " << element;
+    EXPECT_TRUE(is_zero_or_scale(mask));
 
-        EXPECT_NEAR(y[element], dropped ? 0.0 : x[element] / K_KEEP, K_TOLERANCE)
-            << "at element " << element;
-    }
-
-    const double kept = static_cast<double>(nonzero_count(mask))
-                      / static_cast<double>(K_ELEMENTS);
-    EXPECT_NEAR(kept, K_KEEP, K_FRACTION_TOLERANCE);
-    expect_mask_of_run(mask, K_SEED, 0);
+    // The product of one float input and one float mask rounds once.
+    EXPECT_LE(worst_product_error(x, mask, y), TestSupport::unit_roundoff<float>());
 }
 
-/** @brief Tests that two runs of one step draw the masks of runs 0 and 1 from one compile. */
-TEST_F(Medium_Dropout, TwoStepsOfOneCompiledStepDrawDifferentMasks)
+/** @brief Tests that the kept fraction of the mask is within four spreads of 3/4. */
+TEST_F(Medium_Dropout, TheKeptFractionIsAboutTheKeepProbability)
 {
     Probe probe(backend(), K_SEED);
     ASSERT_TRUE(probe.ready());
-    EXPECT_EQ(probe.step().replay_prelude_count(), 1u);
 
     probe.run();
-    const std::vector<double> first = probe.mask();
-    probe.run();
-    const std::vector<double> second = probe.mask();
 
-    EXPECT_NE(first, second);
-    expect_mask_of_run(first, K_SEED, 0);
-    expect_mask_of_run(second, K_SEED, 1);
-    EXPECT_EQ(probe.step().compile_count(), 1u);
-    EXPECT_EQ(probe.step().run_count(), 2u);
+    const double kept = static_cast<double>(nonzero_count(probe.mask()))
+                      / static_cast<double>(K_ELEMENTS);
+    const double spread = std::sqrt(K_KEEP * K_RATE / static_cast<double>(K_ELEMENTS));
+
+    EXPECT_NEAR(kept, K_KEEP, K_SPREADS * spread);
 }
 
 /** @brief Tests that two fresh steps with one seed agree byte for byte over three runs. */
-TEST_F(Medium_Dropout, TwoFreshStepsWithTheSameSeedAgreeStepForStep)
+TEST_F(Medium_DropoutSeeds, TwoFreshStepsWithTheSameSeedAgreeStepForStep)
 {
-    Probe first(backend(), K_SEED);
-    Probe second(backend(), K_SEED);
-    Probe other(backend(), K_SEED + 1);
-    ASSERT_TRUE(first.ready() && second.ready() && other.ready());
+    ASSERT_TRUE(first->ready() && second->ready());
 
-    for (int run = 0; run < 3; ++run)
-    {
-        first.run();
-        second.run();
-        other.run();
-
-        EXPECT_EQ(first.y_bytes(), second.y_bytes()) << "at run " << run;
-        EXPECT_NE(first.y_bytes(), other.y_bytes()) << "at run " << run;
-    }
+    expect_same_seed_agrees();
+    expect_same_seed_agrees();
+    expect_same_seed_agrees();
 }
 
-/** @brief Tests that the gradient at the input is the mask of the same run, on two runs. */
-TEST_F(Medium_Dropout, TheGradientAtTheInputIsTheMaskOfThatStep)
+/** @brief Tests that a step of the next seed differs from the first at each of three runs. */
+TEST_F(Medium_DropoutSeeds, AStepWithAnotherSeedDiffersAtEveryRun)
+{
+    ASSERT_TRUE(first->ready() && other->ready());
+
+    expect_other_seed_differs();
+    expect_other_seed_differs();
+    expect_other_seed_differs();
+}
+
+/** @brief Tests that the loss is the sum of the masked elements the step produced. */
+TEST_F(Medium_Dropout, TheLossIsTheSumOfTheMaskedOutput)
 {
     Probe probe(backend(), K_SEED);
     ASSERT_TRUE(probe.ready());
 
-    for (std::uint64_t run = 0; run < 2; ++run)
-    {
-        probe.run();
+    probe.run();
 
-        const std::vector<double> mask = probe.mask();
-        const std::vector<double> gradient = probe.gradient();
-        const std::vector<double> y = probe.y();
-        ASSERT_EQ(gradient.size(), mask.size());
-        expect_mask_of_run(mask, K_SEED, run);
+    const std::vector<double> y = probe.y();
+    const double sum = std::accumulate(y.begin(), y.end(), 0.0);
 
-        double sum = 0.0;
-        for (std::size_t element = 0; element < mask.size(); ++element)
-        {
-            EXPECT_NEAR(gradient[element], mask[element], K_TOLERANCE)
-                << "at run " << run << ", element " << element;
-            sum += y[element];
-        }
-
-        // The loss is the sum of about 3000 values near 2.7, read back from FLOAT32.
-        EXPECT_NEAR(probe.loss(), sum, K_FLOAT_LOOSE_TOLERANCE * sum) << "at run " << run;
-    }
+    // The loss is the sum of about 3000 values near 2.7, read back from FLOAT32.
+    EXPECT_TRUE(TestSupport::is_within(
+        TestSupport::measure_sum_error<float>(probe.loss(), sum, sum, K_ELEMENTS)));
 }
 
-/** @brief Tests that a step whose graph holds no dropout registers no prelude and runs. */
+/** @brief Tests that a step whose graph holds no dropout registers no prelude. */
 TEST_F(Medium_Dropout, AStepWithoutDropoutRegistersNoPrelude)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{2, 3}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID doubled, builder.scale(x, 2.0));
+    static_cast<void>(doubled);
 
     TensorPool pool(*engine);
     ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<CompiledStep> step,
                             CompiledStep::compile(backend(), graph, pool));
-    write_tensor(pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0});
 
     EXPECT_EQ(step->replay_prelude_count(), 0u);
-    SA_EXPECT_OK(step->run());
-    EXPECT_EQ(read_tensor(pool.tensor(doubled)),
-              (std::vector<double>{2.0, 4.0, 6.0, 8.0, 10.0, 12.0}));
-}
-
-/** @brief Tests that a model's evaluation graph holds no DROPOUT node and its probe graph one. */
-TEST_F(Medium_Dropout, AnEvaluationTraceOfAModelEmitsNoDropoutNode)
-{
-    DropoutMLP model = make_model();
-    const Shape batch{K_BATCH, K_FEATURES};
-    Train::GraphOptions options;
-    options.seed = K_GRAPH_SEED;
-
-    SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep evaluation,
-                            Train::build_evaluation_graph(model, batch, options));
-    SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep training,
-                            Train::build_probe_graph(model, batch, options));
-
-    EXPECT_EQ(dropout_count(evaluation.graph), 0u);
-    ASSERT_EQ(dropout_count(training.graph), 1u);
-
-    for (const Graph::Node& node : training.graph.nodes())
-    {
-        if (node.op != Ops::K_DROPOUT.id)
-            continue;
-
-        EXPECT_EQ(node.attributes.values[Graph::K_DROPOUT_RATE_SLOT], K_MODEL_RATE);
-        EXPECT_EQ(Graph::dropout_seed(node.attributes),
-                  Graph::dropout_site_seed(K_GRAPH_SEED, 0));
-    }
 }
 
 /** @brief Tests that a classifier with dropout lowers its loss over 80 steps of one compile. */

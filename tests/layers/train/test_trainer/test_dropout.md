@@ -1,43 +1,47 @@
 # tests/layers/train/test_trainer/test_dropout.cpp
 
 
-Suites: `Medium_Dropout`.
+Suites: `Medium_Dropout` and `Medium_DropoutSeeds`.
 
 The probe runs DROPOUT on an engine over a `[64, 64]` FLOAT32 parameter at a rate of 0.25. Its loss
 is `NLL_LOSS` over the masked value with every target at -64, which is the sum of the masked
-elements, so the gradient at the input is the mask. A mask is checked against what `dropout_keeps`
-answers for the seed and the run. The model cases use `Linear, ReLU, Dropout(0.2), Linear` over 8
-features, 32 hidden units and 4 classes with a batch of 16.
+elements. The model case uses `Linear, ReLU, Dropout(0.2), Linear` over 8 features, 32 hidden units
+and 4 classes with a batch of 16.
+
+The draw itself is not checked against `Graph::dropout_keeps`, since that is the code under test;
+`tests/core/graph/test_dropout_mask.cpp` holds the draw and `tests/core/graph/test_compiled_step.cpp`
+holds that each run takes the mask of its run count. The gradient being the mask is held by
+`tests/core/autograd/rules/test_random.cpp`, and the two trace modes of the layer by
+`tests/layers/nn/test_dropout.cpp`.
 
 ## TheOutputIsTheInputTimesAMaskOfZeroOrTheScale
 
-Each mask element is 0 or `1 / 0.75`, and each output is 0 or `x / 0.75`, within 1e-5. The kept
-fraction of the 4096 elements is within 0.03 of 0.75, and the mask is the one of run 0.
+Each mask element is exactly 0 or the float `1 / 0.75`. Each output is the input times the mask, at
+a relative distance of at most one rounding of float.
 
-## TwoStepsOfOneCompiledStepDrawDifferentMasks
+## TheKeptFractionIsAboutTheKeepProbability
 
-The step registers one replay prelude. Two runs give different masks, those of runs 0 and 1, with a
-compile count of 1 and a run count of 2.
+The kept fraction of the 4096 elements is within four standard deviations of 0.75, where one
+deviation is sqrt(0.75 * 0.25 / 4096), about 0.0068.
 
 ## TwoFreshStepsWithTheSameSeedAgreeStepForStep
 
-Over three runs, two fresh steps with one seed give the same output bytes, and a third step with the
-seed plus one gives different bytes.
+Over three runs, two fresh steps with one seed give the same output bytes.
 
-## TheGradientAtTheInputIsTheMaskOfThatStep
+## AStepWithAnotherSeedDiffersAtEveryRun
 
-On each of two runs the gradient at the input equals the mask of that run within 1e-5, and the loss
-equals the sum of the outputs to 1e-4 relative.
+Over three runs, a step with the seed plus one gives output bytes that differ from those of the
+first step.
+
+## TheLossIsTheSumOfTheMaskedOutput
+
+After one run the loss equals the sum of the outputs, within the roundings of a sum of 4096 values.
+This is the only case that reads the loss of the masked value.
 
 ## AStepWithoutDropoutRegistersNoPrelude
 
-A graph that only scales a `[2, 3]` input by 2 compiles to a step with zero replay preludes, and the
-step doubles its input.
-
-## AnEvaluationTraceOfAModelEmitsNoDropoutNode
-
-The evaluation graph of the model holds no DROPOUT node and its probe graph holds one. That node
-carries the rate 0.2 and the seed `dropout_site_seed` gives for the graph seed 7 and site 0.
+A graph that only scales a `[2, 3]` input by 2 compiles to a step with zero replay preludes. What
+the step computes is the compiled-step promise of `test_compiled_step.cpp`.
 
 ## AModelWithDropoutTrainsThroughTheTrainer
 
