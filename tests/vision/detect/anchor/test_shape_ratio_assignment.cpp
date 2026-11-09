@@ -54,7 +54,7 @@ namespace
     using SushiAI::Vision::Detect::Anchor::validate_shape_ratio_options;
 
     /**
-     * @brief Holds the absolute the tolerance of a box target; every value below is exact in float:
+     * @brief Holds the absolute tolerance of a box target; every value below is exact in float:
      *        32 times the float unit roundoff, the smallest power of two not tighter than the
      *        earlier 1e-6f.
      */

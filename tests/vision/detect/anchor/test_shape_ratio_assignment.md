@@ -5,7 +5,8 @@ Suites: `Small_DetectAnchorShapeRatioAssignment`.
 Tests `ShapeRatioAssignment` and `validate_shape_ratio_options` in
 `modules/vision/detect/include/SushiAI/vision/detect/anchor/shape_ratio_assignment.hpp`. Every
 case runs the default settings on one image, a 64-pixel input and an 8 by 8 head over anchors
-0.25 and 1.0 of the input, 2 and 8 cells wide. Truths are square; every value is exact in float.
+0.25 and 1.0 of the input, 2 and 8 cells wide. Truths are square; every value is exact in float, and the box targets are
+compared to 32 times the float unit roundoff.
 
 ## ACentreOnTheMiddleTakesItsCellAlone
 
