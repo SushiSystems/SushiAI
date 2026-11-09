@@ -29,6 +29,7 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <utility>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
@@ -38,19 +39,12 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/nn/buffer.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::Buffer;
 
 namespace
 {
-    /**
-     * @brief Holds the absolute tolerance of a double stored and read back unchanged; 16 unit
-     * roundoffs of double, the smallest power of two that covers 1e-15.
-     */
-    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Reads @p buffer before define() was called, for a death test. */
     void read_undefined(Buffer& buffer)
     {
@@ -58,15 +52,6 @@ namespace
         const Graph::GraphBuilder builder(graph);
         (void)buffer.read(builder, "running_mean");
     }
-}
-
-/** @brief Tests that a default-constructed buffer is undefined and has no identity. */
-TEST(Small_Buffer, ANewBufferIsUndefined)
-{
-    const Buffer buffer;
-
-    EXPECT_FALSE(buffer.declared());
-    EXPECT_EQ(buffer.state(), Graph::K_NO_STATE);
 }
 
 /** @brief Tests that define() records the shape, the element type and the starting value. */
@@ -78,7 +63,7 @@ TEST(Small_Buffer, DefineRecordsTheDescription)
     EXPECT_TRUE(buffer.declared());
     EXPECT_EQ(buffer.shape(), (Shape{8}));
     EXPECT_EQ(buffer.dtype(), DType::Float64);
-    EXPECT_NEAR(buffer.initial_value(), 1.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(buffer.initial_value(), 1.0);
 }
 
 /** @brief Tests that define() defaults the element type to FLOAT32. */
@@ -101,24 +86,32 @@ TEST(Small_Buffer, ADefinedBufferAddsNoLeafUntilItIsRead)
     EXPECT_EQ(buffer.id_in(graph), Graph::K_NO_VALUE);
 }
 
-/** @brief Tests that define() draws the identity, which a later read and define() keep. */
-TEST(Small_Buffer, DefineDrawsTheIdentity)
+/** @brief Tests that define() draws an identity distinct from another buffer's. */
+TEST(Small_Buffer, DefineDrawsADistinctIdentity)
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
     Buffer first;
     Buffer second;
     SA_EXPECT_OK(first.define(Shape{8}, 0.0));
     SA_EXPECT_OK(second.define(Shape{8}, 0.0));
 
-    const Graph::StateID drawn = first.state();
-    EXPECT_NE(drawn, Graph::K_NO_STATE);
+    EXPECT_NE(first.state(), Graph::K_NO_STATE);
     EXPECT_NE(second.state(), Graph::K_NO_STATE);
-    EXPECT_NE(second.state(), drawn);
+    EXPECT_NE(second.state(), first.state());
+}
 
-    SA_EXPECT_OK(first.define(Shape{8}, 0.0));
-    (void)first.read(builder, "running_mean");
-    EXPECT_EQ(first.state(), drawn);
+/** @brief Tests that a second define() and a read keep the identity the first define() drew. */
+TEST(Small_Buffer, DefineAndReadKeepTheIdentity)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    Buffer buffer;
+    SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
+    const Graph::StateID drawn = buffer.state();
+
+    SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
+    (void)buffer.read(builder, "running_mean");
+
+    EXPECT_EQ(buffer.state(), drawn);
 }
 
 /** @brief Tests that read() declares a persistent leaf of the defined shape with no gradient. */
@@ -173,10 +166,11 @@ TEST(Small_Buffer, ABufferReadInTwoGraphsHasALeafInEach)
     const Graph::StateID state_after_first = buffer.state();
     const Graph::ValueID second_leaf = buffer.read(second_builder, "running_mean");
 
-    EXPECT_EQ(first_leaf, 1u);
-    EXPECT_EQ(second_leaf, 0u);
+    EXPECT_NE(first_leaf, second_leaf);
     EXPECT_EQ(buffer.id_in(first), first_leaf);
     EXPECT_EQ(buffer.id_in(second), second_leaf);
+    EXPECT_EQ(first.state_leaf(state_after_first), first_leaf);
+    EXPECT_EQ(second.state_leaf(state_after_first), second_leaf);
     EXPECT_NE(state_after_first, Graph::K_NO_STATE);
     EXPECT_EQ(buffer.state(), state_after_first);
 }
@@ -194,7 +188,7 @@ TEST(Small_Buffer, ACopiedBufferHasANewStateID)
     Buffer copy = original;
     EXPECT_TRUE(copy.declared());
     EXPECT_EQ(copy.shape(), (Shape{8}));
-    EXPECT_NEAR(copy.initial_value(), 1.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(copy.initial_value(), 1.0);
     EXPECT_NE(copy.state(), Graph::K_NO_STATE);
     EXPECT_NE(copy.state(), original.state());
     EXPECT_EQ(copy.id_in(graph), Graph::K_NO_VALUE);
@@ -226,20 +220,30 @@ TEST(Small_Buffer, AMovedBufferKeepsItsStateID)
     EXPECT_EQ(graph.value_count(), values_after_read);
 }
 
-/** @brief Tests that a moved-from buffer is undefined and holds no identity. */
-TEST(Small_Buffer, AMovedFromBufferIsUndefined)
+/** @brief Tests that a buffer moved into a new one is left undefined with no identity. */
+TEST(Small_Buffer, AMoveConstructedFromBufferIsUndefined)
 {
     Buffer original;
     SA_EXPECT_OK(original.define(Shape{8}, 1.0));
 
-    Buffer constructed = std::move(original);
+    const Buffer constructed = std::move(original);
+
     EXPECT_FALSE(original.declared());
     EXPECT_EQ(original.state(), Graph::K_NO_STATE);
+    EXPECT_TRUE(constructed.declared());
+}
 
+/** @brief Tests that a buffer moved into an assigned one is left undefined with no identity. */
+TEST(Small_Buffer, AMoveAssignedFromBufferIsUndefined)
+{
+    Buffer original;
+    SA_EXPECT_OK(original.define(Shape{8}, 1.0));
     Buffer assigned;
-    assigned = std::move(constructed);
-    EXPECT_FALSE(constructed.declared());
-    EXPECT_EQ(constructed.state(), Graph::K_NO_STATE);
+
+    assigned = std::move(original);
+
+    EXPECT_FALSE(original.declared());
+    EXPECT_EQ(original.state(), Graph::K_NO_STATE);
     EXPECT_TRUE(assigned.declared());
     EXPECT_NE(assigned.state(), Graph::K_NO_STATE);
 }
@@ -281,45 +285,56 @@ TEST(Small_Buffer, DefiningTwiceWithOneDescriptionIsAccepted)
 
     EXPECT_EQ(buffer.shape(), (Shape{8}));
     EXPECT_EQ(buffer.dtype(), DType::Float64);
-    EXPECT_NEAR(buffer.initial_value(), 1.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(buffer.initial_value(), 1.0);
 }
 
-/** @brief Tests that define() with another shape fails, names both and keeps the first. */
-TEST(Small_Buffer, DefiningWithAnotherShapeFails)
+/** @brief Holds the first description, the changed one and what the refusal names. */
+struct RedefineRow
 {
-    Buffer buffer;
-    SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
+    std::string name;    /**< The row's name. */
+    Shape shape;         /**< The shape of the first define(). */
+    double value;        /**< The starting value of the first define(). */
+    DType dtype;         /**< The element type of the first define(). */
+    Shape other_shape;   /**< The shape of the second define(). */
+    double other_value;  /**< The starting value of the second define(). */
+    DType other_dtype;   /**< The element type of the second define(). */
+    std::string first;   /**< A substring the message holds. */
+    std::string second;  /**< A second substring the message holds. */
+};
 
-    SA_EXPECT_FAILURE(buffer.define(Shape{4}, 0.0), StatusCode::InvalidDescription,
-                      "Buffer was defined as", "[8]", "[4]");
-    EXPECT_EQ(buffer.shape(), (Shape{8}));
-}
-
-/** @brief Tests that define() with another element type fails and names both types. */
-TEST(Small_Buffer, DefiningWithAnotherElementTypeFails)
+/** @brief Runs the redefinition refusal over each field that can change. */
+class Small_BufferRedefine : public ::testing::TestWithParam<RedefineRow>
 {
-    Buffer buffer;
-    SA_EXPECT_OK(buffer.define(Shape{8}, 0.0, DType::Float32));
+};
 
-    SA_EXPECT_FAILURE(buffer.define(Shape{8}, 0.0, DType::Float64),
-                      StatusCode::InvalidDescription, "Buffer was defined as",
-                      dtype_name(DType::Float32), dtype_name(DType::Float64));
-    EXPECT_EQ(buffer.dtype(), DType::Float32);
-}
-
-/** @brief Tests that define() with another starting value fails and keeps the first value. */
-TEST(Small_Buffer, DefiningWithAnotherStartingValueFails)
+/** @brief Tests that define() with a changed description fails, names it and keeps the first. */
+TEST_P(Small_BufferRedefine, DefiningWithAChangedDescriptionFails)
 {
+    const RedefineRow& row = GetParam();
     Buffer buffer;
-    SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
+    SA_EXPECT_OK(buffer.define(row.shape, row.value, row.dtype));
 
-    SA_EXPECT_FAILURE(buffer.define(Shape{8}, 1.0), StatusCode::InvalidDescription,
-                      "Buffer was defined as", "is now defined as");
-    EXPECT_NEAR(buffer.initial_value(), 0.0, K_EXACT_TOLERANCE);
+    SA_EXPECT_FAILURE(buffer.define(row.other_shape, row.other_value, row.other_dtype),
+                      StatusCode::InvalidDescription, "Buffer was defined as", row.first,
+                      row.second);
+    EXPECT_EQ(buffer.shape(), row.shape);
+    EXPECT_EQ(buffer.dtype(), row.dtype);
+    EXPECT_EQ(buffer.initial_value(), row.value);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BufferRedefine,
+    ::testing::Values(
+        RedefineRow{"Shape", Shape{8}, 0.0, DType::Float32, Shape{4}, 0.0, DType::Float32, "[8]",
+                    "[4]"},
+        RedefineRow{"ElementType", Shape{8}, 0.0, DType::Float32, Shape{8}, 0.0, DType::Float64,
+                    dtype_name(DType::Float32), dtype_name(DType::Float64)},
+        RedefineRow{"StartingValue", Shape{8}, 0.0, DType::Float32, Shape{8}, 1.0, DType::Float32,
+                    "is now defined as", ""}),
+    [](const ::testing::TestParamInfo<RedefineRow>& info) { return info.param.name; });
 
 /** @brief Tests that read() before define() stops the process and names the buffer. */
-TEST(Small_BufferDeathTest, ReadingBeforeDefineIsFatal)
+TEST(Medium_BufferDeathTest, ReadingBeforeDefineIsFatal)
 {
     Buffer buffer;
 

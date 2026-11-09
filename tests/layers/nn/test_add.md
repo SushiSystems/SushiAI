@@ -3,7 +3,7 @@
 
 That the Add node takes exactly two rank-3 inputs of one shape, emits one ADD reading them in order, returns a failure for values that do not add, and what its factory refuses.
 
-Suites: `Small_Add`.
+Suites: `Small_Add`, `Small_AddCount`, `Small_AddUnequal`, `Small_AddRank`.
 
 Tests `NN::Add` in `modules/layers/nn/include/SushiAI/nn/add.hpp` and its factory
 `NN::make_add_node`. Unless a case says otherwise, the node is built over two [8, 6, 3] shapes
@@ -13,38 +13,21 @@ and traced over two [2, 8, 6, 3] inputs.
 
 The node has one port, named "output", of the shape [8, 6, 3].
 
-## CreateRejectsOneInput
+## Small_AddCount.CreateRejectsTheCount
 
-`create` over one shape fails with `InvalidDescription`, and the message holds "takes 2 inputs"
-and "was given 1".
+`create` fails with `InvalidDescription`, and the message holds "takes 2 inputs" and the given
+count. One row per count: one shape ("was given 1"), three shapes ("was given 3") and an empty
+list ("was given 0").
 
-## CreateRejectsThreeInputs
+## Small_AddUnequal.CreateRejectsTheShape
 
-`create` over three shapes fails with "takes 2 inputs" and "was given 3".
+[8, 6, 3] with a second shape that differs in one extent fails with `InvalidDescription` and
+"share one shape". The rows are Channels ([8, 6, 5]), Height ([4, 6, 3]) and Width ([8, 12, 3]).
 
-## CreateRejectsNoInput
+## Small_AddRank.CreateRejectsTheInput
 
-`create` over an empty list fails with "takes 2 inputs" and "was given 0".
-
-## CreateRejectsUnequalChannels
-
-[8, 6, 3] with [8, 6, 5] fails with `InvalidDescription` and "share one shape".
-
-## CreateRejectsUnequalHeight
-
-[8, 6, 3] with [4, 6, 3] fails with "share one shape".
-
-## CreateRejectsUnequalWidth
-
-[8, 6, 3] with [8, 12, 3] fails with "share one shape".
-
-## CreateRejectsAnInputThatIsNotAFeatureMap
-
-[8, 6, 3] with [144] fails with a message holding "add input 1" and "rank-3".
-
-## CreateRejectsAFirstInputThatIsNotAFeatureMap
-
-[144] with [144] fails with a message holding "add input 0" and "rank-3".
+An input that is not rank 3 fails with a message holding its index and "rank-3". The rows are
+Second ([8, 6, 3] with [144], "add input 1") and First ([144] with [144], "add input 0").
 
 ## TheInputCountIsTwo
 
@@ -74,12 +57,15 @@ status, no output, and adds no node.
 `make_add_node` over two [8, 6, 3] shapes and an empty row returns an `Add` with two inputs and
 one port of the shape [8, 6, 3].
 
-## TheFactoryRefusesAKeyAndShapesThatDoNotMatch
+## TheFactoryRefusesAKey
 
 A row with the key "alpha" fails with a message holding "layer 3 'add'", "'alpha'" and
-"no key". An empty row over [8, 6, 3] and [8, 6, 5] fails with "layer 3 'add'" and
-"share one shape".
+"no key".
+
+## TheFactoryRefusesShapesThatDoNotMatch
+
+An empty row over [8, 6, 3] and [8, 6, 5] fails with "layer 3 'add'" and "share one shape".
 
 ## TheStateWalkVisitsNothing
 
-After a trace, `walk_state` calls neither the parameter visitor nor the buffer visitor.
+`walk_state` on a new node calls neither the parameter visitor nor the buffer visitor.

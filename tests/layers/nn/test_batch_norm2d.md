@@ -3,7 +3,9 @@
 
 BatchNorm2d's two trace forms and the running-statistic update.
 
-Suites: `Small_BatchNorm2d`, `Small_BatchNorm2dDeathTest`.
+Suites: `Small_BatchNorm2d`, `Small_BatchNorm2dUnbiased`, `Small_BatchNorm2dFormRefusal`,
+`Small_BatchNorm2dWrongLayer`, `Small_BatchNorm2dFactoryRefusal`, `Medium_BatchNorm2dDeathTest`,
+`Medium_BatchNorm2dReference`.
 
 Tests BatchNorm2d's two trace forms and the running-statistic update.
 
@@ -27,7 +29,6 @@ neither a `Module` nor a `TraceModule`, and that `Sequential<Conv2d, BatchNorm2d
 `K_REFERENCE_EPSILON` is 1e-3 and `K_REFERENCE_MOMENTUM` is 0.03, the two values the reference
 layers ran with. `K_UNIT_CASE_TOLERANCE` is 5.3e-7 and `K_MODEL_CASE_TOLERANCE` is 7.0e-7. Each
 is four float32 epsilons of the case's largest running variance, 1.1086 and 1.4578.
-`K_EXACT_TOLERANCE` is 1e-15, for a double computed the same way on both sides.
 
 ## count_nodes
 
@@ -63,7 +64,7 @@ float32.
 
 ## expect_reference_case
 
-`expect_reference_case` reads one case of `batchnorm.sacp`: an input and the running mean and
+`expect_reference_case` reads one case of the opened `batchnorm.sacp`: an input and the running mean and
 variance before and after one torch training step. It traces a layer of the input's channel
 count with the reference epsilon and momentum, and applies the two requested updates to the
 "before" statistics on the host. The results must be within the tolerance of the "after"
@@ -108,10 +109,11 @@ mean's state, and the second reads output 3 and targets the running variance's s
 states are distinct and neither is `K_NO_STATE`. Both momenta are 0.03 and the mean's source
 scale is 1.0.
 
-## TheVarianceUpdateCarriesTheUnbiasedFactor
+## Small_BatchNorm2dUnbiased.TheVarianceUpdateCarriesTheUnbiasedFactor
 
-The variance update's source scale is n / (n - 1), where n is the number of values per channel.
-For [2, 2, 2, 3] it is 8/7, and for [1, 20, 20, 128] it is 400/399.
+The variance update's source scale is n / (n - 1), where n is the number of values per channel,
+checked against that quotient with the derived relative bound of two rounded operations. The
+rows are EightValues ([2, 2, 2, 3], 8/7) and NineValues ([1, 3, 3, 2], 9/8).
 
 ## AnEvaluationTraceFoldsTheRunningStatistics
 
@@ -141,33 +143,25 @@ A training trace over [1, 1, 1, 3] records `InvalidDescription` with a message c
 "BatchNorm2d(3)", "more than one value per channel" and "got 1". The graph gains no value and
 no node, the list holds no update, the weight is not declared, and the graph is marked refused.
 
-## AnIntegerInputFails
+## Small_BatchNorm2dFormRefusal.TheInputIsRefused
 
-Over an INT32 input, both forms record `InvalidDescription` with a message containing
-"BatchNorm2d(3)", "half, float32 or float64 input" and "int32". Nothing is added to the graph
-or the list, and neither the weight nor the running mean is declared.
+Over each input a form does not take, the form records `InvalidDescription` with the row's
+substrings. Nothing is added to the graph or the list. Each input has a Training row and an
+Evaluation row: AnIntegerInput (INT32; "BatchNorm2d(3)", "half, float32 or float64 input" and
+"int32"), AnotherChannelCount ([2, 2, 2, 4]; "BatchNorm2d(3)" and "[N, H, W, 3]"), AFlatInput
+([2, 3]; "BatchNorm2d(3)" and "rank-4") and AnNCHWInput (a [3, 3, 3, 3] input converted to NCHW;
+"BatchNorm2d(3)" and "NHWC").
 
 ## EvaluationOverOneValuePerChannelTraces
 
-An evaluation trace over [1, 1, 1, 3] returns a value of that shape. The limit that
-TrainingOverOneValuePerChannelFails holds belongs to the training form.
+An evaluation trace over [1, 1, 1, 3] returns a value of the shape [1, 1, 1, 3].
 
-## AnInputThatDoesNotFitFails
+## Small_BatchNorm2dWrongLayer.TheTraceIsRefused
 
-Over a [2, 2, 2, 4] input both forms fail with a message containing "BatchNorm2d(3)" and
-"[N, H, W, 3]". Over a [2, 3] input both fail with "rank-4". The graph gains no value and the
-list no update.
-
-## AnNCHWInputFails
-
-Over a value converted to NCHW both forms fail with a message containing "BatchNorm2d(3)" and
-"NHWC", and the graph gains no value.
-
-## ALayerDescribedWrongFails
-
-A default-constructed layer fails with "positive channel count" and "got 0". A layer with
-epsilon 0.0 fails with "positive epsilon". A layer with momentum 1.5 fails with "momentum in
-[0, 1]" and "1.5". The graph gains no value.
+An evaluation trace of a layer described wrongly records `InvalidDescription` with the row's
+substrings and adds no value. The rows are NoChannels (a layer never described: "positive
+channel count" and "got 0"), AFlatEpsilon (epsilon 0: "BatchNorm2d(3)" and "positive epsilon")
+and AMomentumAboveOne (momentum 1.5: "BatchNorm2d(3)", "momentum in [0, 1]" and "1.5").
 
 ## ASecondTraceUnderAnotherElementTypeFails
 
@@ -175,10 +169,13 @@ A layer traced over a FLOAT32 input and then, in a second graph, over a FLOAT64 
 the second time with a message containing "'weight'" and both type names. The running mean's
 type stays FLOAT32.
 
-## TheScaleStartsAtOneAndTheShiftAtZero
+## TheScaleStartsAtOne
 
-After a trace the weight has the role `ParameterRole::Scale` and a constant fill of 1.0, and
-the bias has the role `BIAS` and a constant fill of 0.0.
+After a trace the weight has the role `ParameterRole::Scale` and a constant fill of 1.0.
+
+## TheShiftStartsAtZero
+
+After a trace the bias has the role `ParameterRole::Bias` and a constant fill of 0.0.
 
 ## TheFactoryReadsTheChannelsAndTheTwoConstants
 
@@ -186,22 +183,23 @@ the bias has the role `BIAS` and a constant fill of 0.0.
 0.03 returns a `ModuleNode<BatchNorm2d>` whose layer has 6 channels and those two options. The
 node has one port of the input's shape and an input count of 1.
 
-## TheFactoryRefusesARowThatDoesNotFit
+## Small_BatchNorm2dFactoryRefusal.TheFactoryRefuses
 
-The key `channels` fails with a message containing the context, "'channels'" and "bn_epsilon".
-The input shape [48] fails with "[48]" and "[H, W, C]". A `bn_epsilon` of -1.0 fails with
-"'bn_epsilon'" and "positive".
+The factory fails with `InvalidDescription`, and the message holds "layer 3" and the row's
+substrings. The rows are AnUnknownKey (the key `channels`: "'channels'" and "bn_epsilon"),
+AFlatInput (the shape [48]: "[48]" and "[H, W, C]") and ANegativeEpsilon (a `bn_epsilon` of
+-1.0: "'bn_epsilon'" and "positive").
 
 ## TheTrainingFormUnderAnEvaluationTraceIsFatal
 
-The case is in the suite `Small_BatchNorm2dDeathTest`. `trace_training` given an evaluation
-trace stops the process with a report containing "trace_training" and "was given an evaluation
-trace".
+The case is in the suite `Medium_BatchNorm2dDeathTest`, because a death test starts a child
+process. `trace_training` given an evaluation trace stops the process with a report containing
+"trace_training" and "was given an evaluation trace".
 
 ## ATraceOverAValueTheGraphLacksIsFatal
 
-The case is in the suite `Small_BatchNorm2dDeathTest`. `trace_evaluation` over value 7 stops the
-process with a report containing "BatchNorm2d(3)", "value 7" and "holds 1 values".
+The case is in the suite `Medium_BatchNorm2dDeathTest`. `trace_evaluation` over value 7 stops
+the process with a report containing "BatchNorm2d(3)", "value 7" and "holds 1 values".
 
 ## TraceLayerPicksTheFormOfTheMode
 
@@ -218,15 +216,17 @@ graph. Under an evaluation trace it leaves one K_BATCHNORM_FOLD and no K_BATCHNO
 `NN::updated_statistic(running, batch, momentum, scale)` is
 (1 - momentum) * running + momentum * scale * batch. (1.0, 3.0, 0.25, 2.0) gives 2.25 and
 (4.0, 8.0, 0.5, 1.0) gives 6.0. A momentum of 0 returns the running value 4.0 and a momentum
-of 1 returns the batch value 8.0. Every operand and result is exact in a double.
+of 1 returns the batch value 8.0. Every operand and result is exact in a double, so each is
+compared for equality.
 
-## TheUpdatesReproduceTheUnitReferenceCase
+## Medium_BatchNorm2dReference.TheUpdatesReproduceTheUnitReferenceCase
 
-`expect_reference_case("unit", K_UNIT_CASE_TOLERANCE)` checks the [2, 2, 2, 3] case. The
+The fixture opens `batchnorm.sacp` in `SetUp` and skips the test when the file is absent.
+`expect_reference_case(file, "unit", K_UNIT_CASE_TOLERANCE)` checks the [2, 2, 2, 3] case. The
 test's own comment gives the miss of the unscaled variance on this case as 8.3e-3.
 
-## TheUpdatesReproduceTheModelReferenceCase
+## Medium_BatchNorm2dReference.TheUpdatesReproduceTheModelReferenceCase
 
-`expect_reference_case("model.9.cv1.bn", K_MODEL_CASE_TOLERANCE)` checks the case recorded at
-that layer of the reference model. The test's own comment gives the miss of the unscaled
+`expect_reference_case(file, "model.9.cv1.bn", K_MODEL_CASE_TOLERANCE)` checks the case recorded
+at that layer of the reference model. The test's own comment gives the miss of the unscaled
 variance on this case as 1.4e-5.

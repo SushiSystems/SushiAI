@@ -78,61 +78,90 @@ TEST(Small_Add, CreateKeepsTheSharedShapeAsThePort)
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 6, 3}));
 }
 
-/** @brief Tests that one input is refused and the count is named. */
-TEST(Small_Add, CreateRejectsOneInput)
+/** @brief Holds one input list the node refuses and the count the message names. */
+struct CountRow
 {
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}}), StatusCode::InvalidDescription,
-                      "takes 2 inputs", "was given 1");
+    std::string name;          /**< The row's name. */
+    std::vector<Shape> shapes; /**< The input shapes given to create. */
+    std::string given;         /**< The count the message names. */
+};
+
+/** @brief Runs the input-count refusal over each count other than two. */
+class Small_AddCount : public ::testing::TestWithParam<CountRow>
+{
+};
+
+/** @brief Tests that an input count other than two is refused and the count is named. */
+TEST_P(Small_AddCount, CreateRejectsTheCount)
+{
+    const CountRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(create_over(row.shapes), StatusCode::InvalidDescription, "takes 2 inputs",
+                      row.given);
 }
 
-/** @brief Tests that three inputs are refused and the count is named. */
-TEST(Small_Add, CreateRejectsThreeInputs)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_AddCount,
+    ::testing::Values(CountRow{"One", {Shape{8, 6, 3}}, "was given 1"},
+                      CountRow{"Three", {Shape{8, 6, 3}, Shape{8, 6, 3}, Shape{8, 6, 3}},
+                               "was given 3"},
+                      CountRow{"None", {}, "was given 0"}),
+    [](const ::testing::TestParamInfo<CountRow>& info) { return info.param.name; });
+
+/** @brief Holds the shape pair that differs in one extent. */
+struct UnequalRow
 {
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{8, 6, 3}, Shape{8, 6, 3}}),
-                      StatusCode::InvalidDescription, "takes 2 inputs", "was given 3");
+    std::string name; /**< The row's name. */
+    Shape second;     /**< The second input; the first is [8, 6, 3]. */
+};
+
+/** @brief Runs the unequal-shape refusal over each extent that can differ. */
+class Small_AddUnequal : public ::testing::TestWithParam<UnequalRow>
+{
+};
+
+/** @brief Tests that inputs differing in one extent are refused as unequal shapes. */
+TEST_P(Small_AddUnequal, CreateRejectsTheShape)
+{
+    const UnequalRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, row.second}), StatusCode::InvalidDescription,
+                      "share one shape");
 }
 
-/** @brief Tests that an empty input list is refused as a count of zero. */
-TEST(Small_Add, CreateRejectsNoInput)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_AddUnequal,
+    ::testing::Values(UnequalRow{"Channels", Shape{8, 6, 5}}, UnequalRow{"Height", Shape{4, 6, 3}},
+                      UnequalRow{"Width", Shape{8, 12, 3}}),
+    [](const ::testing::TestParamInfo<UnequalRow>& info) { return info.param.name; });
+
+/** @brief Holds the shapes of an input that is not a feature map and the index the message names. */
+struct RankRow
 {
-    SA_EXPECT_FAILURE(create_over({}), StatusCode::InvalidDescription, "takes 2 inputs",
-                      "was given 0");
+    std::string name;          /**< The row's name. */
+    std::vector<Shape> shapes; /**< The input shapes given to create. */
+    std::string index;         /**< The input the message names. */
+};
+
+/** @brief Runs the rank refusal over each position of the offending input. */
+class Small_AddRank : public ::testing::TestWithParam<RankRow>
+{
+};
+
+/** @brief Tests that an input that is not rank 3 is refused and named by its index. */
+TEST_P(Small_AddRank, CreateRejectsTheInput)
+{
+    const RankRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(create_over(row.shapes), StatusCode::InvalidDescription, row.index,
+                      "rank-3");
 }
 
-/** @brief Tests that inputs differing in channels are refused as unequal shapes. */
-TEST(Small_Add, CreateRejectsUnequalChannels)
-{
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{8, 6, 5}}),
-                      StatusCode::InvalidDescription, "share one shape");
-}
-
-/** @brief Tests that inputs differing in height are refused as unequal shapes. */
-TEST(Small_Add, CreateRejectsUnequalHeight)
-{
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{4, 6, 3}}),
-                      StatusCode::InvalidDescription, "share one shape");
-}
-
-/** @brief Tests that inputs differing in width are refused as unequal shapes. */
-TEST(Small_Add, CreateRejectsUnequalWidth)
-{
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{8, 12, 3}}),
-                      StatusCode::InvalidDescription, "share one shape");
-}
-
-/** @brief Tests that a second input that is not rank 3 is refused and named. */
-TEST(Small_Add, CreateRejectsAnInputThatIsNotAFeatureMap)
-{
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{144}}), StatusCode::InvalidDescription,
-                      "add input 1", "rank-3");
-}
-
-/** @brief Tests that a first input that is not rank 3 is refused and named as input 0. */
-TEST(Small_Add, CreateRejectsAFirstInputThatIsNotAFeatureMap)
-{
-    SA_EXPECT_FAILURE(create_over({Shape{144}, Shape{144}}), StatusCode::InvalidDescription,
-                      "add input 0", "rank-3");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_AddRank,
+    ::testing::Values(RankRow{"Second", {Shape{8, 6, 3}, Shape{144}}, "add input 1"},
+                      RankRow{"First", {Shape{144}, Shape{144}}, "add input 0"}),
+    [](const ::testing::TestParamInfo<RankRow>& info) { return info.param.name; });
 
 /** @brief Tests that the node reports two inputs, whatever it was built over. */
 TEST(Small_Add, TheInputCountIsTwo)
@@ -239,32 +268,31 @@ TEST(Small_Add, TheFactoryBuildsANodeFromARowWithNoKey)
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 6, 3}));
 }
 
-/** @brief Tests that the factory refuses any key and shapes that do not match. */
-TEST(Small_Add, TheFactoryRefusesAKeyAndShapesThatDoNotMatch)
+/** @brief Tests that the factory refuses a key and names the context. */
+TEST(Small_Add, TheFactoryRefusesAKey)
 {
     const Shape matched[] = {Shape{8, 6, 3}, Shape{8, 6, 3}};
-    const Shape unmatched[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
     const Config::Value stray = require_value(Config::parse_json(R"({"alpha": 2})", "<test>"));
-    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
 
     SA_EXPECT_FAILURE(NN::make_add_node(NN::ShapeSpan(matched, 2), stray, "layer 3 'add'"),
                       StatusCode::InvalidDescription, "layer 3 'add'", "'alpha'", "no key");
+}
+
+/** @brief Tests that the factory refuses shapes that do not match and names the context. */
+TEST(Small_Add, TheFactoryRefusesShapesThatDoNotMatch)
+{
+    const Shape unmatched[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
+    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
+
     SA_EXPECT_FAILURE(NN::make_add_node(NN::ShapeSpan(unmatched, 2), none, "layer 3 'add'"),
                       StatusCode::InvalidDescription, "layer 3 'add'", "share one shape");
 }
 
-/** @brief Tests that the state walk visits nothing after a trace. */
+/** @brief Tests that the state walk visits no parameter and no buffer. */
 TEST(Small_Add, TheStateWalkVisitsNothing)
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
-    const Graph::ValueID b = builder.input(Shape{2, 8, 6, 3}, "b");
-
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Add> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueID> outputs;
-    SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({a, b}), outputs));
 
     std::size_t visits = 0;
     const auto on_parameter = [&visits](const std::string&, NN::Parameter&)

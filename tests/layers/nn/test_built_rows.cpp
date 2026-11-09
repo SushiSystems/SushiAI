@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/config/model_config.hpp>
@@ -61,6 +62,22 @@ namespace
     Config::Value attributes_of(std::string_view text)
     {
         return SaTest::require_value(Config::parse_json(text, "<test>"));
+    }
+
+    /** @brief Parses an embedding, a layer norm and a follower row whose "names" is @p names. */
+    Config::ModelSpec follower_model(int names)
+    {
+        return SaTest::model_from(
+            R"({
+        "format_version": 2,
+        "input": {"shape": [4], "dtype": "int32"},
+        "layers": [
+            {"type": "embedding", "num_embeddings": 10, "embedding_dim": 3},
+            {"type": "layernorm"},
+            {"type": "follower", "names": )" +
+            std::to_string(names) + R"(}
+        ]
+    })");
     }
 
     /** @brief Builds an Identity node, and refuses unless "names" is an embedding row above. */
@@ -114,35 +131,54 @@ TEST(Small_LinkedRows, ARowReferenceTakesThreeForms)
     EXPECT_EQ(object, 1u);
 }
 
-/** @brief Tests that a row that is not above, and every other form, is refused by name. */
-TEST(Small_LinkedRows, ARowReferenceThatDoesNotFitIsRefused)
+/** @brief Holds an attribute row, the rows above it and the substrings of the refusal. */
+struct RowReferenceRow
 {
-    SA_EXPECT_FAILURE(NN::Detail::read_row_above(attributes_of(R"({"names": 3})"), K_NAMES_KEY,
-                                                 "layer 3", 3),
-                      StatusCode::InvalidDescription, "layer 3", "'names'", "row 3",
-                      "not above");
-    SA_EXPECT_FAILURE(NN::Detail::read_row_above(attributes_of(R"({"names": -2})"), K_NAMES_KEY,
-                                                 "layer 3", 3),
-                      StatusCode::InvalidDescription, "row -2");
-    SA_EXPECT_FAILURE(NN::Detail::read_row_above(attributes_of(R"({"names": -1})"), K_NAMES_KEY,
-                                                 "layer 0", 0),
-                      StatusCode::InvalidDescription, "layer 0", "0 rows are above");
-    SA_EXPECT_FAILURE(NN::Detail::read_row_above(attributes_of(R"({"names": "input"})"),
-                                                 K_NAMES_KEY, "layer 3", 3),
-                      StatusCode::InvalidDescription, "row number", "string");
+    std::string name;     /**< The row's name. */
+    std::string json;     /**< The attribute row, as JSON. */
+    std::string context;  /**< The context the refusal names. */
+    std::size_t above;    /**< The number of rows above. */
+    std::string first;    /**< A substring the message holds. */
+    std::string second;   /**< A second substring the message holds; empty for none. */
+    std::string third;    /**< A third substring the message holds; empty for none. */
+    std::string fourth;   /**< A fourth substring the message holds; empty for none. */
+};
+
+/** @brief Runs the row-reference refusal over each reference that does not fit. */
+class Small_LinkedRowsRefusal : public ::testing::TestWithParam<RowReferenceRow>
+{
+};
+
+/** @brief Tests that a row that is not above, and every other form, is refused by name. */
+TEST_P(Small_LinkedRowsRefusal, ARowReferenceThatDoesNotFitIsRefused)
+{
+    const RowReferenceRow& row = GetParam();
+
     SA_EXPECT_FAILURE(
-        NN::Detail::read_row_above(attributes_of(R"({"names": {"node": 0, "port": "x"}})"),
-                                   K_NAMES_KEY, "layer 3", 3),
-        StatusCode::InvalidDescription, "'port'");
-    SA_EXPECT_FAILURE(NN::Detail::read_row_above(attributes_of(R"({"names": {}})"), K_NAMES_KEY,
-                                                 "layer 3", 3),
-                      StatusCode::InvalidDescription, "'node'");
-    SA_EXPECT_FAILURE(NN::Detail::read_row_above(attributes_of("{}"), K_NAMES_KEY, "layer 3", 3),
-                      StatusCode::InvalidDescription, "'names'", "absent");
+        NN::Detail::read_row_above(attributes_of(row.json), K_NAMES_KEY, row.context, row.above),
+        StatusCode::InvalidDescription, row.first, row.second, row.third, row.fourth);
 }
 
-/** @brief Tests that a linked type is found, listed, and shares one namespace of types. */
-TEST(Small_LinkedRows, ALinkedTypeHasOneRowAmongAllKinds)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LinkedRowsRefusal,
+    ::testing::Values(
+        RowReferenceRow{"ARowNotAbove", R"({"names": 3})", "layer 3", 3, "layer 3", "'names'",
+                        "row 3", "not above"},
+        RowReferenceRow{"ANegativeRowBeyondTheTop", R"({"names": -2})", "layer 3", 3, "row -2",
+                        "", "", ""},
+        RowReferenceRow{"TheRowBeforeWithNoRowAbove", R"({"names": -1})", "layer 0", 0,
+                        "layer 0", "0 rows are above", "", ""},
+        RowReferenceRow{"AString", R"({"names": "input"})", "layer 3", 3, "row number", "string",
+                        "", ""},
+        RowReferenceRow{"AnObjectWithAPort", R"({"names": {"node": 0, "port": "x"}})", "layer 3",
+                        3, "'port'", "", "", ""},
+        RowReferenceRow{"AnObjectWithNoNode", R"({"names": {}})", "layer 3", 3, "'node'", "", "",
+                        ""},
+        RowReferenceRow{"AnAbsentKey", "{}", "layer 3", 3, "'names'", "absent", "", ""}),
+    [](const ::testing::TestParamInfo<RowReferenceRow>& info) { return info.param.name; });
+
+/** @brief Tests that a linked type is found and listed, and is no node type. */
+TEST(Small_LinkedRows, ALinkedTypeIsFoundAndListed)
 {
     NN::NodeRegistry registry = make_registry();
 
@@ -150,48 +186,66 @@ TEST(Small_LinkedRows, ALinkedTypeHasOneRowAmongAllKinds)
     EXPECT_EQ(registry.find_node("follower"), nullptr);
     ASSERT_EQ(registry.linked().size(), 1u);
     EXPECT_EQ(registry.linked()[0].type, "follower");
-
-    SA_EXPECT_FAILURE(registry.add(NN::LinkedNodeEntry{"concat", &make_follower_node}),
-                      StatusCode::InvalidDescription, "'concat'", "already");
-    SA_EXPECT_FAILURE(registry.add(NN::LinkedNodeEntry{"relu", &make_follower_node}),
-                      StatusCode::InvalidDescription, "'relu'", "already");
-    SA_EXPECT_FAILURE(registry.add(NN::NodeEntry{"follower", &NN::make_embedding_node}),
-                      StatusCode::InvalidDescription, "'follower'", "already");
 }
+
+/** @brief Holds a type name in use, the kind of entry that claims it again, and the name. */
+struct TypeInUseRow
+{
+    std::string name;   /**< The row's name. */
+    std::string type;   /**< The type name that is already in use. */
+    bool linked;        /**< Whether the second entry is a linked one; a node entry otherwise. */
+    std::string quoted; /**< The quoted name the message holds. */
+};
+
+/** @brief Runs the type-in-use refusal over each kind of entry. */
+class Small_LinkedRowsTypeInUse : public ::testing::TestWithParam<TypeInUseRow>
+{
+};
+
+/** @brief Tests that a type name already in use is refused whatever the kind of the entry. */
+TEST_P(Small_LinkedRowsTypeInUse, ATypeNameInUseIsRefused)
+{
+    const TypeInUseRow& row = GetParam();
+    NN::NodeRegistry registry = make_registry();
+
+    const Status refused =
+        row.linked ? registry.add(NN::LinkedNodeEntry{row.type, &make_follower_node})
+                   : registry.add(NN::NodeEntry{row.type, &NN::make_embedding_node});
+
+    SA_EXPECT_FAILURE(refused, StatusCode::InvalidDescription, row.quoted, "already");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LinkedRowsTypeInUse,
+    ::testing::Values(TypeInUseRow{"ANodeTypeAsALinkedType", "concat", true, "'concat'"},
+                      TypeInUseRow{"AnotherNodeTypeAsALinkedType", "relu", true, "'relu'"},
+                      TypeInUseRow{"ALinkedTypeAsANodeType", "follower", false, "'follower'"}),
+    [](const ::testing::TestParamInfo<TypeInUseRow>& info) { return info.param.name; });
 
 /** @brief Tests that build_model hands a linked row the nodes of the rows above it. */
 TEST(Small_LinkedRows, BuildModelHandsALinkedRowTheRowsAbove)
 {
     const NN::NodeRegistry registry = make_registry();
-    const Config::ModelSpec tied = SaTest::model_from(R"({
-        "format_version": 2,
-        "input": {"shape": [4], "dtype": "int32"},
-        "layers": [
-            {"type": "embedding", "num_embeddings": 10, "embedding_dim": 3},
-            {"type": "layernorm"},
-            {"type": "follower", "names": 0}
-        ]
-    })");
-    const Config::ModelSpec misnamed = SaTest::model_from(R"({
-        "format_version": 2,
-        "input": {"shape": [4], "dtype": "int32"},
-        "layers": [
-            {"type": "embedding", "num_embeddings": 10, "embedding_dim": 3},
-            {"type": "layernorm"},
-            {"type": "follower", "names": -1}
-        ]
-    })");
 
-    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph model, NN::build_model(registry, tied));
+    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph model,
+                            NN::build_model(registry, follower_model(0)));
+
     EXPECT_EQ(model.size(), 3u);
     EXPECT_NE(NN::find_embedding(model.node(0)), nullptr);
     EXPECT_EQ(NN::find_embedding(model.node(1)), nullptr);
-
-    SA_EXPECT_FAILURE(NN::build_model(registry, misnamed), StatusCode::InvalidDescription,
-                      "layer 2 'follower'", "row 1", "no embedding");
 }
 
-/** @brief Tests that a linked row built alone sees no row, and that an unknown type lists it. */
+/** @brief Tests that build_model refuses a linked row that names a row with no embedding. */
+TEST(Small_LinkedRows, BuildModelRefusesALinkedRowThatNamesANonEmbedding)
+{
+    const NN::NodeRegistry registry = make_registry();
+
+    SA_EXPECT_FAILURE(NN::build_model(registry, follower_model(-1)),
+                      StatusCode::InvalidDescription, "layer 2 'follower'", "row 1",
+                      "no embedding");
+}
+
+/** @brief Tests that a linked row built alone sees no row above it. */
 TEST(Small_LinkedRows, ALinkedRowBuiltAloneSeesNoRow)
 {
     const NN::NodeRegistry registry = make_registry();
@@ -200,6 +254,14 @@ TEST(Small_LinkedRows, ALinkedRowBuiltAloneSeesNoRow)
     SA_EXPECT_FAILURE(NN::make_node(registry, "follower", NN::ShapeSpan(&sample, 1),
                                     attributes_of(R"({"names": 0})"), "layer 0 'follower'"),
                       StatusCode::InvalidDescription, "layer 0 'follower'", "not above");
+}
+
+/** @brief Tests that an unknown type is refused and the message lists the linked type. */
+TEST(Small_LinkedRows, AnUnknownTypeListsTheLinkedType)
+{
+    const NN::NodeRegistry registry = make_registry();
+    const Shape sample{4, 3};
+
     SA_EXPECT_FAILURE(NN::make_node(registry, "missing", NN::ShapeSpan(&sample, 1),
                                     attributes_of("{}"), "layer 0 'missing'"),
                       StatusCode::InvalidDescription, "'missing'", "'follower'");
@@ -225,7 +287,7 @@ TEST(Small_LinkedRows, BuiltRowsCountsTheNodesOfItsGraph)
 }
 
 /** @brief Tests that asking a view for a row it does not hold stops the process. */
-TEST(Small_LinkedRowsDeathTest, ARowOutsideTheViewIsFatal)
+TEST(Medium_LinkedRowsDeathTest, ARowOutsideTheViewIsFatal)
 {
     SA_EXPECT_FATAL(node_of_no_row(), "BuiltRows::node", "row 0");
 }

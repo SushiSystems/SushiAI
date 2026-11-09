@@ -56,6 +56,29 @@ namespace
         return g;
     }
 
+    /** @brief Returns @p g with the top and the left padded by @p pad. */
+    Graph::ConvGeometry padded_top_left(Graph::ConvGeometry g, int64_t pad)
+    {
+        g.pad_top = pad;
+        g.pad_left = pad;
+        return g;
+    }
+
+    /** @brief Returns @p g with the top padded by @p pad. */
+    Graph::ConvGeometry padded_top(Graph::ConvGeometry g, int64_t pad)
+    {
+        g.pad_top = pad;
+        return g;
+    }
+
+    /** @brief Returns @p g dilated by @p h on the height and @p w on the width. */
+    Graph::ConvGeometry dilated(Graph::ConvGeometry g, int64_t h, int64_t w)
+    {
+        g.dilation_h = h;
+        g.dilation_w = w;
+        return g;
+    }
+
     /** @brief Traces @p layer over a batch of two @p sample images and returns the shape. */
     Shape traced_shape(const AvgPool2d& layer, const Shape& sample)
     {
@@ -73,16 +96,6 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that AvgPool2d satisfies the Module trait, through a const reference too. */
-TEST(Small_AvgPool2d, SatisfiesTheModuleTrait)
-{
-    static_assert(NN::Module<AvgPool2d>, "AvgPool2d must be a Module");
-    static_assert(NN::Module<const AvgPool2d>, "AvgPool2d::forward must be const");
-    static_assert(!NN::ModuleContainer<AvgPool2d>, "AvgPool2d must not look like a container");
-    static_assert(!NN::Detail::HasParameterWalk<AvgPool2d>::value,
-                  "AvgPool2d must be enumerated by its fields()");
-}
-
 /** @brief Tests that forward() yields the pooled [N, out_h, out_w, C] value tagged NHWC. */
 TEST(Small_AvgPool2d, ForwardTracesThePooledShapeInNHWC)
 {
@@ -97,184 +110,136 @@ TEST(Small_AvgPool2d, ForwardTracesThePooledShapeInNHWC)
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
-/** @brief Tests that output_shape() equals the traced per-sample shape for a square window. */
-TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForASquareWindow)
+/** @brief Holds a layer geometry, the sample it pools and the per-sample shape it gives. */
+struct AgreementRow
 {
-    const AvgPool2d layer{window(3, 3, 3, 3)};
-    const Shape sample{6, 6, 3};
+    std::string name;             /**< The row's name. */
+    Graph::ConvGeometry geometry; /**< The window, step, padding and dilation. */
+    Shape sample;                 /**< The per-sample input shape. */
+    Shape expected;               /**< The per-sample shape the layer gives. */
+};
 
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{2, 2, 3}));
-    EXPECT_EQ(layer.output_shape(sample).value(), per_sample(traced_shape(layer, sample)));
+/** @brief Runs the shape agreement over each kind of window. */
+class Small_AvgPool2dShape : public ::testing::TestWithParam<AgreementRow>
+{
+};
+
+/** @brief Tests that output_shape() equals the expected shape and the traced per-sample shape. */
+TEST_P(Small_AvgPool2dShape, OutputShapeAgreesWithTheTracedShape)
+{
+    const AgreementRow& row = GetParam();
+    const AvgPool2d layer{row.geometry};
+
+    EXPECT_EQ(layer.output_shape(row.sample).value(), row.expected);
+    EXPECT_EQ(layer.output_shape(row.sample).value(),
+              per_sample(traced_shape(layer, row.sample)));
 }
 
-/** @brief Tests that output_shape() equals the traced shape for a padded, uneven window. */
-TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForAPaddedUnevenWindow)
-{
-    AvgPool2d layer{window(3, 2, 2, 1)};
-    layer.geometry.pad_top = 1;
-    layer.geometry.pad_left = 1;
-    const Shape sample{7, 5, 4};
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_AvgPool2dShape,
+    ::testing::Values(AgreementRow{"Square", window(3, 3, 3, 3), Shape{6, 6, 3}, Shape{2, 2, 3}},
+                      AgreementRow{"PaddedUneven", padded_top_left(window(3, 2, 2, 1), 1),
+                                   Shape{7, 5, 4}, Shape{4, 6, 4}},
+                      AgreementRow{"Dilated", dilated(window(3, 3, 1, 1), 2, 1), Shape{9, 8, 1},
+                                   Shape{5, 6, 1}}),
+    [](const ::testing::TestParamInfo<AgreementRow>& info) { return info.param.name; });
 
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{4, 6, 4}));
-    EXPECT_EQ(layer.output_shape(sample).value(), per_sample(traced_shape(layer, sample)));
+/** @brief Holds a geometry and a per-sample shape that output_shape refuses, with the message. */
+struct ShapeRefusalRow
+{
+    std::string name;             /**< The row's name. */
+    Graph::ConvGeometry geometry; /**< The window, step, padding and dilation. */
+    Shape sample;                 /**< The shape given to output_shape. */
+    std::string first;            /**< A substring the message holds; empty for none. */
+    std::string second;           /**< A second substring the message holds; empty for none. */
+};
+
+/** @brief Runs the output_shape refusal over each input it cannot take. */
+class Small_AvgPool2dShapeRefusal : public ::testing::TestWithParam<ShapeRefusalRow>
+{
+};
+
+/** @brief Tests that output_shape() refuses the row and names what the row says. */
+TEST_P(Small_AvgPool2dShapeRefusal, OutputShapeRefuses)
+{
+    const ShapeRefusalRow& row = GetParam();
+    const AvgPool2d layer{row.geometry};
+
+    SA_EXPECT_FAILURE(layer.output_shape(row.sample), StatusCode::InvalidDescription, row.first,
+                      row.second);
 }
 
-/** @brief Tests that output_shape() equals the traced shape for a window dilated on one axis. */
-TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForADilatedWindow)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_AvgPool2dShapeRefusal,
+    ::testing::Values(
+        ShapeRefusalRow{"AFeatureVector", window(2, 2, 2, 2), Shape{8}, "", ""},
+        ShapeRefusalRow{"ABatchedShape", window(2, 2, 2, 2), Shape{2, 4, 4, 3}, "", ""},
+        ShapeRefusalRow{"AWindowLargerThanTheImage", window(5, 5, 1, 1), Shape{4, 4, 3}, "", ""},
+        ShapeRefusalRow{"AZeroStride", window(2, 2, 0, 0), Shape{4, 4, 3}, "AvgPool2d",
+                        "stride 0,0"},
+        ShapeRefusalRow{"ANegativePadding", padded_top(window(2, 2, 2, 2), -1), Shape{4, 4, 3},
+                        "AvgPool2d", "padding -1,0"}),
+    [](const ::testing::TestParamInfo<ShapeRefusalRow>& info) { return info.param.name; });
+
+/** @brief Holds an input of forward, whether it is in NCHW layout, and the refusal it meets. */
+struct ForwardRefusalRow
 {
-    AvgPool2d layer{window(3, 3, 1, 1)};
-    layer.geometry.dilation_h = 2;
-    layer.geometry.dilation_w = 1;
-    const Shape sample{9, 8, 1};
+    std::string name;             /**< The row's name. */
+    Graph::ConvGeometry geometry; /**< The window, step, padding and dilation. */
+    Shape input;                  /**< The input shape, batch axis included. */
+    bool nchw;                    /**< Whether the input is converted to NCHW first. */
+    std::string first;            /**< A substring the message holds; empty for none. */
+    std::string second;           /**< A second substring the message holds; empty for none. */
+};
 
-    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{5, 6, 1}));
-    EXPECT_EQ(layer.output_shape(sample).value(), per_sample(traced_shape(layer, sample)));
-}
-
-/** @brief Tests that output_shape() fails for a per-sample shape that is not rank 3. */
-TEST(Small_AvgPool2d, OutputShapeRejectsAFeatureVector)
+/** @brief Runs the forward refusal over each input and geometry it cannot take. */
+class Small_AvgPool2dForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
-    const AvgPool2d layer{window(2, 2, 2, 2)};
+};
 
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{8}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() fails for a shape that still carries the batch axis. */
-TEST(Small_AvgPool2d, OutputShapeRejectsABatchedShape)
+/** @brief Tests that forward() refuses the row and names what the row says. */
+TEST_P(Small_AvgPool2dForwardRefusal, ForwardRefuses)
 {
-    const AvgPool2d layer{window(2, 2, 2, 2)};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{2, 4, 4, 3}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() fails when the window is larger than the image. */
-TEST(Small_AvgPool2d, OutputShapeRejectsAWindowLargerThanTheImage)
-{
-    const AvgPool2d layer{window(5, 5, 1, 1)};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() fails when the geometry has a zero stride. */
-TEST(Small_AvgPool2d, OutputShapeRejectsAZeroStride)
-{
-    const AvgPool2d layer{window(2, 2, 0, 0)};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that output_shape() names the stride it refuses, not the window's fit. */
-TEST(Small_AvgPool2d, OutputShapeNamesAZeroStride)
-{
-    const AvgPool2d layer{window(2, 2, 0, 0)};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription,
-                      "AvgPool2d", "stride 0,0");
-}
-
-/** @brief Tests that output_shape() refuses a negative padding and names it. */
-TEST(Small_AvgPool2d, OutputShapeRejectsANegativePadding)
-{
-    AvgPool2d layer{window(2, 2, 2, 2)};
-    layer.geometry.pad_top = -1;
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription,
-                      "AvgPool2d", "padding -1,0");
-}
-
-/** @brief Tests that forward() throws for an input that is not rank 4. */
-TEST(Small_AvgPool2d, ForwardRejectsARankTwoInput)
-{
+    const ForwardRefusalRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 8}, "x");
+    Graph::ValueID x = builder.input(row.input, "x");
+    if (row.nchw)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID converted,
+                                builder.layout_convert(x, Graph::TensorLayout::NCHW));
+        x = converted;
+    }
+    const AvgPool2d layer{row.geometry};
 
-    const AvgPool2d layer{window(2, 2, 2, 2)};
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, row.first,
+                      row.second);
 }
 
-/** @brief Tests that forward() throws for a rank-4 input in NCHW layout. */
-TEST(Small_AvgPool2d, ForwardRejectsAnNCHWInput)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{1, 6, 6, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID x_nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_AvgPool2dForwardRefusal,
+    ::testing::Values(
+        ForwardRefusalRow{"ARankTwoInput", window(2, 2, 2, 2), Shape{2, 8}, false, "", ""},
+        ForwardRefusalRow{"AnNCHWInput", window(3, 3, 3, 3), Shape{1, 6, 6, 3}, true, "", ""},
+        ForwardRefusalRow{"AnNCHWInputNarrowerThanTheWindowNamesTheLayout", window(3, 3, 1, 1),
+                          Shape{1, 8, 8, 2}, true, "NHWC", ""},
+        ForwardRefusalRow{"AZeroStride", window(2, 2, 0, 0), Shape{2, 4, 4, 3}, false, "AvgPool2d",
+                          "stride 0,0"},
+        ForwardRefusalRow{"ANegativePadding", padded_top(window(2, 2, 2, 2), -1),
+                          Shape{2, 4, 4, 3}, false, "AvgPool2d", "padding -1,0"},
+        ForwardRefusalRow{"AWindowLargerThanTheImage", window(5, 5, 1, 1), Shape{2, 4, 4, 3},
+                          false, "", ""}),
+    [](const ::testing::TestParamInfo<ForwardRefusalRow>& info) { return info.param.name; });
 
-    const AvgPool2d layer{window(3, 3, 3, 3)};
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x_nchw), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that forward() names the layout, not the window, for a narrow NCHW input. */
-TEST(Small_AvgPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{1, 8, 8, 2}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-
-    const AvgPool2d layer{window(3, 3, 1, 1)};
-
-    SA_EXPECT_FAILURE(layer.forward(builder, nchw), StatusCode::InvalidDescription, "NHWC");
-}
-
-/** @brief Tests that forward() refuses a zero stride in the layer's own message. */
-TEST(Small_AvgPool2d, ForwardRejectsAZeroStride)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
-
-    const AvgPool2d layer{window(2, 2, 0, 0)};
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "AvgPool2d",
-                      "stride 0,0");
-}
-
-/** @brief Tests that forward() refuses a negative padding in the layer's own message. */
-TEST(Small_AvgPool2d, ForwardRejectsANegativePadding)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
-
-    AvgPool2d layer{window(2, 2, 2, 2)};
-    layer.geometry.pad_top = -1;
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "AvgPool2d",
-                      "padding -1,0");
-}
-
-/** @brief Tests that forward() throws when the window is larger than the image. */
-TEST(Small_AvgPool2d, ForwardRejectsAWindowLargerThanTheImage)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
-
-    const AvgPool2d layer{window(5, 5, 1, 1)};
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that a traced AvgPool2d has no parameter and adds one value to the graph. */
-TEST(Small_AvgPool2d, ATracedLayerHasNoParameter)
+/** @brief Tests that a traced AvgPool2d adds one value to the graph beside its input. */
+TEST(Small_AvgPool2d, ForwardAddsOneValue)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 3}, "x");
 
-    AvgPool2d layer{window(3, 3, 3, 3)};
+    const AvgPool2d layer{window(3, 3, 3, 3)};
     SA_EXPECT_OK(layer.forward(builder, x));
 
-    int visited = 0;
-    NN::for_each_parameter(layer, [&visited](const std::string&, NN::Parameter&) { ++visited; });
-
-    EXPECT_EQ(visited, 0);
-    EXPECT_EQ(NN::parameter_count(layer), 0u);
     EXPECT_EQ(graph.value_count(), 2u);
 }

@@ -61,6 +61,9 @@ using NN::BufferUpdateList;
 using NN::NormOptions;
 using NN::Trace;
 
+/** @brief Shortens the namespace of the test helpers, which Test alone hides in a fixture. */
+namespace SaTest = SushiAI::Test;
+
 namespace
 {
     using SushiAI::Test::require_value;
@@ -83,12 +86,6 @@ namespace
      */
     constexpr float K_MODEL_CASE_TOLERANCE =
         static_cast<float>(12.0 * TestSupport::unit_roundoff<float>());
-
-    /**
-     * @brief Bounds the absolute error of a double computed the same way on both sides; 16 unit
-     * roundoffs of double, the smallest power of two that covers 1e-15.
-     */
-    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Counts the nodes of @p graph that carry the operation @p op. */
     std::size_t count_nodes(const Graph::Graph& graph, OpID op)
@@ -181,12 +178,13 @@ namespace
 
     /**
      * @brief Checks one case of batchnorm.sacp against the updates a training trace requests.
+     * @param file The opened reference file.
      * @param case_name The part of the tensor names between "batchnorm_factor." and the suffix.
      * @param tolerance Largest absolute difference from the running statistics torch left.
      */
-    void expect_reference_case(const std::string& case_name, float tolerance)
+    void expect_reference_case(Test::ReferenceFile& file, const std::string& case_name,
+                               float tolerance)
     {
-        SA_OPEN_REFERENCE_OR_SKIP(file, "batch_norm2d/batchnorm.sacp");
         const std::string prefix = "batchnorm_factor." + case_name + ".";
         SA_READ_REFERENCE_OR_FAIL(input, file, prefix + "input");
         SA_READ_REFERENCE_OR_FAIL(mean_before, file, prefix + "before.running_mean");
@@ -225,6 +223,23 @@ namespace
         // The fixture separates the two forms only if the unscaled variance misses it.
         EXPECT_FALSE(Test::near_reference(view(biased), view(variance_reference), tolerance));
     }
+
+    /** @brief Opens batchnorm.sacp once per test and skips the test when the file is absent. */
+    class Medium_BatchNorm2dReference : public ::testing::Test
+    {
+        protected:
+            /** @brief Opens the reference file, or skips the test with the reason. */
+            void SetUp() override
+            {
+                file = std::make_unique<SaTest::ReferenceFile>(SA_TEST_FIXTURE_DIR,
+                                                             "batch_norm2d/batchnorm.sacp");
+                if (!file->is_present())
+                    GTEST_SKIP() << file->reason();
+            }
+
+            /** @brief Holds the opened reference file. */
+            std::unique_ptr<SaTest::ReferenceFile> file;
+    };
 
     /** @brief Traces the training form, expects the input back, returns what was recorded. */
     Status refused_training(BatchNorm2d& layer, const Graph::GraphBuilder& builder,
@@ -349,33 +364,46 @@ TEST(Small_BatchNorm2d, ATrainingTraceRequestsTheTwoRunningUpdates)
     EXPECT_EQ(list.updates()[1].target, layer.running_var.state());
 
     // The momentum and the mean's scale are stored as given, so they compare exactly.
-    EXPECT_NEAR(list.updates()[0].momentum, 0.03, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(list.updates()[1].momentum, 0.03, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(list.updates()[0].source_scale, 1.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(list.updates()[0].momentum, 0.03);
+    EXPECT_EQ(list.updates()[1].momentum, 0.03);
+    EXPECT_EQ(list.updates()[0].source_scale, 1.0);
 }
+
+/** @brief Holds the element count per channel of a traced input and the factor it gives. */
+struct UnbiasedRow
+{
+    std::string name;   /**< The row's name. */
+    Shape input;        /**< The NHWC input the layer is traced over. */
+    double count;       /**< The values per channel, batch times height times width. */
+};
+
+/** @brief Runs the variance-factor promise over each count of values per channel. */
+class Small_BatchNorm2dUnbiased : public ::testing::TestWithParam<UnbiasedRow>
+{
+};
 
 /** @brief Tests that the variance update carries n / (n - 1) for n values per channel. */
-TEST(Small_BatchNorm2d, TheVarianceUpdateCarriesTheUnbiasedFactor)
+TEST_P(Small_BatchNorm2dUnbiased, TheVarianceUpdateCarriesTheUnbiasedFactor)
 {
-    Graph::Graph small_graph;
-    const Graph::GraphBuilder small_builder(small_graph);
-    BatchNorm2d small(3, NormOptions{});
-    BufferUpdateList small_list;
-    static_cast<void>(small.trace_training(Trace::training(small_builder, small_list),
-                                           small_builder.input(Shape{2, 2, 2, 3}, "x")));
+    const UnbiasedRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    BatchNorm2d layer(row.input[3], NormOptions{});
+    BufferUpdateList list;
 
-    Graph::Graph large_graph;
-    const Graph::GraphBuilder large_builder(large_graph);
-    BatchNorm2d large(128, NormOptions{});
-    BufferUpdateList large_list;
-    static_cast<void>(large.trace_training(Trace::training(large_builder, large_list),
-                                           large_builder.input(Shape{1, 20, 20, 128}, "x")));
+    static_cast<void>(layer.trace_training(Trace::training(builder, list),
+                                           builder.input(row.input, "x")));
 
-    ASSERT_EQ(small_list.updates().size(), 2u);
-    ASSERT_EQ(large_list.updates().size(), 2u);
-    EXPECT_NEAR(small_list.updates()[1].source_scale, 8.0 / 7.0, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(large_list.updates()[1].source_scale, 400.0 / 399.0, K_EXACT_TOLERANCE);
+    ASSERT_EQ(list.updates().size(), 2u);
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        list.updates()[1].source_scale, row.count / (row.count - 1.0), 2)));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BatchNorm2dUnbiased,
+    ::testing::Values(UnbiasedRow{"EightValues", Shape{2, 2, 2, 3}, 8.0},
+                      UnbiasedRow{"NineValues", Shape{1, 3, 3, 2}, 9.0}),
+    [](const ::testing::TestParamInfo<UnbiasedRow>& info) { return info.param.name; });
 
 /**
  * @brief Tests that an evaluation trace emits one BATCHNORM_FOLD over the two buffer leaves
@@ -489,10 +517,10 @@ TEST(Small_BatchNorm2d, TheWalkYieldsTwoParametersThenTwoBuffers)
                                                "bn.running_var"}));
 
     // The four starting values are stored as given, so they compare exactly.
-    EXPECT_NEAR(layer.weight.init().constant, 1.0, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(layer.bias.init().constant, 0.0, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(layer.running_mean.initial_value(), 0.0, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(layer.running_var.initial_value(), 1.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(layer.weight.init().constant, 1.0);
+    EXPECT_EQ(layer.bias.init().constant, 0.0);
+    EXPECT_EQ(layer.running_mean.initial_value(), 0.0);
+    EXPECT_EQ(layer.running_var.initial_value(), 1.0);
 }
 
 /** @brief Tests that training over one value per channel fails and declares nothing. */
@@ -516,29 +544,6 @@ TEST(Small_BatchNorm2d, TrainingOverOneValuePerChannelFails)
     EXPECT_TRUE(graph.has_refusal());
 }
 
-/** @brief Tests that both forms refuse an integer input and declare nothing. */
-TEST(Small_BatchNorm2d, AnIntegerInputFails)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 2, 2, 3}, "x", DType::Int32);
-    BatchNorm2d layer(3, NormOptions{});
-    BufferUpdateList list;
-    const std::size_t before = graph.value_count();
-    const std::size_t nodes_before = graph.node_count();
-
-    SA_EXPECT_FAILURE(refused_training(layer, builder, list, x), StatusCode::InvalidDescription,
-                      "BatchNorm2d(3)", "half, float32 or float64 input", "int32");
-    SA_EXPECT_FAILURE(refused_evaluation(layer, builder, x), StatusCode::InvalidDescription,
-                      "BatchNorm2d(3)", "half, float32 or float64 input", "int32");
-
-    EXPECT_EQ(graph.value_count(), before);
-    EXPECT_EQ(graph.node_count(), nodes_before);
-    EXPECT_EQ(list.updates().size(), 0u);
-    EXPECT_FALSE(layer.weight.declared());
-    EXPECT_FALSE(layer.running_mean.declared());
-}
-
 /** @brief Tests that an evaluation trace accepts one value per channel. */
 TEST(Small_BatchNorm2d, EvaluationOverOneValuePerChannelTraces)
 {
@@ -552,72 +557,112 @@ TEST(Small_BatchNorm2d, EvaluationOverOneValuePerChannelTraces)
     EXPECT_EQ(graph.value(y).shape, (Shape{1, 1, 1, 3}));
 }
 
-/** @brief Tests that both forms refuse an input of another channel count or rank. */
-TEST(Small_BatchNorm2d, AnInputThatDoesNotFitFails)
+/** @brief Holds a trace form, an input it refuses and the substrings of the refusal. */
+struct FormRefusalRow
 {
+    std::string name;   /**< The row's name. */
+    bool training;      /**< Whether the training form is traced; the evaluation form otherwise. */
+    Shape shape;        /**< The input shape, batch axis included. */
+    DType dtype;        /**< The input element type. */
+    bool nchw;          /**< Whether the input is converted to NCHW first. */
+    std::string first;  /**< A substring the message holds. */
+    std::string second; /**< A second substring the message holds. */
+    std::string third;  /**< A third substring the message holds; empty for none. */
+};
+
+/** @brief Runs the input refusal over each form and each input it does not take. */
+class Small_BatchNorm2dFormRefusal : public ::testing::TestWithParam<FormRefusalRow>
+{
+};
+
+/** @brief Tests that the form refuses the input, names why, and declares nothing. */
+TEST_P(Small_BatchNorm2dFormRefusal, TheInputIsRefused)
+{
+    const FormRefusalRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID wide = builder.input(Shape{2, 2, 2, 4}, "wide");
-    const Graph::ValueID flat = builder.input(Shape{2, 3}, "flat");
+    Graph::ValueID x = builder.input(row.shape, "x", row.dtype);
+    if (row.nchw)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID converted,
+                                builder.layout_convert(x, Graph::TensorLayout::NCHW));
+        x = converted;
+    }
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
+    const std::size_t nodes_before = graph.node_count();
 
-    SA_EXPECT_FAILURE(refused_training(layer, builder, list, wide),
-                      StatusCode::InvalidDescription, "BatchNorm2d(3)", "[N, H, W, 3]");
-    SA_EXPECT_FAILURE(refused_evaluation(layer, builder, wide), StatusCode::InvalidDescription,
-                      "BatchNorm2d(3)", "[N, H, W, 3]");
-    SA_EXPECT_FAILURE(refused_training(layer, builder, list, flat),
-                      StatusCode::InvalidDescription, "BatchNorm2d(3)", "rank-4");
-    SA_EXPECT_FAILURE(refused_evaluation(layer, builder, flat), StatusCode::InvalidDescription,
-                      "BatchNorm2d(3)", "rank-4");
+    const Status refused = row.training ? refused_training(layer, builder, list, x)
+                                        : refused_evaluation(layer, builder, x);
 
+    SA_EXPECT_FAILURE(refused, StatusCode::InvalidDescription, row.first, row.second, row.third);
     EXPECT_EQ(graph.value_count(), before);
+    EXPECT_EQ(graph.node_count(), nodes_before);
     EXPECT_EQ(list.updates().size(), 0u);
 }
 
-/** @brief Tests that both forms refuse an NCHW input before they declare a value. */
-TEST(Small_BatchNorm2d, AnNCHWInputFails)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BatchNorm2dFormRefusal,
+    ::testing::Values(
+        FormRefusalRow{"TrainingAnIntegerInput", true, Shape{2, 2, 2, 3}, DType::Int32, false,
+                       "BatchNorm2d(3)", "half, float32 or float64 input", "int32"},
+        FormRefusalRow{"EvaluationAnIntegerInput", false, Shape{2, 2, 2, 3}, DType::Int32, false,
+                       "BatchNorm2d(3)", "half, float32 or float64 input", "int32"},
+        FormRefusalRow{"TrainingAnotherChannelCount", true, Shape{2, 2, 2, 4}, DType::Float32,
+                       false, "BatchNorm2d(3)", "[N, H, W, 3]", ""},
+        FormRefusalRow{"EvaluationAnotherChannelCount", false, Shape{2, 2, 2, 4}, DType::Float32,
+                       false, "BatchNorm2d(3)", "[N, H, W, 3]", ""},
+        FormRefusalRow{"TrainingAFlatInput", true, Shape{2, 3}, DType::Float32, false,
+                       "BatchNorm2d(3)", "rank-4", ""},
+        FormRefusalRow{"EvaluationAFlatInput", false, Shape{2, 3}, DType::Float32, false,
+                       "BatchNorm2d(3)", "rank-4", ""},
+        FormRefusalRow{"TrainingAnNCHWInput", true, Shape{3, 3, 3, 3}, DType::Float32, true,
+                       "BatchNorm2d(3)", "NHWC", ""},
+        FormRefusalRow{"EvaluationAnNCHWInput", false, Shape{3, 3, 3, 3}, DType::Float32, true,
+                       "BatchNorm2d(3)", "NHWC", ""}),
+    [](const ::testing::TestParamInfo<FormRefusalRow>& info) { return info.param.name; });
+
+/** @brief Holds a layer description that cannot trace and the substrings of the refusal. */
+struct WrongLayerRow
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{3, 3, 3, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-    BatchNorm2d layer(3, NormOptions{});
-    BufferUpdateList list;
-    const std::size_t before = graph.value_count();
+    std::string name;    /**< The row's name. */
+    int64_t channels;    /**< The channel count; 0 is a layer never described. */
+    NormOptions options; /**< The epsilon and the momentum. */
+    std::string first;   /**< A substring the message holds. */
+    std::string second;  /**< A second substring the message holds. */
+    std::string third;   /**< A third substring the message holds; empty for none. */
+};
 
-    SA_EXPECT_FAILURE(refused_training(layer, builder, list, nchw),
-                      StatusCode::InvalidDescription, "BatchNorm2d(3)", "NHWC");
-    SA_EXPECT_FAILURE(refused_evaluation(layer, builder, nchw), StatusCode::InvalidDescription,
-                      "BatchNorm2d(3)", "NHWC");
-
-    EXPECT_EQ(graph.value_count(), before);
-}
-
-/** @brief Tests that a layer without channels, epsilon or a momentum in [0, 1] fails to trace. */
-TEST(Small_BatchNorm2d, ALayerDescribedWrongFails)
+/** @brief Runs the description refusal over each wrong description. */
+class Small_BatchNorm2dWrongLayer : public ::testing::TestWithParam<WrongLayerRow>
 {
+};
+
+/** @brief Tests that a layer described wrongly fails to trace and declares nothing. */
+TEST_P(Small_BatchNorm2dWrongLayer, TheTraceIsRefused)
+{
+    const WrongLayerRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 2, 2, 3}, "x");
     const std::size_t before = graph.value_count();
+    BatchNorm2d layer(row.channels, row.options);
 
-    BatchNorm2d unset;
-    BatchNorm2d flat_epsilon(3, NormOptions{0.0, 0.1});
-    BatchNorm2d wide_momentum(3, NormOptions{1e-5, 1.5});
-
-    SA_EXPECT_FAILURE(refused_evaluation(unset, builder, x), StatusCode::InvalidDescription,
-                      "positive channel count", "got 0");
-    SA_EXPECT_FAILURE(refused_evaluation(flat_epsilon, builder, x),
-                      StatusCode::InvalidDescription, "BatchNorm2d(3)", "positive epsilon");
-    SA_EXPECT_FAILURE(refused_evaluation(wide_momentum, builder, x),
-                      StatusCode::InvalidDescription, "BatchNorm2d(3)", "momentum in [0, 1]",
-                      "1.5");
-
+    SA_EXPECT_FAILURE(refused_evaluation(layer, builder, x), StatusCode::InvalidDescription,
+                      row.first, row.second, row.third);
     EXPECT_EQ(graph.value_count(), before);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BatchNorm2dWrongLayer,
+    ::testing::Values(
+        WrongLayerRow{"NoChannels", 0, NormOptions{}, "positive channel count", "got 0", ""},
+        WrongLayerRow{"AFlatEpsilon", 3, NormOptions{0.0, 0.1}, "BatchNorm2d(3)",
+                      "positive epsilon", ""},
+        WrongLayerRow{"AMomentumAboveOne", 3, NormOptions{1e-5, 1.5}, "BatchNorm2d(3)",
+                      "momentum in [0, 1]", "1.5"}),
+    [](const ::testing::TestParamInfo<WrongLayerRow>& info) { return info.param.name; });
 
 /** @brief Tests that a second trace under another element type fails and names both types. */
 TEST(Small_BatchNorm2d, ASecondTraceUnderAnotherElementTypeFails)
@@ -641,8 +686,8 @@ TEST(Small_BatchNorm2d, ASecondTraceUnderAnotherElementTypeFails)
     EXPECT_EQ(layer.running_mean.dtype(), DType::Float32);
 }
 
-/** @brief Tests that gamma is a SCALE that starts at one and beta a BIAS that starts at zero. */
-TEST(Small_BatchNorm2d, TheScaleStartsAtOneAndTheShiftAtZero)
+/** @brief Tests that gamma is a SCALE parameter that starts at one. */
+TEST(Small_BatchNorm2d, TheScaleStartsAtOne)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -652,10 +697,21 @@ TEST(Small_BatchNorm2d, TheScaleStartsAtOneAndTheShiftAtZero)
 
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Scale);
     EXPECT_EQ(layer.weight.init().kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(layer.weight.init().constant, 1.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(layer.weight.init().constant, 1.0);
+}
+
+/** @brief Tests that beta is a BIAS parameter that starts at zero. */
+TEST(Small_BatchNorm2d, TheShiftStartsAtZero)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    BatchNorm2d layer(3, NormOptions{});
+    static_cast<void>(layer.trace_evaluation(Trace::evaluation(builder),
+                                             builder.input(Shape{2, 2, 2, 3}, "x")));
+
     EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
     EXPECT_EQ(layer.bias.init().kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(layer.bias.init().constant, 0.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(layer.bias.init().constant, 0.0);
 }
 
 /** @brief Tests that the factory takes the channels from its input and reads both constants. */
@@ -673,40 +729,59 @@ TEST(Small_BatchNorm2d, TheFactoryReadsTheChannelsAndTheTwoConstants)
     const auto* wrapped = dynamic_cast<const NN::ModuleNode<BatchNorm2d>*>(node.get());
     ASSERT_NE(wrapped, nullptr);
     EXPECT_EQ(wrapped->layer().channels, 6);
-    EXPECT_NEAR(wrapped->layer().options.epsilon, 0.001, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(wrapped->layer().options.momentum, 0.03, K_EXACT_TOLERANCE);
+    EXPECT_EQ(wrapped->layer().options.epsilon, 0.001);
+    EXPECT_EQ(wrapped->layer().options.momentum, 0.03);
     ASSERT_EQ(node->ports().size(), 1u);
     EXPECT_EQ(node->ports()[0].shape, input);
     EXPECT_EQ(node->input_count(), 1u);
 }
 
-/** @brief Tests that the factory refuses an unknown key, a flat input and a wrong constant. */
-TEST(Small_BatchNorm2d, TheFactoryRefusesARowThatDoesNotFit)
+/** @brief Holds a factory row that does not fit and the substrings of the refusal. */
+struct FactoryRefusalRow
 {
-    const Shape image{8, 8, 6};
-    const Shape flat{48};
-    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
-    const Config::Value stray = require_value(Config::parse_json(R"({"channels": 6})", "<test>"));
-    const Config::Value negative =
-        require_value(Config::parse_json(R"({"bn_epsilon": -1.0})", "<test>"));
+    std::string name;   /**< The row's name. */
+    Shape input;        /**< The input shape the factory is given. */
+    std::string json;   /**< The attribute row, as JSON. */
+    std::string first;  /**< A substring the message holds. */
+    std::string second; /**< A second substring the message holds. */
+    std::string third;  /**< A third substring the message holds; empty for none. */
+};
 
-    SA_EXPECT_FAILURE(NN::make_batch_norm2d_node(NN::ShapeSpan(&image, 1), stray, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'channels'", "bn_epsilon");
-    SA_EXPECT_FAILURE(NN::make_batch_norm2d_node(NN::ShapeSpan(&flat, 1), none, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "[48]", "[H, W, C]");
-    SA_EXPECT_FAILURE(NN::make_batch_norm2d_node(NN::ShapeSpan(&image, 1), negative, "layer 3"),
-                      StatusCode::InvalidDescription, "layer 3", "'bn_epsilon'", "positive");
+/** @brief Runs the factory refusal over each row that does not fit. */
+class Small_BatchNorm2dFactoryRefusal : public ::testing::TestWithParam<FactoryRefusalRow>
+{
+};
+
+/** @brief Tests that the factory refuses the row and names the context and the cause. */
+TEST_P(Small_BatchNorm2dFactoryRefusal, TheFactoryRefuses)
+{
+    const FactoryRefusalRow& row = GetParam();
+    const Config::Value attributes = require_value(Config::parse_json(row.json, "<test>"));
+
+    SA_EXPECT_FAILURE(
+        NN::make_batch_norm2d_node(NN::ShapeSpan(&row.input, 1), attributes, "layer 3"),
+        StatusCode::InvalidDescription, "layer 3", row.first, row.second, row.third);
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BatchNorm2dFactoryRefusal,
+    ::testing::Values(
+        FactoryRefusalRow{"AnUnknownKey", Shape{8, 8, 6}, R"({"channels": 6})", "'channels'",
+                          "bn_epsilon", ""},
+        FactoryRefusalRow{"AFlatInput", Shape{48}, "{}", "[48]", "[H, W, C]", ""},
+        FactoryRefusalRow{"ANegativeEpsilon", Shape{8, 8, 6}, R"({"bn_epsilon": -1.0})",
+                          "'bn_epsilon'", "positive", ""}),
+    [](const ::testing::TestParamInfo<FactoryRefusalRow>& info) { return info.param.name; });
+
 /** @brief Tests that the training form under an evaluation trace stops the process. */
-TEST(Small_BatchNorm2dDeathTest, TheTrainingFormUnderAnEvaluationTraceIsFatal)
+TEST(Medium_BatchNorm2dDeathTest, TheTrainingFormUnderAnEvaluationTraceIsFatal)
 {
     SA_EXPECT_FATAL(train_under_an_evaluation_trace(), "trace_training",
                     "was given an evaluation trace");
 }
 
 /** @brief Tests that a trace over a value the graph does not hold stops the process. */
-TEST(Small_BatchNorm2dDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
+TEST(Medium_BatchNorm2dDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
 {
     SA_EXPECT_FATAL(evaluate_over_a_value_the_graph_lacks(), "BatchNorm2d(3)", "value 7",
                     "holds 1 values");
@@ -748,26 +823,26 @@ TEST(Small_BatchNorm2d, OutputShapeIsTheInputShape)
  */
 TEST(Small_BatchNorm2d, UpdatedStatisticBlendsTheScaledBatchValue)
 {
-    EXPECT_NEAR(NN::updated_statistic(1.0, 3.0, 0.25, 2.0), 2.25, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(NN::updated_statistic(4.0, 8.0, 0.5, 1.0), 6.0, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(NN::updated_statistic(4.0, 8.0, 0.0, 1.0), 4.0, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(NN::updated_statistic(4.0, 8.0, 1.0, 1.0), 8.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(NN::updated_statistic(1.0, 3.0, 0.25, 2.0), 2.25);
+    EXPECT_EQ(NN::updated_statistic(4.0, 8.0, 0.5, 1.0), 6.0);
+    EXPECT_EQ(NN::updated_statistic(4.0, 8.0, 0.0, 1.0), 4.0);
+    EXPECT_EQ(NN::updated_statistic(4.0, 8.0, 1.0, 1.0), 8.0);
 }
 
 /**
  * @brief Tests that the requested updates reproduce the running statistics torch left on the
  *        [2, 2, 2, 3] reference case, where the unscaled variance misses by 8.3e-3.
  */
-TEST(Small_BatchNorm2d, TheUpdatesReproduceTheUnitReferenceCase)
+TEST_F(Medium_BatchNorm2dReference, TheUpdatesReproduceTheUnitReferenceCase)
 {
-    expect_reference_case("unit", K_UNIT_CASE_TOLERANCE);
+    expect_reference_case(*file, "unit", K_UNIT_CASE_TOLERANCE);
 }
 
 /**
  * @brief Tests that the requested updates reproduce the running statistics torch left on
  *        model.9.cv1.bn, where the unscaled variance misses by 1.4e-5.
  */
-TEST(Small_BatchNorm2d, TheUpdatesReproduceTheModelReferenceCase)
+TEST_F(Medium_BatchNorm2dReference, TheUpdatesReproduceTheModelReferenceCase)
 {
-    expect_reference_case("model.9.cv1.bn", K_MODEL_CASE_TOLERANCE);
+    expect_reference_case(*file, "model.9.cv1.bn", K_MODEL_CASE_TOLERANCE);
 }
