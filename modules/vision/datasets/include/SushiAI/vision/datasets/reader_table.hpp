@@ -38,6 +38,7 @@
 
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_sink.hpp>
 #include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
@@ -66,6 +67,12 @@ namespace SushiAI::Vision::Datasets
          * @pre The source, when given, outlives the call.
          */
         const ByteSource* source = nullptr;
+
+        /**
+         * @brief Takes the cache files a section's "cache" key writes; null writes the file system.
+         * @pre The sink, when given, outlives the call.
+         */
+        const ByteSink* sink = nullptr;
     };
 
     /**

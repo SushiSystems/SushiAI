@@ -30,6 +30,7 @@
 #include <SushiAI/vision/datasets/sample_cache.hpp>
 
 #include <algorithm>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -53,9 +54,6 @@ namespace SushiAI::Vision::Datasets
     {
         /** @brief Names this unit in a message. */
         constexpr std::string_view K_CACHE = "sample cache";
-
-        /** @brief Holds what a cache file is called while it is being written. */
-        constexpr std::string_view K_PARTIAL_EXTENSION = ".partial";
 
         /** @brief Holds the digits of a hash in a file name. */
         constexpr std::string_view K_HEX_DIGITS = "0123456789abcdef";
@@ -108,9 +106,10 @@ namespace SushiAI::Vision::Datasets
                                [](const Sample& sample) { return sample.mask.has_value(); });
         }
 
-        /** @brief Writes one image beside its cache file, then gives it the file's name. */
+        /** @brief Writes one image to its cache file through a sink. */
         [[nodiscard]] Status write_entry(const std::filesystem::path& target,
-                                         Imaging::ImageView image)
+                                         Imaging::ImageView image, const ByteSink& sink,
+                                         std::uint64_t& bytes)
         {
             SA_FAIL_IF(image.channels() != Imaging::K_GRAY_CHANNELS &&
                            image.channels() != Imaging::K_RGB_CHANNELS,
@@ -118,15 +117,15 @@ namespace SushiAI::Vision::Datasets
                        "'{}': {}: an image of {} channels has no raw image file",
                        Detail::display_of(target), K_CACHE, image.channels());
 
-            std::filesystem::path partial = target;
-            partial += std::string(K_PARTIAL_EXTENSION);
+            std::ostringstream encoded(std::ios::binary);
+            SA_TRY(Imaging::write_raw_image(encoded, image,
+                                            image.channels() == Imaging::K_GRAY_CHANNELS
+                                                ? Imaging::ChannelOrder::Gray
+                                                : Imaging::ChannelOrder::RGB));
 
-            // A file under the final name is whole: the rename is the last step.
-            SA_TRY(Imaging::write_raw_image_file(partial, image,
-                                                 image.channels() == Imaging::K_GRAY_CHANNELS
-                                                     ? Imaging::ChannelOrder::Gray
-                                                     : Imaging::ChannelOrder::RGB));
-            std::filesystem::rename(partial, target);
+            const std::string content = encoded.str();
+            SA_TRY(sink.write(target, content, K_CACHE));
+            bytes = content.size();
             return Status();
         }
 
@@ -136,10 +135,17 @@ namespace SushiAI::Vision::Datasets
             return files != nullptr ? *files : Detail::file_system();
         }
 
+        /** @brief Returns the sink a call writes through: @p sink, else the file system. */
+        [[nodiscard]] const ByteSink& sink_of(const ByteSink* sink) noexcept
+        {
+            return sink != nullptr ? *sink : Detail::file_sink();
+        }
+
         /** @brief Writes the missing cache files; may throw what a path or a stream throws. */
         [[nodiscard]] Result<SampleCacheReport> write_checked(const SampleList& list,
                                                               const SampleCacheOptions& options,
-                                                              const ByteSource& files)
+                                                              const ByteSource& files,
+                                                              const ByteSink& sink)
         {
             SA_TRY_ASSIGN(const std::vector<bool> is_cached, find_cached_files(list));
             SA_FAIL_IF(options.longest_side > 0 && has_masks(list),
@@ -180,11 +186,11 @@ namespace SushiAI::Vision::Datasets
                     stored = resized.view();
                 }
 
-                // The directory is made when a file is written, so a pass that reuses touches none.
-                std::filesystem::create_directories(options.directory);
-                SA_TRY(write_entry(target, stored));
+                // The sink makes the directory.
+                std::uint64_t bytes = 0;
+                SA_TRY(write_entry(target, stored, sink, bytes));
                 ++report.written;
-                report.bytes_written += Imaging::K_RAW_IMAGE_HEADER_BYTES + stored.byte_count();
+                report.bytes_written += bytes;
             }
 
             return report;
@@ -214,7 +220,8 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleCacheReport> write_sample_cache(const SampleList& list,
                                                  const SampleCacheOptions& options,
-                                                 const ByteSource* files) noexcept
+                                                 const ByteSource* files,
+                                                 const ByteSink* sink) noexcept
     {
         SA_FAIL_IF(options.directory.empty(), StatusCode::InvalidDescription,
                    "{}: the cache has no directory", K_CACHE);
@@ -225,7 +232,7 @@ namespace SushiAI::Vision::Datasets
 
         return Detail::at_boundary(K_CACHE, [&]() -> Result<SampleCacheReport>
         {
-            return write_checked(list, options, source_of(files));
+            return write_checked(list, options, source_of(files), sink_of(sink));
         }, options.directory);
     }
 

@@ -255,9 +255,9 @@ namespace SushiAI::Vision::Datasets::Detail
 
         /** @brief Writes the cache files a list lacks and points the list at the cache. */
         [[nodiscard]] Status cache_samples(const SampleCacheOptions& cache, SampleList& list,
-                                           const ByteSource* source)
+                                           const ByteSource* source, const ByteSink* sink)
         {
-            SA_TRY(write_sample_cache(list, cache, source));
+            SA_TRY(write_sample_cache(list, cache, source, sink));
             SA_TRY_ASSIGN(list, use_sample_cache(std::move(list), cache, source));
             return Status();
         }
@@ -286,7 +286,7 @@ namespace SushiAI::Vision::Datasets::Detail
                    named(context, K_TASK_KEY), task.name, reader.name);
 
         if (cache.has_value())
-            SA_TRY(cache_samples(*cache, listed.list, request.source));
+            SA_TRY(cache_samples(*cache, listed.list, request.source, request.sink));
 
         SA_TRY_ASSIGN(std::unique_ptr<const Collator> collator,
                       task.make_collator(section, context,

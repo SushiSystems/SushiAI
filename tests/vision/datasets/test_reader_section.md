@@ -17,9 +17,9 @@ A case is `Small_` when every value it asserts comes from the section, the reque
 `MemorySource`. A refusal that comes before a reader lists a file takes a root no test creates.
 A case that reads files serves them from a `MemorySource` through `ReaderRequest::source` or
 the fourth argument of `make_reader_dataset`, below the root `memory_section_root`, on the host
-engine. A case is `Medium_` when it needs the file system or a thread: the two cache cases
-write and remove files under a directory in the system's temporary directory, and the two
-worker cases start threads. The YOLO split is two white raw images of 2 rows and 4 columns under
+engine. A case that names `cache` passes a `MemorySink` over the same `MemorySource` as the fifth
+argument, so the cache is written to and read from memory. A case is `Medium_` when it needs the
+file system or a thread: the two worker cases start threads. The YOLO split is two white raw images of 2 rows and 4 columns under
 `images/train`, the second with one object of class 2 in `labels/train/b.txt`. The folder split
 is one file under each of `train/cat` and `train/dog`. The numbered split is five white raw
 images, image i with one object of class i.
@@ -199,12 +199,13 @@ The task regression over image_folder fails with "data 'task' is 'regression'",
 
 ## ACacheHoldsOneRawImagePerSample
 
-With `cache` naming a directory, the build writes two `.saim` files into it.
+`Small_`. With `cache` naming the folder `memory_cache`, the build writes two `.saim` files into
+the memory source, and listing that folder finds two.
 
 ## ACacheServesTheBatchesWhenTheSourcesAreGone
 
-After the folder `images` is removed, `read(0, batch)` succeeds and input value 12 is 1.0, so
-the batch came from the cache.
+`Small_`. After the two source images are replaced by empty files, `read(0, batch)` succeeds and
+input value 12 is 1.0, so the batch came from the cache files in memory.
 
 ## AShuffledSectionReadsTheBatchesInTheOrderOfItsSeed
 

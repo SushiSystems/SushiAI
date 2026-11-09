@@ -83,6 +83,7 @@ a CSV library: `source/xml_element.cpp` and `source/csv.cpp` parse their formats
 | `<SushiAI/vision/datasets/stored_pixels.hpp>` | `PlaneLayout`, `StoredPixels`, `read_stored_pixels` |
 | `<SushiAI/vision/datasets/image_extensions.hpp>` | `has_image_extension` |
 | `<SushiAI/vision/datasets/byte_source.hpp>` | `PathKind`, `EntryKind`, `ListDepth`, `ByteSource`, `MemorySource` |
+| `<SushiAI/vision/datasets/byte_sink.hpp>` | `ByteSink`, `MemorySink` |
 | `<SushiAI/vision/datasets/image_folder.hpp>` | `ImageFolderOptions`, `read_image_folder` |
 | `<SushiAI/vision/datasets/yolo_txt.hpp>` | `YOLOTxtOptions`, `yolo_label_path`, `read_yolo_txt` |
 | `<SushiAI/vision/datasets/idx_file.hpp>` | `IDXElement`, `idx_element_bytes`, `IDXHeader`, `read_idx_header`, `read_idx_payload` |
@@ -151,6 +152,10 @@ and a context string.
 ### byte_source.hpp
 
 [`include/SushiAI/vision/datasets/byte_source.md`](include/SushiAI/vision/datasets/byte_source.md) describes it.
+
+### byte_sink.hpp
+
+[`include/SushiAI/vision/datasets/byte_sink.md`](include/SushiAI/vision/datasets/byte_sink.md) describes it.
 
 ### idx_file.hpp
 

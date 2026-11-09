@@ -40,6 +40,7 @@
 
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/vision/datasets/byte_sink.hpp>
 #include <SushiAI/vision/datasets/byte_source.hpp>
 
 /** @brief Holds the units of the datasets module that no caller names. */
@@ -110,6 +111,22 @@ namespace SushiAI::Vision::Datasets::Detail
                 const std::filesystem::path& directory, EntryKind kind, ListDepth depth,
                 std::string_view reader) const override;
     };
+
+    /**
+     * @class FileSystemSink
+     * @brief Writes the files to the file system, each under a partial name renamed last.
+     *
+     * It is the sink the sample cache writes through when it is given none.
+     */
+    class FileSystemSink final : public ByteSink
+    {
+        public:
+            [[nodiscard]] Status write(const std::filesystem::path& file, std::string_view bytes,
+                                       std::string_view reader) const override;
+    };
+
+    /** @brief Returns the sink that writes the file system, the default of every writer. */
+    [[nodiscard]] const ByteSink& file_sink() noexcept;
 
     /** @brief Holds what a message says of an allocation that failed. */
     inline constexpr std::string_view K_ALLOCATION_FAILED = "an allocation failed";

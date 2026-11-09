@@ -35,6 +35,7 @@
 
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
+#include <SushiAI/vision/datasets/byte_sink.hpp>
 #include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
@@ -75,14 +76,15 @@ namespace SushiAI::Vision::Datasets
 
     /**
      * @brief Decodes every image file of a list that has no cache file, and writes one.
-     *        Stored pixels and masks are left alone; files are written to the file system.
+     *        Stored pixels and masks are left alone.
      * @param files Serves the images and the cache files that exist; null is the file system.
+     * @param sink Takes the cache files; null is the file system. Must outlive the call.
      * @return The counts; InvalidDescription for a negative longest side, or a longest side
      *         over a list with masks; the failure of a decode or of a write.
      */
     [[nodiscard]] Result<SampleCacheReport> write_sample_cache(
         const SampleList& list, const SampleCacheOptions& options,
-        const ByteSource* files = nullptr) noexcept;
+        const ByteSource* files = nullptr, const ByteSink* sink = nullptr) noexcept;
 
     /**
      * @brief Returns the list with every image file replaced by its cache file.

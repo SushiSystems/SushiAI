@@ -53,6 +53,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/vision/datasets/binary_collator.hpp>
+#include <SushiAI/vision/datasets/byte_sink.hpp>
 #include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 #include <SushiAI/vision/datasets/fit_sample.hpp>
@@ -125,7 +126,7 @@ namespace
             /** @brief Builds the dataset of a section called "data" from the memory source. */
             Result<std::unique_ptr<Data::Dataset>> build_in_memory(const Config::Value& section)
             {
-                return make_reader_dataset(backend.engine(), section, "data", &files);
+                return make_reader_dataset(backend.engine(), section, "data", &files, &sink);
             }
 
             /** @brief Parses a section whose root is the root of the memory source. */
@@ -237,6 +238,9 @@ namespace
 
             /** @brief Serves the files of the cases that read no file system. */
             MemorySource files;
+
+            /** @brief Takes the cache files of those cases into the same memory source. */
+            MemorySink sink{files};
     };
 
     /** @brief Builds datasets from sections whose files a memory source serves or are absent. */
@@ -244,7 +248,7 @@ namespace
     {
     };
 
-    /** @brief Builds datasets whose cache or worker threads need the file system. */
+    /** @brief Builds datasets whose worker threads need the file system. */
     class Medium_DatasetsReaderSection : public SectionBench
     {
     };
@@ -273,13 +277,17 @@ namespace
         return order;
     }
 
-    /** @brief Returns how many raw image files a folder holds. */
-    std::size_t raw_images_in(const std::filesystem::path& folder)
+    /** @brief Returns how many raw image files a memory source holds in a folder. */
+    std::size_t raw_images_in(const MemorySource& files, const std::filesystem::path& folder)
     {
+        const Result<std::vector<std::filesystem::path>> listed =
+            files.list(folder, EntryKind::File, ListDepth::Children, "test");
+        if (!listed.has_value())
+            return 0;
+
         std::size_t count = 0;
-        for (const std::filesystem::directory_entry& entry :
-             std::filesystem::directory_iterator(folder))
-            count += entry.path().extension() == ".saim" ? 1 : 0;
+        for (const std::filesystem::path& entry : listed.value())
+            count += entry.extension() == ".saim" ? 1 : 0;
 
         return count;
     }
@@ -1041,34 +1049,33 @@ TEST_F(Small_DatasetsReaderSection, ARowTaskOverAnImageReaderIsRefused)
 }
 
 /** @brief Tests that "cache" writes one raw image file per sample. */
-TEST_F(Medium_DatasetsReaderSection, ACacheHoldsOneRawImagePerSample)
+TEST_F(Small_DatasetsReaderSection, ACacheHoldsOneRawImagePerSample)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_cache_files");
-    write_split(scratch, yolo_split());
-    const std::filesystem::path cache = scratch.path() / "cache";
+    add_split(yolo_split());
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
             "batch_size": 2, "input": [4, 4], "max_objects": 2, "classes": 3,
-            "cache": ")" + cache.generic_string() + "\"")));
+            "cache": "memory_cache")")));
 
-    EXPECT_EQ(raw_images_in(cache), 2u);
+    EXPECT_EQ(raw_images_in(files, "memory_cache"), 2u);
 }
 
 /** @brief Tests that batches are read from the cache once the sources are gone. */
-TEST_F(Medium_DatasetsReaderSection, ACacheServesTheBatchesWhenTheSourcesAreGone)
+TEST_F(Small_DatasetsReaderSection, ACacheServesTheBatchesWhenTheSourcesAreGone)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_cache_read");
-    write_split(scratch, yolo_split());
-    const std::filesystem::path cache = scratch.path() / "cache";
+    add_split(yolo_split());
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
             "batch_size": 2, "input": [4, 4], "max_objects": 2, "classes": 3,
-            "cache": ")" + cache.generic_string() + "\"")));
-    std::filesystem::remove_all(scratch.path() / "images");
+            "cache": "memory_cache")")));
+
+    // A source of no bytes decodes to nothing, so only the cache files can serve the read.
+    for (const char* name : {"images/train/a.saim", "images/train/b.saim"})
+        add_text(name, std::string());
 
     Data::Batch batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));

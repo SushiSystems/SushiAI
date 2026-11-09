@@ -22,7 +22,8 @@ names something else or cannot be read.
 `MemorySource` is the in-memory adapter. `add_file(path, bytes)` adds a file and `add_directory(path)`
 a folder that holds none; a folder also exists when a file lies below it. Paths are compared as
 `std::filesystem::path` compares them, so a test writes the root it passes in the options. The
-file system adapter is `Detail::FileSystemSource` in `source/disk.hpp`.
+file system adapter is `Detail::FileSystemSource` in `source/disk.hpp`. The write side is
+`ByteSink`, described in `byte_sink.md`.
 
 `read_coco_json` has no `ByteSource` form. It streams its file through `Config::read_json_events`,
 which takes a path only.

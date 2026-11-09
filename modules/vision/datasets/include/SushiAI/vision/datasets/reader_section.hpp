@@ -37,6 +37,7 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/vision/datasets/byte_sink.hpp>
 #include <SushiAI/vision/datasets/byte_source.hpp>
 
 namespace SushiAI::Vision::Datasets
@@ -54,13 +55,12 @@ namespace SushiAI::Vision::Datasets
 
     /**
      * @brief Builds a ReaderDataset from a section, reading its files through a ByteSource.
-     * @param source Serves the folders, the annotation files and the images of the dataset;
-     *        null reads the file system. The cache files a section's "cache" key names are
-     *        read through it and written to the file system.
+     * @param source Serves the folders, the files and the cache files; null reads the file system.
+     * @param sink Takes the cache files; null writes the file system.
      * @return What the form without a source returns.
-     * @pre @p engine outlives the dataset. @p source, when given, outlives it too.
+     * @pre @p engine outlives the dataset. @p source and @p sink, when given, outlive it too.
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> make_reader_dataset(
         SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context,
-        const ByteSource* source) noexcept;
+        const ByteSource* source, const ByteSink* sink = nullptr) noexcept;
 } // namespace SushiAI::Vision::Datasets

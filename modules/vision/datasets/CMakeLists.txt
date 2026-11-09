@@ -9,6 +9,7 @@ sushiai_add_module(NAME datasets TIER vision
     SOURCES
         source/augment_pipeline.cpp
         source/batch_inputs.cpp
+        source/byte_sink.cpp
         source/binary_collator.cpp
         source/cifar.cpp
         source/classification_collator.cpp
