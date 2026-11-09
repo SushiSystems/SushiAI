@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/result.hpp>
@@ -44,7 +45,7 @@
 #include <SushiAI/vision/detect/anchor/anchor_review.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
 #include <SushiAI/vision/detect/anchor/head_assignment.hpp>
-#include <SushiAI/vision/detect/anchor/seeded_sequence.hpp>
+#include <support/splitmix64.hpp>
 #include <support/tolerance.hpp>
 
 namespace
@@ -63,7 +64,6 @@ namespace
     using SushiAI::Vision::Detect::Anchor::measure_anchor_fit;
     using SushiAI::Vision::Detect::Anchor::review_anchors;
     using SushiAI::Vision::Detect::Anchor::ReviewOptions;
-    using SushiAI::Vision::Detect::Anchor::Detail::SeededSequence;
 
     /** @brief Holds the seed of the jitter every ladder of this file is generated with. */
     constexpr std::uint64_t K_LADDER_SEED = 0xA06ull;
@@ -76,6 +76,9 @@ namespace
 
     /** @brief Holds the largest share a side is jittered by. */
     constexpr double K_JITTER = 0.02;
+
+    /** @brief Holds 2^53, the divisor that turns the upper 53 bits of a number into a unit. */
+    constexpr double K_UNIT_DIVISOR = 9007199254740992.0;
 
     /** @brief Holds the factor on every side of the shifted ladder. */
     constexpr double K_SHIFT = 0.75;
@@ -98,10 +101,93 @@ namespace
      */
     constexpr double K_SAME_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
+    /** @brief Holds review options outside their range and the name of their row. */
+    struct RefusedReviewOptions
+    {
+        std::string name;      /**< The row's name. */
+        ReviewOptions options; /**< The options outside their range. */
+    };
+
+    /** @brief Holds the arguments of a review that disagree and the name of their row. */
+    struct DisagreeingReview
+    {
+        std::string name;                  /**< The row's name. */
+        std::vector<AnchorSize> boxes;     /**< The boxes of the review. */
+        AnchorLayout layout;               /**< The layout under review. */
+        std::vector<std::int64_t> strides; /**< The strides of the heads. */
+    };
+
+    /** @brief Runs one review whose options are outside their range. */
+    class Small_DetectAnchorReviewOptions : public ::testing::TestWithParam<RefusedReviewOptions>
+    {
+
+    };
+
+    /** @brief Runs one review whose boxes, strides and counts disagree. */
+    class Small_DetectAnchorReviewDisagree : public ::testing::TestWithParam<DisagreeingReview>
+    {
+
+    };
+
+    /** @brief Names an options row by its name field. */
+    std::string options_name(const ::testing::TestParamInfo<RefusedReviewOptions>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a disagreement row by its name field. */
+    std::string disagree_name(const ::testing::TestParamInfo<DisagreeingReview>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Returns draw @p index of the ladder jitter as a double in [0, 1). */
+    double draw_jitter_unit(std::uint64_t index)
+    {
+        return static_cast<double>(TestSupport::reference_splitmix64(K_LADDER_SEED, index) >> 11) /
+               K_UNIT_DIVISOR;
+    }
+
+    /** @brief Returns review options whose min_gain is @p min_gain. */
+    ReviewOptions make_min_gain_options(double min_gain)
+    {
+        ReviewOptions options;
+        options.min_gain = min_gain;
+        return options;
+    }
+
+    /** @brief Returns review options whose min_recall is @p min_recall. */
+    ReviewOptions make_min_recall_options(double min_recall)
+    {
+        ReviewOptions options;
+        options.min_recall = min_recall;
+        return options;
+    }
+
+    /** @brief Returns review options whose recall_iou is @p recall_iou. */
+    ReviewOptions make_recall_iou_options(float recall_iou)
+    {
+        ReviewOptions options;
+        options.fit.recall_iou = recall_iou;
+        return options;
+    }
+
+    /** @brief Returns three anchors under two heads, {0} and {1, 2}, that share none. */
+    AnchorLayout make_whole_layout()
+    {
+        return AnchorLayout{{{0.125f, 0.25f}, {0.25f, 0.5f}, {0.5f, 0.75f}}, {{0}, {1, 2}}};
+    }
+
+    /** @brief Returns three anchors under two heads, {0, 1} and {1, 2}, that share anchor 1. */
+    AnchorLayout make_shared_layout()
+    {
+        return AnchorLayout{{{0.125f, 0.25f}, {0.25f, 0.5f}, {0.5f, 0.75f}}, {{0, 1}, {1, 2}}};
+    }
+
     /** @brief Returns the ladder of SPEC 5.6 with every side times @p factor, rung by rung. */
     std::vector<AnchorSize> make_ladder(double factor)
     {
-        SeededSequence jitter(K_LADDER_SEED);
+        std::uint64_t draw = 0;
         std::vector<AnchorSize> boxes;
         boxes.reserve(static_cast<std::size_t>(K_RUNGS) * K_BOXES_PER_RUNG);
         for (std::int64_t rung = 0; rung < K_RUNGS; ++rung)
@@ -109,8 +195,10 @@ namespace
             const double scale = factor * std::pow(1.8, static_cast<double>(rung));
             for (std::size_t box = 0; box < K_BOXES_PER_RUNG; ++box)
             {
-                const double width_factor = 1.0 + K_JITTER * (2.0 * jitter.next_unit() - 1.0);
-                const double height_factor = 1.0 + K_JITTER * (2.0 * jitter.next_unit() - 1.0);
+                const double width_factor =
+                    1.0 + K_JITTER * (2.0 * draw_jitter_unit(draw++) - 1.0);
+                const double height_factor =
+                    1.0 + K_JITTER * (2.0 * draw_jitter_unit(draw++) - 1.0);
                 boxes.push_back(AnchorSize{static_cast<float>(0.03 * scale * width_factor),
                                            static_cast<float>(0.05 * scale * height_factor)});
             }
@@ -369,27 +457,30 @@ TEST(Small_DetectAnchorReview, RecallAndGainEachDecideTheVerdict)
     EXPECT_EQ(proposed.value().verdict, AnchorVerdict::Propose);
 }
 
-/** @brief Tests that a min_gain or min_recall outside its range is InvalidDescription. */
-TEST(Small_DetectAnchorReview, RefusesOptionsOutsideTheirRange)
+/** @brief Tests that a min_gain, min_recall or recall_iou outside its range is refused. */
+TEST_P(Small_DetectAnchorReviewOptions, AnOptionOutsideItsRangeIsRefused)
 {
     const std::vector<AnchorSize> boxes = {{0.25f, 0.5f}, {0.5f, 0.25f}};
     const AnchorLayout current{{{0.25f, 0.5f}, {0.5f, 0.25f}}, {{0, 1}}};
     const std::vector<std::int64_t> strides = {32};
-    std::vector<ReviewOptions> refused(5);
-    refused[0].min_gain = -0.01;
-    refused[1].min_gain = std::numeric_limits<double>::quiet_NaN();
-    refused[2].min_recall = 1.5;
-    refused[3].min_recall = -0.1;
-    refused[4].fit.recall_iou = 2.0f;
 
-    for (const ReviewOptions& options : refused)
-    {
-        const Result<AnchorReview> outcome = review_anchors(boxes, current, strides, options);
+    const Result<AnchorReview> outcome =
+        review_anchors(boxes, current, strides, GetParam().options);
 
-        ASSERT_FALSE(outcome.has_value());
-        EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
-    }
+    ASSERT_FALSE(outcome.has_value());
+    EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorReviewOptions,
+    ::testing::Values(
+        RefusedReviewOptions{"ANegativeMinGain", make_min_gain_options(-0.01)},
+        RefusedReviewOptions{"ANaNMinGain",
+                             make_min_gain_options(std::numeric_limits<double>::quiet_NaN())},
+        RefusedReviewOptions{"AMinRecallAboveOne", make_min_recall_options(1.5)},
+        RefusedReviewOptions{"ANegativeMinRecall", make_min_recall_options(-0.1)},
+        RefusedReviewOptions{"ARecallIoUOfTwo", make_recall_iou_options(2.0f)}),
+    options_name);
 
 /** @brief Tests that a layout with no head is InvalidDescription. */
 TEST(Small_DetectAnchorReview, RefusesALayoutWithoutHeads)
@@ -404,31 +495,41 @@ TEST(Small_DetectAnchorReview, RefusesALayoutWithoutHeads)
     EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that boxes, strides or head counts that disagree are Incompatible. */
-TEST(Small_DetectAnchorReview, RefusesBoxesStridesAndCountsThatDisagree)
+/** @brief Tests that boxes, strides and head counts that agree are accepted. */
+TEST(Small_DetectAnchorReview, AcceptsBoxesStridesAndCountsThatAgree)
 {
     const std::vector<AnchorSize> boxes = {{0.125f, 0.25f}, {0.25f, 0.5f}, {0.5f, 0.75f}};
-    const std::vector<AnchorSize> no_boxes;
-    const std::vector<AnchorSize> one_box(4, AnchorSize{0.25f, 0.5f});
-    const AnchorLayout whole{{{0.125f, 0.25f}, {0.25f, 0.5f}, {0.5f, 0.75f}}, {{0}, {1, 2}}};
-    const AnchorLayout shared{{{0.125f, 0.25f}, {0.25f, 0.5f}, {0.5f, 0.75f}}, {{0, 1}, {1, 2}}};
-    const std::vector<std::int64_t> two_strides = {16, 32};
-    const std::vector<std::int64_t> one_stride = {32};
-    const ReviewOptions options;
+    const std::vector<std::int64_t> strides = {16, 32};
 
-    const Result<AnchorReview> accepted = review_anchors(boxes, whole, two_strides, options);
-    const Result<AnchorReview> empty = review_anchors(no_boxes, whole, two_strides, options);
-    const Result<AnchorReview> few = review_anchors(one_box, whole, two_strides, options);
-    const Result<AnchorReview> short_strides = review_anchors(boxes, whole, one_stride, options);
-    const Result<AnchorReview> four_slots = review_anchors(boxes, shared, two_strides, options);
+    const Result<AnchorReview> outcome =
+        review_anchors(boxes, make_whole_layout(), strides, ReviewOptions{});
 
-    EXPECT_TRUE(accepted.has_value()) << accepted.status().message();
-    ASSERT_FALSE(empty.has_value());
-    EXPECT_EQ(empty.status().code(), StatusCode::Incompatible);
-    ASSERT_FALSE(few.has_value());
-    EXPECT_EQ(few.status().code(), StatusCode::Incompatible);
-    ASSERT_FALSE(short_strides.has_value());
-    EXPECT_EQ(short_strides.status().code(), StatusCode::Incompatible);
-    ASSERT_FALSE(four_slots.has_value());
-    EXPECT_EQ(four_slots.status().code(), StatusCode::Incompatible);
+    EXPECT_TRUE(outcome.has_value()) << outcome.status().message();
 }
+
+/** @brief Tests that boxes, strides or head counts that disagree are Incompatible. */
+TEST_P(Small_DetectAnchorReviewDisagree, AReviewWhoseArgumentsDisagreeIsIncompatible)
+{
+    const DisagreeingReview& row = GetParam();
+
+    const Result<AnchorReview> outcome =
+        review_anchors(row.boxes, row.layout, row.strides, ReviewOptions{});
+
+    ASSERT_FALSE(outcome.has_value());
+    EXPECT_EQ(outcome.status().code(), StatusCode::Incompatible);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectAnchorReviewDisagree,
+    ::testing::Values(
+        DisagreeingReview{"NoBox", {}, make_whole_layout(), {16, 32}},
+        DisagreeingReview{"FewerBoxesThanAnchors",
+                          std::vector<AnchorSize>(4, AnchorSize{0.25f, 0.5f}), make_whole_layout(),
+                          {16, 32}},
+        DisagreeingReview{"FewerStridesThanHeads",
+                          {{0.125f, 0.25f}, {0.25f, 0.5f}, {0.5f, 0.75f}}, make_whole_layout(),
+                          {32}},
+        DisagreeingReview{"HeadSlotsThatShareAnAnchor",
+                          {{0.125f, 0.25f}, {0.25f, 0.5f}, {0.5f, 0.75f}}, make_shared_layout(),
+                          {16, 32}}),
+    disagree_name);
