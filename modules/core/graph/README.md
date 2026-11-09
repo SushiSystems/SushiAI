@@ -35,6 +35,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/dropout_mask.hpp` | `splitmix64_at`, `dropout_site_seed`, `dropout_bits`, `dropout_keeps`, `fill_keep_mask` |
 | `SushiAI/graph/fusion.hpp` | `FusedForm`, `fused_form_name`, `fused_form_from_name`, `fused_form_op`, `fused_form_of`, `FusionDecline`, `FusionOptions`, `FusedSubtree`, `DeclinedFusion`, `FusionReport`, `fuse` |
 | `SushiAI/graph/fusion_selector.hpp` | `FusionQuery`, `FusionChoice`, `FusionSelector`, `DeviceFusionSelector`, with `for_backend(const ExecutionBackend&)`, `FusionSelection` |
+| `SushiAI/graph/host_evaluator.hpp` | `HostEvaluator`, `host_evaluates` |
 | `SushiAI/graph/ir.hpp` | `ValueID`, `NodeID`, `Lifetime`, `lifetime_name`, `is_persistent`, `Attributes`, `TensorLayout`, `Value`, `Node`, `Graph` |
 | `SushiAI/graph/lowering.hpp` | `Lowering`, with its `record` |
 | `SushiAI/graph/node_range.hpp` | `NodeRange`, `check_node_range` |
@@ -86,6 +87,15 @@ Each seam keeps the default behaviour: a `TensorPool` built over an `Engine` all
   pair; `InMemoryLateIncrementRecorder(out, count)` records one late-count task that adds one to
   as many leading elements of `out` as the host tensor `count` holds. Both record real tasks on
   whatever engine the recording belongs to.
+- `HostEvaluator(graph)` computes a graph on the host with no engine. `write(leaf, elements)`
+  fills a leaf, `run()` evaluates the nodes in insertion order and `read(value)` returns a value's
+  elements. Every value is held as double, so the result is the host reference of the graph, not
+  the rounding of a device run. It has a rule for 23 operations: ZERO, CONSTANT, CAST to float32
+  or float64, ADD, SUB, MUL, SCALE, EXP, LESS_EQUAL, SELECT, GELU, MATMUL, BIAS_ADD, SUM_ROWS,
+  RESHAPE, GATHER_ROWS, SLICE_CHANNELS, CONCAT_CHANNELS, CHANNEL_AFFINE, LOG_SOFTMAX, LAYER_NORM,
+  MAXPOOL2D and UPSAMPLE2D. `run()` returns `Unsupported` for any other operation, and
+  `host_evaluates(op)` says beforehand whether it has a rule. The rules live under
+  `source/host_evaluation/`, one file per family, in one table in `host_evaluator.cpp`.
 - `RunCounter` holds the count of runs of a `CompiledStep` and the rule that a restore comes before
   the first run. `check_node_range` holds the rule of a node range and `check_compilable` the
   refusal of a graph with a dropped refusal. Both are decided on values, without a step.

@@ -28,6 +28,7 @@ sushiai_add_test_program(OWNER graph
         test_dropout_mask.cpp
         test_fusion.cpp
         test_fusion_selector.cpp
+        test_host_evaluator.cpp
         test_in_memory_descent_recorder.cpp
         test_in_memory_late_increment_recorder.cpp
         test_in_memory_precision_policy.cpp

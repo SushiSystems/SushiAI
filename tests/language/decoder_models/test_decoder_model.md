@@ -1,7 +1,7 @@
 # tests/language/decoder_models/test_decoder_model.cpp
 
 
-Suites: `Small_DecoderModel`.
+Suites: `Small_DecoderModel`, `Small_DecoderModelBuild`.
 
 Tests the model files of
 `modules/language/decoder_models/include/SushiAI/language/decoder_models/decoder_model.hpp`
@@ -16,15 +16,27 @@ Counts the rows of a parsed model whose type is a given one.
 ## TheTokenTableHasTheVocabularyAndTheWidth
 
 The first row of `decoder_spec()` is an "embedding" whose `num_embeddings` equals
-`K_DECODER_VOCABULARY` and whose `embedding_dim` equals `K_DECODER_DIM`. The file holds
-`K_DECODER_BLOCKS` "transformer_block" rows and one "position_embedding" row.
+`K_DECODER_VOCABULARY` and whose `embedding_dim` equals `K_DECODER_DIM`.
 
-## TheRotaryFilesHoldNoPositionTable
+## TheLearnedFileHoldsItsBlocksAndOnePositionTable
+
+The file of `decoder_spec()` holds `K_DECODER_BLOCKS` "transformer_block" rows and one
+"position_embedding" row.
+
+## TheRotaryFileHoldsNoPositionTable
 
 `K_ROTARY_DECODER_MODEL` holds no "position_embedding" row, `K_DECODER_BLOCKS` blocks and an
-input of `K_DECODER_WINDOW` positions. `K_WIDE_ROTARY_DECODER_MODEL` has an input of
-`K_WIDE_DECODER_WINDOW` positions and `K_SHALLOW_ROTARY_DECODER_MODEL` one block.
+input of `K_DECODER_WINDOW` positions.
 
-## EveryFileBuilds
+## TheWideRotaryFileHasItsWindow
 
-`build_decoder` succeeds for each of the four model files.
+`K_WIDE_ROTARY_DECODER_MODEL` has an input of `K_WIDE_DECODER_WINDOW` positions.
+
+## TheShallowRotaryFileHoldsOneBlock
+
+`K_SHALLOW_ROTARY_DECODER_MODEL` holds one "transformer_block" row.
+
+## AFileBuilds
+
+One promise over four rows, the learned, rotary, wide rotary and shallow rotary files:
+`build_decoder` succeeds for each.

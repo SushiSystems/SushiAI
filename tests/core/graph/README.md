@@ -11,6 +11,7 @@ Each test file has a page beside it that says what its cases pin.
 | `test_compiled_step.cpp` | [`test_compiled_step.md`](test_compiled_step.md) |
 | `test_dropout_mask.cpp` | [`test_dropout_mask.md`](test_dropout_mask.md) |
 | `test_fusion.cpp` | [`test_fusion.md`](test_fusion.md) |
+| `test_host_evaluator.cpp` | [`test_host_evaluator.md`](test_host_evaluator.md) |
 | `test_ir.cpp` | [`test_ir.md`](test_ir.md) |
 | `test_memory_plan.cpp` | [`test_memory_plan.md`](test_memory_plan.md) |
 | `test_step_recorder.cpp` | [`test_step_recorder.md`](test_step_recorder.md) |
