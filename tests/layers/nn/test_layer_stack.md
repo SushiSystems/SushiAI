@@ -1,7 +1,8 @@
 # tests/layers/nn/test_layer_stack.cpp
 
 
-Suites: `Small_LayerStack`.
+Suites: `Small_LayerStack`, `Small_LayerStackTrace`, `Small_LayerStackOutputShape`,
+`Medium_LayerStackDeathTest`.
 
 Tests the runtime layer seam: LayerStack, LayerAdapter and the shape the factories thread.
 
@@ -19,6 +20,15 @@ against literals would let both drift together and still pass.
 `chain_row` returns one `Config::LayerSpec` of a given type and attributes that reads one given
 source row.
 
+## K_GOOD_MODEL
+
+`K_GOOD_MODEL` is the model file of 6 inputs, `linear` 8, `gelu` and `linear` 4.
+
+## stack_from_adapters, stack_from_a_model_file, stack_from_a_hand_built_chain, stack_with_an_image_tail
+
+Each builds a stack for a row of the parametrised cases: from adapters, from `K_GOOD_MODEL`, from
+`hand_built_chain` and from `make_stack` with a rank-3 `GELU` on its end.
+
 ## hand_built_chain
 
 `hand_built_chain` fills a `Config::ModelSpec` field by field, with no parser involved: the
@@ -30,33 +40,33 @@ input shape [6] and the rows `linear` 8, `gelu` and `linear` 4. Row 0 reads
 The second `EXPECT_EQ` states the names once as literals too, so the `expected` list that both
 walks are compared through cannot become trivially equal by both paths going empty.
 
-## KeepsTheIndexGapAParameterlessActivationLeaves
+## OutputFeaturesIsTheLastLayersWidth
 
-The gap is the whole reason the naming matches: indices track layer positions, not parameter
-positions. A stack that renumbered would produce "1.weight" for the second Linear and load
-nothing.
+The stack of `make_stack` reports 4 output features. The size and the emptiness of a stack are
+getters, and no test reads them.
 
-## ReportsTheLastLayersOutputWidth
+## Small_LayerStackTrace.TracesTheLayersInOrder
 
-The stack of `make_stack` has a size of 3, is not empty and reports 4 output features.
-
-## TracesTheLayersInOrder
-
-`forward` of that stack over a [4, 6] input gives a [4, 4] value.
+Two rows, a stack built by hand from adapters and a stack that `build_layer_stack` makes from
+`K_GOOD_MODEL`. `forward` of either over a [4, 6] input gives a [4, 4] value.
 
 ## RefusesToTraceWhenEmpty
 
 `forward` of an empty stack returns `InvalidDescription` with a message holding "no layers" and "identity".
 
-## AnEmptyStackStopsTheProcessOnAnOutputWidth
+## Medium_LayerStackDeathTest.AnEmptyStackStopsTheProcessOnAnOutputWidth
 
-`output_features` of an empty stack stops the process with a report holding "no layers".
+A death test, so it is medium. `output_features` of an empty stack stops the process with a report holding "no layers".
 
-## ANullLayerStopsTheProcess
+## Medium_LayerStackDeathTest.ANullLayerStopsTheProcess
 
 `push(nullptr)` stops the process with a report holding "null layer" and "index 0".
 
-## AnOutOfRangeLayerIndexStopsTheProcess
+## ALayerInRangeReportsItsWidth
+
+On a stack of three layers `layer(2).output_features()` is 4.
+
+## Medium_LayerStackDeathTest.AnOutOfRangeLayerIndexStopsTheProcess
 
 On a stack of three layers `layer(3)` stops the process with a report holding "layer 3" and
 "holds 3".
@@ -68,28 +78,18 @@ the duplicate-on-retrace bug at this layer. Both traces go into one graph, becau
 parameter's id names a value in the graph that declared it. Retracing into a second graph would
 reuse an index that means something else there.
 
-## AnAdapterBuiltFromAShapeReportsIt
-
-A `LayerAdapter<GELU>` constructed with the shape [4, 5, 3] returns that shape from
-`output_shape()`.
-
 ## AnAdapterBuiltFromAWidthReportsARankOneShape
 
 A `LayerAdapter<Linear>` constructed with the width 8 reports the shape [8] and
 `output_features()` 8. `make_stack` builds its layers through this constructor.
 
-## OutputFeaturesEqualsTheElementCountOfTheOutputShape
+## Small_LayerStackOutputShape.ReportsTheLastLayersOutputShape
 
-Through an `Layer` reference, `output_features()` of an adapter of shape [4, 5, 3] is 60 and
-equals `output_shape().num_elements()`. `output_features()` is a non-virtual function of
-`Layer` in `modules/layers/nn/include/SushiAI/nn/layer.hpp`, derived from the one virtual.
+Three rows over the two overloads. `output_shape()` of the built chain is [4]; of a stack with a
+`GELU` adapter of shape [2, 2, 1] pushed after `make_stack` it is [2, 2, 1]; and
+`output_shape([6])` over the built chain is [4].
 
-## ReportsTheLastLayersOutputShape
-
-The stack of `make_stack` reports [4]. With a `GELU` adapter of shape [2, 2, 1] pushed after
-it, the stack reports [2, 2, 1] and `output_features()` 4.
-
-## AnEmptyStackStopsTheProcessOnAnOutputShape
+## Medium_LayerStackDeathTest.AnEmptyStackStopsTheProcessOnAnOutputShape
 
 `output_shape()` of an empty stack stops the process with a report holding "no layers" and "output
 shape".
@@ -111,12 +111,7 @@ The spec of `hand_built_chain` has its `input_shape` replaced by [5]. The first 
 With the `from` list of row 1 cleared, `build_layer_stack` returns `InvalidDescription` with a message containing
 "layer 1 'gelu'" and "the row before it".
 
-## OutputShapeOfAnInputIsTheLastLayersOutputShape
-
-`LayerStack::output_shape([6])` of the built chain is [4] and equals the argument-free
-`output_shape()`.
-
-## AnEmptyStackStopsTheProcessOnAnOutputShapeOfAnInput
+## Medium_LayerStackDeathTest.AnEmptyStackStopsTheProcessOnAnOutputShapeOfAnInput
 
 `output_shape([6])` of an empty stack stops the process with a report holding "no layers" and
 "output shape".
@@ -129,7 +124,42 @@ and 48 features. A factory that reduced its input to a width would report [48].
 ## ALinearFactoryRefusesARankThreeInputAndNamesFlatten
 
 `NN::make_linear` given [4, 4, 3] returns `InvalidDescription` with a message containing the context, "[4, 4, 3]"
-and "flatten". Given [48], the same object builds.
+and "flatten".
+
+## ALinearFactoryAcceptsARankOneInput
+
+Given [48], the same object builds.
+
+## ChainsLayerWidthsFromTheInputFeatures
+
+The activation preserves the width it was handed, which is why the file never states a width
+for it.
+
+## AnUnknownLayerTypeListsEveryTypeThisBuildHas
+
+The model names a layer type "hologram", which no layer row carries. The
+message contains "hologram", "layer type", "'linear'" and "'gelu'". The unknown type has to
+be a name the registry does not hold, and "conv2d" is a layer row.
+
+## AMisspelledKeyOnLinearIsRejectedByItsFactory
+
+A `linear` row that spells "unitss" returns `InvalidDescription` with "layer 0 'linear'" and
+"'unitss'".
+
+## AStrayKeyOnGeluIsRejectedByItsFactory
+
+A document that writes a width onto an activation returns `InvalidDescription` with "layer 0 'gelu'"
+and "'units'". An activation takes no attributes, so that width is an error and not a line that
+does nothing.
+
+## ALayerFactoryRefusesANonPositiveWidth
+
+A `linear` row with `units` 0 makes `build_layer_stack` raise an error holding
+"layer 0 'linear'" and "'units'".
+
+## UseBiasDefaultsToTrueAndCanBeTurnedOff
+
+After a trace, a `linear` row has two parameters, and one with `use_bias` false has one.
 
 ## test_layer_stack.cpp, tests/core/config/test_value.cpp, tests/core/config/test_train_config.cpp, tests/core/config/test_model_config.cpp
 
@@ -233,27 +263,6 @@ not open" and the file name.
 
 "type" is gone from the attributes, so no factory has to allow the key that selected it.
 
-## ChainsLayerWidthsFromTheInputFeatures
-
-The activation preserves the width it was handed, which is why the file never states a width
-for it.
-
-## AConfiguredStackTracesToTheDeclaredOutputWidth
-
-The stack `build_layer_stack` makes from `K_GOOD_MODEL` traces a [4, 6] input to a [4, 4]
-value.
-
-## AnUnknownLayerTypeListsEveryTypeThisBuildHas
-
-The model names a layer type "hologram", which no layer row carries. The
-message contains "hologram", "layer type", "'linear'" and "'gelu'". The unknown type has to
-be a name the registry does not hold, and "conv2d" is a layer row.
-
-## AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory
-
-The `stray` document writes a width onto an activation. An activation takes no attributes, so
-that width is an error and not a line that does nothing.
-
 ## The version 2 model document
 
 The cases from AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite to
@@ -290,15 +299,6 @@ output. Two specs compare equal as text when every one of those fields agrees.
 
 `current_model_from` wraps a `layers` array, and optionally more top-level keys, in a version
 2 document whose input shape is [6].
-
-## ALayerFactoryRefusesANonPositiveWidth
-
-A `linear` row with `units` 0 makes `build_layer_stack` raise an error holding
-"layer 0 'linear'" and "'units'".
-
-## UseBiasDefaultsToTrueAndCanBeTurnedOff
-
-After a trace, a `linear` row has two parameters, and one with `use_bias` false has one.
 
 ## AMissingModelVersionIsAnErrorThatSaysWhy
 
