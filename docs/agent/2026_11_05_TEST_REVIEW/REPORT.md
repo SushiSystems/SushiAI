@@ -156,6 +156,8 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 58. `ADegenerateBoxStaysFinite` of `test_iou.cpp` is three cases (2026-11-10, the worker): `ADegenerateBoxHasAnIouOfZero`, `ADegenerateBoxPaysTheAspectTerm` and `ADegenerateBoxAgainstItselfScoresZero`, one promise each. The same section of `test_box_coding.md` is split to match, in the commit of decision 60. Not built or run; the syntax was checked only.
 
 
+59. Join and split belong to `test_level_rows.cpp` (2026-11-10, the worker): `level_rows.hpp` owns them, so the four `Small_DetectLevelRows` cases of `test_anchors.cpp` are gone from there. `JoinPlacesALevelAtItsAnchorOffset` was a copy of `AJoinKeepsTheRowsOfOtherLevels` and `ASplitAfterAJoinReturnsTheLevel` and is deleted. The split from a counting array and the two refusals had no copy and move over as `ASplitReadsTheLevelAtItsAnchorOffset` (its joined array is written out, no loop), `AJoinRefusesALevelPastTheLastAnchor` and `ASplitRefusesALevelArrayOfTheWrongSize`. `ASplitAfterAJoinReturnsTheLevel` writes its level as twelve literals instead of filling it in a loop. `SplitsIntoALevelsPointsAndStrides` stays in `test_anchors.cpp`: it tests the anchor leaves, which it cuts with `split_level`. Not built or run; the syntax was checked only.
+
 ## Seams the M jobs wait on
 
 RW-155 asks the owner to rule on these. Each changes a module's surface, so the test named stays as it is until then.

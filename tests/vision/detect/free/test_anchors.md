@@ -1,15 +1,15 @@
 # tests/vision/detect/free/test_anchors.cpp
 
 
-Suites: `Small_DetectAnchors`, `Medium_DetectAnchors`, `Small_DetectAnchorLeaves`,
-`Small_DetectLevelRows`.
+Suites: `Small_DetectAnchors`, `Medium_DetectAnchors` and `Small_DetectAnchorLeaves`.
 
-Tests the anchor grid, the per-image anchor leaves and the copies between a level and the joined
-anchor axis.
+Tests the anchor grid and the per-image anchor leaves. The copies between a level and the joined
+anchor axis are tested in `test_level_rows.cpp`; `SplitsIntoALevelsPointsAndStrides` only reads
+them to cut a level out of the leaves.
 
-This file needs no device. Its four suites, `Small_DetectAnchors`, `Medium_DetectAnchors`,
-`Small_DetectAnchorLeaves` and `Small_DetectLevelRows`, cover `modules/vision/detect/include/SushiAI/vision/detect/free/anchors.hpp`,
-`modules/vision/detect/include/SushiAI/vision/detect/free/anchor_leaves.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/free/level_rows.hpp`.
+This file needs no device. Its three suites, `Small_DetectAnchors`, `Medium_DetectAnchors` and
+`Small_DetectAnchorLeaves`, cover `modules/vision/detect/include/SushiAI/vision/detect/free/anchors.hpp`
+and `modules/vision/detect/include/SushiAI/vision/detect/free/anchor_leaves.hpp`.
 `modules/vision/detect/README.md` quotes the reference lines each unit ports. One case reads
 `loss.sacp` through `modules/layers/reference_files/include/SushiAI/reference_files/reference_file.hpp` and reports itself skipped when the
 file is absent.
@@ -89,23 +89,3 @@ and 2 levels".
 
 An empty level list returns `InvalidDescription` with a message containing "at least one level" and
 "batch 1 and 0 levels".
-
-## JoinPlacesALevelAtItsAnchorOffset
-
-`join_level` with two images, five anchors of two values and a level at anchors 3 and 4 writes
-the level's rows into values 6 to 9 of each image and leaves the other values at 0.
-
-## SplitReturnsTheRowsJoinPlaced
-
-The joined array holds its own index in every value. `split_level` for anchors 1 to 3 returns
-values 2 to 7 of image 0 and 12 to 17 of image 1.
-
-## RejectsALevelPastTheLastAnchor
-
-A level of two anchors at offset 4 of five returns `InvalidDescription` with a message containing "2 anchors",
-"offset 4" and "5 anchors".
-
-## SplitRejectsALevelArrayOfTheWrongSize
-
-`split_level` into an array of 10 values, where the placement needs 12, returns `InvalidDescription` with a message
-containing "12 level values", "20 joined values" and "got 10 and 20".

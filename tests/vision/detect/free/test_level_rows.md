@@ -6,10 +6,10 @@ Suites: `Small_DetectLevelRows`.
 Tests that `join_level` writes only its own rows and that `split_level` returns what a join
 placed.
 
-This file needs no device. The cases of `Small_DetectLevelRows` in
-`tests/vision/detect/free/test_anchors.cpp` check where a join places a level, what a split reads
-from a counting array, and the two refusals. Their joined array starts at zero, so a join that
-also wrote zeros elsewhere would pass them. This file closes that gap and checks the round trip.
+This file needs no device. It is the one unit that tests `join_level` and `split_level`:
+`test_anchors.cpp` only reads `split_level` to cut a level out of the anchor leaves. The joined
+array of the join cases starts at `K_UNTOUCHED`, so a join that wrote anything outside its level
+fails them.
 
 ## K_UNTOUCHED and expect_values
 
@@ -24,4 +24,21 @@ holds anchors 1 and 2 writes 5 and 6 there and leaves anchors 0 and 3 at `K_UNTO
 ## ASplitAfterAJoinReturnsTheLevel
 
 A level of the last two of six anchors, three values each, in two images, is joined and then
-split out again. The split returns the level value for value.
+split out again. The level is written out as twelve literal values, from 0.5 to 11.5, and the
+split returns it value for value.
+
+## ASplitReadsTheLevelAtItsAnchorOffset
+
+Two images of five anchors with two values each hold their own index in every value. `split_level`
+for anchors 1 to 3 returns values 2 to 7 of image 0 and 12 to 17 of image 1.
+
+## AJoinRefusesALevelPastTheLastAnchor
+
+A level of two anchors at offset 4 of five returns `InvalidDescription` with a message containing
+"2 anchors", "offset 4" and "5 anchors".
+
+## ASplitRefusesALevelArrayOfTheWrongSize
+
+`split_level` into an array of 10 values, where the placement needs 12, returns
+`InvalidDescription` with a message containing "12 level values", "20 joined values" and "got 10
+and 20".

@@ -30,11 +30,13 @@
 #include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 
 namespace
 {
+    using SushiAI::StatusCode;
     using SushiAI::Vision::Detect::Free::join_level;
     using SushiAI::Vision::Detect::Free::LevelPlacement;
     using SushiAI::Vision::Detect::Free::split_level;
@@ -69,9 +71,8 @@ TEST(Small_DetectLevelRows, ASplitAfterAJoinReturnsTheLevel)
 {
     // Two images, six anchors of three values; the level holds the last two anchors.
     const LevelPlacement placement{2, 6, 3, 4, 2};
-    std::vector<float> level(2 * 2 * 3);
-    for (std::size_t i = 0; i < level.size(); ++i)
-        level[i] = static_cast<float>(i) + 0.5f;
+    const std::vector<float> level{0.5f, 1.5f, 2.5f, 3.5f, 4.5f, 5.5f,
+                                   6.5f, 7.5f, 8.5f, 9.5f, 10.5f, 11.5f};
     std::vector<float> joined(2 * 6 * 3, K_UNTOUCHED);
 
     SA_EXPECT_OK(join_level(level, placement, joined));
@@ -79,4 +80,43 @@ TEST(Small_DetectLevelRows, ASplitAfterAJoinReturnsTheLevel)
     SA_EXPECT_OK(split_level(joined, placement, returned));
 
     expect_values(returned, level);
+}
+
+/** @brief Tests that a split reads the rows of the level at its anchor offset in every image. */
+TEST(Small_DetectLevelRows, ASplitReadsTheLevelAtItsAnchorOffset)
+{
+    // Two images, five anchors of two values; the level holds anchors 1 to 3.
+    const LevelPlacement placement{2, 5, 2, 1, 3};
+    const std::vector<float> joined{0.0f,  1.0f,  2.0f,  3.0f,  4.0f,  5.0f,  6.0f,  7.0f,
+                                    8.0f,  9.0f,  10.0f, 11.0f, 12.0f, 13.0f, 14.0f, 15.0f,
+                                    16.0f, 17.0f, 18.0f, 19.0f};
+    std::vector<float> level(12, K_UNTOUCHED);
+
+    SA_EXPECT_OK(split_level(joined, placement, level));
+
+    expect_values(level, {2.0f,  3.0f,  4.0f,  5.0f,  6.0f,  7.0f,
+                          12.0f, 13.0f, 14.0f, 15.0f, 16.0f, 17.0f});
+}
+
+/** @brief Tests that a level reaching past the last anchor is refused. */
+TEST(Small_DetectLevelRows, AJoinRefusesALevelPastTheLastAnchor)
+{
+    const LevelPlacement placement{1, 5, 2, 4, 2};
+    const std::vector<float> level(4, 0.0f);
+    std::vector<float> joined(10, 0.0f);
+
+    SA_EXPECT_FAILURE(join_level(level, placement, joined), StatusCode::InvalidDescription,
+                      "2 anchors", "offset 4", "5 anchors");
+}
+
+/** @brief Tests that splitting into a level array of the wrong size is refused with both sizes. */
+TEST(Small_DetectLevelRows, ASplitRefusesALevelArrayOfTheWrongSize)
+{
+    // Two images of three anchors and two values need 12 level values out of 20 joined ones.
+    const LevelPlacement placement{2, 5, 2, 1, 3};
+    const std::vector<float> joined(20, 0.0f);
+    std::vector<float> level(10);
+
+    SA_EXPECT_FAILURE(split_level(joined, placement, level), StatusCode::InvalidDescription,
+                      "12 level values", "20 joined values", "got 10 and 20");
 }
