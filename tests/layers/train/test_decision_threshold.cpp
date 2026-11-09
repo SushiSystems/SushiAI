@@ -23,11 +23,12 @@
 
 /**
  * @file test_decision_threshold.cpp
- * @brief Tests the threshold constants and the range validate_threshold accepts.
+ * @brief Tests the range validate_threshold accepts.
  * @author Mustafa Garip
  */
 
 #include <limits>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -35,28 +36,55 @@
 
 using namespace SushiAI;
 
-/** @brief Tests that the key is "threshold" and the default is one half, which is valid. */
-TEST(Small_DecisionThreshold, TheKeyIsThresholdAndTheDefaultIsOneHalf)
+namespace
 {
-    EXPECT_EQ(Train::K_THRESHOLD_KEY, "threshold");
-    EXPECT_EQ(Train::K_DEFAULT_THRESHOLD, 0.5);
-    SA_EXPECT_OK(Train::validate_threshold(Train::K_DEFAULT_THRESHOLD));
-}
+    /** @brief Holds a name for a threshold row and the threshold. */
+    struct ThresholdRow
+    {
+        std::string name;       /**< The row's name. */
+        double threshold;       /**< The threshold validated. */
+    };
+
+    /** @brief Validates each threshold inside the open interval. */
+    class Small_DecisionThresholdAccepted : public ::testing::TestWithParam<ThresholdRow>
+    {
+    };
+
+    /** @brief Validates each threshold on or outside the bounds. */
+    class Small_DecisionThresholdBounds : public ::testing::TestWithParam<ThresholdRow>
+    {
+    };
+
+    /** @brief Names a row by its name. */
+    std::string row_name(const ::testing::TestParamInfo<ThresholdRow>& info)
+    {
+        return info.param.name;
+    }
+} // namespace
 
 /** @brief Tests that the open interval (0, 1) is accepted right up to its bounds. */
-TEST(Small_DecisionThreshold, ProbabilitiesInsideTheOpenIntervalAreAccepted)
+TEST_P(Small_DecisionThresholdAccepted, ProbabilitiesInsideTheOpenIntervalAreAccepted)
 {
-    for (const double threshold : {1e-9, 0.25, 1.0 - 1e-9})
-        SA_EXPECT_OK(Train::validate_threshold(threshold));
+    SA_EXPECT_OK(Train::validate_threshold(GetParam().threshold));
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DecisionThresholdAccepted,
+                         ::testing::Values(ThresholdRow{"NearZero", 1e-9},
+                                           ThresholdRow{"AQuarter", 0.25},
+                                           ThresholdRow{"NearOne", 1.0 - 1e-9}),
+                         row_name);
+
 /** @brief Tests that both bounds, values outside them and a NaN are refused. */
-TEST(Small_DecisionThreshold, TheBoundsAndANaNAreRefused)
+TEST_P(Small_DecisionThresholdBounds, TheBoundsAndANaNAreRefused)
 {
-    for (const double threshold : {0.0, 1.0, -0.1, 2.0, std::numeric_limits<double>::infinity(),
-                                   std::numeric_limits<double>::quiet_NaN()})
-    {
-        SA_EXPECT_FAILURE(Train::validate_threshold(threshold), StatusCode::InvalidDescription,
-                          "above 0 and below 1");
-    }
+    SA_EXPECT_FAILURE(Train::validate_threshold(GetParam().threshold),
+                      StatusCode::InvalidDescription, "above 0 and below 1");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DecisionThresholdBounds,
+    ::testing::Values(ThresholdRow{"Zero", 0.0}, ThresholdRow{"One", 1.0},
+                      ThresholdRow{"BelowZero", -0.1}, ThresholdRow{"AboveOne", 2.0},
+                      ThresholdRow{"Infinity", std::numeric_limits<double>::infinity()},
+                      ThresholdRow{"NaN", std::numeric_limits<double>::quiet_NaN()}),
+    row_name);

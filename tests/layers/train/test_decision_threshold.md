@@ -1,17 +1,17 @@
 # tests/layers/train/test_decision_threshold.cpp
 
 
-Suites: `Small_DecisionThreshold`.
+Suites: `Small_DecisionThresholdAccepted`, `Small_DecisionThresholdBounds`.
 
-Tests the threshold constants and the range `Train::validate_threshold` accepts.
+Tests the range `Train::validate_threshold` accepts.
 
-This file needs no device. `read_threshold` and `logit_of` are pinned under the same suite in
-`test_binary_confusion.cpp`; the cases here cover the constants and the validator on its own.
+This file needs no device. `read_threshold` and `logit_of` are pinned in
+`test_binary_confusion.cpp`, with the reader cases that reach the key and the default; the cases
+here cover the validator on its own.
 
-## TheKeyIsThresholdAndTheDefaultIsOneHalf
+## ThresholdRow
 
-`K_THRESHOLD_KEY` is `threshold`, `K_DEFAULT_THRESHOLD` is 0.5, and the validator accepts the
-default.
+`ThresholdRow` holds the name of a row and the threshold it validates.
 
 ## ProbabilitiesInsideTheOpenIntervalAreAccepted
 
