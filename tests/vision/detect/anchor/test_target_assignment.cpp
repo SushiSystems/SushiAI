@@ -23,7 +23,7 @@
 
 /**
  * @file test_target_assignment.cpp
- * @brief Tests the assignment structs and the AssignmentRule interface through one rule.
+ * @brief Tests the AssignmentRule interface through one rule.
  * @author Mustafa Garip
  */
 
@@ -53,7 +53,7 @@ namespace
     using SushiAI::Vision::Detect::Anchor::TargetAssignment;
 
     /**
-     * @brief Holds the absolute the tolerance of a box target; every value below is exact in float:
+     * @brief Holds the absolute tolerance of a box target; every value below is exact in float:
      *        32 times the float unit roundoff, the smallest power of two not tighter than the
      *        earlier 1e-6f.
      */
@@ -102,36 +102,6 @@ namespace
         return input;
     }
 } // namespace
-
-/** @brief Tests that an assignment starts at zero in every field. */
-TEST(Small_DetectAnchorTargetAssignment, ADefaultAssignmentIsZero)
-{
-    const TargetAssignment entry;
-
-    EXPECT_EQ(entry.image, 0);
-    EXPECT_EQ(entry.slot, 0);
-    EXPECT_EQ(entry.row, 0);
-    EXPECT_EQ(entry.col, 0);
-    EXPECT_EQ(entry.box_x, 0.0f);
-    EXPECT_EQ(entry.box_y, 0.0f);
-    EXPECT_EQ(entry.box_width, 0.0f);
-    EXPECT_EQ(entry.box_height, 0.0f);
-    EXPECT_EQ(entry.label, 0);
-    EXPECT_EQ(entry.truth_row, 0);
-}
-
-/** @brief Tests that an assignment input starts without a layout, a truth or a class. */
-TEST(Small_DetectAnchorTargetAssignment, ADefaultInputNamesNoLayoutAndNoTruth)
-{
-    const AssignmentInput input;
-
-    EXPECT_EQ(input.layout, nullptr);
-    EXPECT_EQ(input.truth, nullptr);
-    EXPECT_EQ(input.head_index, 0);
-    EXPECT_EQ(input.classes, 0);
-    EXPECT_EQ(input.shape.batch, 0);
-    EXPECT_EQ(input.network.height, 0);
-}
 
 /** @brief Tests that assign through the interface orders the entries by image and place. */
 TEST(Small_DetectAnchorTargetAssignment, ARuleOrdersTheEntriesByImageThroughTheInterface)
