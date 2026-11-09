@@ -29,8 +29,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstddef>
+#include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/detect/float_order.hpp>
@@ -45,33 +46,67 @@ namespace
 
     /** @brief Holds a positive infinity. */
     const float K_INF = std::numeric_limits<float>::infinity();
+
+    /** @brief Holds a list of values, the index of its first bad value and the name of the row. */
+    struct ScanRow
+    {
+        std::string name;          /**< The row's name. */
+        std::vector<float> values; /**< The values to scan. */
+        std::int64_t expected;     /**< The index first_non_finite returns, or -1. */
+    };
+
+    /** @brief Holds two values, whether the first ranks above the second and the row's name. */
+    struct RankRow
+    {
+        std::string name; /**< The row's name. */
+        float first;      /**< The value on the left of the relation. */
+        float second;     /**< The value on the right of the relation. */
+        bool expected;    /**< Whether the first ranks above the second. */
+    };
+
+    /** @brief Runs first_non_finite over one row. */
+    class Small_DetectFloatOrderScan : public ::testing::TestWithParam<ScanRow>
+    {
+
+    };
+
+    /** @brief Runs ranks_above over one row. */
+    class Small_DetectFloatOrderRank : public ::testing::TestWithParam<RankRow>
+    {
+
+    };
+
+    /** @brief Names a scan row by its name field. */
+    std::string scan_name(const ::testing::TestParamInfo<ScanRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Names a rank row by its name field. */
+    std::string rank_name(const ::testing::TestParamInfo<RankRow>& info)
+    {
+        return info.param.name;
+    }
 } // namespace
 
-/** @brief Tests that an empty span has no bad value. */
-TEST(Small_DetectFloatOrder, FirstNonFiniteOfNoValuesIsMinusOne)
+/** @brief Tests that the scan names the index of the first bad value, or -1 when there is none. */
+TEST_P(Small_DetectFloatOrderScan, NamesTheIndexOfTheFirstBadValue)
 {
-    const std::vector<float> values;
-
-    EXPECT_EQ(first_non_finite(values), -1);
+    EXPECT_EQ(first_non_finite(GetParam().values), GetParam().expected);
 }
 
-/** @brief Tests that finite values, the extremes of float among them, report no bad index. */
-TEST(Small_DetectFloatOrder, FirstNonFiniteOfFiniteValuesIsMinusOne)
-{
-    const std::vector<float> values{0.0f, -2.5f, std::numeric_limits<float>::max(),
-                                    std::numeric_limits<float>::lowest(),
-                                    std::numeric_limits<float>::denorm_min()};
-
-    EXPECT_EQ(first_non_finite(values), -1);
-}
-
-/** @brief Tests that a NaN, a positive and a negative infinity are each named by their index. */
-TEST(Small_DetectFloatOrder, FirstNonFiniteNamesANaNAndBothInfinities)
-{
-    EXPECT_EQ(first_non_finite(std::vector<float>{1.0f, K_NAN, 2.0f}), 1);
-    EXPECT_EQ(first_non_finite(std::vector<float>{1.0f, 2.0f, K_INF}), 2);
-    EXPECT_EQ(first_non_finite(std::vector<float>{-K_INF, 1.0f}), 0);
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectFloatOrderScan,
+    ::testing::Values(
+        ScanRow{"NoValuesGivesMinusOne", {}, -1},
+        ScanRow{"FiniteExtremesGiveMinusOne",
+                {0.0f, -2.5f, std::numeric_limits<float>::max(),
+                 std::numeric_limits<float>::lowest(), std::numeric_limits<float>::denorm_min()},
+                -1},
+        ScanRow{"ANaNIsNamed", {1.0f, K_NAN, 2.0f}, 1},
+        ScanRow{"APositiveInfinityIsNamed", {1.0f, 2.0f, K_INF}, 2},
+        ScanRow{"ANegativeInfinityIsNamed", {-K_INF, 1.0f}, 0}),
+    scan_name);
 
 /** @brief Tests that the first bad value wins when several follow it. */
 TEST(Small_DetectFloatOrder, FirstNonFiniteNamesTheFirstOfSeveral)
@@ -81,34 +116,36 @@ TEST(Small_DetectFloatOrder, FirstNonFiniteNamesTheFirstOfSeveral)
     EXPECT_EQ(first_non_finite(values), 1);
 }
 
-/** @brief Tests that the larger of two numbers ranks above the smaller and never the reverse. */
-TEST(Small_DetectFloatOrder, RanksAboveOrdersNumbersLargestFirst)
+/**
+ * @brief Tests the relation on numbers, equal numbers and NaNs.
+ *
+ * The larger of two numbers ranks above the smaller and never the reverse; equal numbers rank
+ * above neither way, which makes the relation strict; a NaN ranks below every number and equal to
+ * another NaN.
+ */
+TEST_P(Small_DetectFloatOrderRank, AnswersAsTheRowStates)
 {
-    EXPECT_TRUE(ranks_above(2.0f, 1.0f));
-    EXPECT_FALSE(ranks_above(1.0f, 2.0f));
-    EXPECT_TRUE(ranks_above(0.0f, -1.0f));
-    EXPECT_TRUE(ranks_above(K_INF, 1.0f));
-    EXPECT_TRUE(ranks_above(1.0f, -K_INF));
+    EXPECT_EQ(ranks_above(GetParam().first, GetParam().second), GetParam().expected);
 }
 
-/** @brief Tests that equal numbers rank above neither way, which makes the relation strict. */
-TEST(Small_DetectFloatOrder, RanksAboveIsFalseBothWaysForEqualNumbers)
-{
-    EXPECT_FALSE(ranks_above(1.5f, 1.5f));
-    EXPECT_FALSE(ranks_above(0.0f, -0.0f));
-    EXPECT_FALSE(ranks_above(-0.0f, 0.0f));
-    EXPECT_FALSE(ranks_above(K_INF, K_INF));
-}
-
-/** @brief Tests that a NaN ranks below every number and equal to another NaN. */
-TEST(Small_DetectFloatOrder, RanksAboveSendsANaNBelowEveryNumber)
-{
-    EXPECT_FALSE(ranks_above(K_NAN, 1.0f));
-    EXPECT_TRUE(ranks_above(1.0f, K_NAN));
-    EXPECT_TRUE(ranks_above(-K_INF, K_NAN));
-    EXPECT_FALSE(ranks_above(K_NAN, -K_INF));
-    EXPECT_FALSE(ranks_above(K_NAN, K_NAN));
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DetectFloatOrderRank,
+    ::testing::Values(
+        RankRow{"TwoRanksAboveOne", 2.0f, 1.0f, true},
+        RankRow{"OneDoesNotRankAboveTwo", 1.0f, 2.0f, false},
+        RankRow{"ZeroRanksAboveMinusOne", 0.0f, -1.0f, true},
+        RankRow{"InfinityRanksAboveOne", K_INF, 1.0f, true},
+        RankRow{"OneRanksAboveMinusInfinity", 1.0f, -K_INF, true},
+        RankRow{"EqualNumbersRankAboveNeitherWay", 1.5f, 1.5f, false},
+        RankRow{"ZeroDoesNotRankAboveMinusZero", 0.0f, -0.0f, false},
+        RankRow{"MinusZeroDoesNotRankAboveZero", -0.0f, 0.0f, false},
+        RankRow{"InfinityDoesNotRankAboveInfinity", K_INF, K_INF, false},
+        RankRow{"ANaNDoesNotRankAboveANumber", K_NAN, 1.0f, false},
+        RankRow{"ANumberRanksAboveANaN", 1.0f, K_NAN, true},
+        RankRow{"MinusInfinityRanksAboveANaN", -K_INF, K_NAN, true},
+        RankRow{"ANaNDoesNotRankAboveMinusInfinity", K_NAN, -K_INF, false},
+        RankRow{"ANaNDoesNotRankAboveANaN", K_NAN, K_NAN, false}),
+    rank_name);
 
 /** @brief Tests that sorting with the relation puts the numbers first, descending, then NaNs. */
 TEST(Small_DetectFloatOrder, SortingWithRanksAboveLeavesTheNaNsLast)
