@@ -28,12 +28,14 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -167,105 +169,220 @@ namespace
         }
     }
 
+
+    /** @brief Names the scratch directory of one row of a test, so rows never share one. */
+    std::string row_directory(const char* test, std::size_t row)
+    {
+        return std::string("sushiai_test_datasets_pipeline_") + test + "_" + std::to_string(row);
+    }
+
+    /** @brief Names a test after the sample index of its row. */
+    std::string sample_row_name(const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return "Sample" + std::to_string(info.param);
+    }
+
+    /** @brief Reports whether every box of a fitted sample lies inside the training square. */
+    bool boxes_lie_inside(const FittedSample& sample)
+    {
+        return std::all_of(sample.objects.boxes().begin(), sample.objects.boxes().end(),
+                           [](const Vision::Imaging::PixelBox& box)
+                           {
+                               return box.x1 >= 0.0f && box.y1 >= 0.0f
+                                      && box.x2 <= static_cast<float>(K_SIDE)
+                                      && box.y2 <= static_cast<float>(K_SIDE);
+                           });
+    }
+
+    /** @brief Reports whether every byte of a mask is a class below four or the void byte. */
+    bool holds_classes_or_void(const Image& mask)
+    {
+        return std::all_of(mask.data(), mask.data() + mask.byte_count(),
+                           [](std::uint8_t value) { return value < 4 || value == K_MASK_VOID; });
+    }
+
+    /** @brief Counts the rows whose image differs between two productions. */
+    std::size_t changed_images(const std::vector<FittedSample>& a,
+                               const std::vector<FittedSample>& b)
+    {
+        std::size_t changed = 0;
+        for (std::size_t row = 0; row < a.size(); ++row)
+            changed += same_pixels(a[row].image, b[row].image) ? 0 : 1;
+
+        return changed;
+    }
+
+    /** @brief Holds the sample index of each row of a test over the four images. */
+    class Small_DatasetsAugmentPipelineSample : public ::testing::TestWithParam<std::size_t>
+    {
+    };
+
+    /** @brief Holds the epoch and the sample index of each row of a test over the four images. */
+    class Small_DatasetsAugmentPipelineEpochSample
+        : public ::testing::TestWithParam<std::tuple<std::int64_t, std::size_t>>
+    {
+    };
+
+    /** @brief Holds the options and the message of each refused make. */
+    struct MakeRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the training size. */
+        std::int32_t image_size;
+
+        /** @brief Holds the count of epochs of mosaic. */
+        std::int32_t mosaic_epochs;
+
+        /** @brief Holds the text the refusal carries. */
+        const char* message;
+    };
+
+    /** @brief Holds one refused make per row. */
+    class Small_DatasetsAugmentPipelineMakeRefusal : public ::testing::TestWithParam<MakeRefusal>
+    {
+    };
+
+    /** @brief Returns a list of one sample that names no readable file. */
+    SampleList list_of_one_sample()
+    {
+        SampleList list;
+        list.files.push_back("never_read.saim");
+        list.samples.push_back(Sample());
+        return list;
+    }
 } // namespace
 
-/** @brief Tests that the training samples have the training size and three channels. */
-TEST(Small_DatasetsAugmentPipeline, MakesSquareSamplesOfThreeChannels)
+/** @brief Tests that a training sample has the training size and three channels. */
+TEST_P(Small_DatasetsAugmentPipelineSample, ASampleHasTheTrainingSizeAndThreeChannels)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_shape");
+    const std::size_t row = GetParam();
+    const Support::ScratchDirectory scratch(row_directory("shape", row).c_str());
     const SampleList list = four_images(scratch);
     const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
     ASSERT_NE(pipeline, nullptr);
     EXPECT_EQ(pipeline->name(), "default");
 
-    for (const FittedSample& sample : produce(*pipeline, list, {0, 1, 2, 3}, 0))
-    {
-        EXPECT_EQ(sample.image.size(), (ImageSize{K_SIDE, K_SIDE}));
-        EXPECT_EQ(sample.image.channels(), 3);
-        EXPECT_EQ(sample.mask.byte_count(), 0u);
+    const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 0);
 
-        for (const Vision::Imaging::PixelBox& box : sample.objects.boxes())
-        {
-            EXPECT_GE(box.x1, 0.0f);
-            EXPECT_LE(box.x2, static_cast<float>(K_SIDE));
-            EXPECT_GE(box.y1, 0.0f);
-            EXPECT_LE(box.y2, static_cast<float>(K_SIDE));
-        }
-    }
+    ASSERT_EQ(made.size(), 1u);
+    EXPECT_EQ(made[0].image.size(), (ImageSize{K_SIDE, K_SIDE}));
+    EXPECT_EQ(made[0].image.channels(), 3);
 }
 
-/** @brief Tests that a sample depends on its index and its epoch, not on its batch. */
-TEST(Small_DatasetsAugmentPipeline, ASampleDependsOnItsIndexAndItsEpochAlone)
+/** @brief Tests that the boxes of a training sample lie inside the training square. */
+TEST_P(Small_DatasetsAugmentPipelineSample, TheBoxesOfASampleLieInsideTheImage)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_replay");
+    const std::size_t row = GetParam();
+    const Support::ScratchDirectory scratch(row_directory("boxes", row).c_str());
+    const SampleList list = four_images(scratch);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    ASSERT_NE(pipeline, nullptr);
+
+    const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 0);
+
+    ASSERT_EQ(made.size(), 1u);
+    EXPECT_TRUE(boxes_lie_inside(made[0]));
+}
+
+/** @brief Tests that a sample of a list without masks comes out with an empty mask. */
+TEST_P(Small_DatasetsAugmentPipelineSample, ASampleWithoutAMaskHasAnEmptyMask)
+{
+    const std::size_t row = GetParam();
+    const Support::ScratchDirectory scratch(row_directory("nomask", row).c_str());
+    const SampleList list = four_images(scratch);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    ASSERT_NE(pipeline, nullptr);
+
+    const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 0);
+
+    ASSERT_EQ(made.size(), 1u);
+    EXPECT_EQ(made[0].mask.byte_count(), 0u);
+}
+
+/** @brief Tests that a sample is the same whether it is made again, alone or in a reversed batch. */
+TEST_P(Small_DatasetsAugmentPipelineSample, ASampleDependsOnItsIndexAndItsEpochAlone)
+{
+    const std::size_t row = GetParam();
+    const Support::ScratchDirectory scratch(row_directory("replay", row).c_str());
     const SampleList list = four_images(scratch);
     const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
     ASSERT_NE(pipeline, nullptr);
 
     const std::vector<FittedSample> whole = produce(*pipeline, list, {0, 1, 2, 3}, 2);
     const std::vector<FittedSample> again = produce(*pipeline, list, {0, 1, 2, 3}, 2);
-    const std::vector<FittedSample> alone = produce(*pipeline, list, {2}, 2);
+    const std::vector<FittedSample> alone = produce(*pipeline, list, {row}, 2);
     const std::vector<FittedSample> reversed = produce(*pipeline, list, {3, 2, 1, 0}, 2);
 
-    for (std::size_t row = 0; row < 4; ++row)
-    {
-        expect_same(whole[row], again[row]);
-        expect_same(whole[row], reversed[3 - row]);
-    }
-    expect_same(whole[2], alone[0]);
-
-    const std::vector<FittedSample> next = produce(*pipeline, list, {0, 1, 2, 3}, 3);
-    std::size_t changed = 0;
-    for (std::size_t row = 0; row < 4; ++row)
-        changed += same_pixels(whole[row].image, next[row].image) ? 0 : 1;
-
-    EXPECT_GT(changed, 0u);
-}
-
-/** @brief Tests that past the mosaic epochs a sample holds the objects of its own image. */
-TEST(Small_DatasetsAugmentPipeline, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
-{
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_closed");
-    const SampleList list = four_images(scratch);
-    const std::unique_ptr<AugmentPipeline> pipeline = augment(0);
-    ASSERT_NE(pipeline, nullptr);
-
-    for (std::int64_t epoch = 0; epoch < 3; ++epoch)
-    {
-        const std::vector<FittedSample> made = produce(*pipeline, list, {0, 1, 2, 3}, epoch);
-        for (std::size_t row = 0; row < 4; ++row)
-        {
-            for (std::int32_t class_index : made[row].objects.classes())
-                EXPECT_EQ(class_index, static_cast<std::int32_t>(row)) << "epoch " << epoch;
-        }
-    }
+    expect_same(whole[row], again[row]);
+    expect_same(whole[row], reversed[3 - row]);
+    expect_same(whole[row], alone[0]);
 }
 
 /** @brief Tests that a mask comes out at the training size holding classes or the void byte. */
-TEST(Small_DatasetsAugmentPipeline, AMaskTakesTheSizeOfItsSample)
+TEST_P(Small_DatasetsAugmentPipelineSample, AMaskTakesTheSizeOfItsSample)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_masks");
+    const std::size_t row = GetParam();
+    const Support::ScratchDirectory scratch(row_directory("masks", row).c_str());
     SampleList list = four_images(scratch);
     add_masks(scratch, list);
     const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
     ASSERT_NE(pipeline, nullptr);
 
-    for (const FittedSample& sample : produce(*pipeline, list, {0, 1, 2, 3}, 1))
-    {
-        ASSERT_EQ(sample.mask.size(), (ImageSize{K_SIDE, K_SIDE}));
-        ASSERT_EQ(sample.mask.channels(), 1);
+    const std::vector<FittedSample> made = produce(*pipeline, list, {row}, 1);
 
-        for (std::size_t i = 0; i < sample.mask.byte_count(); ++i)
-        {
-            const std::uint8_t value = sample.mask.data()[i];
-            EXPECT_TRUE(value < 4 || value == K_MASK_VOID) << "byte " << i << " is "
-                                                           << static_cast<int>(value);
-        }
-    }
+    ASSERT_EQ(made.size(), 1u);
+    ASSERT_EQ(made[0].mask.size(), (ImageSize{K_SIDE, K_SIDE}));
+    ASSERT_EQ(made[0].mask.channels(), 1);
+    EXPECT_TRUE(holds_classes_or_void(made[0].mask));
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsAugmentPipelineSample,
+                         ::testing::Range<std::size_t>(0, 4), sample_row_name);
+
+/** @brief Tests that the next epoch changes at least one image of the four. */
+TEST(Small_DatasetsAugmentPipeline, ANewEpochChangesTheImages)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_epochs");
+    const SampleList list = four_images(scratch);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000);
+    ASSERT_NE(pipeline, nullptr);
+
+    const std::vector<FittedSample> second = produce(*pipeline, list, {0, 1, 2, 3}, 2);
+    const std::vector<FittedSample> third = produce(*pipeline, list, {0, 1, 2, 3}, 3);
+
+    EXPECT_GT(changed_images(second, third), 0u);
+}
+
+/** @brief Tests that past the mosaic epochs a sample holds the objects of its own image. */
+TEST_P(Small_DatasetsAugmentPipelineEpochSample, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
+{
+    const auto [epoch, row] = GetParam();
+    const Support::ScratchDirectory scratch(
+        row_directory("closed", static_cast<std::size_t>(epoch) * 4 + row).c_str());
+    const SampleList list = four_images(scratch);
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(0);
+    ASSERT_NE(pipeline, nullptr);
+
+    const std::vector<FittedSample> made = produce(*pipeline, list, {row}, epoch);
+
+    ASSERT_EQ(made.size(), 1u);
+    EXPECT_EQ(made[0].objects.classes(),
+              std::vector<std::int32_t>{static_cast<std::int32_t>(row)});
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsAugmentPipelineEpochSample,
+    ::testing::Combine(::testing::Range<std::int64_t>(0, 3), ::testing::Range<std::size_t>(0, 4)),
+    [](const ::testing::TestParamInfo<std::tuple<std::int64_t, std::size_t>>& info)
+    {
+        return "Epoch" + std::to_string(std::get<0>(info.param)) + "Sample"
+               + std::to_string(std::get<1>(info.param));
+    });
+
 /** @brief Tests that an image that cannot be read is the failure, with its file. */
-TEST(Small_DatasetsAugmentPipeline, AnImageThatCannotBeReadIsTheFailure)
+TEST(Medium_DatasetsAugmentPipeline, AnImageThatCannotBeReadIsTheFailure)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_missing");
     SampleList list = four_images(scratch);
@@ -280,32 +397,48 @@ TEST(Small_DatasetsAugmentPipeline, AnImageThatCannotBeReadIsTheFailure)
                       StatusCode::FileNotFound, "gone.saim");
 }
 
-/** @brief Tests each refusal: a size, an epoch count, an epoch and a list out of range. */
-TEST(Small_DatasetsAugmentPipeline, RefusesWhatItCannotMake)
+/** @brief Tests that make refuses a training size of 0 and a negative count of mosaic epochs. */
+TEST_P(Small_DatasetsAugmentPipelineMakeRefusal, MakeRefusesWhatItCannotBuild)
 {
+    const MakeRefusal& row = GetParam();
     AugmentOptions options;
-    options.image_size = 0;
-    SA_EXPECT_FAILURE(AugmentPipeline::make(options), StatusCode::InvalidDescription,
-                      "AugmentPipeline", "a training size of 0");
+    options.image_size = row.image_size;
+    options.mosaic_epochs = row.mosaic_epochs;
 
-    options.image_size = K_SIDE;
-    options.mosaic_epochs = -1;
     SA_EXPECT_FAILURE(AugmentPipeline::make(options), StatusCode::InvalidDescription,
-                      "-1 epochs of mosaic");
+                      "AugmentPipeline", row.message);
+}
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DatasetsAugmentPipelineMakeRefusal,
+    ::testing::Values(MakeRefusal{"ASizeOfZero", 0, 1, "a training size of 0"},
+                      MakeRefusal{"ANegativeEpochCount", K_SIDE, -1, "-1 epochs of mosaic"}),
+    [](const ::testing::TestParamInfo<MakeRefusal>& info) { return std::string(info.param.name); });
+
+/** @brief Tests that produce refuses a negative epoch. */
+TEST(Small_DatasetsAugmentPipeline, ProduceRefusesANegativeEpoch)
+{
     const std::unique_ptr<AugmentPipeline> pipeline = augment(0);
     ASSERT_NE(pipeline, nullptr);
-
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_refusals");
-    const SampleList list = four_images(scratch);
+    const SampleList list = list_of_one_sample();
     const std::size_t samples[] = {0};
     FittedSample fitted;
-    const SushiRuntime::span<const std::size_t> one(samples, 1);
 
-    SA_EXPECT_FAILURE(pipeline->produce(list, one, -1,
-                                        SushiRuntime::span<FittedSample>(&fitted, 1)),
+    SA_EXPECT_FAILURE(pipeline->produce(list, SushiRuntime::span<const std::size_t>(samples, 1),
+                                        -1, SushiRuntime::span<FittedSample>(&fitted, 1)),
                       StatusCode::InvalidDescription, "epoch -1");
-    SA_EXPECT_FAILURE(pipeline->produce(SampleList(), one, 0,
+}
+
+/** @brief Tests that produce refuses a list of no sample. */
+TEST(Small_DatasetsAugmentPipeline, ProduceRefusesAnEmptyList)
+{
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(0);
+    ASSERT_NE(pipeline, nullptr);
+    const std::size_t samples[] = {0};
+    FittedSample fitted;
+
+    SA_EXPECT_FAILURE(pipeline->produce(SampleList(),
+                                        SushiRuntime::span<const std::size_t>(samples, 1), 0,
                                         SushiRuntime::span<FittedSample>(&fitted, 1)),
                       StatusCode::InvalidDescription, "a list of 0 samples");
 }
