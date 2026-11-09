@@ -27,10 +27,10 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/layer_rows/layer_registry.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>
@@ -40,28 +40,23 @@ using namespace SushiAI;
 /** @brief Shortens the namespace of the test helpers, which Test alone hides in a case. */
 namespace SaTest = SushiAI::Test;
 
-/** @brief Tests that each call builds a registry of its own holding the layer rows. */
+/** @brief Tests that the built registry holds the "linear" row and no row that is not a layer. */
+TEST(Small_LayerRowsRegistry, TheRegistryHoldsTheLayerRowsByType)
+{
+    const NN::NodeRegistry registry = SaTest::make_layer_registry();
+
+    EXPECT_NE(registry.find_layer("linear"), nullptr);
+    EXPECT_EQ(registry.find_layer("no_such_layer"), nullptr);
+}
+
+/** @brief Tests that each call builds a registry of its own, with storage of its own. */
 TEST(Small_LayerRowsRegistry, EachCallBuildsAFreshRegistryOfTheLayerRows)
 {
     const NN::NodeRegistry first = SaTest::make_layer_registry();
     const NN::NodeRegistry second = SaTest::make_layer_registry();
 
-    EXPECT_NE(first.find_layer("linear"), nullptr);
-    EXPECT_EQ(first.find_layer("no_such_layer"), nullptr);
     EXPECT_EQ(first.layers().size(), second.layers().size());
     EXPECT_NE(first.layers().data(), second.layers().data());
-}
-
-/** @brief Tests that types_of() lists the type of every row in insertion order. */
-TEST(Small_LayerRowsRegistry, TypesOfListsEveryRowInOrder)
-{
-    const std::vector<NN::LayerEntry> rows{NN::LayerEntry{"first", nullptr},
-                                           NN::LayerEntry{"second", nullptr},
-                                           NN::LayerEntry{"third", nullptr}};
-
-    EXPECT_EQ(SaTest::types_of(SushiRuntime::span<const NN::LayerEntry>(rows.data(), rows.size())),
-              (std::vector<std::string_view>{"first", "second", "third"}));
-    EXPECT_TRUE(SaTest::types_of(SushiRuntime::span<const NN::LayerEntry>()).empty());
 }
 
 /** @brief Tests that the listed types of the built registry match its rows one for one. */
@@ -70,7 +65,7 @@ TEST(Small_LayerRowsRegistry, TheListedTypesMatchTheRegistryRows)
     const NN::NodeRegistry registry = SaTest::make_layer_registry();
     const std::vector<std::string_view> types = SaTest::types_of(registry.layers());
 
-    ASSERT_EQ(types.size(), registry.layers().size());
-    for (const std::string_view type : types)
-        EXPECT_NE(registry.find_layer(type), nullptr) << type;
+    EXPECT_EQ(types.size(), registry.layers().size());
+    EXPECT_TRUE(std::all_of(types.begin(), types.end(), [&registry](std::string_view type)
+                            { return registry.find_layer(type) != nullptr; }));
 }

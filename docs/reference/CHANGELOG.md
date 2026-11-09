@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-09 — test_tree: Apply the layers/layer_rows records (M33).
 - 2026-11-09 — io: Added check_imported_tensors, the checks of a weight file's tensors as a value function (`imported_model_writer.hpp`).
 - 2026-11-09 — io: Added the importer rows K_COUNTING_IMPORTER_ROW and K_REFUSING_IMPORTER_ROW, which read no file (`in_memory_importer.hpp`).
 - 2026-11-09 — test_tree: Apply the layers/io records (M32).
