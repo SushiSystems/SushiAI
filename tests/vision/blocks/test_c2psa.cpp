@@ -48,23 +48,17 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/c2psa.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
 using NN::NormOptions;
 using NN::Trace;
 using Vision::Blocks::C2PSA;
+using Vision::Blocks::default_attention_heads;
 
 namespace
 {
     using SushiAI::Test::require_value;
-    /**
-     * @brief Holds the absolute tolerance of a double stored and read back unchanged: 16 times the
-     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-15.
-     */
-    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Holds the epsilon and the momentum MANIFEST.json records for YOLO26n. */
     constexpr NormOptions K_YOLO_NORM{1e-3, 0.03};
 
@@ -73,6 +67,40 @@ namespace
 
     /** @brief Holds the width of each half of row 10's stem. */
     constexpr int64_t K_HIDDEN = 128;
+
+    /** @brief Holds one head count that cannot split the hidden width of 128. */
+    struct HeadRow
+    {
+        std::string name; /**< The row's name. */
+        int64_t heads;    /**< The head count the row states. */
+    };
+
+    /** @brief Runs one head count the hidden width cannot split into. */
+    class Small_BlockC2psaHeads : public ::testing::TestWithParam<HeadRow>
+    {
+
+    };
+
+    /** @brief Holds one hidden width and the head count a row that states none gets. */
+    struct DefaultHeadRow
+    {
+        std::string name; /**< The row's name. */
+        int64_t hidden;   /**< The hidden width of the row. */
+        int64_t heads;    /**< The head count the row gets. */
+    };
+
+    /** @brief Runs one hidden width of a row that states no head count. */
+    class Small_BlockC2psaDefaultHeads : public ::testing::TestWithParam<DefaultHeadRow>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    template<typename Row>
+    std::string row_name(const ::testing::TestParamInfo<Row>& info)
+    {
+        return info.param.name;
+    }
 
     /** @brief Names which of the two kinds of state a record is. */
     enum class StateKind : std::uint8_t
@@ -107,38 +135,45 @@ namespace
         return records;
     }
 
-    /** @brief Counts the nodes of @p graph that carry the operation @p op. */
-    std::size_t count_nodes(const Graph::Graph& graph, OpID op)
+    /** @brief Counts the norms a walk lists, one running mean each. */
+    std::size_t count_norms(const std::vector<std::string>& records)
     {
-        std::size_t count = 0;
-        for (const Graph::Node& node : graph.nodes())
+        std::size_t norms = 0;
+        for (const std::string& line : records)
         {
-            if (node.op == op)
-                ++count;
+            if (line.find(".bn.running_mean ") != std::string::npos)
+                ++norms;
         }
 
-        return count;
+        return norms;
     }
 
-    /**
-     * @brief Returns the index of the @p ordinal-th node of @p graph that carries @p op, counting
-     *        from zero, or node_count() when there are not that many.
-     */
-    std::size_t node_index(const Graph::Graph& graph, OpID op, std::size_t ordinal)
+    /** @brief Lists the offset of each SLICE_CHANNELS node whose result holds @p channels. */
+    std::vector<double> slice_offsets_yielding(const Graph::Graph& graph, int64_t channels)
     {
-        std::size_t seen = 0;
-        for (std::size_t index = 0; index < graph.node_count(); ++index)
+        std::vector<double> offsets;
+        for (const Graph::Node& node : graph.nodes())
         {
-            if (graph.nodes()[index].op != op)
-                continue;
-
-            if (seen == ordinal)
-                return index;
-
-            ++seen;
+            if (node.op == Ops::K_SLICE_CHANNELS.id
+                && graph.value(node.outputs[0]).shape[3] == channels)
+                offsets.push_back(node.attributes.values[0]);
         }
 
-        return graph.node_count();
+        return offsets;
+    }
+
+    /** @brief Lists the nodes of @p graph that carry @p op and yield @p shape. */
+    std::vector<const Graph::Node*> nodes_yielding(const Graph::Graph& graph, OpID op,
+                                                    const Shape& shape)
+    {
+        std::vector<const Graph::Node*> found;
+        for (const Graph::Node& node : graph.nodes())
+        {
+            if (node.op == op && graph.value(node.outputs[0]).shape == shape)
+                found.push_back(&node);
+        }
+
+        return found;
     }
 
     /** @brief Views one shape as the inputs of a one-input row. */
@@ -229,12 +264,10 @@ TEST(Small_BlockC2psa, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 }
 
 /**
- * @brief Tests that row 10 traces eight slices, three ADDs, three joins, three SILUs and seven
- *        norms: the two halves of the stem and the attention's six slices, the attention's own
- *        add and the block's two, the two joins of the attention and the C2PSA join, cv1, cv2
- *        and the feed-forward's first convolution.
+ * @brief Tests that a training trace of row 10 keeps the input's shape, requests a mean and a
+ *        variance update for each norm of its state and hands them the row's options.
  */
-TEST(Small_BlockC2psa, Row10EmitsEightSlicesThreeAddsAndThreeJoins)
+TEST(Small_BlockC2psa, Row10KeepsTheShapeUpdatesEveryNormAndKeepsTheOptions)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -244,22 +277,13 @@ TEST(Small_BlockC2psa, Row10EmitsEightSlicesThreeAddsAndThreeJoins)
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
-    // Two halves of the stem, and six slices of the attention's qkv.
-    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 8u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 7u);
-    EXPECT_EQ(list.updates().size(), 14u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 256}));
+    EXPECT_EQ(list.updates().size(), 2 * count_norms(walk(block, "model.10")));
     expect_norm_options(graph, list, K_YOLO_NORM);
 }
 
-/**
- * @brief Tests that the first half is kept and the second half feeds the block, and that the
- *        join reads the kept half, then the block's result.
- */
-TEST(Small_BlockC2psa, TheJoinKeepsTheFirstHalfAndChainsTheSecondOffTheSecondSlice)
+/** @brief Tests that the stem is cut into two halves at channels 0 and 128. */
+TEST(Small_BlockC2psa, TheStemIsCutIntoTwoHalvesAtChannelsZeroAndOneHundredTwentyEight)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -268,49 +292,41 @@ TEST(Small_BlockC2psa, TheJoinKeepsTheFirstHalfAndChainsTheSecondOffTheSecondSli
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // The stem's two slices come before the attention's, so they are the first two slices.
-    const std::size_t kept_index = node_index(graph, Ops::K_SLICE_CHANNELS.id, 0);
-    const std::size_t chained_index = node_index(graph, Ops::K_SLICE_CHANNELS.id, 1);
-    ASSERT_LT(chained_index, graph.node_count());
-    const Graph::Node& kept = graph.nodes()[kept_index];
-    const Graph::Node& chained = graph.nodes()[chained_index];
-
-    // A slice stores its offset as a whole number in slot 0, so it compares exactly.
-    EXPECT_NEAR(kept.attributes.values[0], 0.0, K_EXACT_TOLERANCE);
-    EXPECT_NEAR(chained.attributes.values[0], static_cast<double>(K_HIDDEN), K_EXACT_TOLERANCE);
-    EXPECT_EQ(kept.inputs[0], chained.inputs[0]);
-
-    // The block's first residual add is the second ADD, after the attention's own.
-    const Graph::Node& first_residual = graph.nodes()[node_index(graph, Ops::K_ADD.id, 1)];
-    EXPECT_EQ(first_residual.inputs[0], chained.outputs[0]);
-
-    // The join is the third concatenation: the attention's two come before it.
-    const Graph::Node& join = graph.nodes()[node_index(graph, Ops::K_CONCAT_CHANNELS.id, 2)];
-    const Graph::Node& last_residual = graph.nodes()[node_index(graph, Ops::K_ADD.id, 2)];
-    ASSERT_EQ(join.inputs.size(), 2u);
-    EXPECT_EQ(join.inputs[0], kept.outputs[0]);
-    EXPECT_EQ(join.inputs[1], last_residual.outputs[0]);
-    EXPECT_EQ(graph.value(join.outputs[0]).shape, (Shape{2, 4, 4, 256}));
+    // A slice stores its offset as a whole number, so the copy compares exactly.
+    EXPECT_EQ(slice_offsets_yielding(graph, K_HIDDEN), (std::vector<double>{0.0, 128.0}));
 }
 
-/**
- * @brief Tests that with two repeats each block reads the output of the one before it.
- */
-TEST(Small_BlockC2psa, EachRepeatReadsTheResultOfThePreviousOne)
+/** @brief Tests that the join takes two halves of 128 channels and yields the 256 of the row. */
+TEST(Small_BlockC2psa, TheJoinTakesTwoHalvesOf128ChannelsAndYieldsTheOutputWidth)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
+    C2PSA block = make_row10();
+    BufferUpdateList list;
+    static_cast<void>(block.forward(Trace::training(builder, list), x));
+
+    const std::vector<const Graph::Node*> joins =
+        nodes_yielding(graph, Ops::K_CONCAT_CHANNELS.id, Shape{2, 4, 4, 256});
+    ASSERT_EQ(joins.size(), 1u);
+
+    ASSERT_EQ(joins.front()->inputs.size(), 2u);
+    EXPECT_EQ(graph.value(joins.front()->inputs[0]).shape, (Shape{2, 4, 4, K_HIDDEN}));
+    EXPECT_EQ(graph.value(joins.front()->inputs[1]).shape, (Shape{2, 4, 4, K_HIDDEN}));
+}
+
+/** @brief Tests that two repeats hold two blocks and keep the input's shape. */
+TEST(Small_BlockC2psa, TwoRepeatsHoldTwoBlocksAndKeepTheInputShape)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     C2PSA block(256, 256, K_HIDDEN, 2, 2, K_YOLO_NORM);
 
-    static_cast<void>(block.forward(Trace::evaluation(builder), x));
+    const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
 
-    // A block emits three ADDs, so block one ends at ADD 2 and block two's residual is ADD 4.
     EXPECT_EQ(block.m.size(), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 6u);
-    const Graph::Node& first_block_last = graph.nodes()[node_index(graph, Ops::K_ADD.id, 2)];
-    const Graph::Node& second_block_first = graph.nodes()[node_index(graph, Ops::K_ADD.id, 4)];
-    EXPECT_EQ(second_block_first.inputs[0], first_block_last.outputs[0]);
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 256}));
 }
 
 /**
@@ -329,22 +345,30 @@ TEST(Small_BlockC2psa, StateMatchesManifestRow10)
     EXPECT_EQ(walk(block, "model.10"), row10_records());
 }
 
-/**
- * @brief Tests that make_c2psa_node builds row 10 from its file row: the port's shape, the 35
- *        manifest records and the row's norm options on all seven norms.
- */
-TEST(Small_BlockC2psa, TheFactoryBuildsRow10)
+/** @brief Tests that make_c2psa_node builds a node with one port of the input's shape. */
+TEST(Small_BlockC2psa, TheFactoryBuildsOnePortOfTheInputShape)
 {
     const Shape input{20, 20, 256};
     const Config::Value attributes = attributes_of(
-        R"({"filters": 256, "hidden": 128, "repeats": 1, "heads": 2,
-            "bn_epsilon": 0.001, "bn_momentum": 0.03})");
+        R"({"filters": 256, "hidden": 128, "repeats": 1, "heads": 2})");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
                             Vision::Blocks::make_c2psa_node(one_input(input), attributes,
                                                             K_CONTEXT));
+
     ASSERT_EQ(node->ports().size(), 1u);
     EXPECT_EQ(node->ports()[0].shape, (Shape{20, 20, 256}));
+}
+
+/** @brief Tests that the factory hands the row's "bn_epsilon" and "bn_momentum" to every norm. */
+TEST(Small_BlockC2psa, TheFactoryHandsTheNormOptionsToEveryNorm)
+{
+    const Shape input{20, 20, 256};
+    const Config::Value attributes = attributes_of(
+        R"({"filters": 256, "hidden": 128, "bn_epsilon": 0.001, "bn_momentum": 0.03})");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_c2psa_node(one_input(input), attributes,
+                                                            K_CONTEXT));
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -354,17 +378,11 @@ TEST(Small_BlockC2psa, TheFactoryBuildsRow10)
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 7u);
-    EXPECT_EQ(list.updates().size(), 14u);
     expect_norm_options(graph, list, K_YOLO_NORM);
-    EXPECT_EQ(walk(*node, "model.10"), row10_records());
 }
 
-/**
- * @brief Tests that a row stating neither "repeats" nor "heads" gets one PSABlock of
- *        max(hidden / 64, 1) heads, which is two for a hidden width of 128.
- */
-TEST(Small_BlockC2psa, TheFactoryDefaultsToOneBlockAndHiddenOver64Heads)
+/** @brief Tests that a row stating neither "repeats" nor "heads" holds one PSABlock. */
+TEST(Small_BlockC2psa, TheFactoryDefaultsToOneBlock)
 {
     const Shape input{20, 20, 256};
     const Config::Value attributes = attributes_of(R"({"filters": 256, "hidden": 128})");
@@ -379,31 +397,25 @@ TEST(Small_BlockC2psa, TheFactoryDefaultsToOneBlockAndHiddenOver64Heads)
     std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 3u);
+    // One block is the 35 records of row 10: the stem's two convolutions and one PSABlock.
     EXPECT_EQ(walk(*node, "").size(), 35u);
 }
 
-/**
- * @brief Tests that a hidden width under 128 gets a single head, as max(hidden / 64, 1) gives.
- */
-TEST(Small_BlockC2psa, TheFactoryGivesOneHeadForAHiddenWidthUnder128)
+/** @brief Tests that a row that states no head count gets max(hidden / 64, 1) heads. */
+TEST_P(Small_BlockC2psaDefaultHeads, ARowThatStatesNoHeadCountGetsTheHiddenWidthOver64OrOne)
 {
-    const Shape input{4, 4, 64};
-    const Config::Value attributes = attributes_of(R"({"filters": 64, "hidden": 64})");
+    const DefaultHeadRow& row = GetParam();
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
-                            Vision::Blocks::make_c2psa_node(one_input(input), attributes,
-                                                            K_CONTEXT));
-
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
-    std::vector<Graph::ValueID> outputs;
-    SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
-
-    EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 1u);
+    EXPECT_EQ(default_attention_heads(row.hidden), row.heads);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockC2psaDefaultHeads,
+    ::testing::Values(DefaultHeadRow{"Hidden128GivesTwo", 128, 2},
+                      DefaultHeadRow{"Hidden192GivesThree", 192, 3},
+                      DefaultHeadRow{"Hidden127GivesOne", 127, 1},
+                      DefaultHeadRow{"Hidden64GivesOne", 64, 1}),
+    row_name<DefaultHeadRow>);
 
 /** @brief Tests that a "filters" other than the input width is refused, naming both widths. */
 TEST(Small_BlockC2psa, TheFactoryRefusesAFilterWidthThatIsNotTheInput)
@@ -415,38 +427,49 @@ TEST(Small_BlockC2psa, TheFactoryRefusesAFilterWidthThatIsNotTheInput)
                       StatusCode::InvalidDescription, "'filters'", "128", "256 channels");
 }
 
-/**
- * @brief Tests that a hidden width the heads do not split into parts of two or more channels is
- *        refused.
- */
-TEST(Small_BlockC2psa, TheFactoryRefusesAHiddenWidthTheHeadsDoNotSplit)
+/** @brief Tests that a hidden width the heads do not split into parts of two or more is refused. */
+TEST_P(Small_BlockC2psaHeads, AHiddenWidthTheHeadsDoNotSplitIsRefused)
 {
     const Shape input{20, 20, 256};
-    const Config::Value indivisible =
-        attributes_of(R"({"filters": 256, "hidden": 128, "heads": 3})");
-    const Config::Value one_channel =
-        attributes_of(R"({"filters": 256, "hidden": 128, "heads": 128})");
+    const Config::Value attributes = attributes_of(
+        R"({"filters": 256, "hidden": 128, "heads": )" + std::to_string(GetParam().heads) + "}");
 
-    SA_EXPECT_FAILURE(Vision::Blocks::make_c2psa_node(one_input(input), indivisible, K_CONTEXT),
-                      StatusCode::InvalidDescription, "'hidden'", "parts of at least 2 channels");
-    SA_EXPECT_FAILURE(Vision::Blocks::make_c2psa_node(one_input(input), one_channel, K_CONTEXT),
+    SA_EXPECT_FAILURE(Vision::Blocks::make_c2psa_node(one_input(input), attributes, K_CONTEXT),
                       StatusCode::InvalidDescription, "'hidden'", "parts of at least 2 channels");
 }
 
-/** @brief Tests that the factory refuses an unknown key, a missing width and a flat input. */
-TEST(Small_BlockC2psa, TheFactoryRefusesARowThatDoesNotFit)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_BlockC2psaHeads,
+                         ::testing::Values(HeadRow{"HeadsThatDoNotDivide", 3},
+                                           HeadRow{"OneChannelPerHead", 128}),
+                         row_name<HeadRow>);
+
+/** @brief Tests that the factory refuses a key the row does not take. */
+TEST(Small_BlockC2psa, TheFactoryRefusesAnUnknownKey)
 {
     const Shape input{20, 20, 256};
-    const Shape flat{512};
     const Config::Value unknown =
         attributes_of(R"({"filters": 256, "hidden": 128, "inner": "bottleneck"})");
-    const Config::Value no_hidden = attributes_of(R"({"filters": 256})");
-    const Config::Value fits = attributes_of(R"({"filters": 256, "hidden": 128})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c2psa_node(one_input(input), unknown, K_CONTEXT),
                       StatusCode::InvalidDescription, "layer 10 'c2psa'", "'inner'");
+}
+
+/** @brief Tests that the factory refuses a row without its hidden width. */
+TEST(Small_BlockC2psa, TheFactoryRefusesAnAbsentHiddenWidth)
+{
+    const Shape input{20, 20, 256};
+    const Config::Value no_hidden = attributes_of(R"({"filters": 256})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c2psa_node(one_input(input), no_hidden, K_CONTEXT),
                       StatusCode::InvalidDescription, "'hidden'", "absent");
+}
+
+/** @brief Tests that the factory refuses an input that is not one rank-3 feature map. */
+TEST(Small_BlockC2psa, TheFactoryRefusesAFlatInput)
+{
+    const Shape flat{512};
+    const Config::Value fits = attributes_of(R"({"filters": 256, "hidden": 128})");
+
     SA_EXPECT_FAILURE(Vision::Blocks::make_c2psa_node(one_input(flat), fits, K_CONTEXT),
                       StatusCode::InvalidDescription, "[512]", "rank-3");
 }

@@ -53,6 +53,16 @@ namespace SushiAI
          */
         [[nodiscard]] Status check_attention_heads(int64_t channels, int64_t head_count) noexcept;
 
+        /** @brief Holds the channels per attention head of a row that states no head count. */
+        inline constexpr int64_t K_CHANNELS_PER_DEFAULT_HEAD = 64;
+
+        /** @brief Returns max(hidden / K_CHANNELS_PER_DEFAULT_HEAD, 1), the head count of a row. */
+        [[nodiscard]] constexpr int64_t default_attention_heads(int64_t hidden) noexcept
+        {
+            return hidden / K_CHANNELS_PER_DEFAULT_HEAD > 1 ? hidden / K_CHANNELS_PER_DEFAULT_HEAD
+                                                            : 1;
+        }
+
         /** @brief Attends every position of a feature map to every other, head by head. */
         struct Attention
         {

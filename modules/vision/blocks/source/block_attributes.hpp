@@ -29,7 +29,6 @@
 
 #pragma once
 
-#include <algorithm>
 #include <cstdint>
 #include <SushiAI/nn/node_attributes.hpp>
 
@@ -48,17 +47,8 @@ namespace SushiAI
             /** @brief Holds whether a bottleneck adds its input in a row that does not say. */
             inline constexpr bool K_DEFAULT_SHORTCUT = true;
 
-            /** @brief Holds the channels per attention head of a row that states no head count. */
-            inline constexpr int64_t K_CHANNELS_PER_DEFAULT_HEAD = 64;
-
             /** @brief Holds the smallest channel count of an attention head; its key is half. */
             inline constexpr int64_t K_SMALLEST_HEAD_WIDTH = 2;
-
-            /** @brief Returns max(hidden / K_CHANNELS_PER_DEFAULT_HEAD, 1). */
-            [[nodiscard]] constexpr int64_t default_head_count(int64_t hidden) noexcept
-            {
-                return std::max<int64_t>(hidden / K_CHANNELS_PER_DEFAULT_HEAD, 1);
-            }
 
             using NN::Detail::K_NORM_EPSILON_KEY;
             using NN::Detail::K_NORM_MOMENTUM_KEY;

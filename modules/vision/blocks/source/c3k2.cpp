@@ -153,7 +153,7 @@ namespace SushiAI
             {
                 return NN::Sequential<Bottleneck, PSABlock>(
                     bottleneck_of(row),
-                    PSABlock(row.hidden, Detail::default_head_count(row.hidden), row.norm));
+                    PSABlock(row.hidden, default_attention_heads(row.hidden), row.norm));
             }
 
             /**
@@ -234,7 +234,7 @@ namespace SushiAI
                           read_row(inputs, attributes, context, K_INNER_BOTTLENECK_PSA));
 
             // PSABlock throws on a width or head count its attention refuses; refuse them here.
-            const int64_t heads = Detail::default_head_count(row.hidden);
+            const int64_t heads = default_attention_heads(row.hidden);
             SA_FAIL_IF(row.hidden % heads != 0 ||
                            row.hidden / heads < Detail::K_SMALLEST_HEAD_WIDTH,
                        StatusCode::InvalidDescription,

@@ -104,7 +104,7 @@ namespace SushiAI
                                                        Detail::K_DEFAULT_REPEATS));
             SA_TRY_ASSIGN(const int64_t heads,
                           Detail::read_positive_int_or(attributes, "heads", context,
-                                                       Detail::default_head_count(hidden)));
+                                                       default_attention_heads(hidden)));
             SA_TRY_ASSIGN(const NN::NormOptions norm,
                           Detail::read_norm_options(attributes, context));
 
