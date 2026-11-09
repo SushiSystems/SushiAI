@@ -32,11 +32,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include "datasets_test_support.hpp"
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/datasets/yolo_txt.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
@@ -55,14 +57,40 @@ namespace
     constexpr float K_COORDINATE_TOLERANCE =
         static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Returns options that read one split of a directory with three classes. */
-    YOLOTxtOptions options_of(const Support::ScratchDirectory& scratch, const char* split)
+    /** @brief Returns options that read one split of the folder data with three classes. */
+    YOLOTxtOptions options_of(const char* split)
+    {
+        YOLOTxtOptions options;
+        options.root = "data";
+        options.split = split;
+        options.class_count = 3;
+        return options;
+    }
+
+    /** @brief Returns options that read one split of a directory on disk with three classes. */
+    YOLOTxtOptions disk_options_of(const Support::ScratchDirectory& scratch, const char* split)
     {
         YOLOTxtOptions options;
         options.root = scratch.path();
         options.split = split;
         options.class_count = 3;
         return options;
+    }
+
+    /** @brief Adds a text file below the folder data of a source. */
+    void put(MemorySource& source, const std::string& relative, const std::string& text)
+    {
+        source.add_file("data/" + relative, text);
+    }
+
+    /** @brief Returns a source holding a one-byte file at each path below the folder data. */
+    MemorySource images_of(const std::vector<std::string>& files)
+    {
+        MemorySource source;
+        for (const std::string& file : files)
+            put(source, file, "x");
+
+        return source;
     }
 
     /** @brief Returns the label path of an image, with forward slashes. */
@@ -76,6 +104,16 @@ namespace
                               const std::filesystem::path& base)
     {
         return list.files[list.samples[sample].file].lexically_relative(base).generic_string();
+    }
+
+    /** @brief Returns a source of three images, two of them labelled, and a note. */
+    MemorySource labelled_folder()
+    {
+        MemorySource source = images_of({"images/train/b.jpg", "images/train/a.png",
+                                         "images/train/c.jpg", "images/train/notes.md"});
+        put(source, "labels/train/a.txt", "2 0.5 0.25 0.2 0.1\n0 0.1 0.1 0.05 0.05\n");
+        put(source, "labels/train/b.txt", "1 0.1 0.1 0.9 0.1 0.5 0.9\n");
+        return source;
     }
 } // namespace
 
@@ -95,39 +133,57 @@ TEST(Small_DatasetsYoloTxt, TheLabelPathKeepsAFolderThatIsNotImages)
     EXPECT_EQ(label_of("a.jpg"), "a.txt");
 }
 
-/** @brief Tests that the image folder is listed sorted and each label file is parsed. */
-TEST(Small_DatasetsYoloTxt, TheImageFolderIsListedWithItsLabels)
+/** @brief Tests that the image folder is listed sorted and the files that are no image skipped. */
+TEST(Small_DatasetsYoloTxt, TheImageFolderIsListedSorted)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_folder");
-    scratch.write("images/train/b.jpg", {1});
-    scratch.write("images/train/a.png", {1});
-    scratch.write("images/train/c.jpg", {1});
-    scratch.write("images/train/notes.md", {1});
-    scratch.write_text("labels/train/a.txt", "2 0.5 0.25 0.2 0.1\n0 0.1 0.1 0.05 0.05\n");
-    scratch.write_text("labels/train/b.txt", "1 0.1 0.1 0.9 0.1 0.5 0.9\n");
+    const MemorySource source = labelled_folder();
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of(scratch, "train")));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of("train"), source));
+
+    ASSERT_EQ(list.samples.size(), 3u);
+    EXPECT_EQ(relative_file(list, 0, "data"), "images/train/a.png");
+    EXPECT_EQ(relative_file(list, 1, "data"), "images/train/b.jpg");
+    EXPECT_EQ(relative_file(list, 2, "data"), "images/train/c.jpg");
+}
+
+/** @brief Tests that a list of boxes names its class count and no class name. */
+TEST(Small_DatasetsYoloTxt, TheListHoldsAClassCountAndNoClassName)
+{
+    const MemorySource source = labelled_folder();
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of("train"), source));
 
     EXPECT_EQ(list.class_count, 3);
     EXPECT_TRUE(list.class_names.empty());
-    ASSERT_EQ(list.samples.size(), 3u);
-    EXPECT_EQ(relative_file(list, 0, scratch.path()), "images/train/a.png");
-    EXPECT_EQ(relative_file(list, 1, scratch.path()), "images/train/b.jpg");
-    EXPECT_EQ(relative_file(list, 2, scratch.path()), "images/train/c.jpg");
+    EXPECT_FALSE(list.samples[0].stored.has_value());
+    EXPECT_FALSE(list.samples[0].class_index.has_value());
+}
+
+/** @brief Tests that a label file of boxes gives one object per line, with its class and box. */
+TEST(Small_DatasetsYoloTxt, ALabelFileOfBoxesGivesOneObjectPerLine)
+{
+    const MemorySource source = labelled_folder();
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of("train"), source));
 
     const Sample& boxes = list.samples[0];
-    EXPECT_FALSE(boxes.stored.has_value());
-    EXPECT_FALSE(boxes.class_index.has_value());
     ASSERT_EQ(boxes.objects.size(), 2u);
     EXPECT_EQ(boxes.objects.classes()[0], 2);
     EXPECT_EQ(boxes.objects.classes()[1], 0);
-
     const NormalizedBox& box = boxes.objects.boxes()[0];
     EXPECT_NEAR(box.x_center, 0.5f, K_COORDINATE_TOLERANCE);
     EXPECT_NEAR(box.y_center, 0.25f, K_COORDINATE_TOLERANCE);
     EXPECT_NEAR(box.width, 0.2f, K_COORDINATE_TOLERANCE);
     EXPECT_NEAR(box.height, 0.1f, K_COORDINATE_TOLERANCE);
     EXPECT_TRUE(boxes.objects.polygons()[0].empty());
+}
+
+/** @brief Tests that a label line of more numbers gives a polygon. */
+TEST(Small_DatasetsYoloTxt, ALabelLineOfPointsGivesAPolygon)
+{
+    const MemorySource source = labelled_folder();
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of("train"), source));
 
     const Sample& polygon = list.samples[1];
     ASSERT_EQ(polygon.objects.size(), 1u);
@@ -140,12 +196,10 @@ TEST(Small_DatasetsYoloTxt, TheImageFolderIsListedWithItsLabels)
 /** @brief Tests that an image without a label file, or with an empty one, has no object. */
 TEST(Small_DatasetsYoloTxt, AnImageWithoutALabelFileHasNoObject)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_background");
-    scratch.write("images/val/a.jpg", {1});
-    scratch.write("images/val/b.jpg", {1});
-    scratch.write_text("labels/val/b.txt", "");
+    MemorySource source = images_of({"images/val/a.jpg", "images/val/b.jpg"});
+    put(source, "labels/val/b.txt", "");
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of(scratch, "val")));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of("val"), source));
 
     ASSERT_EQ(list.samples.size(), 2u);
     EXPECT_TRUE(list.samples[0].objects.is_empty());
@@ -155,18 +209,16 @@ TEST(Small_DatasetsYoloTxt, AnImageWithoutALabelFileHasNoObject)
 /** @brief Tests that an image list is read in its own order, relative paths from the root. */
 TEST(Small_DatasetsYoloTxt, AnImageListIsReadInItsOwnOrder)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_list");
-    scratch.write("images/all/z.jpg", {1});
-    scratch.write("images/all/a.jpg", {1});
-    scratch.write("images/all/unlisted.jpg", {1});
-    scratch.write_text("labels/all/a.txt", "1 0.5 0.5 0.5 0.5\n");
-    scratch.write_text("train.txt", "./images/all/z.jpg\r\n\n  images/all/a.jpg  \n");
+    MemorySource source = images_of({"images/all/z.jpg", "images/all/a.jpg",
+                                     "images/all/unlisted.jpg"});
+    put(source, "labels/all/a.txt", "1 0.5 0.5 0.5 0.5\n");
+    put(source, "train.txt", "./images/all/z.jpg\r\n\n  images/all/a.jpg  \n");
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of(scratch, "train")));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of("train"), source));
 
     ASSERT_EQ(list.samples.size(), 2u);
-    EXPECT_EQ(relative_file(list, 0, scratch.path()), "images/all/z.jpg");
-    EXPECT_EQ(relative_file(list, 1, scratch.path()), "images/all/a.jpg");
+    EXPECT_EQ(relative_file(list, 0, "data"), "images/all/z.jpg");
+    EXPECT_EQ(relative_file(list, 1, "data"), "images/all/a.jpg");
     EXPECT_TRUE(list.samples[0].objects.is_empty());
     ASSERT_EQ(list.samples[1].objects.size(), 1u);
     EXPECT_EQ(list.samples[1].objects.classes()[0], 1);
@@ -175,97 +227,109 @@ TEST(Small_DatasetsYoloTxt, AnImageListIsReadInItsOwnOrder)
 /** @brief Tests that an image list wins over an image folder of the same split. */
 TEST(Small_DatasetsYoloTxt, AnImageListWinsOverAnImageFolder)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_both");
-    scratch.write("images/train/a.jpg", {1});
-    scratch.write("images/train/b.jpg", {1});
-    scratch.write_text("train.txt", "images/train/b.jpg\n");
+    MemorySource source = images_of({"images/train/a.jpg", "images/train/b.jpg"});
+    put(source, "train.txt", "images/train/b.jpg\n");
 
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of(scratch, "train")));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options_of("train"), source));
 
     ASSERT_EQ(list.samples.size(), 1u);
-    EXPECT_EQ(relative_file(list, 0, scratch.path()), "images/train/b.jpg");
+    EXPECT_EQ(relative_file(list, 0, "data"), "images/train/b.jpg");
 }
 
 /** @brief Tests that a listed image that is no file names the list and its line. */
 TEST(Small_DatasetsYoloTxt, AListedImageThatIsAbsentNamesItsLine)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_list_absent");
-    scratch.write("images/a.jpg", {1});
-    scratch.write_text("train.txt", "images/a.jpg\n\nimages/gone.jpg\n");
+    MemorySource source = images_of({"images/a.jpg"});
+    put(source, "train.txt", "images/a.jpg\n\nimages/gone.jpg\n");
 
-    SA_EXPECT_FAILURE(read_yolo_txt(options_of(scratch, "train")), StatusCode::FileNotFound,
+    SA_EXPECT_FAILURE(read_yolo_txt(options_of("train"), source), StatusCode::FileNotFound,
                       "train.txt", "line 3", "gone.jpg");
 }
 
 /** @brief Tests that a label file the parser rejects names its path and its line. */
 TEST(Small_DatasetsYoloTxt, ABadLabelFileNamesItsPathAndLine)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_bad_label");
-    scratch.write("images/train/a.jpg", {1});
-    scratch.write("images/train/b.jpg", {1});
-    scratch.write_text("labels/train/a.txt", "0 0.5 0.5 0.2 0.4\n");
-    scratch.write_text("labels/train/b.txt", "0 0.5 0.5 0.2 0.4\n1 0.5 abc 0.2 0.4\n");
+    MemorySource source = images_of({"images/train/a.jpg", "images/train/b.jpg"});
+    put(source, "labels/train/a.txt", "0 0.5 0.5 0.2 0.4\n");
+    put(source, "labels/train/b.txt", "0 0.5 0.5 0.2 0.4\n1 0.5 abc 0.2 0.4\n");
 
-    SA_EXPECT_FAILURE(read_yolo_txt(options_of(scratch, "train")), StatusCode::InvalidFile,
+    SA_EXPECT_FAILURE(read_yolo_txt(options_of("train"), source), StatusCode::InvalidFile,
                       "labels/train/b.txt", "line 2", "abc");
 }
 
 /** @brief Tests that a class at or above the class count is refused with its label file. */
 TEST(Small_DatasetsYoloTxt, AClassOutsideTheClassCountIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_class");
-    scratch.write("images/train/a.jpg", {1});
-    scratch.write_text("labels/train/a.txt", "3 0.5 0.5 0.2 0.4\n");
+    MemorySource source = images_of({"images/train/a.jpg"});
+    put(source, "labels/train/a.txt", "3 0.5 0.5 0.2 0.4\n");
 
-    SA_EXPECT_FAILURE(read_yolo_txt(options_of(scratch, "train")), StatusCode::InvalidFile,
+    SA_EXPECT_FAILURE(read_yolo_txt(options_of("train"), source), StatusCode::InvalidFile,
                       "labels/train/a.txt", "line 1");
 }
 
-/** @brief Tests that a class count below one is refused before the disk is read. */
+/** @brief Tests that a class count below one is refused before any file is read. */
 TEST(Small_DatasetsYoloTxt, AClassCountBelowOneIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_count");
-    YOLOTxtOptions options = options_of(scratch, "train");
+    const MemorySource source;
+    YOLOTxtOptions options = options_of("train");
     options.class_count = 0;
 
-    SA_EXPECT_FAILURE(read_yolo_txt(options), StatusCode::InvalidDescription, "class count is 0");
+    SA_EXPECT_FAILURE(read_yolo_txt(options, source), StatusCode::InvalidDescription,
+                      "class count is 0");
 }
 
 /** @brief Tests that a split with neither a list nor a folder names both paths. */
 TEST(Small_DatasetsYoloTxt, ASplitWithNeitherFormIsNotFound)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_absent");
+    const MemorySource source;
 
-    SA_EXPECT_FAILURE(read_yolo_txt(options_of(scratch, "train")), StatusCode::FileNotFound,
+    SA_EXPECT_FAILURE(read_yolo_txt(options_of("train"), source), StatusCode::FileNotFound,
                       "train.txt", "images/train");
 }
 
 /** @brief Tests that an image folder with no image file is refused. */
 TEST(Small_DatasetsYoloTxt, ASplitWithoutAnImageIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_empty");
-    scratch.write("images/train/readme.txt", {1});
+    const MemorySource source = images_of({"images/train/readme.txt"});
 
-    SA_EXPECT_FAILURE(read_yolo_txt(options_of(scratch, "train")), StatusCode::InvalidFile,
+    SA_EXPECT_FAILURE(read_yolo_txt(options_of("train"), source), StatusCode::InvalidFile,
                       "'train'", "no image");
 }
 
-/** @brief Tests that images and label files served from memory pair by the label path. */
-TEST(Small_DatasetsYoloTxt, ImagesAndLabelsServedFromMemoryArePaired)
+/** @brief Tests that the file-system form lists the images and pairs the labels on disk. */
+TEST(Medium_DatasetsYoloTxt, ImagesAndLabelsOnDiskArePaired)
 {
-    MemorySource source;
-    source.add_file("data/images/train/a.jpg", "x");
-    source.add_file("data/images/train/b.jpg", "x");
-    source.add_file("data/labels/train/b.txt", "2 0.5 0.25 0.2 0.1\n");
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_disk");
+    scratch.write("images/train/b.jpg", {1});
+    scratch.write("images/train/a.png", {1});
+    scratch.write_text("labels/train/b.txt", "2 0.5 0.25 0.2 0.1\n");
 
-    YOLOTxtOptions options;
-    options.root = "data";
-    options.class_count = 3;
-
-    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options, source));
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list,
+                            read_yolo_txt(disk_options_of(scratch, "train")));
 
     ASSERT_EQ(list.samples.size(), 2u);
+    EXPECT_EQ(relative_file(list, 0, scratch.path()), "images/train/a.png");
     EXPECT_TRUE(list.samples[0].objects.is_empty());
     ASSERT_EQ(list.samples[1].objects.size(), 1u);
     EXPECT_EQ(list.samples[1].objects.classes()[0], 2);
+}
+
+/** @brief Tests that a listed image that is absent from the disk names the list and its line. */
+TEST(Medium_DatasetsYoloTxt, AListedImageAbsentFromTheDiskNamesItsLine)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_list_absent");
+    scratch.write("images/a.jpg", {1});
+    scratch.write_text("train.txt", "images/a.jpg\n\nimages/gone.jpg\n");
+
+    SA_EXPECT_FAILURE(read_yolo_txt(disk_options_of(scratch, "train")), StatusCode::FileNotFound,
+                      "train.txt", "line 3", "gone.jpg");
+}
+
+/** @brief Tests that a split with neither a list nor a folder on disk names both paths. */
+TEST(Medium_DatasetsYoloTxt, ASplitWithNeitherFormOnDiskIsNotFound)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_absent");
+
+    SA_EXPECT_FAILURE(read_yolo_txt(disk_options_of(scratch, "train")), StatusCode::FileNotFound,
+                      "train.txt", "images/train");
 }

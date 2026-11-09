@@ -1,12 +1,13 @@
 # tests/vision/datasets/test_yolo_txt.cpp
 
 
-Suites: `Small_DatasetsYoloTxt`.
+Suites: `Small_DatasetsYoloTxt` and `Medium_DatasetsYoloTxt`.
 
 Tests `read_yolo_txt` and `yolo_label_path` in
-`modules/vision/datasets/include/SushiAI/vision/datasets/yolo_txt.hpp`. The reader cases write
-one-byte image files and label text files under the system's temporary directory and read
-with a class count of 3.
+`modules/vision/datasets/include/SushiAI/vision/datasets/yolo_txt.hpp`. The `Small_`
+reader cases read one-byte image files and label text files served by a `MemorySource` under the
+folder `data`; the three `Medium_` cases write them under the system's temporary directory and
+read them through the file-system overload. Every case reads with a class count of 3.
 
 ## TheLabelPathSwapsTheLastImagesFolder
 
@@ -18,13 +19,25 @@ with a class count of 3.
 It maps `data/train/a.jpg` to `data/train/a.txt`, `data/images` to `data/images.txt` and
 `a.jpg` to `a.txt`.
 
-## TheImageFolderIsListedWithItsLabels
+## TheImageFolderIsListedSorted
 
 The split "train" lists `images/train/a.png`, `b.jpg` and `c.jpg` in that order and leaves
-`notes.md` out, with a class count of 3 and no class names. The first sample has no stored
-pixels, no class index and two objects of the classes 2 and 0; its first box is (0.5, 0.25,
-0.2, 0.1) and has no polygon. The second sample has one object of class 1 with a polygon of
-three vertices, the second being (0.9, 0.1).
+`notes.md` out.
+
+## TheListHoldsAClassCountAndNoClassName
+
+For the same folder the list has a class count of 3 and no class names, and the first sample
+has no stored pixels and no class index.
+
+## ALabelFileOfBoxesGivesOneObjectPerLine
+
+The first sample has two objects of the classes 2 and 0; its first box is (0.5, 0.25, 0.2, 0.1)
+within the typed tolerance of a parsed coordinate and has no polygon.
+
+## ALabelLineOfPointsGivesAPolygon
+
+The second sample has one object of class 1 with a polygon of three vertices, the second being
+(0.9, 0.1).
 
 ## AnImageWithoutALabelFileHasNoObject
 
@@ -67,7 +80,18 @@ A split with no list and no folder fails with `FileNotFound`, "train.txt" and "i
 
 An image folder holding only `readme.txt` fails with `InvalidFile`, "'train'" and "no image".
 
-## ImagesAndLabelsServedFromMemoryArePaired
+## ImagesAndLabelsOnDiskArePaired
 
-A `MemorySource` holding two images and the label file of the second gives a first sample with
-no object and a second with one object of class 2.
+`Medium_DatasetsYoloTxt`. Two images and the label file of `b.jpg` written under the temporary
+directory give the samples `images/train/a.png`, with no object, and `images/train/b.jpg`, with
+one object of class 2, through the file-system overload.
+
+## AListedImageAbsentFromTheDiskNamesItsLine
+
+`Medium_DatasetsYoloTxt`. The list on disk names `images/gone.jpg` on line 3, and the read fails
+with `FileNotFound`, "train.txt", "line 3" and "gone.jpg".
+
+## ASplitWithNeitherFormOnDiskIsNotFound
+
+`Medium_DatasetsYoloTxt`. A temporary directory with neither `train.txt` nor `images/train` fails
+with `FileNotFound`, "train.txt" and "images/train".
