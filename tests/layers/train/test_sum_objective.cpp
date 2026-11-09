@@ -88,9 +88,6 @@ namespace
     /** @brief Names the objective block in a diagnostic. */
     constexpr std::string_view K_CONTEXT = "the objective block";
 
-    /** @brief The rounded operations from the counts to the accuracy: the one quotient rounds. */
-    constexpr std::size_t K_RATIO_OPERATIONS = 1;
-
     /**
      * @brief Counts the roundings on the longest path to the weighted loss in double: 20 in a
      *        term (7 in the log-softmax, 1 in the product, 11 in the sum of 12, 1 in the mean),
@@ -191,39 +188,45 @@ namespace
 
     };
 
-    /** @brief Provides the host engine the scored tensors and the labels live on. */
-    class Small_SumObjectiveScore : public ::testing::Test
+    /**
+     * @brief Wraps a cross-entropy term and reports a fixed accuracy, so two terms of one sum
+     *        measure the same name with values that tell them apart.
+     */
+    class FixedAccuracyObjective final : public Train::Objective
     {
-        protected:
-            /** @brief Returns [3, 2] logits whose rows have their largest value at 1, 0, 1. */
-            [[nodiscard]] Result<SushiBLAS::Tensor> logits()
+        public:
+            /** @brief Makes a term over 3 rows of 2 classes that reports @p accuracy. */
+            explicit FixedAccuracyObjective(double accuracy) : accuracy_(accuracy) {}
+
+            /** @brief Declares what the wrapped cross-entropy declares. */
+            void declare(const Graph::GraphBuilder& builder, ObjectiveLeaves& leaves) const override
             {
-                SA_TRY_ASSIGN(SushiBLAS::Tensor output,
-                              allocate_tensor(backend.engine(), Shape{3, 2}));
-                SaTest::write_tensor(output,
-                                     std::vector<double>{0.1, 0.9, 0.8, 0.2, -1.0, 0.5});
-                return output;
+                inner_.declare(builder, leaves);
             }
 
-            /** @brief Returns a batch whose labels role holds @p values as int32. */
-            [[nodiscard]] Result<Data::Batch> batch_of(const std::vector<int32_t>& values)
+            /** @brief Computes what the wrapped cross-entropy computes. */
+            Result<Graph::ValueID> loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                                        const NN::ModelOutputs& outputs,
+                                        const ObjectiveLeaves& leaves) const override
             {
-                Data::BatchTarget labels;
-                labels.role = std::string(Data::K_ROLE_LABELS);
-                SA_TRY_ASSIGN(labels.values,
-                              allocate_tensor(backend.engine(),
-                                              Shape{static_cast<int64_t>(values.size())},
-                                              DType::Int32));
-                for (std::size_t i = 0; i < values.size(); ++i)
-                    labels.values.data_as<int32_t>()[i] = values[i];
-
-                Data::Batch batch;
-                batch.targets.push_back(std::move(labels));
-                return batch;
+                return inner_.loss(builder, graph, outputs, leaves);
             }
 
-            /** @brief The host backend the tensors are allocated from. */
-            HostExecutionBackend backend;
+            /** @brief Appends the fixed accuracy and reads nothing of the step. */
+            Status measure(const Train::StepView&, Train::Metrics& metrics) const override
+            {
+                return metrics.add(Train::Metric{"accuracy", accuracy_});
+            }
+
+            /** @brief Names the term. */
+            std::string_view name() const noexcept override
+            {
+                return "fixed-accuracy";
+            }
+
+        private:
+            CrossEntropyObjective inner_{3, 2};   /**< @brief Supplies the graph. */
+            double accuracy_;                     /**< @brief Holds the value reported. */
     };
 
     /** @brief Names a weight row by its name field. */
@@ -435,31 +438,26 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_SumObjectiveGradient, ::testing::Values(0u,
                          index_row_name);
 
 /**
- * @brief Tests that two cross-entropy terms, which both measure accuracy, report it once.
+ * @brief Tests that two terms which both measure accuracy report it once, with the first's value.
  *
- * The logits of the fixture put the largest value at 1, 0, 1 and the labels are 1, 0, 0, so the
- * accuracy is 2/3.
+ * The first term reports 0.25 and the second 0.75, so the one metric shows which term won.
  */
-TEST_F(Small_SumObjectiveScore, MeasureReportsTheAccuracyOfTwoTermsOnce)
+TEST(Small_SumObjective, MeasureReportsTheAccuracyOfTheFirstOfTwoTerms)
 {
     std::vector<SumTerm> terms;
-    terms.push_back(SumTerm{std::make_unique<CrossEntropyObjective>(3, 2), 1.0});
-    terms.push_back(SumTerm{std::make_unique<CrossEntropyObjective>(3, 2), 0.5});
+    terms.push_back(SumTerm{std::make_unique<FixedAccuracyObjective>(0.25), 1.0});
+    terms.push_back(SumTerm{std::make_unique<FixedAccuracyObjective>(0.75), 0.5});
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective,
                             SumObjective::make(std::move(terms)));
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor output, logits());
-    SA_ASSERT_OK_AND_ASSIGN(const Data::Batch batch, batch_of({1, 0, 0}));
-    const std::vector<Train::StepOutput> outputs{Train::StepOutput{"output", &output}};
-    const Train::StepView step{
-        batch, 0.0, SushiRuntime::span<const Train::StepOutput>(outputs.data(), outputs.size())};
+    const Data::Batch batch;
+    const Train::StepView step{batch, 0.0, SushiRuntime::span<const Train::StepOutput>()};
 
     Train::Metrics metrics;
     SA_EXPECT_OK(objective->measure(step, metrics));
 
     ASSERT_EQ(metrics.all().size(), 1u);
     ASSERT_EQ(metrics.all()[0].name, "accuracy");
-    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
-        metrics.all()[0].value, 2.0 / 3.0, K_RATIO_OPERATIONS)));
+    EXPECT_EQ(metrics.all()[0].value, 0.25);
 }
 
 /** @brief Tests that the "sum" row builds each term through the registry it was found in. */

@@ -75,13 +75,12 @@ loss of one element, `spec.targets` equal to `K_NO_VALUE`, and both prefixed lea
 
 One row per parameter, 0 and 1: its gradient is set.
 
-## MeasureReportsTheAccuracyOfTwoTermsOnce
+## MeasureReportsTheAccuracyOfTheFirstOfTwoTerms
 
-Two `CrossEntropyObjective` terms over 3 rows of 2 classes both measure `accuracy`. Over the
-logits whose largest values are at 1, 0, 1 and the labels 1, 0, 0, `measure` of the sum gives
-one metric, `accuracy`, of 2/3. The old case used a local objective that reported two scripted
-metrics; the duplicate name now arises from two real objectives. Both terms see one step view,
-so the two accuracies are equal and the case shows the name once, not which term's value won.
+`SumObjective::measure` keeps the first term's metric when two terms report one name (the rule is
+written at `sum_objective.cpp`, in `measure`). Two terms of a local `FixedAccuracyObjective`, which
+wraps a cross-entropy term and reports a fixed accuracy, report 0.25 and 0.75. The sum gives one
+metric, `accuracy`, of 0.25, so the case shows which term's value won.
 
 ## TheFactoryBuildsEachTermThroughTheRegistry
 
