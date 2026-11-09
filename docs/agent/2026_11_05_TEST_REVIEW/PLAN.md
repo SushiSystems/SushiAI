@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M37, M47, M48 and M51 are left
+**Status:** Open — the host backend (RW-161, decisions 20 and 21) and M9 and M11 are done; M35, M47, M48 and M51 are left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -55,7 +55,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M34 | the tests of `layers/layer_traces` (1 file): 2 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M35 | the tests of `layers/nn` (39 files): 89 rewrite, 42 resize, 36 split, 138 merge, 30 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M36 | the tests of `layers/reference_files` (1 file): 1 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
-| M37 | the tests of `layers/train` (39 files): 107 rewrite, 28 resize, 36 split, 20 merge, 20 delete | T1, T2, T3, T4, T5, T6, T7, T8 | in progress (2026-11-09): 37 of 39 files applied (the 21 earlier ones, steps, sum_objective, training_graph, training_step, and in test_trainer/ compile_once, learning_curve, token_feed, zones, convergence, dense_objectives, determinism, dropout, fused_optimizer, fusion_numerics, loss_scaling, mixed_precision); `Graph::HostEvaluator` has an NLL_LOSS rule and `Medium_ObjectiveLoss` is `Small_ObjectiveLoss`; decision 49 holds the rulings. Resume: the 2 files of test_trainer/ left, resilience and static_memory (read their records in REPORT.md under `test_resilience.cpp` and `test_static_memory.cpp`); then the adds of REPORT.md for layers/train (find_leaf_tensor returns the tensor the pool holds; SumObjective::make stops on a null term; ObjectiveRegistry::add stops on an empty type or a null factory; list_output_shapes stops on an output of another graph; Trainer::fit runs no step after a refused dataset; NextTokenObjective loss and feed; FreeTrainingStep and AnchorTrainingStep refusals; DiceObjective extent), then set M37 done; not yet built or run |
+| M37 | the tests of `layers/train` (39 files): 107 rewrite, 28 resize, 36 split, 20 merge, 20 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run): every file of `layers/train` is applied; decisions 49 and 50 hold the rulings; the adds of `NextTokenObjective`, `FreeTrainingStep`, `AnchorTrainingStep` and `DiceObjective` belong to the `language` and `vision` jobs |
 | M38 | the tests of `layers/umbrella` (2 files): 2 rewrite, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M39 | the tests of `package` (2 files): 1 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, not yet built or run) |
 | M40 | the tests of `tools` (6 files): 7 rewrite, 85 resize, 14 split, 12 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (2026-11-09, decision 46; not run) |
