@@ -114,6 +114,8 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 
 39. M52 (2026-11-09, the worker): the `vision/umbrella` records are applied. The noexcept record needed no change: `compile_noexcept_surface.cpp` is already a compile-only unit with no test, as for the layers umbrella (decision 32); the trivial getters among its 418 assertions stay, since dropping them is the owner's call. `test_umbrella_reach.cpp` becomes `compile_vision.cpp`, a compile-only unit as `tests/language/umbrella/compile_language.cpp` is, in `tests/vision/umbrella/compile_vision.cpp`: three `static_assert`s that the umbrella alone names `Detect::Anchor::AnchorSize`, `Segment::ConfusionMatrix` and `Imaging::Image`. The self-IoU value, `K_DETECTION_VALUES`, `K_MOSAIC_PARTNERS` and the IoU tolerance are dropped (the self-IoU sits in `test_anchor_layout.cpp`; the ignore index is now exercised by `test_ignore_index.cpp`). The test program of `vision/umbrella` now lists no test. Not built or run.
 
+40. Ruling on decision 37 (2026-11-09, the owner): the YOLO26 forward pass runs once. The six `Medium_Yolo26Forward` rewrites of `tests/vision/registration` take the pass from a suite-level fixture (`SetUpTestSuite` builds it, `TearDownTestSuite` frees it) shared by the rows, in place of the per-case `Medium_Yolo26Whole` that runs it 21 times. A fixture that cannot build the pass skips every row of the suite with its reason. The change to the registration test files is a separate edit, not made by M41.
+
 ## Seams the M jobs wait on
 
 RW-155 asks the owner to rule on these. Each changes a module's surface, so the test named stays as it is until then.
