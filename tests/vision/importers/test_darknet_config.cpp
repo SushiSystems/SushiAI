@@ -59,60 +59,105 @@ namespace
         EXPECT_EQ(option.value, value);
         EXPECT_EQ(option.line, line);
     }
+
+    /** @brief Holds a section line the parser refuses and a text its diagnostic holds. */
+    struct MalformedSection
+    {
+        const char* name;   /**< Names the row. */
+        const char* text;   /**< Holds the text to parse. */
+        const char* detail; /**< Holds a text the diagnostic names besides the line; may be empty. */
+    };
+
+    /** @brief Runs one malformed section line per row. */
+    class Small_DarknetConfigMalformedSection : public ::testing::TestWithParam<MalformedSection>
+    {
+    };
 } // namespace
 
-/** @brief Tests that comments, blank lines and inner whitespace parse to the stated lines. */
-TEST(Small_DarknetConfig, ParsesEveryLexicalFormOfTheGrammar)
+/** @brief Tests that comment lines and blank lines are skipped and the lines are counted. */
+TEST(Small_DarknetConfig, SkipsCommentsAndBlankLinesAndCountsThem)
 {
     const std::string text =
         "# the first line is a comment\n"
         "; so is a line that starts with a semicolon\n"
         "\n"
         "[network]\n"
-        "  width = 416\n"
-        "height\t=\t416\n"
-        "channels=3\n"
+        "width=416\n"
         "# a comment between keys\n"
-        "anchors = 10, 14,  23 ,27\n"
-        "  [convolutional]\n"
-        "filters=16\n"
-        "   size=3   \n"
-        "label=\n"
-        "[route]\n"
-        "layers = -1 , 61\n"
-        "[yolo]\n"
-        "mask=0,1 , 2\n"
-        "expr=a=b\n";
+        "height=608\n";
 
     SA_ASSERT_OK_AND_ASSIGN(const DarknetConfig config, parse_darknet_config(text, "test.cfg"));
 
     EXPECT_EQ(config.net.type, "network");
     EXPECT_EQ(config.net.line, 4);
-    ASSERT_EQ(config.net.options.size(), 4u);
+    ASSERT_EQ(config.net.options.size(), 2u);
     expect_option(config.net.options[0], "width", "416", 5);
-    expect_option(config.net.options[1], "height", "416", 6);
-    expect_option(config.net.options[2], "channels", "3", 7);
-    expect_option(config.net.options[3], "anchors", "10,14,23,27", 9);
+    expect_option(config.net.options[1], "height", "608", 7);
+}
 
-    ASSERT_EQ(config.layers.size(), 3u);
+/** @brief Tests that whitespace around a line, a key, the sign and a value is dropped. */
+TEST(Small_DarknetConfig, DropsTheWhitespaceAroundTheSignAndTheLine)
+{
+    const std::string text =
+        "[network]\n"
+        "  width = 416\n"
+        "height\t=\t416\n"
+        "  [convolutional]\n"
+        "   size=3   \n";
 
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetConfig config, parse_darknet_config(text, "test.cfg"));
+
+    ASSERT_EQ(config.net.options.size(), 2u);
+    expect_option(config.net.options[0], "width", "416", 2);
+    expect_option(config.net.options[1], "height", "416", 3);
+    ASSERT_EQ(config.layers.size(), 1u);
     EXPECT_EQ(config.layers[0].type, "convolutional");
-    EXPECT_EQ(config.layers[0].line, 10);
-    ASSERT_EQ(config.layers[0].options.size(), 3u);
-    expect_option(config.layers[0].options[0], "filters", "16", 11);
-    expect_option(config.layers[0].options[1], "size", "3", 12);
-    expect_option(config.layers[0].options[2], "label", "", 13);
+    EXPECT_EQ(config.layers[0].line, 4);
+    ASSERT_EQ(config.layers[0].options.size(), 1u);
+    expect_option(config.layers[0].options[0], "size", "3", 5);
+}
 
-    EXPECT_EQ(config.layers[1].type, "route");
-    EXPECT_EQ(config.layers[1].line, 14);
+/** @brief Tests that a list value loses the spaces between its entries. */
+TEST(Small_DarknetConfig, AListValueLosesItsInnerSpaces)
+{
+    const std::string text =
+        "[network]\n"
+        "anchors = 10, 14,  23 ,27\n"
+        "[route]\n"
+        "layers = -1 , 61\n"
+        "[yolo]\n"
+        "mask=0,1 , 2\n";
+
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetConfig config, parse_darknet_config(text, "test.cfg"));
+
+    ASSERT_EQ(config.net.options.size(), 1u);
+    expect_option(config.net.options[0], "anchors", "10,14,23,27", 2);
+    ASSERT_EQ(config.layers.size(), 2u);
+    ASSERT_EQ(config.layers[0].options.size(), 1u);
+    expect_option(config.layers[0].options[0], "layers", "-1,61", 4);
     ASSERT_EQ(config.layers[1].options.size(), 1u);
-    expect_option(config.layers[1].options[0], "layers", "-1,61", 15);
+    expect_option(config.layers[1].options[0], "mask", "0,1,2", 6);
+}
 
-    EXPECT_EQ(config.layers[2].type, "yolo");
-    EXPECT_EQ(config.layers[2].line, 16);
-    ASSERT_EQ(config.layers[2].options.size(), 2u);
-    expect_option(config.layers[2].options[0], "mask", "0,1,2", 17);
-    expect_option(config.layers[2].options[1], "expr", "a=b", 18);
+/** @brief Tests that a key with nothing after the sign keeps an empty value. */
+TEST(Small_DarknetConfig, AnEmptyValueStaysEmpty)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetConfig config,
+                            parse_darknet_config("[net]\n[convolutional]\nlabel=\n", "test.cfg"));
+
+    ASSERT_EQ(config.layers.size(), 1u);
+    ASSERT_EQ(config.layers[0].options.size(), 1u);
+    expect_option(config.layers[0].options[0], "label", "", 3);
+}
+
+/** @brief Tests that a value keeps a second sign. */
+TEST(Small_DarknetConfig, ASecondEqualsSignStaysInTheValue)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetConfig config,
+                            parse_darknet_config("[net]\nexpr=a=b\n", "test.cfg"));
+
+    ASSERT_EQ(config.net.options.size(), 1u);
+    expect_option(config.net.options[0], "expr", "a=b", 2);
 }
 
 /** @brief Tests that a CRLF text parses to the same keys, values and lines. */
@@ -189,17 +234,22 @@ TEST(Small_DarknetConfig, RefusesAFirstSectionThatIsNotNetOrNetwork)
 }
 
 /** @brief Tests that an unclosed section, an empty name and text after ']' each fail. */
-TEST(Small_DarknetConfig, RefusesAMalformedSectionLine)
+TEST_P(Small_DarknetConfigMalformedSection, RefusesAMalformedSectionLine)
 {
-    const Result<DarknetConfig> unclosed = parse_darknet_config("[net\n", "test.cfg");
-    SA_EXPECT_FAILURE(unclosed, StatusCode::InvalidDescription, "test.cfg:1", "']'");
+    const Result<DarknetConfig> outcome = parse_darknet_config(GetParam().text, "test.cfg");
 
-    const Result<DarknetConfig> empty_name = parse_darknet_config("[]\n", "test.cfg");
-    SA_EXPECT_FAILURE(empty_name, StatusCode::InvalidDescription, "test.cfg:1");
-
-    const Result<DarknetConfig> trailing = parse_darknet_config("[net]x\n", "test.cfg");
-    SA_EXPECT_FAILURE(trailing, StatusCode::InvalidDescription, "test.cfg:1");
+    SA_EXPECT_FAILURE(outcome, StatusCode::InvalidDescription, "test.cfg:1", GetParam().detail);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DarknetConfigMalformedSection,
+    ::testing::Values(MalformedSection{"AnUnclosedSection", "[net\n", "']'"},
+                      MalformedSection{"AnEmptyName", "[]\n", ""},
+                      MalformedSection{"TextAfterTheBracket", "[net]x\n", ""}),
+    [](const ::testing::TestParamInfo<MalformedSection>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 /** @brief Tests that a text of comments alone fails naming the origin. */
 TEST(Small_DarknetConfig, RefusesATextWithoutASection)
@@ -210,7 +260,7 @@ TEST(Small_DarknetConfig, RefusesATextWithoutASection)
 }
 
 /** @brief Tests that a path that cannot be opened gives FileNotFound naming the path. */
-TEST(Small_DarknetConfig, MissingFileGivesFileNotFound)
+TEST(Medium_DarknetConfig, MissingFileGivesFileNotFound)
 {
     const Result<DarknetConfig> outcome = load_darknet_config("absent_darknet_model.cfg");
 
