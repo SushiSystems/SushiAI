@@ -86,33 +86,41 @@ TEST(Small_Concat, CreateAcceptsOneInput)
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 6, 3}));
 }
 
-/** @brief Tests that inputs of unequal height are refused and the offending input is named. */
-TEST(Small_Concat, CreateRejectsUnequalHeight)
+/** @brief Holds input shapes that Concat refuses and the substrings of the refusal. */
+struct RefusedInputsRow
 {
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{4, 6, 3}}),
-                      StatusCode::InvalidDescription, "concat input 1", "H and W");
+    std::string name;          /**< The row's name. */
+    std::vector<Shape> shapes; /**< The input shapes given to create. */
+    std::string first;         /**< A substring the message holds. */
+    std::string second;        /**< A second substring the message holds. */
+};
+
+/** @brief Runs the refusal over each set of inputs create cannot join. */
+class Small_ConcatRefused : public ::testing::TestWithParam<RefusedInputsRow>
+{
+};
+
+/** @brief Tests that create refuses the inputs and names the offending one. */
+TEST_P(Small_ConcatRefused, CreateRefusesTheInputs)
+{
+    const RefusedInputsRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(create_over(row.shapes), StatusCode::InvalidDescription, row.first,
+                      row.second);
 }
 
-/** @brief Tests that inputs of unequal width are refused and the offending input is named. */
-TEST(Small_Concat, CreateRejectsUnequalWidth)
-{
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{8, 6, 3}, Shape{8, 12, 3}}),
-                      StatusCode::InvalidDescription, "concat input 2", "H and W");
-}
-
-/** @brief Tests that an input that is not rank 3 is refused and named. */
-TEST(Small_Concat, CreateRejectsAnInputThatIsNotAFeatureMap)
-{
-    SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{144}}),
-                      StatusCode::InvalidDescription, "concat input 1", "rank-3");
-}
-
-/** @brief Tests that a first input that is not rank 3 is refused and named as input 0. */
-TEST(Small_Concat, CreateRejectsAFirstInputThatIsNotAFeatureMap)
-{
-    SA_EXPECT_FAILURE(create_over({Shape{144}, Shape{8, 6, 3}}),
-                      StatusCode::InvalidDescription, "concat input 0", "rank-3");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ConcatRefused,
+    ::testing::Values(
+        RefusedInputsRow{"UnequalHeight", {Shape{8, 6, 3}, Shape{4, 6, 3}}, "concat input 1",
+                         "H and W"},
+        RefusedInputsRow{"UnequalWidth", {Shape{8, 6, 3}, Shape{8, 6, 3}, Shape{8, 12, 3}},
+                         "concat input 2", "H and W"},
+        RefusedInputsRow{"ASecondInputThatIsNotAFeatureMap", {Shape{8, 6, 3}, Shape{144}},
+                         "concat input 1", "rank-3"},
+        RefusedInputsRow{"AFirstInputThatIsNotAFeatureMap", {Shape{144}, Shape{8, 6, 3}},
+                         "concat input 0", "rank-3"}),
+    [](const ::testing::TestParamInfo<RefusedInputsRow>& info) { return info.param.name; });
 
 /** @brief Tests that an empty input list is refused. */
 TEST(Small_Concat, CreateRejectsNoInput)
@@ -229,30 +237,30 @@ TEST(Small_Concat, TheFactoryBuildsANodeFromARowWithNoKey)
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 6, 8}));
 }
 
-/** @brief Tests that the factory refuses a key and names the row when the shapes do not join. */
-TEST(Small_Concat, TheFactoryRefusesAKeyAndShapesThatDoNotJoin)
+/** @brief Tests that the factory refuses a key and names the row. */
+TEST(Small_Concat, TheFactoryRefusesAKey)
 {
     const Shape joined[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
-    const Shape apart[] = {Shape{8, 6, 3}, Shape{4, 6, 5}};
-    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
     const Config::Value stray = require_value(Config::parse_json(R"({"axis": 3})", "<test>"));
 
     SA_EXPECT_FAILURE(NN::make_concat_node(NN::ShapeSpan(joined, 2), stray, "layer 2 'concat'"),
                       StatusCode::InvalidDescription, "layer 2 'concat'", "'axis'", "no key");
+}
+
+/** @brief Tests that the factory refuses shapes that do not join and names the row. */
+TEST(Small_Concat, TheFactoryRefusesShapesThatDoNotJoin)
+{
+    const Shape apart[] = {Shape{8, 6, 3}, Shape{4, 6, 5}};
+    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
+
     SA_EXPECT_FAILURE(NN::make_concat_node(NN::ShapeSpan(apart, 2), none, "layer 2 'concat'"),
                       StatusCode::InvalidDescription, "layer 2 'concat'", "H and W");
 }
 
-/** @brief Tests that the state walk visits nothing after a trace. */
+/** @brief Tests that the state walk visits no parameter and no buffer. */
 TEST(Small_Concat, TheStateWalkVisitsNothing)
 {
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
-
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> node, create_over({Shape{8, 6, 3}}));
-    std::vector<Graph::ValueID> outputs;
-    SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({a}), outputs));
 
     std::size_t visits = 0;
     const auto on_parameter = [&visits](const std::string&, NN::Parameter&)

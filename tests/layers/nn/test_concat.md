@@ -3,7 +3,7 @@
 
 The Concat node's shape check, its port and the node it traces.
 
-Suites: `Small_Concat`.
+Suites: `Small_Concat`, `Small_ConcatRefused`.
 
 Tests the Concat node's shape check, its port and the node it traces.
 
@@ -28,22 +28,13 @@ Over [8, 6, 3], [8, 6, 5] and [8, 6, 1] the node has one port named "output" of 
 
 Over the one shape [8, 6, 3] the port's shape is [8, 6, 3].
 
-## CreateRejectsUnequalHeight
+## Small_ConcatRefused.CreateRefusesTheInputs
 
-[8, 6, 3] with [4, 6, 3] fails with `InvalidDescription` and a message containing "concat
-input 1" and "H and W".
-
-## CreateRejectsUnequalWidth
-
-A third input of [8, 12, 3] fails with a message containing "concat input 2" and "H and W".
-
-## CreateRejectsAnInputThatIsNotAFeatureMap
-
-[8, 6, 3] with [144] fails with a message containing "concat input 1" and "rank-3".
-
-## CreateRejectsAFirstInputThatIsNotAFeatureMap
-
-[144] with [8, 6, 3] fails with a message containing "concat input 0" and "rank-3".
+`create` fails with `InvalidDescription` and a message holding the row's substrings. The rows are
+UnequalHeight ([8, 6, 3] with [4, 6, 3]: "concat input 1" and "H and W"), UnequalWidth (a third
+input of [8, 12, 3]: "concat input 2" and "H and W"), ASecondInputThatIsNotAFeatureMap
+([8, 6, 3] with [144]: "concat input 1" and "rank-3") and AFirstInputThatIsNotAFeatureMap
+([144] with [8, 6, 3]: "concat input 0" and "rank-3").
 
 ## CreateRejectsNoInput
 
@@ -79,13 +70,16 @@ node.
 `NN::make_concat_node` over [8, 6, 3] and [8, 6, 5] with the attributes `{}` returns a
 `Concat` with an input count of 2 and one port of shape [8, 6, 8].
 
-## TheFactoryRefusesAKeyAndShapesThatDoNotJoin
+## TheFactoryRefusesAKey
 
 The attributes `{"axis": 3}` fail with a message containing the context "layer 2 'concat'",
-"'axis'" and "no key". The shapes [8, 6, 3] and [4, 6, 5] with no attribute fail with the
-context and "H and W".
+"'axis'" and "no key".
+
+## TheFactoryRefusesShapesThatDoNotJoin
+
+The shapes [8, 6, 3] and [4, 6, 5] with no attribute fail with the context and "H and W".
 
 ## TheStateWalkVisitsNothing
 
-After a trace, `walk_state("merge", visitor)` calls neither the parameter callback nor the
-buffer callback.
+`walk_state("merge", visitor)` on a new node calls neither the parameter callback nor the buffer
+callback.

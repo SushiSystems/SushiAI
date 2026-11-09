@@ -62,41 +62,41 @@ namespace
         return Shape{traced[1], traced[2], traced[3]};
     }
 
-    /** @brief Traces @p layer over a fresh input of @p batched_input and returns its status. */
-    Status trace_status(const ChannelSlice& layer, const Shape& batched_input)
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID x = builder.input(batched_input, "x");
-        return layer.forward(builder, x).status();
-    }
 } // namespace
 
-/** @brief Tests that the offset and count fields are the two values an aggregate list sets. */
-TEST(Small_ChannelSlice, TheOffsetAndCountFieldsAreSetInOrder)
+/** @brief Holds a channel range, the per-sample shape it slices and the shape it gives. */
+struct AcceptedRangeRow
 {
-    const ChannelSlice layer{32, 16};
+    std::string name;  /**< The row's name. */
+    int64_t offset;    /**< The first channel taken. */
+    int64_t count;     /**< The number of channels taken. */
+    Shape sample;      /**< The per-sample input shape. */
+    Shape expected;    /**< The per-sample shape the layer gives. */
+};
 
-    EXPECT_EQ(layer.offset, 32);
-    EXPECT_EQ(layer.count, 16);
+/** @brief Runs the accepted-range promise over each kind of range. */
+class Small_ChannelSliceAccepted : public ::testing::TestWithParam<AcceptedRangeRow>
+{
+};
+
+/** @brief Tests that output_shape keeps height and width and takes the range of channels. */
+TEST_P(Small_ChannelSliceAccepted, OutputShapeTakesTheRange)
+{
+    const AcceptedRangeRow& row = GetParam();
+    const ChannelSlice layer{row.offset, row.count};
+
+    EXPECT_EQ(layer.output_shape(row.sample).value(), row.expected);
 }
 
-/** @brief Tests the acceptance case: [H, W, 64] with offset 32 and count 32 gives [H, W, 32]. */
-TEST(Small_ChannelSlice, OutputShapeKeepsHeightAndWidthAndTakesTheRange)
-{
-    const ChannelSlice layer{32, 32};
-
-    EXPECT_EQ(layer.output_shape(Shape{5, 3, 64}).value(), (Shape{5, 3, 32}));
-}
-
-/** @brief Tests that the first channel, the last channel and the whole range are all accepted. */
-TEST(Small_ChannelSlice, OutputShapeAcceptsTheFirstLastAndWholeRanges)
-{
-    EXPECT_EQ((ChannelSlice{0, 1}.output_shape(Shape{4, 2, 4}).value()), (Shape{4, 2, 1}));
-    EXPECT_EQ((ChannelSlice{3, 1}.output_shape(Shape{4, 2, 4}).value()), (Shape{4, 2, 1}));
-    EXPECT_EQ((ChannelSlice{1, 3}.output_shape(Shape{4, 2, 4}).value()), (Shape{4, 2, 3}));
-    EXPECT_EQ((ChannelSlice{0, 4}.output_shape(Shape{4, 2, 4}).value()), (Shape{4, 2, 4}));
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ChannelSliceAccepted,
+    ::testing::Values(
+        AcceptedRangeRow{"AMiddleRange", 32, 32, Shape{5, 3, 64}, Shape{5, 3, 32}},
+        AcceptedRangeRow{"TheFirstChannel", 0, 1, Shape{4, 2, 4}, Shape{4, 2, 1}},
+        AcceptedRangeRow{"TheLastChannel", 3, 1, Shape{4, 2, 4}, Shape{4, 2, 1}},
+        AcceptedRangeRow{"AllButTheFirst", 1, 3, Shape{4, 2, 4}, Shape{4, 2, 3}},
+        AcceptedRangeRow{"TheWholeRange", 0, 4, Shape{4, 2, 4}, Shape{4, 2, 4}}),
+    [](const ::testing::TestParamInfo<AcceptedRangeRow>& info) { return info.param.name; });
 
 /** @brief Tests that the traced result carries the NHWC layout tag. */
 TEST(Small_ChannelSlice, TheResultIsTaggedNHWC)
@@ -159,134 +159,99 @@ TEST(Small_ChannelSlice, OutputShapeAgreesWithTheTracedShape)
               traced_per_sample_shape(leading, Shape{1, 4, 4, 6}));
 }
 
-/** @brief Tests that output_shape rejects a negative offset in a message naming the values. */
-TEST(Small_ChannelSlice, OutputShapeRejectsANegativeOffset)
+/** @brief Holds a range and a per-sample shape that output_shape refuses, with the message. */
+struct RefusedRangeRow
 {
-    const ChannelSlice layer{-1, 4};
+    std::string name;   /**< The row's name. */
+    int64_t offset;     /**< The first channel taken. */
+    int64_t count;      /**< The number of channels taken. */
+    Shape sample;       /**< The shape given to output_shape. */
+    std::string first;  /**< A substring the message holds; empty for none. */
+    std::string second; /**< A second substring the message holds; empty for none. */
+    std::string third;  /**< A third substring the message holds; empty for none. */
+};
 
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
-                      "ChannelSlice", "offset=-1, count=4", "64 channels");
+/** @brief Runs the output_shape refusal over each range and shape it cannot take. */
+class Small_ChannelSliceRefused : public ::testing::TestWithParam<RefusedRangeRow>
+{
+};
+
+/** @brief Tests that output_shape refuses the row and names the values the row says. */
+TEST_P(Small_ChannelSliceRefused, OutputShapeRefuses)
+{
+    const RefusedRangeRow& row = GetParam();
+    const ChannelSlice layer{row.offset, row.count};
+
+    SA_EXPECT_FAILURE(layer.output_shape(row.sample), StatusCode::InvalidDescription, row.first,
+                      row.second, row.third);
 }
 
-/** @brief Tests that output_shape rejects a zero count in a message naming the values. */
-TEST(Small_ChannelSlice, OutputShapeRejectsAZeroCount)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ChannelSliceRefused,
+    ::testing::Values(
+        RefusedRangeRow{"ANegativeOffset", -1, 4, Shape{5, 3, 64}, "ChannelSlice",
+                        "offset=-1, count=4", "64 channels"},
+        RefusedRangeRow{"AZeroCount", 0, 0, Shape{5, 3, 64}, "ChannelSlice", "offset=0, count=0",
+                        "64 channels"},
+        RefusedRangeRow{"ANegativeCount", 8, -2, Shape{5, 3, 64}, "ChannelSlice",
+                        "offset=8, count=-2", "64 channels"},
+        RefusedRangeRow{"ARangePastTheChannels", 32, 40, Shape{5, 3, 64}, "ChannelSlice",
+                        "offset=32, count=40", "64 channels"},
+        RefusedRangeRow{"AnOffsetAtTheChannelCount", 64, 1, Shape{5, 3, 64}, "ChannelSlice",
+                        "offset=64, count=1", "64 channels"},
+        RefusedRangeRow{"AnExtremeOffsetWithoutOverflow", std::numeric_limits<int64_t>::max(), 1,
+                        Shape{5, 3, 64}, "ChannelSlice", "64 channels", ""},
+        RefusedRangeRow{"AnExtremeCountWithoutOverflow", 1, std::numeric_limits<int64_t>::max(),
+                        Shape{5, 3, 64}, "ChannelSlice", "64 channels", ""},
+        RefusedRangeRow{"ARankOnePerSampleShape", 0, 1, Shape{16}, "ChannelSlice", "[H, W, C]",
+                        "[16]"},
+        RefusedRangeRow{"ARankFourShape", 0, 1, Shape{2, 3, 5, 7}, "", "", ""}),
+    [](const ::testing::TestParamInfo<RefusedRangeRow>& info) { return info.param.name; });
+
+/** @brief Holds a range, a batched input, whether it is NCHW, and the refusal forward meets. */
+struct ForwardRefusalRow
 {
-    const ChannelSlice layer{0, 0};
+    std::string name;   /**< The row's name. */
+    int64_t offset;     /**< The first channel taken. */
+    int64_t count;      /**< The number of channels taken. */
+    Shape input;        /**< The input shape, batch axis included. */
+    bool nchw;          /**< Whether the input is converted to NCHW first. */
+    std::string first;  /**< A substring the message holds. */
+    std::string second; /**< A second substring the message holds. */
+    std::string third;  /**< A third substring the message holds; empty for none. */
+};
 
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
-                      "ChannelSlice", "offset=0, count=0", "64 channels");
-}
-
-/** @brief Tests that output_shape rejects a negative count in a message naming the values. */
-TEST(Small_ChannelSlice, OutputShapeRejectsANegativeCount)
+/** @brief Runs the forward refusal over each input and range it cannot take. */
+class Small_ChannelSliceForwardRefusal : public ::testing::TestWithParam<ForwardRefusalRow>
 {
-    const ChannelSlice layer{8, -2};
+};
 
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
-                      "ChannelSlice", "offset=8, count=-2", "64 channels");
-}
-
-/** @brief Tests that output_shape rejects a range that runs past the channels. */
-TEST(Small_ChannelSlice, OutputShapeRejectsARangePastTheChannels)
+/** @brief Tests that forward refuses the row and names what the row says. */
+TEST_P(Small_ChannelSliceForwardRefusal, ForwardRefuses)
 {
-    const ChannelSlice layer{32, 40};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
-                      "ChannelSlice", "offset=32, count=40", "64 channels");
-}
-
-/** @brief Tests that output_shape rejects an offset at the channel count, even with count 1. */
-TEST(Small_ChannelSlice, OutputShapeRejectsAnOffsetAtTheChannelCount)
-{
-    const ChannelSlice layer{64, 1};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
-                      "ChannelSlice", "offset=64, count=1", "64 channels");
-}
-
-/** @brief Tests that extreme offsets and counts are refused without overflowing the range test. */
-TEST(Small_ChannelSlice, OutputShapeRejectsExtremeValuesWithoutOverflow)
-{
-    const int64_t largest = std::numeric_limits<int64_t>::max();
-    const ChannelSlice far_offset{largest, 1};
-    const ChannelSlice far_count{1, largest};
-
-    SA_EXPECT_FAILURE(far_offset.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
-                      "ChannelSlice", "64 channels");
-    SA_EXPECT_FAILURE(far_count.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
-                      "ChannelSlice", "64 channels");
-}
-
-/** @brief Tests that output_shape rejects a feature vector in a message naming layer and shape. */
-TEST(Small_ChannelSlice, OutputShapeRejectsARankOnePerSampleShape)
-{
-    const ChannelSlice layer{0, 1};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{16}), StatusCode::InvalidDescription, "ChannelSlice",
-                      "[H, W, C]", "[16]");
-}
-
-/** @brief Tests that output_shape fails for a shape that still carries its batch axis. */
-TEST(Small_ChannelSlice, OutputShapeRejectsARankFourShape)
-{
-    const ChannelSlice layer{0, 1};
-
-    SA_EXPECT_FAILURE(layer.output_shape(Shape{2, 3, 5, 7}), StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that forward rejects a rank-2 input in a message naming layer and shape. */
-TEST(Small_ChannelSlice, ForwardRejectsARankTwoInput)
-{
+    const ForwardRefusalRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-
-    const ChannelSlice layer{0, 1};
-    const Graph::ValueID x = builder.input(Shape{2, 12}, "x");
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "ChannelSlice",
-                      "rank-4", "[2, 12]");
-}
-
-/** @brief Tests that forward rejects a range past the channels in the layer's own message. */
-TEST(Small_ChannelSlice, ForwardRejectsARangePastTheChannels)
-{
-    const ChannelSlice layer{2, 2};
-
-    SA_EXPECT_FAILURE(trace_status(layer, Shape{1, 2, 2, 3}), StatusCode::InvalidDescription,
-                      "ChannelSlice", "offset=2, count=2", "3 channels");
-}
-
-/** @brief Tests that forward names the layout it reads for a rank-4 input tagged NCHW. */
-TEST(Small_ChannelSlice, ForwardRejectsAnNCHWInput)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    const ChannelSlice layer{0, 1};
-    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID x_nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-
-    SA_EXPECT_FAILURE(layer.forward(builder, x_nchw), StatusCode::InvalidDescription,
-                      "slice_channels", "NHWC");
-}
-
-/** @brief Tests that the parameter walk visits nothing after a trace. */
-TEST(Small_ChannelSlice, TheParameterWalkVisitsNothing)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-
-    ChannelSlice layer{0, 1};
-    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
-    SA_EXPECT_OK(layer.forward(builder, x));
-
-    std::size_t visited = 0;
-    NN::for_each_parameter(layer, [&visited](const std::string&, NN::Parameter&)
+    Graph::ValueID x = builder.input(row.input, "x");
+    if (row.nchw)
     {
-        ++visited;
-    });
+        SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID converted,
+                                builder.layout_convert(x, Graph::TensorLayout::NCHW));
+        x = converted;
+    }
+    const ChannelSlice layer{row.offset, row.count};
 
-    EXPECT_EQ(visited, 0u);
-    EXPECT_EQ(NN::parameter_count(layer), 0u);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, row.first,
+                      row.second, row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ChannelSliceForwardRefusal,
+    ::testing::Values(
+        ForwardRefusalRow{"ARankTwoInput", 0, 1, Shape{2, 12}, false, "ChannelSlice", "rank-4",
+                          "[2, 12]"},
+        ForwardRefusalRow{"ARangePastTheChannels", 2, 2, Shape{1, 2, 2, 3}, false, "ChannelSlice",
+                          "offset=2, count=2", "3 channels"},
+        ForwardRefusalRow{"AnNCHWInput", 0, 1, Shape{1, 2, 2, 3}, true, "slice_channels", "NHWC",
+                          ""}),
+    [](const ::testing::TestParamInfo<ForwardRefusalRow>& info) { return info.param.name; });

@@ -3,7 +3,8 @@
 
 The ChannelSlice layer's shape inference, the one SLICE_CHANNELS node it emits with its offset, the offsets, counts and ranks it rejects, and its empty state.
 
-Suites: `Small_ChannelSlice`.
+Suites: `Small_ChannelSlice`, `Small_ChannelSliceAccepted`, `Small_ChannelSliceRefused`,
+`Small_ChannelSliceForwardRefusal`.
 
 Tests `NN::ChannelSlice` in `modules/layers/nn/include/SushiAI/nn/channel_slice.hpp`, which
 keeps `count` channels of an image batch from `offset` on.
@@ -11,18 +12,11 @@ keeps `count` channels of an image batch from `offset` on.
 Two `static_assert` lines at the top of the file hold that `ChannelSlice` is a `Module` and is
 not a `ModuleContainer`.
 
-## TheOffsetAndCountFieldsAreSetInOrder
+## Small_ChannelSliceAccepted.OutputShapeTakesTheRange
 
-`ChannelSlice{32, 16}` has `offset` 32 and `count` 16.
-
-## OutputShapeKeepsHeightAndWidthAndTakesTheRange
-
-With offset 32 and count 32, `output_shape([5, 3, 64])` is [5, 3, 32].
-
-## OutputShapeAcceptsTheFirstLastAndWholeRanges
-
-Over [4, 2, 4], the ranges {0, 1} and {3, 1} give [4, 2, 1], {1, 3} gives [4, 2, 3] and {0, 4}
-gives [4, 2, 4].
+`output_shape` keeps height and width and takes the range of channels. The rows are AMiddleRange
+(offset 32, count 32 over [5, 3, 64] gives [5, 3, 32]) and, over [4, 2, 4], TheFirstChannel
+(0, 1), TheLastChannel (3, 1), AllButTheFirst (1, 3) and TheWholeRange (0, 4).
 
 ## TheResultIsTaggedNHWC
 
@@ -43,57 +37,20 @@ its one input is the value passed in, its attribute 0 is 32, and the result has 
 For {32, 32} over 64 channels and for {1, 2} over 6 channels, `output_shape` equals the traced
 shape with its batch axis dropped.
 
-## OutputShapeRejectsANegativeOffset
+## Small_ChannelSliceRefused.OutputShapeRefuses
 
-Offset -1 with count 4 returns InvalidDescription naming "ChannelSlice", "offset=-1, count=4" and
-"64 channels".
+`output_shape` returns `InvalidDescription` and the message holds the row's substrings. Over
+[5, 3, 64] the rows are ANegativeOffset (-1, 4), AZeroCount (0, 0), ANegativeCount (8, -2),
+ARangePastTheChannels (32, 40) and AnOffsetAtTheChannelCount (64, 1), each naming "ChannelSlice",
+its "offset=..., count=..." and "64 channels"; AnExtremeOffsetWithoutOverflow and
+AnExtremeCountWithoutOverflow (the largest `int64_t` as offset or count) name "ChannelSlice" and
+"64 channels", so the range test does not overflow. ARankOnePerSampleShape ([16]) names
+"ChannelSlice", "[H, W, C]" and "[16]". ARankFourShape ([2, 3, 5, 7]), a shape that still carries
+its batch axis, fails with the code alone.
 
-## OutputShapeRejectsAZeroCount
+## Small_ChannelSliceForwardRefusal.ForwardRefuses
 
-Offset 0 with count 0 returns InvalidDescription naming "ChannelSlice", "offset=0, count=0" and "64
-channels".
-
-## OutputShapeRejectsANegativeCount
-
-Offset 8 with count -2 returns InvalidDescription naming "ChannelSlice", "offset=8, count=-2" and
-"64 channels".
-
-## OutputShapeRejectsARangePastTheChannels
-
-Offset 32 with count 40 over 64 channels returns InvalidDescription naming "offset=32, count=40" and
-"64 channels".
-
-## OutputShapeRejectsAnOffsetAtTheChannelCount
-
-Offset 64 with count 1 over 64 channels returns InvalidDescription naming "offset=64, count=1".
-
-## OutputShapeRejectsExtremeValuesWithoutOverflow
-
-An offset of the largest `int64_t` with count 1, and offset 1 with a count of the largest `int64_t`,
-each return InvalidDescription naming "ChannelSlice" and "64 channels".
-
-## OutputShapeRejectsARankOnePerSampleShape
-
-`output_shape([16])` returns InvalidDescription naming "ChannelSlice", "[H, W, C]" and "[16]".
-
-## OutputShapeRejectsARankFourShape
-
-`output_shape([2, 3, 5, 7])` returns InvalidDescription.
-
-## ForwardRejectsARankTwoInput
-
-`forward` over a [2, 12] input returns InvalidDescription naming "ChannelSlice", "rank-4" and "[2, 12]".
-
-## ForwardRejectsARangePastTheChannels
-
-`forward` with offset 2 and count 2 over a three-channel input returns InvalidDescription naming
-"ChannelSlice", "offset=2, count=2" and "3 channels".
-
-## ForwardRejectsAnNCHWInput
-
-`forward` over a value converted to NCHW returns InvalidDescription naming "slice_channels" and "NHWC".
-
-## TheParameterWalkVisitsNothing
-
-After a trace, `NN::for_each_parameter` calls its visitor zero times and
-`NN::parameter_count` is 0.
+`forward` returns `InvalidDescription` and the message holds the row's substrings. The rows are
+ARankTwoInput ([2, 12]: "ChannelSlice", "rank-4", "[2, 12]"), ARangePastTheChannels (offset 2,
+count 2 over [1, 2, 2, 3]: "ChannelSlice", "offset=2, count=2", "3 channels") and AnNCHWInput
+(a [1, 2, 2, 3] input converted to NCHW: "slice_channels", "NHWC").
