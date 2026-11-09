@@ -51,7 +51,6 @@
 #include <SushiAI/vision/importers/darknet_import.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using IO::ImportedModel;
@@ -70,13 +69,6 @@ namespace
     {
         return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_string(key));
     }
-
-    /**
-     * @brief Holds the tolerance of an anchor read back from the task section, absolute: 32 times
-     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
-     */
-    constexpr float K_FLOAT_TOLERANCE =
-        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds a 32 by 32 network: a normalised convolution, a plain one and one head. */
     constexpr std::string_view K_SMALL_CFG =
@@ -131,37 +123,102 @@ namespace
 
         return weights;
     }
+
+    /** @brief Returns the type of each row of a model, in order. */
+    std::vector<decltype(Config::LayerSpec::type)> types_of(const Config::ModelSpec& model)
+    {
+        std::vector<decltype(Config::LayerSpec::type)> types;
+        for (const Config::LayerSpec& layer : model.layers)
+            types.push_back(layer.type);
+
+        return types;
+    }
+
+    /** @brief Returns the non-empty tensor names the targets of a translation state. */
+    std::set<std::string> target_names_of(const DarknetModel& model)
+    {
+        std::set<std::string> names;
+        for (const Vision::Importers::DarknetWeightTarget& target : model.targets)
+        {
+            for (const std::string* name :
+                 {&target.weight, &target.bias, &target.scale, &target.mean, &target.variance})
+            {
+                if (!name->empty())
+                    names.insert(*name);
+            }
+        }
+
+        return names;
+    }
+
+    /** @brief Returns the names of the tensors of an import. */
+    std::set<std::string> tensor_names_of(const ImportedModel& imported)
+    {
+        std::set<std::string> names;
+        for (const IO::ImportedTensor& tensor : imported.weights)
+            names.insert(tensor.record.name);
+
+        return names;
+    }
+
+    /** @brief Imports the translation of K_SMALL_CFG without weights. */
+    Result<ImportedModel> import_small_without_weights(const Translated& translated)
+    {
+        return Vision::Importers::import_darknet_model(translated.config, translated.model,
+                                                       nullptr);
+    }
+
+    /** @brief Holds the files of one call of import_darknet_files the importer refuses. */
+    struct FileCountRefusal
+    {
+        /** @brief Names the row. */
+        const char* name;
+
+        /** @brief Holds the paths of the call. */
+        std::vector<std::filesystem::path> files;
+
+        /** @brief Holds the text the refusal opens its subject with. */
+        const char* subject;
+
+        /** @brief Holds the count the refusal states. */
+        const char* count;
+    };
+
+    /** @brief Holds one refused call of import_darknet_files per row. */
+    class Small_DarknetImportFileCount : public ::testing::TestWithParam<FileCountRefusal>
+    {
+    };
 } // namespace
 
-/** @brief Tests that the imported rows and outputs are those of the translation. */
-TEST(Medium_DarknetImport, KeepsTheRowsAndTheOutputsOfTheTranslation)
+/** @brief Tests that the imported rows are those of the translation. */
+TEST(Small_DarknetImport, KeepsTheRowsOfTheTranslation)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
-    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported,
-                            Vision::Importers::import_darknet_model(
-                                translated.config, translated.model, nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported, import_small_without_weights(translated));
+
+    EXPECT_EQ(imported.model.input_shape, translated.model.spec.input_shape);
+    EXPECT_EQ(types_of(imported.model), types_of(translated.model.spec));
+}
+
+/** @brief Tests that the imported outputs are those of the translation. */
+TEST(Small_DarknetImport, KeepsTheOutputsOfTheTranslation)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
+    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported, import_small_without_weights(translated));
 
     const Config::ModelSpec& wanted = translated.model.spec;
-    EXPECT_EQ(imported.model.input_shape, wanted.input_shape);
-    ASSERT_EQ(imported.model.layers.size(), wanted.layers.size());
-    for (std::size_t row = 0; row < wanted.layers.size(); ++row)
-        EXPECT_EQ(imported.model.layers[row].type, wanted.layers[row].type) << "row " << row;
-
     ASSERT_EQ(imported.model.outputs.size(), 1u);
     EXPECT_EQ(imported.model.outputs[0].name, "head.0");
     EXPECT_EQ(imported.model.outputs[0].node, wanted.outputs[0].node);
 }
 
 /** @brief Tests that the task section reads back as the classes, anchors and head of the .cfg. */
-TEST(Medium_DarknetImport, StatesTheHeadsAsAnAnchorDetectionTask)
+TEST(Small_DarknetImport, StatesTheHeadsAsAnAnchorDetectionTask)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
-    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported,
-                            Vision::Importers::import_darknet_model(
-                                translated.config, translated.model, nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported, import_small_without_weights(translated));
 
-    EXPECT_EQ(string_of(imported.model.task, "type"),
-              "anchor_detection");
+    EXPECT_EQ(string_of(imported.model.task, "type"), "anchor_detection");
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask task,
                             Vision::Detect::Anchor::read_anchor_task(imported.model.task));
 
@@ -171,24 +228,24 @@ TEST(Medium_DarknetImport, StatesTheHeadsAsAnAnchorDetectionTask)
     EXPECT_EQ(task.heads[0].options.coding, Vision::Detect::Anchor::HeadCoding::Logit);
     EXPECT_EQ(task.layout.head_anchors,
               (std::vector<std::vector<std::int64_t>>{{0, 1, 2}}));
+
+    // 4 / 32 and 24 / 32 are exact in float.
     ASSERT_EQ(task.layout.anchors.size(), 3u);
-    EXPECT_NEAR(task.layout.anchors[0].width, 4.0f / 32.0f, K_FLOAT_TOLERANCE);
-    EXPECT_NEAR(task.layout.anchors[2].height, 24.0f / 32.0f, K_FLOAT_TOLERANCE);
+    EXPECT_EQ(task.layout.anchors[0].width, 0.125f);
+    EXPECT_EQ(task.layout.anchors[2].height, 0.75f);
 }
 
 /** @brief Tests that an import without weights holds no tensor. */
-TEST(Medium_DarknetImport, HoldsNoTensorWithoutWeights)
+TEST(Small_DarknetImport, HoldsNoTensorWithoutWeights)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
-    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported,
-                            Vision::Importers::import_darknet_model(
-                                translated.config, translated.model, nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported, import_small_without_weights(translated));
 
     EXPECT_TRUE(imported.weights.empty());
 }
 
 /** @brief Tests that the tensors carry exactly the names the translation's targets state. */
-TEST(Medium_DarknetImport, NamesEveryTensorAsItsTargetDoes)
+TEST(Small_DarknetImport, NamesEveryTensorAsItsTargetDoes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
     const DarknetWeights weights = make_weights(translated.model.convolutions);
@@ -196,48 +253,47 @@ TEST(Medium_DarknetImport, NamesEveryTensorAsItsTargetDoes)
                             Vision::Importers::import_darknet_model(
                                 translated.config, translated.model, &weights));
 
-    std::set<std::string> wanted;
-    for (const Vision::Importers::DarknetWeightTarget& target : translated.model.targets)
-    {
-        for (const std::string* name :
-             {&target.weight, &target.bias, &target.scale, &target.mean, &target.variance})
-        {
-            if (!name->empty())
-                wanted.insert(*name);
-        }
-    }
-
-    std::set<std::string> found;
-    for (const IO::ImportedTensor& tensor : imported.weights)
-        found.insert(tensor.record.name);
-
-    EXPECT_EQ(found, wanted);
+    EXPECT_EQ(tensor_names_of(imported), target_names_of(translated.model));
     EXPECT_EQ(imported.weights.size(), 7u);
 }
 
-/** @brief Tests that the recipe and its notes are those of the .cfg's training settings. */
-TEST(Medium_DarknetImport, CarriesTheRecipeAndItsNotes)
+/** @brief Tests that the recipe is the one the .cfg's training settings state. */
+TEST(Small_DarknetImport, CarriesTheRecipe)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
-    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported,
-                            Vision::Importers::import_darknet_model(
-                                translated.config, translated.model, nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported, import_small_without_weights(translated));
 
     EXPECT_EQ(imported.training.keys(),
               (std::vector<std::string>{"objective", "optimizer", "schedule"}));
+}
+
+/** @brief Tests that the import carries the notes of the .cfg's training settings. */
+TEST(Small_DarknetImport, CarriesTheNotes)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
+    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported, import_small_without_weights(translated));
+
     EXPECT_EQ(imported.notes.size(), 5u);
 }
 
 /** @brief Tests that the file importer refuses a call with no file and one with three. */
-TEST(Medium_DarknetImport, AnotherCountOfFilesIsRefused)
+TEST_P(Small_DarknetImportFileCount, IsRefused)
 {
-    const std::vector<std::filesystem::path> three = {"a.cfg", "a.weights", "b.weights"};
+    const FileCountRefusal& row = GetParam();
 
-    SA_EXPECT_FAILURE(Vision::Importers::import_darknet_files({}),
-                      StatusCode::InvalidDescription, "'darknet'", "0 files");
-    SA_EXPECT_FAILURE(Vision::Importers::import_darknet_files(three),
-                      StatusCode::InvalidDescription, ".cfg", "3 files");
+    SA_EXPECT_FAILURE(Vision::Importers::import_darknet_files(row.files),
+                      StatusCode::InvalidDescription, row.subject, row.count);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_DarknetImportFileCount,
+    ::testing::Values(FileCountRefusal{"NoFile", {}, "'darknet'", "0 files"},
+                      FileCountRefusal{"ThreeFiles", {"a.cfg", "a.weights", "b.weights"}, ".cfg",
+                                       "3 files"}),
+    [](const ::testing::TestParamInfo<FileCountRefusal>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 /** @brief Tests that a .cfg that is not on disk is refused by its path. */
 TEST(Medium_DarknetImport, AMissingCfgIsRefusedByName)
@@ -264,32 +320,45 @@ namespace
     }
 } // namespace
 
-/**
- * @brief Tests that the imported model file, without its task, is the text of the translated
- *        model, and that the task reads back as the anchors, the heads and the criterion.
- */
-TEST_P(Medium_DarknetImportEndToEnd, TheImportedRowsAndTaskAreThoseOfTheTranslation)
+/** @brief Tests that the imported model file, without its task, is the text of the translation. */
+TEST_P(Medium_DarknetImportEndToEnd, TheImportedRowsAreThoseOfTheTranslation)
 {
     SaTest::check_imported_rows(run);
 }
 
+/** @brief Tests that the task reads back as the anchors, the heads and the criterion. */
+TEST_P(Medium_DarknetImportEndToEnd, TheImportedTaskIsThatOfTheTranslation)
+{
+    SaTest::check_imported_task(run);
+}
+
 /**
  * @brief Tests that a state filled from the imported tensors equals, byte for byte, the state
- *        store_darknet_weights fills, and that the tensors supply every entry exactly once.
+ *        store_darknet_weights fills.
  */
 TEST_P(Medium_DarknetImportEndToEnd, TheImportedWeightsAreThoseOfTheDirectStore)
 {
     SaTest::check_imported_weights(*engine, run);
 }
 
-/**
- * @brief Tests that the three files the import writes read back as the import, and that the
- *        written weights load into a state equal to the direct store's.
- */
-TEST_P(Medium_DarknetImportEndToEnd, TheWrittenFilesLoadAsTheImport)
+/** @brief Tests that the imported tensors supply every entry of the state exactly once. */
+TEST_P(Medium_DarknetImportEndToEnd, TheImportedTensorsSupplyEveryEntryOnce)
 {
-    const SaTest::ScratchDirectory directory("sushiai_test_darknet_written_import");
-    SaTest::check_written_import(*engine, run, directory.path());
+    SaTest::check_imported_entries(*engine, run);
+}
+
+/** @brief Tests that the files the import writes read back as the import. */
+TEST_P(Medium_DarknetImportEndToEnd, TheWrittenFilesReadBackAsTheImport)
+{
+    const SaTest::ScratchDirectory directory("sushiai_test_darknet_written_files");
+    SaTest::check_written_files(run, directory.path());
+}
+
+/** @brief Tests that the written weights load into a state equal to the direct store's. */
+TEST_P(Medium_DarknetImportEndToEnd, TheWrittenWeightsLoadAsTheDirectStore)
+{
+    const SaTest::ScratchDirectory directory("sushiai_test_darknet_written_weights");
+    SaTest::check_written_weights(*engine, run, directory.path());
 }
 
 INSTANTIATE_TEST_SUITE_P(ParityModels, Medium_DarknetImportEndToEnd,

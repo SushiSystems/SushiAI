@@ -208,7 +208,10 @@ namespace SushiAI
             SA_ASSERT_OK_AND_ASSIGN(const std::string found, Config::write_model(rows));
             SA_ASSERT_OK_AND_ASSIGN(const std::string wanted, Config::write_model(run.model.spec));
             EXPECT_EQ(found, wanted);
+        }
 
+        void check_imported_task(const DarknetImportRun& run) noexcept
+        {
             SA_ASSERT_OK_AND_ASSIGN(
                 const AnchorTask task,
                 Vision::Detect::Anchor::read_anchor_task(run.imported.model.task));
@@ -252,8 +255,16 @@ namespace SushiAI
             expect_same_state(imported, direct);
         }
 
-        void check_written_import(SushiBLAS::Engine& engine, const DarknetImportRun& run,
-                                  const std::filesystem::path& directory) noexcept
+        void check_imported_entries(SushiBLAS::Engine& engine, const DarknetImportRun& run) noexcept
+        {
+            SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph graph, build_graph(run.imported.model));
+            SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, graph));
+            EXPECT_TRUE(status_is_ok(
+                check_tensors_against_entries(run.imported.weights, state.entries())));
+        }
+
+        void check_written_files(const DarknetImportRun& run,
+                                 const std::filesystem::path& directory) noexcept
         {
             SA_ASSERT_OK_AND_ASSIGN(const IO::WrittenImport written,
                                     IO::write_imported_model(run.imported, directory,
@@ -275,7 +286,18 @@ namespace SushiAI
             SA_ASSERT_OK_AND_ASSIGN(const std::string read_back, Config::write_json(training));
             SA_ASSERT_OK_AND_ASSIGN(const std::string stated, Config::write_json(composed));
             EXPECT_EQ(read_back, stated);
+        }
 
+        void check_written_weights(SushiBLAS::Engine& engine, const DarknetImportRun& run,
+                                   const std::filesystem::path& directory) noexcept
+        {
+            SA_ASSERT_OK_AND_ASSIGN(const IO::WrittenImport written,
+                                    IO::write_imported_model(run.imported, directory,
+                                                             IO::ExistingFiles::Refuse));
+            EXPECT_EQ(written.files.size(), 3u);
+
+            SA_ASSERT_OK_AND_ASSIGN(const Config::ModelSpec model,
+                                    Config::load_model(directory / IO::K_IMPORTED_MODEL_FILE));
             SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph direct_graph, build_graph(run.model.spec));
             SA_ASSERT_OK_AND_ASSIGN(NN::ModelState direct,
                                     NN::ModelState::create(engine, direct_graph));

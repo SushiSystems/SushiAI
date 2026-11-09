@@ -7,9 +7,9 @@ Tests `check_tensors_against_entries`, `fill_imported_state` and `import_darknet
 `modules/vision/darknet_import_cases/include/SushiAI/vision/darknet_import_cases/darknet_import.hpp`.
 The refusal cases call `check_tensors_against_entries` on the two entries and tensors made in
 memory, so they need no engine and no Darknet file. The medium fill case builds a `NN::ModelState`
-from the two entries on the shared runtime and fills it from tensors made in memory. `check_imported_rows` and
-`check_imported_weights` compare a real import against its translation, and
-`check_written_import` compares the files a real import writes against it; the suite
+from the two entries on the shared runtime and fills it from tensors made in memory. `check_imported_rows`, `check_imported_task`,
+`check_imported_weights` and `check_imported_entries` compare a real import against its translation, and
+`check_written_files` and `check_written_weights` compare the files a real import writes against it; the suite
 `DarknetImport` in `tests/vision/importers/test_darknet_import/test_import.cpp` runs them and
 skips when the files of `SA_REFERENCE_DATA_DIR` are absent.
 

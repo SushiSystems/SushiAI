@@ -91,10 +91,13 @@ namespace SushiAI
             SushiRuntime::span<const IO::ImportedTensor> tensors, NN::ModelState& state) noexcept;
 
         /**
-         * @brief Checks that the imported rows, outputs and task equal those of the translation:
-         *        the model file text without its task, then the task read back field by field.
+         * @brief Checks that the imported rows and outputs equal those of the translation: the
+         *        model file text without its task.
          */
         void check_imported_rows(const DarknetImportRun& run) noexcept;
+
+        /** @brief Checks that the task reads back as the anchors, heads and criterion. */
+        void check_imported_task(const DarknetImportRun& run) noexcept;
 
         /**
          * @brief Checks that a state built and filled from the imported model holds the bytes
@@ -103,13 +106,26 @@ namespace SushiAI
         void check_imported_weights(SushiBLAS::Engine& engine, const DarknetImportRun& run) noexcept;
 
         /**
+         * @brief Checks that the imported tensors supply every entry of the imported model's
+         *        state exactly once, and no other.
+         */
+        void check_imported_entries(SushiBLAS::Engine& engine, const DarknetImportRun& run) noexcept;
+
+        /**
          * @brief Writes the import of @p run into @p directory and checks that the written
-         *        model and training files read back as the import, and that load_checkpoint
+         *        model and training files read back as the import.
+         * @param directory Absent or empty; the three files are written into it.
+         */
+        void check_written_files(const DarknetImportRun& run,
+                                 const std::filesystem::path& directory) noexcept;
+
+        /**
+         * @brief Writes the import of @p run into @p directory and checks that load_checkpoint
          *        fills a state with the bytes of the state store_darknet_weights fills.
          * @param directory Absent or empty; the three files are written into it.
          */
-        void check_written_import(SushiBLAS::Engine& engine, const DarknetImportRun& run,
-                                  const std::filesystem::path& directory) noexcept;
+        void check_written_weights(SushiBLAS::Engine& engine, const DarknetImportRun& run,
+                                   const std::filesystem::path& directory) noexcept;
 
         /** @brief Imports the model its parameter names; skips when a file of it is missing. */
         class DarknetImportTest : public EngineTest,
