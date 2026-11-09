@@ -13,8 +13,8 @@ endif()
 
 sushiai_add_test_program(OWNER vision/training
     SOURCES
+        compile_anchor_head.cpp
         test_anchor_bias_init.cpp
-        test_anchor_head.cpp
         test_anchor_objective.cpp
         test_anchor_objective_factory.cpp
         test_anchor_training_loop.cpp

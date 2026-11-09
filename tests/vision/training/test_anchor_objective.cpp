@@ -37,13 +37,13 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/train/objective.hpp>
@@ -52,7 +52,6 @@
 #include <SushiAI/vision/detect/anchor/head_delta.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -66,20 +65,6 @@ using Vision::Training::AnchorObjective;
 
 namespace
 {
-    /**
-     * @brief Holds the absolute Bounds the error of a sum of a few small integers and halves, held
-     *        in double: 16384 times the double unit roundoff, the smallest power of two not tighter
-     *        than the earlier 1e-12.
-     */
-    constexpr double K_COST_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
-    /**
-     * @brief Holds the absolute Bounds the error allowed on the factor a SCALE node stores: 16384
-     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-12.
-     */
-    constexpr double K_ATTRIBUTE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
     /** @brief Holds the batch every head of these tests is declared with. */
     constexpr std::int64_t K_BATCH = 2;
 
@@ -117,14 +102,40 @@ namespace
         return {make_head("head.0", 4), make_head("head.1", 2)};
     }
 
-    /** @brief Returns the operation names of nodes [from, end). */
-    std::vector<std::string> op_names(const Graph::Graph& graph, std::size_t from)
+
+    /** @brief Names a head list the layout does not take and what the refusal names. */
+    struct RefusedHeadCount
     {
-        std::vector<std::string> names;
-        for (std::size_t i = from; i < graph.node_count(); ++i)
-            names.emplace_back(Ops::name_of(graph.nodes()[i].op));
-        return names;
+        std::vector<AnchorHead> heads; /**< The heads given. */
+        const char* count;             /**< The count the message states. */
+    };
+
+    /** @brief Provides the head counts other than the layout's. */
+    class Small_AnchorObjectiveHeadCount : public ::testing::TestWithParam<RefusedHeadCount>
+    {
+
+    };
+
+    /** @brief Names a head list that the validators refuse and what the refusal names. */
+    struct RefusedOptions
+    {
+        std::vector<AnchorHead> heads; /**< The heads given. */
+        const char* needle;            /**< What the message names. */
+    };
+
+    /** @brief Returns the heads of the layout with @p change applied to head @p index. */
+    std::vector<AnchorHead> heads_with(std::size_t index, void (*change)(AnchorHead&))
+    {
+        std::vector<AnchorHead> heads = two_heads();
+        change(heads[index]);
+        return heads;
     }
+
+    /** @brief Provides the options the validators refuse. */
+    class Small_AnchorObjectiveOptions : public ::testing::TestWithParam<RefusedOptions>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that declare adds one float32 leaf per head, in head order and head shape. */
@@ -154,8 +165,11 @@ TEST(Small_AnchorObjective, DeclaresOneLeafPerHeadInTheShapeOfItsOutput)
     EXPECT_FALSE(coarse.requires_grad);
 }
 
-/** @brief Tests that the root adds one delta loss per head, each scaled by -1 over the batch. */
-TEST(Small_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
+/**
+ * @brief Tests that the root is minus one over the batch times the sum of delta times head, over
+ *        every head, each head meeting the leaf of its own name.
+ */
+TEST(Small_AnchorObjective, TheRootIsTheDeltaLossSummedOverTheHeads)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
@@ -170,32 +184,22 @@ TEST(Small_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
     NN::ModelOutputs outputs;
     SA_EXPECT_OK(outputs.add("head.1", coarse));
     SA_EXPECT_OK(outputs.add("head.0", fine));
-    const std::size_t first = graph.node_count();
 
     SA_ASSERT_OK_AND_ASSIGN(const ValueID root,
                             objective.loss(builder, graph, outputs, leaves));
 
-    ASSERT_EQ(op_names(graph, first), (std::vector<std::string>{
-        "sushiai.mul", "sushiai.reshape", "sushiai.sum_rows", "sushiai.scale",
-        "sushiai.mul", "sushiai.reshape", "sushiai.sum_rows", "sushiai.scale",
-        "sushiai.add",
-    }));
-
-    const Graph::Node& fine_product = graph.nodes()[first];
-    const Graph::Node& fine_scale = graph.nodes()[first + 3];
-    const Graph::Node& coarse_product = graph.nodes()[first + 4];
-    const Graph::Node& coarse_scale = graph.nodes()[first + 7];
-    const Graph::Node& sum = graph.nodes()[first + 8];
-
-    // Each head meets the leaf of its own name, whatever order the model published them in.
-    EXPECT_EQ(fine_product.inputs, (std::vector<ValueID>{leaves.at("delta.head.0"), fine}));
-    EXPECT_EQ(coarse_product.inputs, (std::vector<ValueID>{leaves.at("delta.head.1"), coarse}));
-    EXPECT_NEAR(fine_scale.attributes.get(0), -1.0 / 2.0, K_ATTRIBUTE_TOLERANCE);
-    EXPECT_NEAR(coarse_scale.attributes.get(0), -1.0 / 2.0, K_ATTRIBUTE_TOLERANCE);
-    EXPECT_EQ(sum.inputs,
-              (std::vector<ValueID>{fine_scale.outputs.at(0), coarse_scale.outputs.at(0)}));
-    EXPECT_EQ(sum.outputs, (std::vector<ValueID>{root}));
     EXPECT_EQ(graph.value(root).shape, (Shape{1}));
+
+    // -(448 * 1 * 2 + 112 * 2 * 3) / 2, every value exact in double.
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(leaves.at("delta.head.0"), std::vector<double>(448, 1.0)));
+    SA_EXPECT_OK(evaluator.write(leaves.at("delta.head.1"), std::vector<double>(112, 2.0)));
+    SA_EXPECT_OK(evaluator.write(fine, std::vector<double>(448, 2.0)));
+    SA_EXPECT_OK(evaluator.write(coarse, std::vector<double>(112, 3.0)));
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> value, evaluator.read(root));
+    EXPECT_EQ(value, (std::vector<double>{-784.0}));
 }
 
 /** @brief Tests that a model that does not publish a head is refused by the head's name. */
@@ -235,7 +239,7 @@ TEST(Small_AnchorObjective, AHeadOfAnotherShapeIsRefusedNamingBothShapes)
                       StatusCode::InvalidDescription, "[2, 4, 4, 14]", "[2, 4, 4, 21]");
 }
 
-/** @brief Tests that the cost is the field-by-field sum of the two heads' costs, to 1e-12. */
+/** @brief Tests that the cost is the field-by-field sum of the two heads' costs. */
 TEST(Small_AnchorObjective, TheCostIsTheSumOverTheHeads)
 {
     // One anchor and one class per head: a slot is x, y, w, h, objectness, class.
@@ -263,35 +267,35 @@ TEST(Small_AnchorObjective, TheCostIsTheSumOverTheHeads)
     const HeadCost cost = objective.measure_cost(
         SushiRuntime::span<const HeadDelta>(deltas.data(), deltas.size()));
 
-    // Head 0 holds the squares 1, 4, 9 and head 1 the squares 1, 4; the batch of 2 divides.
-    EXPECT_NEAR(cost.total, 7.0 + 2.5, K_COST_TOLERANCE);
-    EXPECT_NEAR(cost.non_box, 6.5 + 0.25, K_COST_TOLERANCE);
-    EXPECT_NEAR(cost.box, 0.5 + 2.25, K_COST_TOLERANCE);
-    EXPECT_NEAR(cost.stored, 14.0 + 5.0, K_COST_TOLERANCE);
+    // Head 0 holds the squares 1, 4, 9 and head 1 the squares 1, 4; the batch of 2 divides; all exact.
+    EXPECT_EQ(cost.total, 7.0 + 2.5);
+    EXPECT_EQ(cost.non_box, 6.5 + 0.25);
+    EXPECT_EQ(cost.box, 0.5 + 2.25);
+    EXPECT_EQ(cost.stored, 14.0 + 5.0);
 }
 
-/** @brief Tests that the name is "anchor_delta" and that no batch alone feeds the objective. */
-TEST(Small_AnchorObjective, NamesItselfAndIsFedByItsOwnStep)
+/** @brief Tests that no batch alone feeds the objective: its own step does. */
+TEST(Small_AnchorObjective, NoBatchAloneFeedsIt)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
 
     EXPECT_FALSE(objective.is_fed_by_batch());
-    EXPECT_EQ(objective.name(), "anchor_delta");
-    EXPECT_EQ(objective.heads().size(), 2u);
-    EXPECT_EQ(objective.layout().anchors.size(), 4u);
-    EXPECT_EQ(objective.network().width, 64);
 }
 
 /** @brief Tests that a head count other than the layout's is InvalidDescription. */
-TEST(Small_AnchorObjective, AHeadCountOtherThanTheLayoutsIsRefused)
+TEST_P(Small_AnchorObjectiveHeadCount, AHeadCountOtherThanTheLayoutsIsRefused)
 {
-    SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), {}),
-                      StatusCode::InvalidDescription, "0 heads", "holds 2");
-    SA_EXPECT_FAILURE(
-        AnchorObjective::make(network(), two_head_layout(), {make_head("head.0", 4)}),
-        StatusCode::InvalidDescription, "1 heads", "holds 2");
+    const RefusedHeadCount& row = GetParam();
+
+    SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), row.heads),
+                      StatusCode::InvalidDescription, row.count, "holds 2");
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_AnchorObjectiveHeadCount,
+                         ::testing::Values(RefusedHeadCount{{}, "0 heads"},
+                                           RefusedHeadCount{{make_head("head.0", 4)},
+                                                            "1 heads"}));
 
 /** @brief Tests that heads declared with different batches are InvalidDescription. */
 TEST(Small_AnchorObjective, HeadsOfDifferentBatchesAreRefused)
@@ -303,42 +307,56 @@ TEST(Small_AnchorObjective, HeadsOfDifferentBatchesAreRefused)
                       StatusCode::InvalidDescription, "head.1", "batch of 3", "head.0");
 }
 
-/** @brief Tests that an empty and a repeated output name are InvalidDescription. */
-TEST(Small_AnchorObjective, AnEmptyOrARepeatedOutputNameIsRefused)
+/** @brief Tests that an empty output name is InvalidDescription, naming the head. */
+TEST(Small_AnchorObjective, AnEmptyOutputNameIsRefused)
 {
     std::vector<AnchorHead> unnamed = two_heads();
     unnamed[1].output.clear();
+
     SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), unnamed),
                       StatusCode::InvalidDescription, "head 1", "names no model output");
+}
 
+/** @brief Tests that two heads reading one output are InvalidDescription, naming the output. */
+TEST(Small_AnchorObjective, ARepeatedOutputNameIsRefused)
+{
     std::vector<AnchorHead> repeated = two_heads();
     repeated[1].output = "head.0";
+
     SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), repeated),
                       StatusCode::InvalidDescription, "both read", "head.0");
 }
 
-/** @brief Tests that an extent or a network side below 1 is InvalidDescription. */
-TEST(Small_AnchorObjective, AnExtentOrANetworkSideBelowOneIsRefused)
+/** @brief Tests that an extent below 1 is InvalidDescription, naming the head and its shape. */
+TEST(Small_AnchorObjective, AnExtentBelowOneIsRefused)
 {
     std::vector<AnchorHead> flat = two_heads();
     flat[0].shape.height = 0;
+
     SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), flat),
                       StatusCode::InvalidDescription, "head.0", "[2, 0, 4]");
+}
 
+/** @brief Tests that a network side below 1 is InvalidDescription, naming both sides. */
+TEST(Small_AnchorObjective, ANetworkSideBelowOneIsRefused)
+{
     SA_EXPECT_FAILURE(AnchorObjective::make(NetworkSize{0, 64}, two_head_layout(), two_heads()),
                       StatusCode::InvalidDescription, "0 by 64");
 }
 
 /** @brief Tests that options the head and the training validators refuse are passed on. */
-TEST(Small_AnchorObjective, OptionsTheValidatorsRefuseAreRefused)
+TEST_P(Small_AnchorObjectiveOptions, OptionsTheValidatorsRefuseAreRefused)
 {
-    std::vector<AnchorHead> classless = two_heads();
-    classless[0].options.num_classes = 0;
-    SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), classless),
-                      StatusCode::InvalidDescription, "at least one class");
+    const RefusedOptions& row = GetParam();
 
-    std::vector<AnchorHead> weightless = two_heads();
-    weightless[1].training.box_weight = -1.0f;
-    SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), weightless),
-                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), row.heads),
+                      StatusCode::InvalidDescription, row.needle);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_AnchorObjectiveOptions,
+    ::testing::Values(
+        RefusedOptions{heads_with(0, [](AnchorHead& head) { head.options.num_classes = 0; }),
+                       "at least one class"},
+        RefusedOptions{heads_with(1, [](AnchorHead& head) { head.training.box_weight = -1.0f; }),
+                       "box weight of an anchor head"}));

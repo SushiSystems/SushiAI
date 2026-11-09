@@ -702,7 +702,7 @@ The files below have a page beside them that says what each case pins.
 
 | Test file | Page |
 | --- | --- |
-| `test_anchor_head.cpp` | [`test_anchor_head.md`](test_anchor_head.md) |
+| `compile_anchor_head.cpp` | [`compile_anchor_head.md`](compile_anchor_head.md) |
 | `test_head_delta_rule.cpp` | [`test_head_delta_rule.md`](test_head_delta_rule.md) |
 | `test_best_shape_head_delta_rule.cpp` | [`test_best_shape_head_delta_rule.md`](test_best_shape_head_delta_rule.md) |
 | `test_shape_ratio_head_delta_rule.cpp` | [`test_shape_ratio_head_delta_rule.md`](test_shape_ratio_head_delta_rule.md) |
@@ -710,3 +710,5 @@ The files below have a page beside them that says what each case pins.
 | `test_free_objective_factory.cpp` | [`test_free_objective_factory.md`](test_free_objective_factory.md) |
 | `test_free_detection_loss_host.cpp` | [`test_free_detection_loss_host.md`](test_free_detection_loss_host.md) |
 | `test_free_training_loop.cpp` | [`test_free_training_loop.md`](test_free_training_loop.md) |
+| `test_anchor_objective.cpp` | [`test_anchor_objective.md`](test_anchor_objective.md) |
+| `test_anchor_objective_factory.cpp` | [`test_anchor_objective_factory.md`](test_anchor_objective_factory.md) |

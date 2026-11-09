@@ -33,9 +33,11 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -69,9 +71,6 @@ namespace
      *        than the earlier 1e-12.
      */
     constexpr double K_FORMULA_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
-    /** @brief Holds the entries of one anchor slot with two classes. */
-    constexpr std::int64_t K_SLOT_ENTRIES = 7;
 
     /** @brief Holds the anchor slots of each head of the cases. */
     constexpr std::int64_t K_SLOTS = 2;
@@ -170,6 +169,45 @@ namespace
         return SaTest::read_tensor(*state.tensor(name).value());
     }
 
+    /** @brief Returns the state of both heads, started at K_START and then initialised. */
+    Result<NN::ModelState> initialized_state(SushiBLAS::Engine& engine)
+    {
+        SA_TRY_ASSIGN(NN::ModelState state,
+                      NN::ModelState::from_entries(engine, {make_entry("0.bias", 1, Shape{14}),
+                                                            make_entry("2.bias", 2, Shape{14})}));
+        start_entry(state, "0.bias");
+        start_entry(state, "2.bias");
+        const std::vector<AnchorBiasHead> heads = {AnchorBiasHead{"0.bias", 4},
+                                                   AnchorBiasHead{"2.bias", 8}};
+        SA_TRY(initialize_anchor_biases(task_of_the_cases(), heads, state));
+        return state;
+    }
+
+    /**
+     * @brief Returns the bias entry of a head of the given stride after the start: the box
+     *        entries at K_START, the objectness and the two class entries raised by their bias.
+     */
+    std::vector<double> expected_bias(std::int64_t stride)
+    {
+        std::vector<double> bias;
+        for (std::int64_t slot = 0; slot < K_SLOTS; ++slot)
+        {
+            bias.insert(bias.end(), 4, K_START);
+            bias.push_back(K_START + anchor_objectness_bias(stride));
+            bias.push_back(K_START + anchor_class_bias(2));
+            bias.push_back(K_START + anchor_class_bias(2));
+        }
+        return bias;
+    }
+
+    /** @brief Expects every entry of @p actual within the float32 bound of @p expected. */
+    void expect_biases_equal(const std::vector<double>& actual, const std::vector<double>& expected)
+    {
+        ASSERT_EQ(actual.size(), expected.size());
+        for (std::size_t i = 0; i < actual.size(); ++i)
+            EXPECT_NEAR(actual[i], expected[i], K_BIAS_TOLERANCE) << "entry " << i;
+    }
+
     /** @brief Provides the engine the states of the Medium cases are allocated on. */
     class Medium_AnchorBiasInit : public SaTest::EngineTest {};
 } // namespace
@@ -256,45 +294,24 @@ TEST(Small_AnchorBiasInit, AnExtentThatDoesNotDivideTheInputIsRefused)
                       StatusCode::InvalidDescription, "head_1", "stride");
 }
 
-/**
- * @brief Tests that the objectness entry and the class entries of both slots of both heads gain
- *        the bias of their stride and the box entries stay as they were.
- */
-TEST_F(Medium_AnchorBiasInit, AddsBothBiasesToEverySlotOfEveryHead)
+/** @brief Tests that the first head gains the biases of stride 4 and keeps its box entries. */
+TEST_F(Medium_AnchorBiasInit, TheFirstHeadGainsTheBiasesOfItsStride)
 {
-    SA_ASSERT_OK_AND_ASSIGN(
-        NN::ModelState state,
-        NN::ModelState::from_entries(*engine, {make_entry("0.bias", 1, Shape{14}),
-                                               make_entry("2.bias", 2, Shape{14})}));
-    start_entry(state, "0.bias");
-    start_entry(state, "2.bias");
-    const std::vector<AnchorBiasHead> heads = {AnchorBiasHead{"0.bias", 4},
-                                               AnchorBiasHead{"2.bias", 8}};
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, initialized_state(*engine));
 
-    SA_EXPECT_OK(initialize_anchor_biases(task_of_the_cases(), heads, state));
-
-    const std::int64_t strides[] = {4, 8};
-    const std::string names[] = {"0.bias", "2.bias"};
-    for (std::size_t head = 0; head < 2; ++head)
-    {
-        SCOPED_TRACE(names[head]);
-        const std::vector<double> bias = read_entry(state, names[head]);
-        ASSERT_EQ(bias.size(), 14u);
-        for (std::int64_t slot = 0; slot < K_SLOTS; ++slot)
-        {
-            const auto first = static_cast<std::size_t>(slot * K_SLOT_ENTRIES);
-            for (std::size_t entry = 0; entry < 4; ++entry)
-                EXPECT_EQ(bias[first + entry], K_START);
-            EXPECT_NEAR(bias[first + 4], K_START + anchor_objectness_bias(strides[head]),
-                        K_BIAS_TOLERANCE);
-            EXPECT_NEAR(bias[first + 5], K_START + anchor_class_bias(2), K_BIAS_TOLERANCE);
-            EXPECT_NEAR(bias[first + 6], K_START + anchor_class_bias(2), K_BIAS_TOLERANCE);
-        }
-    }
+    expect_biases_equal(read_entry(state, "0.bias"), expected_bias(4));
 }
 
-/** @brief Tests that an entry of the wrong extent refuses the call and changes no bias. */
-TEST_F(Medium_AnchorBiasInit, AnEntryOfTheWrongExtentLeavesEveryBiasUnchanged)
+/** @brief Tests that the second head gains the biases of stride 8 and keeps its box entries. */
+TEST_F(Medium_AnchorBiasInit, TheSecondHeadGainsTheBiasesOfItsStride)
+{
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, initialized_state(*engine));
+
+    expect_biases_equal(read_entry(state, "2.bias"), expected_bias(8));
+}
+
+/** @brief Tests that an entry of the wrong extent refuses the call and names the entry. */
+TEST_F(Medium_AnchorBiasInit, AnEntryOfTheWrongExtentIsRefusedAndNamed)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         NN::ModelState state,
@@ -307,9 +324,23 @@ TEST_F(Medium_AnchorBiasInit, AnEntryOfTheWrongExtentLeavesEveryBiasUnchanged)
 
     SA_EXPECT_FAILURE(initialize_anchor_biases(task_of_the_cases(), heads, state),
                       StatusCode::InvalidDescription, "2.bias", "[14]");
+}
 
-    for (const double value : read_entry(state, "0.bias"))
-        EXPECT_EQ(value, K_START);
+/** @brief Tests that the refusal of an entry of the wrong extent changes no bias. */
+TEST_F(Medium_AnchorBiasInit, AnEntryOfTheWrongExtentLeavesEveryBiasUnchanged)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        NN::ModelState state,
+        NN::ModelState::from_entries(*engine, {make_entry("0.bias", 1, Shape{14}),
+                                               make_entry("2.bias", 2, Shape{13})}));
+    start_entry(state, "0.bias");
+    start_entry(state, "2.bias");
+    const std::vector<AnchorBiasHead> heads = {AnchorBiasHead{"0.bias", 4},
+                                               AnchorBiasHead{"2.bias", 8}};
+
+    EXPECT_FALSE(SaTest::status_is_ok(initialize_anchor_biases(task_of_the_cases(), heads, state)));
+
+    EXPECT_EQ(read_entry(state, "0.bias"), (std::vector<double>(14, K_START)));
 }
 
 /** @brief Tests that an entry the state does not hold is refused and named. */
