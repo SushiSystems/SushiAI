@@ -51,8 +51,9 @@ namespace
 
     /**
      * @brief Holds the absolute tolerance of the folded output against the unfolded one: 256
-     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-5.
+     *        times the float unit roundoff. The fold rounds each weight and bias to float once
+     *        and a pixel sums 18 products of values below 1, so the bound is far above the
+     *        rounding and far below any wrong fold.
      */
     constexpr double K_FOLD_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
@@ -112,12 +113,78 @@ namespace
         return sum;
     }
 
+    /** @brief Returns each value multiplied by @p factor in long double. */
+    std::vector<long double> scaled_by(const std::vector<float>& values, long double factor)
+    {
+        std::vector<long double> scaled;
+        for (const float value : values)
+            scaled.push_back(static_cast<long double>(value) * factor);
+
+        return scaled;
+    }
+
+    /**
+     * @brief Expects each value to be its reference rounded once to float.
+     *
+     * The fold computes each value in double and stores it as float, so one rounding of the
+     * float type is the whole error: TestSupport::measure_relative_error with one operation.
+     */
+    ::testing::AssertionResult each_rounded_once(const std::vector<float>& computed,
+                                                 const std::vector<long double>& reference)
+    {
+        if (computed.size() != reference.size())
+            return ::testing::AssertionFailure()
+                   << computed.size() << " values for " << reference.size() << " references";
+
+        for (std::size_t i = 0; i < computed.size(); ++i)
+        {
+            const TestSupport::ErrorRatio measured = TestSupport::measure_relative_error<float>(
+                computed[i], static_cast<double>(reference[i]), 1);
+            if (!measured.is_within())
+                return ::testing::AssertionFailure()
+                       << "value " << i << ": " << measured.describe();
+        }
+
+        return ::testing::AssertionSuccess();
+    }
+
+    /**
+     * @brief Returns the largest difference between the unfolded convolution followed by the
+     *        normalisation and the folded convolution, over every filter and output pixel.
+     */
+    double largest_fold_difference(const DarknetConvolution& unfolded,
+                                   const DarknetConvolution& folded,
+                                   const std::vector<float>& weights,
+                                   const std::vector<float>& input)
+    {
+        double largest = 0.0;
+        for (std::size_t f = 0; f < K_FILTERS; ++f)
+        {
+            const double scale = unfolded.scales[f];
+            const double mean = unfolded.rolling_mean[f];
+            const double root = std::sqrt(static_cast<double>(unfolded.rolling_variance[f]) +
+                                          static_cast<double>(K_EPSILON));
+            for (std::size_t y = 0; y < K_HEIGHT; ++y)
+            {
+                for (std::size_t x = 0; x < K_WIDTH; ++x)
+                {
+                    const double raw = convolve_at(weights, input, f, y, x);
+                    const double expected = scale * (raw - mean) / root + unfolded.biases[f];
+                    const double actual =
+                        convolve_at(folded.weights, input, f, y, x) + folded.biases[f];
+                    largest = std::max(largest, std::fabs(expected - actual));
+                }
+            }
+        }
+
+        return largest;
+    }
 } // namespace
 
 /**
  * @brief Tests that a one-filter fold equals the formula evaluated in long double.
  *
- * The tolerance is 1e-6 relative plus 1e-9 absolute, one float32 rounding of slack.
+ * Each value is the formula's value rounded once to float; the oracle is in long double.
  */
 TEST(Small_DarknetFold, OneFilterFoldMatchesTheFormulaInLongDouble)
 {
@@ -136,19 +203,8 @@ TEST(Small_DarknetFold, OneFilterFoldMatchesTheFormulaInLongDouble)
 
     fold_darknet_normalisation(convolution);
 
-    ASSERT_EQ(convolution.weights.size(), original_weights.size());
-    ASSERT_EQ(convolution.biases.size(), 1u);
-    const double bias_tolerance = 1e-6 * std::fabs(static_cast<double>(expected_bias)) + 1e-9;
-    EXPECT_NEAR(convolution.biases[0], static_cast<double>(expected_bias), bias_tolerance);
-
-    for (std::size_t j = 0; j < original_weights.size(); ++j)
-    {
-        const auto expected = static_cast<double>(
-            static_cast<long double>(original_weights[j]) * factor);
-        const double tolerance = 1e-6 * std::fabs(expected) + 1e-9;
-        EXPECT_NEAR(convolution.weights[j], expected, tolerance) << "weight " << j;
-    }
-
+    EXPECT_TRUE(each_rounded_once(convolution.weights, scaled_by(original_weights, factor)));
+    EXPECT_TRUE(each_rounded_once(convolution.biases, {expected_bias}));
     EXPECT_TRUE(convolution.scales.empty());
     EXPECT_TRUE(convolution.rolling_mean.empty());
     EXPECT_TRUE(convolution.rolling_variance.empty());
@@ -157,7 +213,7 @@ TEST(Small_DarknetFold, OneFilterFoldMatchesTheFormulaInLongDouble)
 /**
  * @brief Tests that the folded convolution and the unfolded one agree on one input on the host.
  *
- * The seed is fixed at 20261009; the tolerance is 1e-5 absolute on every output pixel.
+ * The seed is fixed at 20261009; the tolerance is K_FOLD_TOLERANCE on every output pixel.
  */
 TEST(Small_DarknetFold, FoldedAndUnfoldedConvolutionsAgreeOnTheHost)
 {
@@ -177,31 +233,16 @@ TEST(Small_DarknetFold, FoldedAndUnfoldedConvolutionsAgreeOnTheHost)
     DarknetConvolution folded = unfolded;
     fold_darknet_normalisation(folded);
 
-    double largest = 0.0;
-    for (std::size_t f = 0; f < K_FILTERS; ++f)
-    {
-        const double scale = unfolded.scales[f];
-        const double mean = unfolded.rolling_mean[f];
-        const double root = std::sqrt(static_cast<double>(unfolded.rolling_variance[f]) + 0.00001);
-        for (std::size_t y = 0; y < K_HEIGHT; ++y)
-        {
-            for (std::size_t x = 0; x < K_WIDTH; ++x)
-            {
-                const double raw = convolve_at(weights, input, f, y, x);
-                const double expected = scale * (raw - mean) / root + unfolded.biases[f];
-                const double actual =
-                    convolve_at(folded.weights, input, f, y, x) + folded.biases[f];
-                largest = std::max(largest, std::fabs(expected - actual));
-            }
-        }
-    }
+    const double largest = largest_fold_difference(unfolded, folded, weights, input);
     EXPECT_LE(largest, K_FOLD_TOLERANCE) << "largest difference " << largest;
 }
 
 /**
  * @brief Tests that folding a convolution twice, which is a misuse, stops the process.
+ *
+ * The case is Medium_: a death test runs a child process.
  */
-TEST(Small_DarknetFold, FoldingTwiceStopsTheProcess)
+TEST(Medium_DarknetFoldFatal, FoldingTwiceStopsTheProcess)
 {
     DarknetConvolution convolution;
     convolution.biases = {0.5f};
@@ -217,7 +258,7 @@ TEST(Small_DarknetFold, FoldingTwiceStopsTheProcess)
 /**
  * @brief Tests that a variance whose epsilon-shifted value is not positive stops the process.
  */
-TEST(Small_DarknetFold, NonPositiveVarianceStopsTheProcess)
+TEST(Medium_DarknetFoldFatal, NonPositiveVarianceStopsTheProcess)
 {
     DarknetConvolution convolution;
     convolution.biases = {0.5f};
