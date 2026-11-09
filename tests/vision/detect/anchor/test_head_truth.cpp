@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
@@ -76,6 +77,28 @@ namespace
         truth.boxes.insert(truth.boxes.end(), corners.begin(), corners.end());
         return truth;
     }
+
+    /** @brief Holds a truth row the check refuses and the words its message names. */
+    struct RefusedRow
+    {
+        std::string name;            /**< The row's name. */
+        std::vector<float> corners;  /**< Row 1 as `x1 y1 x2 y2` in pixels. */
+        std::int64_t label;          /**< The class of row 1. */
+        std::string first;           /**< A fragment the message names. */
+        std::string second;          /**< A second fragment, empty when the row has none. */
+    };
+
+    /** @brief Runs one truth row the check refuses. */
+    class Small_DetectAnchorHeadTruthRefusal : public ::testing::TestWithParam<RefusedRow>
+    {
+
+    };
+
+    /** @brief Names a row by its name field. */
+    std::string refusal_name(const ::testing::TestParamInfo<RefusedRow>& info)
+    {
+        return info.param.name;
+    }
 } // namespace
 
 /** @brief Tests that rows inside the input pass, a centre of exactly 0 included. */
@@ -87,42 +110,25 @@ TEST(Small_DetectAnchorHeadTruth, AcceptsRowsWhoseCentreLiesInsideTheInput)
     SA_EXPECT_OK(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK));
 }
 
-/** @brief Tests that a centre of exactly 1 along the columns is refused with its row. */
-TEST(Small_DetectAnchorHeadTruth, RefusesACentreAtTheRightEdge)
+/** @brief Tests that a row refused for its centre, size or class is named with its value. */
+TEST_P(Small_DetectAnchorHeadTruthRefusal, ARefusedRowIsNamedWithItsValue)
 {
-    const GroundTruthBatch truth = make_truth({56.0f, 16.0f, 72.0f, 48.0f}, 0);
+    const RefusedRow& row = GetParam();
+    const GroundTruthBatch truth = make_truth(row.corners, row.label);
 
     SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
-                      StatusCode::InvalidDescription, "truth row 1 of image 0", "centre",
-                      "(1, 0.5)");
+                      StatusCode::InvalidDescription, "truth row 1 of image 0", row.first,
+                      row.second);
 }
 
-/** @brief Tests that a centre left of the input is refused with its value. */
-TEST(Small_DetectAnchorHeadTruth, RefusesACentreLeftOfTheInput)
-{
-    const GroundTruthBatch truth = make_truth({-48.0f, 16.0f, 16.0f, 48.0f}, 0);
-
-    SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
-                      StatusCode::InvalidDescription, "truth row 1 of image 0", "(-0.25, 0.5)");
-}
-
-/** @brief Tests that a centre below the input is refused with its value. */
-TEST(Small_DetectAnchorHeadTruth, RefusesACentreBelowTheInput)
-{
-    const GroundTruthBatch truth = make_truth({16.0f, 64.0f, 48.0f, 96.0f}, 0);
-
-    SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
-                      StatusCode::InvalidDescription, "truth row 1 of image 0", "(0.5, 1.25)");
-}
-
-/** @brief Tests that a centre above the input is refused with its value. */
-TEST(Small_DetectAnchorHeadTruth, RefusesACentreAboveTheInput)
-{
-    const GroundTruthBatch truth = make_truth({16.0f, -48.0f, 48.0f, 16.0f}, 0);
-
-    SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
-                      StatusCode::InvalidDescription, "truth row 1 of image 0", "(0.5, -0.25)");
-}
+INSTANTIATE_TEST_SUITE_P(
+    CentreOutside, Small_DetectAnchorHeadTruthRefusal,
+    ::testing::Values(
+        RefusedRow{"AtTheRightEdge", {56.0f, 16.0f, 72.0f, 48.0f}, 0, "centre", "(1, 0.5)"},
+        RefusedRow{"LeftOfTheInput", {-48.0f, 16.0f, 16.0f, 48.0f}, 0, "(-0.25, 0.5)", ""},
+        RefusedRow{"BelowTheInput", {16.0f, 64.0f, 48.0f, 96.0f}, 0, "(0.5, 1.25)", ""},
+        RefusedRow{"AboveTheInput", {16.0f, -48.0f, 48.0f, 16.0f}, 0, "(0.5, -0.25)", ""}),
+    refusal_name);
 
 /** @brief Tests that a centre that is not a number is refused. */
 TEST(Small_DetectAnchorHeadTruth, RefusesACentreThatIsNotANumber)
@@ -134,24 +140,12 @@ TEST(Small_DetectAnchorHeadTruth, RefusesACentreThatIsNotANumber)
                       StatusCode::InvalidDescription, "truth row 1 of image 0", "centre");
 }
 
-/** @brief Tests that a width of 0 is refused with the size it has. */
-TEST(Small_DetectAnchorHeadTruth, RefusesAWidthThatIsNotPositive)
-{
-    const GroundTruthBatch truth = make_truth({32.0f, 16.0f, 32.0f, 48.0f}, 0);
-
-    SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
-                      StatusCode::InvalidDescription, "truth row 1 of image 0", "size 0 by 0.5");
-}
-
-/** @brief Tests that a negative height is refused with the size it has. */
-TEST(Small_DetectAnchorHeadTruth, RefusesAHeightThatIsNotPositive)
-{
-    const GroundTruthBatch truth = make_truth({16.0f, 40.0f, 48.0f, 24.0f}, 0);
-
-    SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
-                      StatusCode::InvalidDescription, "truth row 1 of image 0",
-                      "size 0.5 by -0.25");
-}
+INSTANTIATE_TEST_SUITE_P(
+    SideNotPositive, Small_DetectAnchorHeadTruthRefusal,
+    ::testing::Values(
+        RefusedRow{"AWidthOfZero", {32.0f, 16.0f, 32.0f, 48.0f}, 0, "size 0 by 0.5", ""},
+        RefusedRow{"ANegativeHeight", {16.0f, 40.0f, 48.0f, 24.0f}, 0, "size 0.5 by -0.25", ""}),
+    refusal_name);
 
 /** @brief Tests that a width that overflows to infinity around a centre of 0 is refused. */
 TEST(Small_DetectAnchorHeadTruth, RefusesASideThatOverflowsToInfinity)
@@ -162,24 +156,13 @@ TEST(Small_DetectAnchorHeadTruth, RefusesASideThatOverflowsToInfinity)
                       StatusCode::InvalidDescription, "truth row 1 of image 0", "finite");
 }
 
-/** @brief Tests that a class at the head's class count is refused with its id. */
-TEST(Small_DetectAnchorHeadTruth, RefusesAClassAtTheClassCount)
-{
-    const GroundTruthBatch truth = make_truth({16.0f, 16.0f, 48.0f, 48.0f}, K_CLASSES);
-
-    SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
-                      StatusCode::InvalidDescription, "truth row 1 of image 0", "class 3",
-                      "3 classes");
-}
-
-/** @brief Tests that a negative class is refused with its id. */
-TEST(Small_DetectAnchorHeadTruth, RefusesANegativeClass)
-{
-    const GroundTruthBatch truth = make_truth({16.0f, 16.0f, 48.0f, 48.0f}, -1);
-
-    SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
-                      StatusCode::InvalidDescription, "truth row 1 of image 0", "class -1");
-}
+INSTANTIATE_TEST_SUITE_P(
+    ClassOutOfRange, Small_DetectAnchorHeadTruthRefusal,
+    ::testing::Values(
+        RefusedRow{"AtTheClassCount", {16.0f, 16.0f, 48.0f, 48.0f}, K_CLASSES, "class 3",
+                   "3 classes"},
+        RefusedRow{"ANegativeClass", {16.0f, 16.0f, 48.0f, 48.0f}, -1, "class -1", ""}),
+    refusal_name);
 
 /** @brief Tests that a row the truth marks as padding is not read. */
 TEST(Small_DetectAnchorHeadTruth, LeavesAPaddingRowUnread)

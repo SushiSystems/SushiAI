@@ -12,42 +12,19 @@ refusal has the code `InvalidDescription`.
 A row with the corners -8 and 8 on both axes, whose centre is exactly 0, and the class 2 is
 accepted.
 
-## RefusesACentreAtTheRightEdge
+## ARefusedRowIsNamedWithItsValue
 
-A centre of exactly 1 along the columns is refused; the message holds "truth row 1 of image 0",
-"centre" and "(1, 0.5)".
-
-## RefusesACentreLeftOfTheInput
-
-A centre of -0.25 along the columns is refused, and the message holds "(-0.25, 0.5)".
-
-## RefusesACentreBelowTheInput
-
-A centre of 1.25 along the rows is refused, and the message holds "(0.5, 1.25)".
-
-## RefusesACentreAboveTheInput
-
-A centre of -0.25 along the rows is refused, and the message holds "(0.5, -0.25)".
+One row per refused truth row, in three groups; each fails with `InvalidDescription` and a
+message that holds "truth row 1 of image 0" and the words of its row. `CentreOutside`: a centre
+of exactly 1 along the columns ("centre", "(1, 0.5)"), of -0.25 along the columns
+("(-0.25, 0.5)"), of 1.25 along the rows ("(0.5, 1.25)") and of -0.25 along the rows
+("(0.5, -0.25)"). `SideNotPositive`: a row of zero width ("size 0 by 0.5") and a row whose
+bottom lies above its top ("size 0.5 by -0.25"). `ClassOutOfRange`: the class 3 with three
+classes ("class 3", "3 classes") and the class -1 ("class -1").
 
 ## RefusesACentreThatIsNotANumber
 
 A NaN corner is refused with a message holding "truth row 1 of image 0" and "centre".
-
-## RefusesAWidthThatIsNotPositive
-
-A row of zero width is refused, and the message holds "size 0 by 0.5".
-
-## RefusesAHeightThatIsNotPositive
-
-A row whose bottom lies above its top is refused, and the message holds "size 0.5 by -0.25".
-
-## RefusesAClassAtTheClassCount
-
-The class 3 with three classes is refused, and the message holds "class 3" and "3 classes".
-
-## RefusesANegativeClass
-
-The class -1 is refused, and the message holds "class -1".
 
 ## LeavesAPaddingRowUnread
 
