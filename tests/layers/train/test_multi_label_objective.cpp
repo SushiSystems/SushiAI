@@ -47,7 +47,7 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -74,11 +74,8 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /**
-     * @brief Bounds the difference between a ratio of small counts and its exact value; 16384 unit
-     * roundoffs of double, the smallest power of two that covers 1e-12.
-     */
-    constexpr double K_RATIO_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+    /** @brief The rounded operations of the mean of three class F1 values: three quotients, two sums and one quotient. */
+    constexpr std::size_t K_F1_MEAN_OPERATIONS = 8;
 
     /** @brief Holds the samples of the batch the graph cases build. */
     constexpr int64_t K_BATCH = 4;
@@ -94,15 +91,15 @@ namespace
         return MLP(NN::Linear{K_FEATURES, 8}, NN::ReLU{}, NN::Linear{8, outputs});
     }
 
-    /** @brief Provides the engine the outputs, the roles and the leaves are allocated on. */
-    class Medium_MultiLabelObjective : public SaTest::EngineTest
+    /** @brief Provides the host engine the outputs, the roles and the leaves are allocated on. */
+    class Small_MultiLabelObjective : public ::testing::Test
     {
         protected:
             /** @brief Returns a float32 tensor of @p shape that holds @p values. */
             [[nodiscard]] Result<SushiBLAS::Tensor> tensor_of(const Shape& shape,
                                                               const std::vector<double>& values)
             {
-                SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_tensor(*engine, shape));
+                SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_tensor(backend.engine(), shape));
                 SaTest::write_tensor(tensor, values);
                 return tensor;
             }
@@ -150,6 +147,9 @@ namespace
                     batch, 0.0,
                     SushiRuntime::span<const Train::StepOutput>(outputs.data(), outputs.size())};
             }
+
+            /** @brief The host backend the tensors and the pool are allocated from. */
+            HostExecutionBackend backend;
     };
 
 } // namespace
@@ -176,7 +176,7 @@ TEST(Small_MultiLabelObjectiveGraph, MultiLabelDeclaresOneLabelPerClass)
 }
 
 /** @brief Tests that the multi-label metric is the mean of the F1 of each class. */
-TEST_F(Medium_MultiLabelObjective, MultiLabelMeasuresTheMeanF1OfTheClasses)
+TEST_F(Small_MultiLabelObjective, MultiLabelMeasuresTheMeanF1OfTheClasses)
 {
     // Class 0 is right twice, class 1 misses once and raises one false alarm, class 2 raises one.
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
@@ -194,11 +194,12 @@ TEST_F(Medium_MultiLabelObjective, MultiLabelMeasuresTheMeanF1OfTheClasses)
     ASSERT_EQ(metrics.all().size(), 1u);
     EXPECT_EQ(metrics.all()[0].name, "f1");
     EXPECT_TRUE(metrics.all()[0].is_fraction);
-    EXPECT_NEAR(metrics.all()[0].value, 1.0 / 3.0, K_RATIO_TOLERANCE);
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        metrics.all()[0].value, 1.0 / 3.0, K_F1_MEAN_OPERATIONS)));
 }
 
 /** @brief Tests that a metric refuses an output of another element count and adds nothing. */
-TEST_F(Medium_MultiLabelObjective, AMetricRefusesAnOutputOfAnotherCount)
+TEST_F(Small_MultiLabelObjective, AMetricRefusesAnOutputOfAnotherCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
                             tensor_of(Shape{2, 3}, {3.0, -3.0, 3.0, 3.0, 3.0, -3.0}));

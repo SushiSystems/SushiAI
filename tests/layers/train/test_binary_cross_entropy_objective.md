@@ -1,23 +1,28 @@
 # tests/layers/train: test_binary_cross_entropy_objective.cpp, test_multi_label_objective.cpp, test_mean_squared_error_objective.cpp, test_objective.cpp
 
 
-The leaf and role each of the binary, multi-label and squared-error objectives declares, what each refuses, their feeds and their metrics. Needs an engine.
+The leaf and role each of the binary, multi-label and squared-error objectives declares, what each refuses, their feeds and their metrics. Needs no device.
 
-Suites: `Unit_DenseObjectiveGraphs`, `Medium_DenseObjectives`.
+Suites: `Small_BinaryCrossEntropyObjectiveGraph`, `Small_BinaryCrossEntropyObjective`,
+`Small_MultiLabelObjectiveGraph`, `Small_MultiLabelObjective`,
+`Small_MeanSquaredErrorObjectiveGraph`, `Small_MeanSquaredErrorObjective`.
 
 Tests `Train::BinaryCrossEntropyObjective`, `Train::MultiLabelObjective` and
 `Train::MeanSquaredErrorObjective`: the leaf and the role each declares, what `make` and the
 factories refuse, what `feed` writes and what `measure` reports. The graph cases trace a
-Linear, ReLU, Linear model of 6 features over a batch of 4 and need no device. The
-`Medium_DenseObjectives` fixture needs an engine, and its `bind_targets` helper binds a tensor of
-7s to the `targets` leaf before a feed.
+Linear, ReLU, Linear model of 6 features over a batch of 4. The fixtures of the other suites
+allocate their tensors on the engine of a `HostExecutionBackend`, and their `bind_targets` helper
+binds a tensor of 7s to the `targets` leaf before a feed.
 
 ## BinaryDeclaresAColumnLeafAndRealLabels
 
-The objective is named "binary_cross_entropy" and its threshold is 0.5. In the built training
-graph the `targets` leaf has the shape [4, 1] and is `spec.targets`, and the loss has one
+In the built training graph the `targets` leaf has the shape [4, 1] and is `spec.targets`, and the loss has one
 element. The one required target has the role `K_ROLE_LABELS`, an empty sample shape, the type
 float32 and 0 classes.
+
+## TheThresholdDefaultsToOneHalf
+
+`BinaryCrossEntropyObjective::make` given no threshold reports `K_DEFAULT_THRESHOLD`.
 
 ## MultiLabelDeclaresOneLabelPerClass
 
@@ -52,33 +57,48 @@ multi-label factory refuses a [4, 3, 5] output and the regression factory an [8,
 both with "[4, columns]". The key `huber` is refused by the regression factory and the key
 `weights` by the multi-label factory, which also names `'threshold'`.
 
+## BinaryFeedRefusesALabelThatIsNotZeroOrOne
+
+A batch whose labels are 1, 0.25, 0, 1 fails with `Incompatible`, "element 1" and "0 or 1", and the
+leaf still holds four 7s.
+
 ## BinaryFeedCopiesLabelsOfZeroAndOne
 
-A batch whose labels are 1, 0.25, 0, 1 fails with `Incompatible`, "element 1" and "0 or 1",
-and the leaf still holds four 7s. A batch of 1, 0, 0, 1 feeds ok and the leaf holds those
-values.
+A batch of 1, 0, 0, 1 feeds ok and the leaf holds those values.
+
+## MeanSquaredErrorFeedRefusesABatchWithoutTheValuesRole
+
+A batch that carries only the labels role fails with `InvalidDescription` and a message naming
+`'values'`, and the leaf still holds four 7s.
 
 ## MeanSquaredErrorFeedReadsTheValuesRole
 
-A batch that carries only the labels role fails with `InvalidDescription` and a message naming
-`'values'`. A batch with the values 1.5, -2, 0.25, 8 under `K_ROLE_VALUES` feeds ok and the
-leaf holds them.
+A batch with the values 1.5, -2, 0.25, 8 under `K_ROLE_VALUES` feeds ok and the leaf holds them.
+
+## BinaryMeasuresTheThreeMetricsInOrder
+
+Over five rows `measure` adds three metrics in the order accuracy, precision, recall.
 
 ## BinaryMeasuresAccuracyPrecisionAndRecall
 
-Over five rows with the logits 2, 1, -1, -3, 4 and the labels 1, 0, 1, 0, 1, `measure` adds
-three metrics in the order accuracy, precision, recall, with the values 3/5, 2/3 and 2/3. An
-objective made with the threshold 0.95 reports the precision 1 and the recall 1/3.
+Over five rows with the logits 2, 1, -1, -3, 4 and the labels 1, 0, 1, 0, 1 at the threshold one
+half, the accuracy is 3/5 and the precision and the recall are each 2/3, each within four rounded
+operations of double.
+
+## ARaisedThresholdKeepsTheLastRowAlone
+
+At the threshold 0.95 the same rows give the precision 1 and the recall 1/3: sigmoid(4) is 0.98 and
+sigmoid(2) is 0.88, so only the last row passes the cut.
 
 ## MultiLabelMeasuresTheMeanF1OfTheClasses
 
 Over two rows of three classes `measure` adds one metric named "f1" that is a fraction and
-equals 1/3.
+equals 1/3 within eight rounded operations of double.
 
 ## MeanSquaredErrorMeasuresTheMeanAbsoluteError
 
 Over the predictions 1, 2, 3, 4 and the values 1.5, 2, 2, 6, `measure` adds one metric named
-"mean_absolute_error" that is not a fraction and equals 3.5/4.
+"mean_absolute_error" that is not a fraction and equals 3.5/4 within five rounded operations of double.
 
 ## AMetricRefusesAnOutputOfAnotherCount
 

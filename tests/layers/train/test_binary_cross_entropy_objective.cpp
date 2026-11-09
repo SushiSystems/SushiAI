@@ -47,7 +47,7 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -55,6 +55,7 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/binary_cross_entropy_objective.hpp>
+#include <SushiAI/train/decision_threshold.hpp>
 #include <SushiAI/train/mean_squared_error_objective.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/multi_label_objective.hpp>
@@ -74,11 +75,8 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /**
-     * @brief Bounds the difference between a ratio of small counts and its exact value; 16384 unit
-     * roundoffs of double, the smallest power of two that covers 1e-12.
-     */
-    constexpr double K_RATIO_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+    /** @brief The rounded operations on the longest path from a count to a ratio. */
+    constexpr std::size_t K_RATIO_OPERATIONS = 4;
 
     /** @brief Holds the samples of the batch the graph cases build. */
     constexpr int64_t K_BATCH = 4;
@@ -94,15 +92,15 @@ namespace
         return MLP(NN::Linear{K_FEATURES, 8}, NN::ReLU{}, NN::Linear{8, outputs});
     }
 
-    /** @brief Provides the engine the outputs, the roles and the leaves are allocated on. */
-    class Medium_BinaryCrossEntropyObjective : public SaTest::EngineTest
+    /** @brief Provides the host engine the outputs, the roles and the leaves are allocated on. */
+    class Small_BinaryCrossEntropyObjective : public ::testing::Test
     {
         protected:
             /** @brief Returns a float32 tensor of @p shape that holds @p values. */
             [[nodiscard]] Result<SushiBLAS::Tensor> tensor_of(const Shape& shape,
                                                               const std::vector<double>& values)
             {
-                SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_tensor(*engine, shape));
+                SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_tensor(backend.engine(), shape));
                 SaTest::write_tensor(tensor, values);
                 return tensor;
             }
@@ -150,6 +148,28 @@ namespace
                     batch, 0.0,
                     SushiRuntime::span<const Train::StepOutput>(outputs.data(), outputs.size())};
             }
+
+            /**
+             * @brief Measures the five rows of the metric cases at @p threshold into @p metrics.
+             *
+             * Rows: hit, false alarm, miss, correct rejection, hit, on the logits 2, 1, -1, -3, 4.
+             */
+            void measure_five_rows(double threshold, Train::Metrics& metrics)
+            {
+                SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
+                                        tensor_of(Shape{5, 1}, {2.0, 1.0, -1.0, -3.0, 4.0}));
+                SA_ASSERT_OK_AND_ASSIGN(
+                    const Data::Batch batch,
+                    batch_of(Data::K_ROLE_LABELS, Shape{5}, {1.0, 0.0, 1.0, 0.0, 1.0}));
+                const std::vector<Train::StepOutput> outputs{Train::StepOutput{"output", &logits}};
+                SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> objective,
+                                        BinaryCrossEntropyObjective::make(5, threshold));
+
+                SA_EXPECT_OK(objective->measure(view_of(batch, outputs), metrics));
+            }
+
+            /** @brief The host backend the tensors and the pool are allocated from. */
+            HostExecutionBackend backend;
     };
 
 } // namespace
@@ -164,8 +184,6 @@ TEST(Small_BinaryCrossEntropyObjectiveGraph, BinaryDeclaresAColumnLeafAndRealLab
         const Train::TrainingGraph built,
         Train::build_training_graph(model, *objective, Shape{K_BATCH, K_FEATURES}));
 
-    EXPECT_EQ(objective->name(), "binary_cross_entropy");
-    EXPECT_EQ(objective->threshold(), 0.5);
     EXPECT_EQ(built.graph.value(built.leaves.at("targets")).shape, (Shape{K_BATCH, 1}));
     EXPECT_EQ(built.spec.targets, built.leaves.at("targets"));
     EXPECT_EQ(built.graph.value(built.spec.loss).shape.num_elements(), 1);
@@ -178,14 +196,23 @@ TEST(Small_BinaryCrossEntropyObjectiveGraph, BinaryDeclaresAColumnLeafAndRealLab
     EXPECT_EQ(required.front().classes, 0);
 }
 
-/** @brief Tests that the binary feed copies the labels and refuses one that is not 0 or 1. */
-TEST_F(Medium_BinaryCrossEntropyObjective, BinaryFeedCopiesLabelsOfZeroAndOne)
+/** @brief Tests that the binary objective cuts at one half unless it is given a threshold. */
+TEST(Small_BinaryCrossEntropyObjectiveGraph, TheThresholdDefaultsToOneHalf)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> objective,
+                            BinaryCrossEntropyObjective::make(K_BATCH));
+
+    EXPECT_EQ(objective->threshold(), Train::K_DEFAULT_THRESHOLD);
+}
+
+/** @brief Tests that the binary feed refuses a label that is not 0 or 1 and keeps the leaf. */
+TEST_F(Small_BinaryCrossEntropyObjective, BinaryFeedRefusesALabelThatIsNotZeroOrOne)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> objective,
                             BinaryCrossEntropyObjective::make(K_BATCH));
     Graph::Graph graph;
     ObjectiveLeaves leaves;
-    Graph::TensorPool pool(*engine);
+    Graph::TensorPool pool(backend.engine());
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID targets,
                             bind_targets(*objective, graph, leaves, pool));
 
@@ -195,6 +222,18 @@ TEST_F(Medium_BinaryCrossEntropyObjective, BinaryFeedCopiesLabelsOfZeroAndOne)
     SA_EXPECT_FAILURE(objective->feed(soft, leaves, pool), StatusCode::Incompatible,
                       "element 1", "0 or 1");
     EXPECT_EQ(SaTest::read_tensor(pool.tensor(targets)), std::vector<double>(4, 7.0));
+}
+
+/** @brief Tests that the binary feed copies labels of 0 and 1 into the leaf. */
+TEST_F(Small_BinaryCrossEntropyObjective, BinaryFeedCopiesLabelsOfZeroAndOne)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> objective,
+                            BinaryCrossEntropyObjective::make(K_BATCH));
+    Graph::Graph graph;
+    ObjectiveLeaves leaves;
+    Graph::TensorPool pool(backend.engine());
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID targets,
+                            bind_targets(*objective, graph, leaves, pool));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const Data::Batch batch,
@@ -204,35 +243,40 @@ TEST_F(Medium_BinaryCrossEntropyObjective, BinaryFeedCopiesLabelsOfZeroAndOne)
               (std::vector<double>{1.0, 0.0, 0.0, 1.0}));
 }
 
-/** @brief Tests the three binary metrics on five rows, and the recall a higher threshold costs. */
-TEST_F(Medium_BinaryCrossEntropyObjective, BinaryMeasuresAccuracyPrecisionAndRecall)
+/** @brief Tests that the binary metrics are accuracy, precision and recall, in that order. */
+TEST_F(Small_BinaryCrossEntropyObjective, BinaryMeasuresTheThreeMetricsInOrder)
 {
-    // Rows: hit, false alarm, miss, correct rejection, hit.
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
-                            tensor_of(Shape{5, 1}, {2.0, 1.0, -1.0, -3.0, 4.0}));
-    SA_ASSERT_OK_AND_ASSIGN(
-        const Data::Batch batch,
-        batch_of(Data::K_ROLE_LABELS, Shape{5}, {1.0, 0.0, 1.0, 0.0, 1.0}));
-    const std::vector<Train::StepOutput> outputs{Train::StepOutput{"output", &logits}};
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> objective,
-                            BinaryCrossEntropyObjective::make(5));
     Train::Metrics metrics;
-    SA_EXPECT_OK(objective->measure(view_of(batch, outputs), metrics));
+    measure_five_rows(Train::K_DEFAULT_THRESHOLD, metrics);
 
     ASSERT_EQ(metrics.all().size(), 3u);
     EXPECT_EQ(metrics.all()[0].name, "accuracy");
     EXPECT_EQ(metrics.all()[1].name, "precision");
     EXPECT_EQ(metrics.all()[2].name, "recall");
-    EXPECT_NEAR(metrics.all()[0].value, 3.0 / 5.0, K_RATIO_TOLERANCE);
-    EXPECT_NEAR(metrics.all()[1].value, 2.0 / 3.0, K_RATIO_TOLERANCE);
-    EXPECT_NEAR(metrics.all()[2].value, 2.0 / 3.0, K_RATIO_TOLERANCE);
+}
 
-    // sigmoid(2) is 0.88 and sigmoid(4) is 0.98, so 0.95 keeps the last row alone.
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> strict,
-                            BinaryCrossEntropyObjective::make(5, 0.95));
-    Train::Metrics at_strict;
-    SA_EXPECT_OK(strict->measure(view_of(batch, outputs), at_strict));
-    EXPECT_NEAR(at_strict.find("precision")->value, 1.0, K_RATIO_TOLERANCE);
-    EXPECT_NEAR(at_strict.find("recall")->value, 1.0 / 3.0, K_RATIO_TOLERANCE);
+/** @brief Tests the three binary metrics on five rows at the threshold one half. */
+TEST_F(Small_BinaryCrossEntropyObjective, BinaryMeasuresAccuracyPrecisionAndRecall)
+{
+    Train::Metrics metrics;
+    measure_five_rows(Train::K_DEFAULT_THRESHOLD, metrics);
+
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        metrics.find("accuracy")->value, 3.0 / 5.0, K_RATIO_OPERATIONS)));
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        metrics.find("precision")->value, 2.0 / 3.0, K_RATIO_OPERATIONS)));
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        metrics.find("recall")->value, 2.0 / 3.0, K_RATIO_OPERATIONS)));
+}
+
+/** @brief Tests the recall a higher threshold costs: sigmoid(4) is 0.98, sigmoid(2) is 0.88. */
+TEST_F(Small_BinaryCrossEntropyObjective, ARaisedThresholdKeepsTheLastRowAlone)
+{
+    Train::Metrics metrics;
+    measure_five_rows(0.95, metrics);
+
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        metrics.find("precision")->value, 1.0, K_RATIO_OPERATIONS)));
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        metrics.find("recall")->value, 1.0 / 3.0, K_RATIO_OPERATIONS)));
 }

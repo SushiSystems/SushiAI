@@ -47,7 +47,7 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -74,11 +74,8 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /**
-     * @brief Bounds the difference between a ratio of small counts and its exact value; 16384 unit
-     * roundoffs of double, the smallest power of two that covers 1e-12.
-     */
-    constexpr double K_RATIO_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+    /** @brief The rounded operations of a mean of four absolute differences: three sums and one quotient. */
+    constexpr std::size_t K_MEAN_OPERATIONS = 5;
 
     /** @brief Holds the samples of the batch the graph cases build. */
     constexpr int64_t K_BATCH = 4;
@@ -94,15 +91,15 @@ namespace
         return MLP(NN::Linear{K_FEATURES, 8}, NN::ReLU{}, NN::Linear{8, outputs});
     }
 
-    /** @brief Provides the engine the outputs, the roles and the leaves are allocated on. */
-    class Medium_MeanSquaredErrorObjective : public SaTest::EngineTest
+    /** @brief Provides the host engine the outputs, the roles and the leaves are allocated on. */
+    class Small_MeanSquaredErrorObjective : public ::testing::Test
     {
         protected:
             /** @brief Returns a float32 tensor of @p shape that holds @p values. */
             [[nodiscard]] Result<SushiBLAS::Tensor> tensor_of(const Shape& shape,
                                                               const std::vector<double>& values)
             {
-                SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_tensor(*engine, shape));
+                SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_tensor(backend.engine(), shape));
                 SaTest::write_tensor(tensor, values);
                 return tensor;
             }
@@ -150,6 +147,9 @@ namespace
                     batch, 0.0,
                     SushiRuntime::span<const Train::StepOutput>(outputs.data(), outputs.size())};
             }
+
+            /** @brief The host backend the tensors and the pool are allocated from. */
+            HostExecutionBackend backend;
     };
 
 } // namespace
@@ -175,33 +175,46 @@ TEST(Small_MeanSquaredErrorObjectiveGraph, MeanSquaredErrorDeclaresTheValuesRole
     EXPECT_EQ(built.leaves.required().front().dtype, DType::Float32);
 }
 
-/** @brief Tests that the regression feed reads the values role and names it when absent. */
-TEST_F(Medium_MeanSquaredErrorObjective, MeanSquaredErrorFeedReadsTheValuesRole)
+/** @brief Tests that the regression feed refuses a batch without the values role. */
+TEST_F(Small_MeanSquaredErrorObjective, MeanSquaredErrorFeedRefusesABatchWithoutTheValuesRole)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MeanSquaredErrorObjective> objective,
                             MeanSquaredErrorObjective::make(2, 2));
     Graph::Graph graph;
     ObjectiveLeaves leaves;
-    Graph::TensorPool pool(*engine);
+    Graph::TensorPool pool(backend.engine());
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID targets,
                             bind_targets(*objective, graph, leaves, pool));
-
     SA_ASSERT_OK_AND_ASSIGN(
         const Data::Batch labelled,
         batch_of(Data::K_ROLE_LABELS, Shape{2, 2}, {1.0, 0.0, 0.0, 1.0}));
+
     SA_EXPECT_FAILURE(objective->feed(labelled, leaves, pool), StatusCode::InvalidDescription,
                       "'values'");
+    EXPECT_EQ(SaTest::read_tensor(pool.tensor(targets)), std::vector<double>(4, 7.0));
+}
 
+/** @brief Tests that the regression feed copies the values role into the leaf. */
+TEST_F(Small_MeanSquaredErrorObjective, MeanSquaredErrorFeedReadsTheValuesRole)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MeanSquaredErrorObjective> objective,
+                            MeanSquaredErrorObjective::make(2, 2));
+    Graph::Graph graph;
+    ObjectiveLeaves leaves;
+    Graph::TensorPool pool(backend.engine());
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID targets,
+                            bind_targets(*objective, graph, leaves, pool));
     SA_ASSERT_OK_AND_ASSIGN(
         const Data::Batch batch,
         batch_of(Data::K_ROLE_VALUES, Shape{2, 2}, {1.5, -2.0, 0.25, 8.0}));
+
     SA_EXPECT_OK(objective->feed(batch, leaves, pool));
     EXPECT_EQ(SaTest::read_tensor(pool.tensor(targets)),
               (std::vector<double>{1.5, -2.0, 0.25, 8.0}));
 }
 
 /** @brief Tests that the regression metric is the mean absolute error of every element. */
-TEST_F(Medium_MeanSquaredErrorObjective, MeanSquaredErrorMeasuresTheMeanAbsoluteError)
+TEST_F(Small_MeanSquaredErrorObjective, MeanSquaredErrorMeasuresTheMeanAbsoluteError)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor predicted,
                             tensor_of(Shape{2, 2}, {1.0, 2.0, 3.0, 4.0}));
@@ -218,5 +231,6 @@ TEST_F(Medium_MeanSquaredErrorObjective, MeanSquaredErrorMeasuresTheMeanAbsolute
     ASSERT_EQ(metrics.all().size(), 1u);
     EXPECT_EQ(metrics.all()[0].name, "mean_absolute_error");
     EXPECT_FALSE(metrics.all()[0].is_fraction);
-    EXPECT_NEAR(metrics.all()[0].value, 3.5 / 4.0, K_RATIO_TOLERANCE);
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        metrics.all()[0].value, 3.5 / 4.0, K_MEAN_OPERATIONS)));
 }
