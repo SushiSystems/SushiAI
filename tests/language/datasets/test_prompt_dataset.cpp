@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -75,10 +76,66 @@ namespace
                 length = stated->values.data_as<std::int32_t>()[0];
             }
     };
+
+    /** @brief Names a prompt and a window that do not fit, and what the refusal says. */
+    struct PromptCase
+    {
+        const char* label;        /**< The name the row prints. */
+        std::vector<TokenID> ids; /**< The ids of the prompt. */
+        std::int64_t window;      /**< The window. */
+        const char* message;      /**< A fragment the refusal names. */
+    };
+
+    /** @brief Provides the prompts and windows lay_out_prompt refuses. */
+    class Small_LanguageDatasetsPromptDatasetLayout : public ::testing::TestWithParam<PromptCase>
+    {
+
+    };
+
+    /** @brief Names a data block that does not fit, and what the refusal says. */
+    struct BlockCase
+    {
+        const char* label;  /**< The name the row prints. */
+        const char* json;   /**< The text of the data block. */
+        const char* first;  /**< A fragment the refusal names. */
+        const char* second; /**< A second fragment, or an empty text. */
+    };
+
+    /** @brief Provides the data blocks read_prompt_section refuses. */
+    class Small_LanguageDatasetsPromptDatasetBlock : public ::testing::TestWithParam<BlockCase>
+    {
+
+    };
+
+    /** @brief Names a row range and a batch index outside the one batch of one row. */
+    struct RangeCase
+    {
+        const char* label;   /**< The name the row prints. */
+        std::size_t index;   /**< The batch index. */
+        Data::RowRange rows; /**< The rows asked for. */
+        const char* first;   /**< A fragment the refusal names. */
+        const char* second;  /**< A second fragment, or an empty text. */
+        const char* third;   /**< A third fragment, or an empty text. */
+    };
+
+    /** @brief Provides the ranges the dataset refuses, on an engine for the dataset to hold. */
+    class Medium_LanguageDatasetsPromptDatasetRange
+        : public SaTest::EngineTest,
+          public ::testing::WithParamInterface<RangeCase>
+    {
+
+    };
+
+    /** @brief Returns the name a row prints. */
+    template <typename Case>
+    std::string label_of(const ::testing::TestParamInfo<Case>& info)
+    {
+        return std::string(info.param.label);
+    }
 } // namespace
 
-/** @brief Tests that a short prompt fills the front of the row and zeros follow it. */
-TEST_F(Medium_LanguageDatasetsPromptDataset, AShortPromptIsFollowedByZeros)
+/** @brief Tests that the dataset holds one batch of one row with the sizes, type and role asked. */
+TEST_F(Medium_LanguageDatasetsPromptDataset, TheDatasetDescribesItsOneBatch)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PromptDataset> dataset,
                             PromptDataset::make(*engine, {3, 1, 4, 1, 5}, 8));
@@ -90,6 +147,13 @@ TEST_F(Medium_LanguageDatasetsPromptDataset, AShortPromptIsFollowedByZeros)
     EXPECT_EQ(dataset->name(), K_PROMPT_DATA_TYPE);
     ASSERT_EQ(dataset->targets().size(), 1u);
     EXPECT_EQ(dataset->targets()[0].role, K_ROLE_PROMPT_LENGTH);
+}
+
+/** @brief Tests that a read writes the laid-out row and its length into the batch tensors. */
+TEST_F(Medium_LanguageDatasetsPromptDataset, AReadWritesTheRowAndItsLengthIntoTheBatch)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PromptDataset> dataset,
+                            PromptDataset::make(*engine, {3, 1, 4, 1, 5}, 8));
 
     std::vector<TokenID> row;
     std::int32_t length = 0;
@@ -99,30 +163,39 @@ TEST_F(Medium_LanguageDatasetsPromptDataset, AShortPromptIsFollowedByZeros)
     EXPECT_EQ(length, 5);
 }
 
-/** @brief Tests that a prompt longer than the window keeps its last ids. */
-TEST_F(Medium_LanguageDatasetsPromptDataset, ALongPromptKeepsItsLastIDs)
+/** @brief Tests that a short prompt fills the front of the row and zeros follow it. */
+TEST(Small_LanguageDatasetsPromptDataset, AShortPromptIsFollowedByZeros)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PromptDataset> dataset,
-                            PromptDataset::make(*engine, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 4));
+    SA_ASSERT_OK_AND_ASSIGN(const PromptRow row, lay_out_prompt({3, 1, 4, 1, 5}, 8));
 
-    std::vector<TokenID> row;
-    std::int32_t length = 0;
-    read_row(*dataset, row, length);
+    EXPECT_EQ(row.ids, (std::vector<TokenID>{3, 1, 4, 1, 5, 0, 0, 0}));
+    EXPECT_EQ(row.length, 5);
+}
 
-    EXPECT_EQ(row, (std::vector<TokenID>{6, 7, 8, 9}));
-    EXPECT_EQ(length, 4);
+/** @brief Tests that a prompt longer than the window keeps its last ids. */
+TEST(Small_LanguageDatasetsPromptDataset, ALongPromptKeepsItsLastIDs)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const PromptRow row,
+                            lay_out_prompt({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 4));
+
+    EXPECT_EQ(row.ids, (std::vector<TokenID>{6, 7, 8, 9}));
+    EXPECT_EQ(row.length, 4);
 }
 
 /** @brief Tests that no id, a negative id and a window of no position are each refused. */
-TEST_F(Medium_LanguageDatasetsPromptDataset, MakeRefusesAPromptOrAWindowThatDoesNotFit)
+TEST_P(Small_LanguageDatasetsPromptDatasetLayout, LayOutRefusesAPromptOrAWindowThatDoesNotFit)
 {
-    SA_EXPECT_FAILURE(PromptDataset::make(*engine, {}, 4), StatusCode::InvalidDescription,
-                      "no id");
-    SA_EXPECT_FAILURE(PromptDataset::make(*engine, {1, -2}, 4), StatusCode::InvalidDescription,
-                      "-2");
-    SA_EXPECT_FAILURE(PromptDataset::make(*engine, {1}, 0), StatusCode::InvalidDescription,
-                      "window of 0");
+    const PromptCase& row = GetParam();
+
+    SA_EXPECT_FAILURE(lay_out_prompt(row.ids, row.window), StatusCode::InvalidDescription,
+                      row.message);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageDatasetsPromptDatasetLayout,
+                         ::testing::Values(PromptCase{"NoId", {}, 4, "no id"},
+                                           PromptCase{"ANegativeId", {1, -2}, 4, "-2"},
+                                           PromptCase{"AWindowOfZero", {1}, 0, "window of 0"}),
+                         label_of<PromptCase>);
 
 /** @brief Tests that the data block encodes "text" with the vocabulary file it names. */
 TEST_F(Medium_LanguageDatasetsPromptDataset, TheDataBlockEncodesItsText)
@@ -134,12 +207,8 @@ TEST_F(Medium_LanguageDatasetsPromptDataset, TheDataBlockEncodesItsText)
     SA_EXPECT_OK(Language::Text::write_vocabulary_file(file, vocabulary));
 
     const std::string stated = "\"vocabulary\": \"" + file.generic_string() + "\"";
-    const Config::Value section =
-        SaTest::require_value(Config::parse_json("{\"text\": \"hi\", \"window\": 4, " + stated + "}", "<test>"));
-    const Config::Value without_text =
-        SaTest::require_value(Config::parse_json("{\"window\": 4, " + stated + "}", "<test>"));
-    const Config::Value with_unknown = SaTest::require_value(Config::parse_json(
-        "{\"text\": \"hi\", \"window\": 4, \"tokens\": 9, " + stated + "}", "<test>"));
+    const Config::Value section = SaTest::require_value(
+        Config::parse_json("{\"text\": \"hi\", \"window\": 4, " + stated + "}", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
                             make_prompt_dataset(*engine, section, "the data block"));
@@ -149,12 +218,42 @@ TEST_F(Medium_LanguageDatasetsPromptDataset, TheDataBlockEncodesItsText)
 
     EXPECT_EQ(row, (std::vector<TokenID>{'h', 'i', 0, 0}));
     EXPECT_EQ(length, 2);
-
-    SA_EXPECT_FAILURE(make_prompt_dataset(*engine, without_text, "the data block"),
-                      StatusCode::InvalidDescription, "the data block", "has no 'text'");
-    SA_EXPECT_FAILURE(make_prompt_dataset(*engine, with_unknown, "the data block"),
-                      StatusCode::InvalidDescription, "'tokens'");
 }
+
+/** @brief Tests that the keys of a data block are read as the text, the file and the window. */
+TEST(Small_LanguageDatasetsPromptDataset, TheKeysOfADataBlockAreRead)
+{
+    const Config::Value section = SaTest::require_value(Config::parse_json(
+        "{\"text\": \"hi\", \"vocabulary\": \"bytes.savb\", \"window\": 4}", "<test>"));
+
+    SA_ASSERT_OK_AND_ASSIGN(const PromptSection keys,
+                            read_prompt_section(section, "the data block"));
+
+    EXPECT_EQ(keys.text, "hi");
+    EXPECT_EQ(keys.vocabulary, "bytes.savb");
+    EXPECT_EQ(keys.window, 4);
+}
+
+/** @brief Tests that a data block without "text", or with an unknown key, is refused naming it. */
+TEST_P(Small_LanguageDatasetsPromptDatasetBlock, AKeyThatDoesNotFitIsRefused)
+{
+    const BlockCase& row = GetParam();
+    const Config::Value section = SaTest::require_value(Config::parse_json(row.json, "<test>"));
+
+    SA_EXPECT_FAILURE(read_prompt_section(section, "the data block"),
+                      StatusCode::InvalidDescription, row.first, row.second);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LanguageDatasetsPromptDatasetBlock,
+    ::testing::Values(
+        BlockCase{"NoText", "{\"window\": 4, \"vocabulary\": \"bytes.savb\"}", "the data block",
+                  "has no 'text'"},
+        BlockCase{"AnUnknownKey",
+                  "{\"text\": \"hi\", \"window\": 4, \"tokens\": 9, \"vocabulary\": "
+                  "\"bytes.savb\"}",
+                  "'tokens'", ""}),
+    label_of<BlockCase>);
 
 /** @brief Tests that a range read of the one row holds what the whole read holds. */
 TEST_F(Medium_LanguageDatasetsPromptDataset, ARangeReadHoldsTheRowOfTheWholeBatch)
@@ -172,14 +271,22 @@ TEST_F(Medium_LanguageDatasetsPromptDataset, ARangeReadHoldsTheRowOfTheWholeBatc
 }
 
 /** @brief Tests that a range outside the prompt dataset is refused with a Status, not a stop. */
-TEST_F(Medium_LanguageDatasetsPromptDataset, RegressionABadRangeIsRefusedWithAStatus)
+TEST_P(Medium_LanguageDatasetsPromptDatasetRange, RegressionABadRangeIsRefusedWithAStatus)
 {
+    const RangeCase& row = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PromptDataset> dataset,
                             PromptDataset::make(*engine, {3, 1, 4, 1, 5}, 8));
     Data::Batch batch;
-    SA_EXPECT_FAILURE((dataset->read_rows(0, Data::RowRange{0, 2}, batch)),
-                      SushiAI::StatusCode::InvalidDescription, "Rows 0 to 2",
-                      "of batch 0", "a batch of 1");
-    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
-                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+
+    SA_EXPECT_FAILURE((dataset->read_rows(row.index, row.rows, batch)),
+                      SushiAI::StatusCode::InvalidDescription, row.first, row.second, row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_LanguageDatasetsPromptDatasetRange,
+    ::testing::Values(
+        RangeCase{"RowsPastTheBatch", 0, Data::RowRange{0, 2}, "Rows 0 to 2", "of batch 0",
+                  "a batch of 1"},
+        RangeCase{"ABatchOutOfRange", 99, Data::RowRange{0, 1}, "Batch 99 is out of range", "",
+                  ""}),
+    label_of<RangeCase>);

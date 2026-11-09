@@ -245,16 +245,48 @@ namespace SushiAI::Language::Datasets
 
             return Status();
         }
+
+        /** @brief Fails for a vocabulary size or an id a token file may not state. */
+        [[nodiscard]] Status check_write(SushiRuntime::span<const Text::TokenID> ids,
+                                         std::int32_t vocabulary_size)
+        {
+            SA_FAIL_IF(!is_vocabulary_size(vocabulary_size), StatusCode::InvalidDescription,
+                       "{}: a vocabulary of {} tokens; it has 1 to {}", K_WRITER, vocabulary_size,
+                       Text::K_MAX_VOCABULARY_SIZE);
+            return check_ids(ids, vocabulary_size);
+        }
+
+        /** @brief Writes a checked version 1 file to a stream and fails when the stream does. */
+        [[nodiscard]] Status write_stream(std::ostream& out,
+                                          SushiRuntime::span<const Text::TokenID> ids,
+                                          std::int32_t vocabulary_size)
+        {
+            write_version_1(out, ids, vocabulary_size);
+            out.flush();
+            SA_FAIL_IF(!out, StatusCode::InvalidFile,
+                       "{}: the stream failed while {} bytes were written", K_WRITER,
+                       offset_of(ids.size()));
+
+            return Status();
+        }
     } // namespace
+
+    Status write_token_file(std::ostream& out, SushiRuntime::span<const Text::TokenID> ids,
+                            std::int32_t vocabulary_size) noexcept
+    {
+        SA_TRY(check_write(ids, vocabulary_size));
+
+        return Detail::at_boundary(K_WRITER, [&]() -> Status
+        {
+            return write_stream(out, ids, vocabulary_size);
+        });
+    }
 
     Status write_token_file(const std::filesystem::path& file,
                             SushiRuntime::span<const Text::TokenID> ids,
                             std::int32_t vocabulary_size) noexcept
     {
-        SA_FAIL_IF(!is_vocabulary_size(vocabulary_size), StatusCode::InvalidDescription,
-                   "{}: a vocabulary of {} tokens; it has 1 to {}", K_WRITER, vocabulary_size,
-                   Text::K_MAX_VOCABULARY_SIZE);
-        SA_TRY(check_ids(ids, vocabulary_size));
+        SA_TRY(check_write(ids, vocabulary_size));
 
         return Detail::at_boundary(K_WRITER, [&]() -> Status
         {
@@ -263,14 +295,18 @@ namespace SushiAI::Language::Datasets
                        "'{}': {}: the file cannot be opened for writing",
                        Detail::display_of(file), K_WRITER);
 
-            write_version_1(out, ids, vocabulary_size);
-            out.flush();
-            SA_FAIL_IF(!out, StatusCode::InvalidFile,
-                       "'{}': {}: the stream failed while {} bytes were written",
-                       Detail::display_of(file), K_WRITER, offset_of(ids.size()));
-
-            return Status();
+            return SA_ANNOTATE(write_stream(out, ids, vocabulary_size), "'{}'",
+                               Detail::display_of(file));
         }, file);
+    }
+
+    Result<TokenFileHeader> read_token_file_header(std::istream& in,
+                                                   std::uint64_t file_bytes) noexcept
+    {
+        return Detail::at_boundary(K_HEADER_READER, [&]() -> Result<TokenFileHeader>
+        {
+            return read_header(in, file_bytes);
+        });
     }
 
     Result<TokenFileHeader> read_token_file_header(const std::filesystem::path& file) noexcept

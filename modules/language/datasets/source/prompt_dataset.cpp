@@ -61,8 +61,8 @@ namespace SushiAI::Language::Datasets
                                                       Detail::K_WINDOW_KEY};
     } // namespace
 
-    Result<std::unique_ptr<PromptDataset>> PromptDataset::make(
-        SushiBLAS::Engine& engine, const std::vector<Text::TokenID>& ids, std::int64_t window) noexcept
+    Result<PromptRow> lay_out_prompt(const std::vector<Text::TokenID>& ids,
+                                     std::int64_t window) noexcept
     {
         SA_FAIL_IF(window < 1 || window > K_MAX_WINDOW_TOKENS, StatusCode::InvalidDescription,
                    "{}: a window of {} positions; it has 1 to {}", K_DATASET, window,
@@ -76,20 +76,47 @@ namespace SushiAI::Language::Datasets
                        "{}: the prompt holds the id {}; an id is zero or above", K_DATASET, id);
         }
 
-        return Detail::at_boundary(K_DATASET, [&]() -> Result<std::unique_ptr<PromptDataset>>
+        return Detail::at_boundary(K_DATASET, [&]() -> Result<PromptRow>
         {
             const std::size_t kept = std::min(ids.size(), static_cast<std::size_t>(window));
-            std::vector<Text::TokenID> last(ids.end() - static_cast<std::ptrdiff_t>(kept),
-                                            ids.end());
 
-            return std::unique_ptr<PromptDataset>(
-                new PromptDataset(engine, std::move(last), window));
+            PromptRow row;
+            row.ids.assign(static_cast<std::size_t>(window), Text::TokenID{0});
+            std::copy(ids.end() - static_cast<std::ptrdiff_t>(kept), ids.end(), row.ids.begin());
+            row.length = static_cast<std::int32_t>(kept);
+            return row;
         });
     }
 
-    PromptDataset::PromptDataset(SushiBLAS::Engine& engine, std::vector<Text::TokenID> kept,
-                                 std::int64_t window)
-        : engine_(&engine), kept_(std::move(kept)), window_(window),
+    Result<PromptSection> read_prompt_section(const Config::Value& section,
+                                              std::string_view context) noexcept
+    {
+        const Config::SectionReader reader(section, context);
+        SA_TRY(reader.check_object());
+        SA_TRY(reader.check_keys(Config::KeySpan(K_PROMPT_KEYS)));
+
+        PromptSection keys;
+        SA_TRY_ASSIGN(keys.text, Detail::read_text(reader, K_TEXT_KEY));
+        SA_TRY_ASSIGN(keys.vocabulary, Detail::read_text(reader, K_VOCABULARY_KEY));
+        SA_TRY_ASSIGN(keys.window, Detail::read_count(reader, Detail::K_WINDOW_KEY));
+        return keys;
+    }
+
+    Result<std::unique_ptr<PromptDataset>> PromptDataset::make(
+        SushiBLAS::Engine& engine, const std::vector<Text::TokenID>& ids,
+        std::int64_t window) noexcept
+    {
+        SA_TRY_ASSIGN(PromptRow row, lay_out_prompt(ids, window));
+
+        return Detail::at_boundary(K_DATASET, [&]() -> Result<std::unique_ptr<PromptDataset>>
+        {
+            return std::unique_ptr<PromptDataset>(
+                new PromptDataset(engine, std::move(row), window));
+        });
+    }
+
+    PromptDataset::PromptDataset(SushiBLAS::Engine& engine, PromptRow row, std::int64_t window)
+        : engine_(&engine), row_(std::move(row)), window_(window),
           targets_{Data::TargetDescription{std::string(K_ROLE_PROMPT_LENGTH), Shape{1},
                                            DType::Int32, 0}}
     {
@@ -135,12 +162,9 @@ namespace SushiAI::Language::Datasets
             SA_TRY(Data::prepare_batch(*engine_, batch_size(), Data::describe_input(*this),
                                        targets_, batch));
 
-            Text::TokenID* const row = batch.inputs.data_as<Text::TokenID>();
-            std::fill(row, row + window_, Text::TokenID{0});
-            std::copy(kept_.begin(), kept_.end(), row);
+            std::copy(row_.ids.begin(), row_.ids.end(), batch.inputs.data_as<Text::TokenID>());
 
-            batch.targets[0].values.data_as<std::int32_t>()[0] =
-                static_cast<std::int32_t>(kept_.size());
+            batch.targets[0].values.data_as<std::int32_t>()[0] = row_.length;
             return Status();
         });
     }
@@ -156,21 +180,15 @@ namespace SushiAI::Language::Datasets
                                                                const Config::Value& section,
                                                                std::string_view context) noexcept
     {
-        const Config::SectionReader reader(section, context);
-        SA_TRY(reader.check_object());
-        SA_TRY(reader.check_keys(Config::KeySpan(K_PROMPT_KEYS)));
-        SA_TRY_ASSIGN(const std::string text, Detail::read_text(reader, K_TEXT_KEY));
-        SA_TRY_ASSIGN(const std::string file, Detail::read_text(reader, K_VOCABULARY_KEY));
-        SA_TRY_ASSIGN(const std::int64_t window,
-                      Detail::read_count(reader, Detail::K_WINDOW_KEY));
+        SA_TRY_ASSIGN(const PromptSection keys, read_prompt_section(section, context));
 
         SA_TRY_ASSIGN(const Text::Vocabulary vocabulary,
-                      Text::read_vocabulary_file(std::filesystem::path(file)));
+                      Text::read_vocabulary_file(std::filesystem::path(keys.vocabulary)));
         std::vector<Text::TokenID> ids;
-        SA_TRY(SA_ANNOTATE(Text::encode_text(vocabulary, text, ids), "{}", context));
+        SA_TRY(SA_ANNOTATE(Text::encode_text(vocabulary, keys.text, ids), "{}", context));
 
         SA_TRY_ASSIGN(std::unique_ptr<PromptDataset> dataset,
-                      PromptDataset::make(engine, ids, window));
+                      PromptDataset::make(engine, ids, keys.window));
 
         return std::unique_ptr<Data::Dataset>(std::move(dataset));
     }

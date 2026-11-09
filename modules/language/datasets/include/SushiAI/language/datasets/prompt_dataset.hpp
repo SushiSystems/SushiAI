@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
@@ -51,6 +52,47 @@ namespace SushiAI::Language::Datasets
     /** @brief Names the role that holds how many leading ids of the row are the prompt. */
     inline constexpr std::string_view K_ROLE_PROMPT_LENGTH = "prompt_length";
 
+    /** @brief Holds the row of a prompt: its ids, then zeros, and the length of the prompt. */
+    struct PromptRow
+    {
+        /** @brief Holds exactly the window's ids: the kept ids first, zeros behind them. */
+        std::vector<Text::TokenID> ids;
+
+        /** @brief Counts the leading ids of the row that are the prompt. */
+        std::int32_t length = 0;
+    };
+
+    /**
+     * @brief Lays out the row of a prompt: the last @p window ids of @p ids, or all of them
+     *        when fewer, then zeros up to the window.
+     * @return The row, or InvalidDescription for no id, a negative id or a window outside 1 to
+     *         K_MAX_WINDOW_TOKENS.
+     */
+    [[nodiscard]] Result<PromptRow> lay_out_prompt(const std::vector<Text::TokenID>& ids,
+                                                   std::int64_t window) noexcept;
+
+    /** @brief Holds the keys of a "prompt" data block. */
+    struct PromptSection
+    {
+        /** @brief Holds the text a generation starts from. */
+        std::string text;
+
+        /** @brief Holds the path of the vocabulary file the text is encoded with. */
+        std::string vocabulary;
+
+        /** @brief Counts the positions of the row. */
+        std::int64_t window = 0;
+    };
+
+    /**
+     * @brief Reads "text", "vocabulary" and "window" of a "prompt" data block.
+     * @param context Names the block in a message.
+     * @return The keys, or InvalidDescription for a block that is no object, a key it does
+     *         not accept, or a key that is absent or of another kind.
+     */
+    [[nodiscard]] Result<PromptSection> read_prompt_section(const Config::Value& section,
+                                                            std::string_view context) noexcept;
+
     /** @brief Publishes one batch of one row: the last ids of a prompt, then zeros. */
     class PromptDataset final : public Data::Dataset
     {
@@ -58,8 +100,7 @@ namespace SushiAI::Language::Datasets
             /**
              * @brief Keeps the last @p window ids of @p ids, or all of them when fewer.
              * @param engine Allocates the tensors of the batch; it must outlive the dataset.
-             * @return The dataset, or InvalidDescription for no id, a negative id or a window
-             *         outside 1 to K_MAX_WINDOW_TOKENS.
+             * @return The dataset, or the refusal of lay_out_prompt().
              */
             [[nodiscard]] static Result<std::unique_ptr<PromptDataset>> make(
                 SushiBLAS::Engine& engine, const std::vector<Text::TokenID>& ids,
@@ -107,14 +148,13 @@ namespace SushiAI::Language::Datasets
 
         private:
             /** @brief Takes the parts make() checked. */
-            PromptDataset(SushiBLAS::Engine& engine, std::vector<Text::TokenID> kept,
-                          std::int64_t window);
+            PromptDataset(SushiBLAS::Engine& engine, PromptRow row, std::int64_t window);
 
             /// @brief Allocates the tensors of the batch; not owned.
             SushiBLAS::Engine* engine_;
 
-            /// @brief Holds the ids of the row, at most window_ of them.
-            std::vector<Text::TokenID> kept_;
+            /// @brief Holds the row the batch publishes.
+            PromptRow row_;
 
             /// @brief Counts the positions of the row.
             std::int64_t window_;

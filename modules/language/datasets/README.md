@@ -38,8 +38,8 @@ generation starts from. `modules/language/registration` adds both factories to a
 | `<SushiAI/language/datasets/collator.hpp>` | `Collator` |
 | `<SushiAI/language/datasets/next_token_collator.hpp>` | `NextTokenCollator`, `K_TASK_NEXT_TOKEN` |
 | `<SushiAI/language/datasets/token_dataset.hpp>` | `TokenDatasetOptions`, `TokenDataset` |
-| `<SushiAI/language/datasets/tokens_section.hpp>` | `make_tokens_dataset`, `K_TOKENS_DATA_TYPE` |
-| `<SushiAI/language/datasets/prompt_dataset.hpp>` | `PromptDataset`, `make_prompt_dataset`, `K_PROMPT_DATA_TYPE`, `K_ROLE_PROMPT_LENGTH` |
+| `<SushiAI/language/datasets/tokens_section.hpp>` | `TokensSection`, `read_tokens_section`, `make_tokens_dataset`, `K_TOKENS_DATA_TYPE` |
+| `<SushiAI/language/datasets/prompt_dataset.hpp>` | `PromptRow`, `lay_out_prompt`, `PromptSection`, `read_prompt_section`, `PromptDataset`, `make_prompt_dataset`, `K_PROMPT_DATA_TYPE`, `K_ROLE_PROMPT_LENGTH` |
 
 ## The data blocks
 
@@ -56,7 +56,8 @@ generation starts from. `modules/language/registration` adds both factories to a
 | `stride` | No | The ids between the starts of two windows; what `TokenDatasetOptions` gives when absent |
 | `batch_size` | No | The windows of one batch; 16 when absent |
 
-The factory reads the header of the file first, because the collator states the vocabulary
+`read_tokens_section` reads and checks the keys alone, and returns them as a `TokensSection`.
+The factory then reads the header of the file, because the collator states the vocabulary
 size and only the header knows it.
 
 `make_prompt_dataset` builds a `PromptDataset`:
@@ -65,8 +66,10 @@ size and only the header knows it.
 { "type": "prompt", "text": "Once upon a time", "vocabulary": "vocab.savb", "window": 256 }
 ```
 
-All three keys are required. The factory reads the vocabulary file, encodes `text` with
-`Text::encode_text` and keeps the last `window` ids. A key neither factory lists is refused.
+All three keys are required. `read_prompt_section` reads and checks them alone. The factory
+reads the vocabulary file, encodes `text` with `Text::encode_text` and keeps the last `window`
+ids; `lay_out_prompt` states that row, the kept ids and then zeros up to the window, with no
+engine. A key neither factory lists is refused.
 
 ## PromptDataset
 
@@ -94,7 +97,8 @@ The file ends at byte `24 + 4 * N`. The file of the ids 1, 258 and 0 over 300 to
 bytes: `53 41 54 4B`, `01 00 00 00`, `2C 01 00 00`, `04 00 00 00`, `03 00 00 00 00 00 00 00`,
 then `01 00 00 00`, `02 01 00 00`, `00 00 00 00`.
 
-`write_token_file` checks every id against the vocabulary size before it opens the file, so a
+`write_token_file` and `read_token_file_header` also take a stream, so the format is read and
+written in memory with no file. `write_token_file` checks every id against the vocabulary size before it opens the file, so a
 refused corpus truncates nothing. `read_token_file_header` refuses, with `InvalidFile` and the
 byte offset in the message: a file that ends before the end its header declares, bytes after
 that end, another magic, a version it does not know, and a field out of its bounds.
@@ -151,9 +155,9 @@ the dataset in `Train::match_input`.
 
 ## Tests
 
-`tests/language/datasets/test_token_file.cpp`, `test_datasets_window_layout.cpp`,
-`test_datasets_next_token_collator.cpp` and `test_datasets_token_dataset.cpp`, in the suites
-`Small_LanguageDatasetsTokenFile`, `Small_LanguageDatasetsWindowLayout`,
-`Medium_LanguageDatasetsNextTokenCollator` and `Medium_LanguageDatasetsTokenDataset`. The last two
-allocate tensors on an engine. The files they write are under the system's temporary directory
-and are removed when the test ends.
+`tests/language/datasets/` holds one test file per header; its README lists them and each file has
+a sidecar that describes its cases. The window count, the collators' description and refusals,
+`lay_out_prompt`, the keys of both data blocks and the token file over in-memory streams run in
+`Small_` suites. The suites that allocate tensors on an engine, read a token file from the disk
+or stop the process are `Medium_`. The files they write are under the system's temporary
+directory and are removed when the test ends.

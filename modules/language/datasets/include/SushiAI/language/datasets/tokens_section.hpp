@@ -29,17 +29,42 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/language/datasets/token_dataset.hpp>
 
 namespace SushiAI::Language::Datasets
 {
     /** @brief Names the type of the data block make_tokens_dataset() reads. */
     inline constexpr std::string_view K_TOKENS_DATA_TYPE = "tokens";
+
+    /** @brief Holds the keys of a "tokens" data block. */
+    struct TokensSection
+    {
+        /** @brief Holds the path of the token file. */
+        std::string file;
+
+        /** @brief Counts the positions of one input row. */
+        std::int64_t window = 0;
+
+        /** @brief Holds the stride and the batch size the block states; the rest is default. */
+        TokenDatasetOptions options;
+    };
+
+    /**
+     * @brief Reads "file", "window", "stride" and "batch_size" of a "tokens" data block.
+     * @param context Names the block in a message.
+     * @return The keys, or InvalidDescription for a block that is no object, a key it does
+     *         not accept, or a key that is absent, of another kind or not positive.
+     */
+    [[nodiscard]] Result<TokensSection> read_tokens_section(const Config::Value& section,
+                                                            std::string_view context) noexcept;
 
     /**
      * @brief Builds a TokenDataset with a NextTokenCollator from the keys of a data block.

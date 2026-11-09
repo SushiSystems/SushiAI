@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <istream>
+#include <ostream>
 #include <string_view>
 
 #include <SushiRuntime/core/span.hpp>
@@ -79,6 +80,17 @@ namespace SushiAI::Language::Datasets
                                           std::int32_t vocabulary_size) noexcept;
 
     /**
+     * @brief Writes ids in the current format version to a binary stream.
+     * @param out A binary stream; nothing is written to it when an argument is refused.
+     * @param vocabulary_size In [1, Text::K_MAX_VOCABULARY_SIZE].
+     * @return Success; InvalidDescription, naming the index, for an id outside
+     *         [0, vocabulary_size); InvalidFile, naming the byte count, when the stream fails.
+     */
+    [[nodiscard]] Status write_token_file(std::ostream& out,
+                                          SushiRuntime::span<const Text::TokenID> ids,
+                                          std::int32_t vocabulary_size) noexcept;
+
+    /**
      * @brief Reads and checks the header of a token file of any version this build knows.
      * @return The header; FileNotFound; InvalidFile, opening with the path and naming the
      *         byte offset, for a file that ends before or goes on past the end its header
@@ -86,6 +98,15 @@ namespace SushiAI::Language::Datasets
      */
     [[nodiscard]] Result<TokenFileHeader> read_token_file_header(
         const std::filesystem::path& file) noexcept;
+
+    /**
+     * @brief Reads and checks the header of a token file from the start of its stream.
+     * @param in A binary stream over the whole file, positioned at its first byte.
+     * @param file_bytes The byte count of the whole file.
+     * @return What the path overload returns, without the path in a message.
+     */
+    [[nodiscard]] Result<TokenFileHeader> read_token_file_header(
+        std::istream& in, std::uint64_t file_bytes) noexcept;
 
     /**
      * @brief Reads the ids [first, first + ids.size()) of a token file from its stream.

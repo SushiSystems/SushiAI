@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
@@ -74,12 +75,29 @@ namespace
                     file, SushiRuntime::span<const TokenID>(ids.data(), ids.size()), K_IDS));
                 return file.generic_string();
             }
+    };
 
-            /** @brief Parses a data block whose "file" is @p file and whose rest is @p keys. */
-            Config::Value section_of(const std::string& file, const std::string& keys)
-            {
-                return SaTest::require_value(Config::parse_json("{\"file\": \"" + file + "\"" + keys + "}", "<test>"));
-            }
+    /** @brief Parses a data block whose "file" is @p file and whose rest is @p keys. */
+    Config::Value section_of(const std::string& file, const std::string& keys)
+    {
+        return SaTest::require_value(
+            Config::parse_json("{\"file\": \"" + file + "\"" + keys + "}", "<test>"));
+    }
+
+    /** @brief Names a data block that does not fit, and what the refusal says. */
+    struct BlockCase
+    {
+        const char* label;  /**< The name the row prints. */
+        const char* json;   /**< The text of the data block. */
+        const char* first;  /**< A fragment the refusal names. */
+        const char* second; /**< A second fragment, or an empty text. */
+        const char* third;  /**< A third fragment, or an empty text. */
+    };
+
+    /** @brief Provides the data blocks read_tokens_section refuses. */
+    class Small_LanguageDatasetsTokensSectionRefusal : public ::testing::TestWithParam<BlockCase>
+    {
+
     };
 } // namespace
 
@@ -104,52 +122,79 @@ TEST_F(Medium_LanguageDatasetsTokensSection, TheKeysDescribeTheDataset)
         Data::find_target(dataset->targets(), Data::K_ROLE_LABELS);
     ASSERT_NE(labels, nullptr);
     EXPECT_EQ(labels->classes, K_IDS);
+}
 
+/** @brief Tests that a read of the dataset a block builds returns the windows at the stride. */
+TEST_F(Medium_LanguageDatasetsTokensSection, AReadReturnsTheWindowsAtTheStride)
+{
+    const Support::ScratchDirectory scratch("sushiai_tokens_section_read");
+    const std::string file = rising_file(scratch);
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Data::Dataset> dataset,
+        make_tokens_dataset(*engine,
+                            section_of(file, R"(, "window": 4, "stride": 5, "batch_size": 2)"),
+                            "the data block"));
     Data::Batch batch;
     SA_EXPECT_OK(dataset->read(1, batch));
+
     const TokenID* const inputs = batch.inputs.data_as<TokenID>();
     EXPECT_EQ(inputs[0], 10);
     EXPECT_EQ(inputs[4], 15);
 }
 
-/** @brief Tests that a block without "batch_size" has that of TokenDatasetOptions. */
-TEST_F(Medium_LanguageDatasetsTokensSection, AnAbsentBatchSizeIsTheDefault)
+/** @brief Tests that the keys of a block are read, and that a stride is left to the window. */
+TEST(Small_LanguageDatasetsTokensSection, TheKeysOfABlockAreRead)
 {
-    const Support::ScratchDirectory scratch("sushiai_tokens_section_default");
-    const std::string file = rising_file(scratch);
+    const Config::Value section =
+        section_of("a.satk", R"(, "window": 4, "stride": 5, "batch_size": 2)");
 
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Data::Dataset> dataset,
-        make_tokens_dataset(*engine, section_of(file, R"(, "window": 1, "stride": 1)"),
-                            "the data block"));
+    SA_ASSERT_OK_AND_ASSIGN(const TokensSection keys,
+                            read_tokens_section(section, "the data block"));
 
-    EXPECT_EQ(dataset->batch_size(), TokenDatasetOptions{}.batch_size);
+    EXPECT_EQ(keys.file, "a.satk");
+    EXPECT_EQ(keys.window, 4);
+    EXPECT_EQ(keys.options.stride, std::optional<std::int64_t>(5));
+    EXPECT_EQ(keys.options.batch_size, 2);
+}
+
+/** @brief Tests that a block without "batch_size" or "stride" states 16 windows and no stride. */
+TEST(Small_LanguageDatasetsTokensSection, AnAbsentBatchSizeIsSixteen)
+{
+    const Config::Value section = section_of("a.satk", R"(, "window": 1)");
+
+    SA_ASSERT_OK_AND_ASSIGN(const TokensSection keys,
+                            read_tokens_section(section, "the data block"));
+
+    EXPECT_EQ(keys.options.batch_size, 16);
+    EXPECT_FALSE(keys.options.stride.has_value());
 }
 
 /** @brief Tests that an absent, a mistyped and an unknown key are each refused by name. */
-TEST_F(Medium_LanguageDatasetsTokensSection, AKeyThatDoesNotFitIsRefused)
+TEST_P(Small_LanguageDatasetsTokensSectionRefusal, AKeyThatDoesNotFitIsRefused)
 {
-    const Support::ScratchDirectory scratch("sushiai_tokens_section_refused");
-    const std::string file = rising_file(scratch);
+    const BlockCase& row = GetParam();
+    const Config::Value section = SaTest::require_value(Config::parse_json(row.json, "<test>"));
 
-    SA_EXPECT_FAILURE(make_tokens_dataset(*engine, section_of(file, ""), "the data block"),
-                      StatusCode::InvalidDescription, "the data block", "has no 'window'");
-    SA_EXPECT_FAILURE(make_tokens_dataset(*engine,
-                                          SaTest::require_value(Config::parse_json(R"({"window": 4})", "<test>")),
-                                          "the data block"),
-                      StatusCode::InvalidDescription, "the data block", "has no 'file'");
-    SA_EXPECT_FAILURE(make_tokens_dataset(*engine, section_of(file, R"(, "window": "four")"),
-                                          "the data block"),
-                      StatusCode::InvalidDescription, "'window'", "whole number");
-    SA_EXPECT_FAILURE(make_tokens_dataset(*engine, section_of(file, R"(, "window": 0)"),
-                                          "the data block"),
-                      StatusCode::InvalidDescription, "'window'", "positive");
-    SA_EXPECT_FAILURE(make_tokens_dataset(
-                          *engine, section_of(file, R"(, "window": 4, "shuffle": true)"),
-                          "the data block"),
-                      StatusCode::InvalidDescription, "the data block", "'shuffle'",
-                      "does not have");
+    SA_EXPECT_FAILURE(read_tokens_section(section, "the data block"),
+                      StatusCode::InvalidDescription, row.first, row.second, row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LanguageDatasetsTokensSectionRefusal,
+    ::testing::Values(
+        BlockCase{"NoWindow", R"({"file": "a.satk"})", "the data block", "has no 'window'", ""},
+        BlockCase{"NoFile", R"({"window": 4})", "the data block", "has no 'file'", ""},
+        BlockCase{"AWindowThatIsNoNumber", R"({"file": "a.satk", "window": "four"})", "'window'",
+                  "whole number", ""},
+        BlockCase{"AWindowOfZero", R"({"file": "a.satk", "window": 0})", "'window'", "positive",
+                  ""},
+        BlockCase{"AnUnknownKey", R"({"file": "a.satk", "window": 4, "shuffle": true})",
+                  "the data block", "'shuffle'", "does not have"}),
+    [](const ::testing::TestParamInfo<BlockCase>& info)
+    {
+        return std::string(info.param.label);
+    });
 
 /** @brief Tests that a file that is not there fails and names no dataset. */
 TEST_F(Medium_LanguageDatasetsTokensSection, AMissingFileFails)

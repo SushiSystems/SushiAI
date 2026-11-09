@@ -19,8 +19,6 @@
 /* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
 /* implied. See the License for the specific language governing           */
 /* permissions and limitations under the License.                         */
-/**************************************************************************/
-
 
 /**
  * @file test_window_layout.cpp
@@ -29,6 +27,7 @@
  */
 
 #include <cstdint>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -37,13 +36,37 @@
 using namespace SushiAI;
 using namespace SushiAI::Language::Datasets;
 
-/** @brief Tests that 10 ids hold three windows of 4 at a stride of 3, at 0, 3 and 6. */
+namespace
+{
+    /** @brief Names a layout out of its bounds and what the refusal says. */
+    struct LayoutCase
+    {
+        const char* label;    /**< The name the row prints. */
+        WindowLayout layout;  /**< The layout count_windows is given. */
+        const char* first;    /**< A fragment the refusal names. */
+        const char* second;   /**< A second fragment, or an empty text. */
+    };
+
+    /** @brief Provides the layouts count_windows refuses. */
+    class Small_LanguageDatasetsWindowLayoutRefusal : public ::testing::TestWithParam<LayoutCase>
+    {
+
+    };
+} // namespace
+
+/** @brief Tests that 10 ids hold three windows of 4 at a stride of 3. */
+TEST(Small_LanguageDatasetsWindowLayout, WindowsAreCountedAtTheStride)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::uint64_t windows, count_windows(10, WindowLayout{4, 3}));
+
+    EXPECT_EQ(windows, 3u);
+}
+
+/** @brief Tests that window i begins at i times the stride. */
 TEST(Small_LanguageDatasetsWindowLayout, WindowsBeginOneStrideApart)
 {
     const WindowLayout layout{4, 3};
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::uint64_t windows, count_windows(10, layout));
-    EXPECT_EQ(windows, 3u);
     EXPECT_EQ(first_token_of(0, layout), 0u);
     EXPECT_EQ(first_token_of(1, layout), 3u);
     EXPECT_EQ(first_token_of(2, layout), 6u);
@@ -66,12 +89,22 @@ TEST(Small_LanguageDatasetsWindowLayout, OnlyWholeWindowsAreCounted)
 }
 
 /** @brief Tests that a window or a stride below 1, and a window above the limit, are refused. */
-TEST(Small_LanguageDatasetsWindowLayout, ALayoutOutOfBoundsIsRefused)
+TEST_P(Small_LanguageDatasetsWindowLayoutRefusal, ALayoutOutOfBoundsIsRefused)
 {
-    SA_EXPECT_FAILURE(count_windows(10, WindowLayout{0, 1}), StatusCode::InvalidDescription,
-                      "count_windows", "window of 0 tokens");
-    SA_EXPECT_FAILURE(count_windows(10, WindowLayout{4, 0}), StatusCode::InvalidDescription,
-                      "stride of 0 tokens");
-    SA_EXPECT_FAILURE(count_windows(10, WindowLayout{K_MAX_WINDOW_TOKENS + 1, 1}),
-                      StatusCode::InvalidDescription, "window of");
+    const LayoutCase& row = GetParam();
+
+    SA_EXPECT_FAILURE(count_windows(10, row.layout), StatusCode::InvalidDescription,
+                      row.first, row.second);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_LanguageDatasetsWindowLayoutRefusal,
+    ::testing::Values(
+        LayoutCase{"WindowOfZero", WindowLayout{0, 1}, "count_windows", "window of 0 tokens"},
+        LayoutCase{"StrideOfZero", WindowLayout{4, 0}, "stride of 0 tokens", ""},
+        LayoutCase{"WindowAboveTheLimit", WindowLayout{K_MAX_WINDOW_TOKENS + 1, 1}, "window of",
+                   ""}),
+    [](const ::testing::TestParamInfo<LayoutCase>& info)
+    {
+        return std::string(info.param.label);
+    });

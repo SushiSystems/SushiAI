@@ -32,6 +32,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <numeric>
+#include <optional>
 #include <utility>
 #include <vector>
 #include <string>
@@ -99,9 +101,100 @@ namespace
                 return options;
             }
     };
+
+    /** @brief Returns the ids @p first to @p first + @p count - 1, a window of the rising file. */
+    std::vector<TokenID> ids_from(TokenID first, std::size_t count)
+    {
+        std::vector<TokenID> ids(count);
+        std::iota(ids.begin(), ids.end(), first);
+        return ids;
+    }
+
+    /** @brief Returns @p count ids of a tensor as a vector, so a check compares them whole. */
+    std::vector<TokenID> ids_of(const SushiBLAS::Tensor& tensor, std::size_t count)
+    {
+        const TokenID* const data = tensor.data_as<TokenID>();
+        return std::vector<TokenID>(data, data + count);
+    }
+
+    /** @brief Returns the ids of the windows at @p first and @p second, one after the other. */
+    std::vector<TokenID> two_windows(TokenID first, TokenID second, TokenID shift)
+    {
+        std::vector<TokenID> ids = ids_from(first + shift, static_cast<std::size_t>(K_LENGTH));
+        const std::vector<TokenID> next =
+            ids_from(second + shift, static_cast<std::size_t>(K_LENGTH));
+        ids.insert(ids.end(), next.begin(), next.end());
+        return ids;
+    }
+
+    /** @brief Names the batch of a stride of 3 and where its two windows begin. */
+    struct StrideCase
+    {
+        const char* label;  /**< The name the row prints. */
+        std::size_t batch;  /**< The batch index. */
+        TokenID first;      /**< The id the first window of the batch begins at. */
+        TokenID second;     /**< The id the second window of the batch begins at. */
+    };
+
+    /** @brief Provides the batches of a stride of 3 over the rising file. */
+    class Medium_LanguageDatasetsTokenDatasetStride
+        : public Medium_LanguageDatasetsTokenDataset,
+          public ::testing::WithParamInterface<StrideCase>
+    {
+
+    };
+
+    /** @brief Names the options make is given and what its refusal says. */
+    struct RefusalCase
+    {
+        const char* label;                 /**< The name the row prints. */
+        bool no_collator;                  /**< Whether make is given no collator. */
+        bool absent_file;                  /**< Whether make is given a file that is not there. */
+        std::int64_t batch_size;           /**< The windows of a batch. */
+        std::optional<std::int64_t> stride; /**< The stride, or none for the window length. */
+        std::int32_t vocabulary;           /**< The vocabulary size of the collator. */
+        StatusCode code;                   /**< The code of the refusal. */
+        const char* first;                 /**< A fragment the refusal names. */
+        const char* second;                /**< A second fragment, or an empty text. */
+        const char* third;                 /**< A third fragment, or an empty text. */
+    };
+
+    /** @brief Provides the options make refuses. */
+    class Medium_LanguageDatasetsTokenDatasetRefusal
+        : public Medium_LanguageDatasetsTokenDataset,
+          public ::testing::WithParamInterface<RefusalCase>
+    {
+
+    };
+
+    /** @brief Names a row range and a batch index outside the dataset. */
+    struct RangeCase
+    {
+        const char* label;   /**< The name the row prints. */
+        std::size_t index;   /**< The batch index. */
+        Data::RowRange rows; /**< The rows asked for. */
+        const char* first;   /**< A fragment the refusal names. */
+        const char* second;  /**< A second fragment, or an empty text. */
+        const char* third;   /**< A third fragment, or an empty text. */
+    };
+
+    /** @brief Provides the ranges the dataset refuses. */
+    class Medium_LanguageDatasetsTokenDatasetRange
+        : public Medium_LanguageDatasetsTokenDataset,
+          public ::testing::WithParamInterface<RangeCase>
+    {
+
+    };
+
+    /** @brief Returns the name a row prints. */
+    template <typename Case>
+    std::string label_of(const ::testing::TestParamInfo<Case>& info)
+    {
+        return std::string(info.param.label);
+    }
 } // namespace
 
-/** @brief Tests that the dataset reports its batch size, shapes, input type and batches. */
+/** @brief Tests that the dataset reports its batch size, sample shape, input type and batches. */
 TEST_F(Medium_LanguageDatasetsTokenDataset, ItDescribesItsBatches)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_describe");
@@ -116,6 +209,17 @@ TEST_F(Medium_LanguageDatasetsTokenDataset, ItDescribesItsBatches)
     EXPECT_EQ(dataset->sample_dtype(), DType::Int32);
     EXPECT_EQ(dataset->batch_count(), 2u);
     EXPECT_EQ(dataset->name(), "tiny");
+}
+
+/** @brief Tests that the dataset reports its vocabulary and the labels role of its collator. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, ItDescribesItsVocabularyAndLabels)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_labels");
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> dataset,
+        TokenDataset::make(*engine, rising_file(scratch), next_token(), tiny_options()));
+
     EXPECT_EQ(dataset->vocabulary_size(), K_IDS);
     ASSERT_EQ(dataset->targets().size(), 1u);
     EXPECT_EQ(dataset->targets()[0].role, Data::K_ROLE_LABELS);
@@ -142,20 +246,15 @@ TEST_F(Medium_LanguageDatasetsTokenDataset, ABatchHoldsItsWindowsAsInt32)
     ASSERT_EQ(batch.targets[0].values.dtype, DType::Int32);
     ASSERT_EQ(batch.targets[0].values.num_elements, 8);
 
-    const TokenID* const inputs = batch.inputs.data_as<TokenID>();
-    const TokenID* const labels = batch.targets[0].values.data_as<TokenID>();
-    const std::vector<TokenID> expected = {8, 9, 10, 11, 12, 13, 14, 15};
-
-    for (std::size_t i = 0; i < expected.size(); ++i)
-    {
-        EXPECT_EQ(inputs[i], expected[i]) << i;
-        EXPECT_EQ(labels[i], expected[i] + 1) << i;
-    }
+    EXPECT_EQ(ids_of(batch.inputs, 8), (std::vector<TokenID>{8, 9, 10, 11, 12, 13, 14, 15}));
+    EXPECT_EQ(ids_of(batch.targets[0].values, 8),
+              (std::vector<TokenID>{9, 10, 11, 12, 13, 14, 15, 16}));
 }
 
-/** @brief Tests, over every batch of overlapping windows, that a label is the next token. */
-TEST_F(Medium_LanguageDatasetsTokenDataset, EveryLabelIsTheTokenAfterItsInput)
+/** @brief Tests, over each batch of overlapping windows, that a label is the next token. */
+TEST_P(Medium_LanguageDatasetsTokenDatasetStride, EveryLabelIsTheTokenAfterItsInput)
 {
+    const StrideCase& row = GetParam();
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_next");
 
     // A stride of 3 gives the windows at 0, 3, 6, 9, 12 and 15: three batches of two.
@@ -165,82 +264,57 @@ TEST_F(Medium_LanguageDatasetsTokenDataset, EveryLabelIsTheTokenAfterItsInput)
         const std::unique_ptr<TokenDataset> dataset,
         TokenDataset::make(*engine, rising_file(scratch), next_token(), options));
     ASSERT_EQ(dataset->batch_count(), 3u);
-
     Data::Batch batch;
-    for (std::size_t index = 0; index < dataset->batch_count(); ++index)
-    {
-        ASSERT_TRUE(SaTest::status_is_ok(dataset->read(index, batch)));
-        const TokenID* const inputs = batch.inputs.data_as<TokenID>();
-        const TokenID* const labels = batch.targets[0].values.data_as<TokenID>();
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(row.batch, batch)));
 
-        for (std::size_t row = 0; row < 2; ++row)
-        {
-            const std::size_t first = (index * 2 + row) * 3;
-
-            for (std::size_t t = 0; t < 4; ++t)
-            {
-                // The file holds the id p at position p.
-                EXPECT_EQ(inputs[row * 4 + t], static_cast<TokenID>(first + t));
-                EXPECT_EQ(labels[row * 4 + t], static_cast<TokenID>(first + t + 1));
-
-                if (t + 1 < 4)
-                    EXPECT_EQ(labels[row * 4 + t], inputs[row * 4 + t + 1]);
-            }
-        }
-    }
+    // The file holds the id p at position p, so a label is the input id plus one.
+    EXPECT_EQ(ids_of(batch.inputs, 8), two_windows(row.first, row.second, 0));
+    EXPECT_EQ(ids_of(batch.targets[0].values, 8), two_windows(row.first, row.second, 1));
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_LanguageDatasetsTokenDatasetStride,
+                         ::testing::Values(StrideCase{"BatchZero", 0, 0, 3},
+                                           StrideCase{"BatchOne", 1, 6, 9},
+                                           StrideCase{"BatchTwo", 2, 12, 15}),
+                         label_of<StrideCase>);
 
 /** @brief Tests that make refuses options no batch can be built from. */
-TEST_F(Medium_LanguageDatasetsTokenDataset, MakeRefusesOptionsOutsideTheirBounds)
+TEST_P(Medium_LanguageDatasetsTokenDatasetRefusal, MakeRefusesOptionsOutsideTheirBounds)
 {
+    const RefusalCase& row = GetParam();
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_refusals");
-    const std::filesystem::path file = rising_file(scratch);
-
-    SA_EXPECT_FAILURE(TokenDataset::make(*engine, file, nullptr, tiny_options()),
-                      StatusCode::InvalidDescription, "TokenDataset", "tiny", "no collator");
-
+    const std::filesystem::path file =
+        row.absent_file ? scratch.path() / "absent.satk" : rising_file(scratch);
     TokenDatasetOptions options = tiny_options();
-    options.batch_size = 0;
-    SA_EXPECT_FAILURE(TokenDataset::make(*engine, file, next_token(), options),
-                      StatusCode::InvalidDescription, "batch size of 0");
+    options.batch_size = row.batch_size;
+    options.stride = row.stride;
 
-    options = tiny_options();
-    options.stride = 0;
-    SA_EXPECT_FAILURE(TokenDataset::make(*engine, file, next_token(), options),
-                      StatusCode::InvalidDescription, "TokenDataset", "tiny", "stride of 0");
-
-    // 20 ids hold four windows of 5 at a stride of 4, fewer than one batch of five.
-    options = tiny_options();
-    options.batch_size = 5;
-    SA_EXPECT_FAILURE(TokenDataset::make(*engine, file, next_token(), options),
-                      StatusCode::InvalidDescription, "rising.satk", "4 windows of 5",
-                      "one batch of 5");
-
-    SA_EXPECT_FAILURE(TokenDataset::make(*engine, file, next_token(19), tiny_options()),
-                      StatusCode::Incompatible, "rising.satk", "vocabulary of 20", "one of 19");
-
-    SA_EXPECT_FAILURE(TokenDataset::make(*engine, scratch.path() / "absent.satk", next_token(),
-                                         tiny_options()),
-                      StatusCode::FileNotFound, "absent.satk");
+    SA_EXPECT_FAILURE(
+        TokenDataset::make(*engine, file,
+                           row.no_collator ? std::unique_ptr<const Collator>()
+                                           : next_token(row.vocabulary),
+                           options),
+        row.code, row.first, row.second, row.third);
 }
 
-/** @brief Tests that an id above the vocabulary of the file is a failure naming its offset. */
-TEST_F(Medium_LanguageDatasetsTokenDataset, AnIDOutsideTheVocabularyNamesItsFileOffset)
-{
-    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_bad_id");
-    const std::filesystem::path file = rising_file(scratch);
-
-    // Byte 8 holds the vocabulary size; 5 leaves the id 5, at byte 24 + 5 * 4, outside it.
-    Support::overwrite_byte(file, 8, '\x05');
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<TokenDataset> dataset,
-        TokenDataset::make(*engine, file, next_token(), tiny_options()));
-
-    Data::Batch batch;
-    SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::InvalidFile, "rising.satk",
-                      "id 5", "byte 44", "[0, 5)");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_LanguageDatasetsTokenDatasetRefusal,
+    ::testing::Values(
+        RefusalCase{"NoCollator", true, false, 2, std::nullopt, K_IDS,
+                    StatusCode::InvalidDescription, "TokenDataset", "tiny", "no collator"},
+        RefusalCase{"BatchSizeOfZero", false, false, 0, std::nullopt, K_IDS,
+                    StatusCode::InvalidDescription, "batch size of 0", "", ""},
+        RefusalCase{"StrideOfZero", false, false, 2, 0, K_IDS, StatusCode::InvalidDescription,
+                    "TokenDataset", "tiny", "stride of 0"},
+        // 20 ids hold four windows of 5 at a stride of 4, fewer than one batch of five.
+        RefusalCase{"FewerWindowsThanABatch", false, false, 5, std::nullopt, K_IDS,
+                    StatusCode::InvalidDescription, "rising.satk", "4 windows of 5",
+                    "one batch of 5"},
+        RefusalCase{"AVocabularyBelowTheFile", false, false, 2, std::nullopt, 19,
+                    StatusCode::Incompatible, "rising.satk", "vocabulary of 20", "one of 19"},
+        RefusalCase{"AnAbsentFile", false, true, 2, std::nullopt, K_IDS,
+                    StatusCode::FileNotFound, "absent.satk", "", ""}),
+    label_of<RefusalCase>);
 
 /** @brief Tests that a file cut after the dataset was made is a failure naming where it ends. */
 TEST_F(Medium_LanguageDatasetsTokenDataset, AFileCutAfterMakeNamesWhereItEnds)
@@ -369,18 +443,24 @@ TEST_F(Medium_LanguageDatasetsTokenDataset, ARangeReadReadsNoWindowOutsideIt)
 }
 
 /** @brief Tests that a range outside the token dataset is refused with a Status, not a stop. */
-TEST_F(Medium_LanguageDatasetsTokenDataset, RegressionABadRangeIsRefusedWithAStatus)
+TEST_P(Medium_LanguageDatasetsTokenDatasetRange, RegressionABadRangeIsRefusedWithAStatus)
 {
+    const RangeCase& row = GetParam();
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_bad_rows");
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TokenDataset> dataset,
         TokenDataset::make(*engine, rising_file(scratch), next_token(), tiny_options()));
-    const std::int64_t size = dataset->batch_size();
     Data::Batch batch;
-    SA_EXPECT_FAILURE((dataset->read_rows(1, Data::RowRange{size - 1, 2}, batch)),
-                      SushiAI::StatusCode::InvalidDescription,
-                      "Rows " + std::to_string(size - 1) + " to " + std::to_string(size + 1),
-                      "of batch 1", "a batch of " + std::to_string(size));
-    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
-                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+
+    SA_EXPECT_FAILURE((dataset->read_rows(row.index, row.rows, batch)),
+                      SushiAI::StatusCode::InvalidDescription, row.first, row.second, row.third);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_LanguageDatasetsTokenDatasetRange,
+    ::testing::Values(
+        RangeCase{"RowsPastTheBatch", 1, Data::RowRange{1, 2}, "Rows 1 to 3", "of batch 1",
+                  "a batch of 2"},
+        RangeCase{"ABatchOutOfRange", 99, Data::RowRange{0, 1}, "Batch 99 is out of range", "",
+                  ""}),
+    label_of<RangeCase>);

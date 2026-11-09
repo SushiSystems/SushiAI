@@ -57,37 +57,46 @@ namespace SushiAI::Language::Datasets
                                                       K_STRIDE_KEY, K_BATCH_SIZE_KEY};
     } // namespace
 
-    Result<std::unique_ptr<Data::Dataset>> make_tokens_dataset(SushiBLAS::Engine& engine,
-                                                               const Config::Value& section,
-                                                               std::string_view context) noexcept
+    Result<TokensSection> read_tokens_section(const Config::Value& section,
+                                              std::string_view context) noexcept
     {
         const Config::SectionReader reader(section, context);
         SA_TRY(reader.check_object());
         SA_TRY(reader.check_keys(Config::KeySpan(K_TOKENS_KEYS)));
-        SA_TRY_ASSIGN(const std::string file, Detail::read_text(reader, K_FILE_KEY));
-        SA_TRY_ASSIGN(const std::int64_t window,
-                      Detail::read_count(reader, Detail::K_WINDOW_KEY));
 
-        TokenDatasetOptions options;
+        TokensSection keys;
+        SA_TRY_ASSIGN(keys.file, Detail::read_text(reader, K_FILE_KEY));
+        SA_TRY_ASSIGN(keys.window, Detail::read_count(reader, Detail::K_WINDOW_KEY));
+
         if (reader.has(K_STRIDE_KEY))
         {
             SA_TRY_ASSIGN(const std::int64_t stride, Detail::read_count(reader, K_STRIDE_KEY));
-            options.stride = stride;
+            keys.options.stride = stride;
         }
 
         if (reader.has(K_BATCH_SIZE_KEY))
         {
-            SA_TRY_ASSIGN(options.batch_size, Detail::read_count(reader, K_BATCH_SIZE_KEY));
+            SA_TRY_ASSIGN(keys.options.batch_size,
+                          Detail::read_count(reader, K_BATCH_SIZE_KEY));
         }
 
+        return keys;
+    }
+
+    Result<std::unique_ptr<Data::Dataset>> make_tokens_dataset(SushiBLAS::Engine& engine,
+                                                               const Config::Value& section,
+                                                               std::string_view context) noexcept
+    {
+        SA_TRY_ASSIGN(TokensSection keys, read_tokens_section(section, context));
+
         // The collator states the vocabulary, which only the file's header knows.
-        const std::filesystem::path path(file);
+        const std::filesystem::path path(keys.file);
         SA_TRY_ASSIGN(const TokenFileHeader header, read_token_file_header(path));
         SA_TRY_ASSIGN(std::unique_ptr<NextTokenCollator> collator,
-                      NextTokenCollator::make(window, header.vocabulary_size));
+                      NextTokenCollator::make(keys.window, header.vocabulary_size));
         SA_TRY_ASSIGN(std::unique_ptr<TokenDataset> dataset,
                       TokenDataset::make(engine, path, std::move(collator),
-                                         std::move(options)));
+                                         std::move(keys.options)));
 
         return std::unique_ptr<Data::Dataset>(std::move(dataset));
     }
