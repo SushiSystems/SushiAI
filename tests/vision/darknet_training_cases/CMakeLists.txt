@@ -8,6 +8,7 @@
 sushiai_add_test_program(OWNER vision/darknet_training_cases
     SOURCES
         test_darknet_training.cpp
+        test_training_units.cpp
     DEPENDS
         vision/darknet_training_cases
         failure_expectations)

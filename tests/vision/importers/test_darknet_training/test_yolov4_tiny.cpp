@@ -33,25 +33,14 @@
 #include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/darknet_training_cases/darknet_training.hpp>
+#include <SushiAI/vision/darknet_training_cases/training_units.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
-#include <support/tolerance.hpp>
 
 namespace SaTest = SushiAI::Test;
+using SaTest::units;
 
 namespace
 {
-    /** @brief Returns @p count times the float unit roundoff. */
-    constexpr double units(double count)
-    {
-        return count * TestSupport::unit_roundoff<float>();
-    }
-
-    /**
-     * @brief Holds the share of its first cost that the cost of 200 steps on one batch
-     *        must fall under: a tenth, the learning check this suite names.
-     */
-    constexpr double K_OVERFIT_COST_SHARE = 0.1;
-
     /**
      * @brief States what yolov4-tiny.cfg and its two training runs hold (REPORT 21 and 22).
      *
@@ -79,7 +68,7 @@ namespace
         training.bounds.update_relative = units(32768);
         training.bounds.rolling_absolute = units(256);
         training.overfit_steps = 200;
-        training.overfit_cost_share = K_OVERFIT_COST_SHARE;
+        training.overfit_cost_share = SaTest::K_OVERFIT_COST_SHARE;
         return training;
     }
 
