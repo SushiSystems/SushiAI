@@ -1,18 +1,20 @@
 # tests/vision/datasets: test_batch_inputs.cpp, test_classification_collator.cpp, test_detection_collator.cpp
 
 
-The scaled inputs and the roles the classification and detection collators write, and the batches they refuse. Needs an engine.
+The scaled inputs and the roles the classification and detection collators write, and the batches they refuse. The input writer runs on a host engine; the collators still need an engine.
 
-Suites: `Unit_DatasetsCollators`.
+Suites: `Small_BatchInputs` and `Unit_DatasetsCollators`.
 
 Tests `write_batch_inputs`, `ClassificationCollator` and `DetectionCollator` in
-`modules/vision/datasets/include/SushiAI/vision/datasets/`. The fixture is an `EngineTest`. It
-holds two gray samples of one row and two columns, the first of level 51 from `first.png` and
-the second of level 255 from `crowded.png`, and allocates batches of two such images.
+`modules/vision/datasets/include/SushiAI/vision/datasets/`. `Small_BatchInputs` holds a
+`HostExecutionBackend`, so its batches are host tensors and no device or process-wide engine is
+reached. Each case builds its own two gray samples of one row and two columns, the first of level
+51 and the second of level 255, and allocates a batch of two such images.
 
 ## InputsAreBytesDividedBy255
 
-`write_batch_inputs` writes 0.2, 0.2, 1.0, 1.0, each within 1e-6.
+`write_batch_inputs` writes 0.2, 0.2, 1.0, 1.0, each within the typed tolerance of a byte divided by
+255 in float, 32 times the float unit roundoff.
 
 ## AnImageOfAnotherSizeIsRefused
 
