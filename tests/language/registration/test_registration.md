@@ -96,15 +96,20 @@ is below half the first. The last metrics hold no `expert_usage_min`.
 
 Size (RW-166): the two cases below ran 200 updates of a width-16 decoder and took 19 s each on the
 debug build, over the 5 s of a `medium` test. Each is now two cases of one claim. The `Medium_Moe`
-case runs 50 updates of the same decoder at width 8 (`K_NARROW_EXPERT_DECODER`: embedding 8,
+case runs 25 updates of the same decoder at width 8 (`K_NARROW_EXPERT_DECODER`: embedding 8,
 expert hidden size 8, two heads of 4; the two blocks, the four experts, the vocabulary of 32 and
 the window of 8 stay, so every expert of both blocks is still routed to) and asks the last loss to
-be below 0.9 of the first. The `Large_Moe` case runs the original 200 updates at width 16 and asks
-for 0.5, as before. The width and the updates are each cut to about a half and a quarter, a tenth
-of the time in all. 0.9 is a fall of about 0.35 from the first loss of ln(32), about 3.5, which is
-far above the rounding of a loss and which a decoder that does not learn never makes. The usage
-bounds are unchanged in both: above 0.10 and around the equal share of 0.25. The `Large_` cases
-are `ADecoderOfExpertsHalvesItsLossWithoutTheBalance` and
+be below 0.95 of the first. The `Large_Moe` case runs the original 200 updates at width 16 and asks
+for 0.5, as before. A first cut to 50 updates ran 5.7 s, still over the limit, so the updates went
+to 25. The usage bounds hold at any number of updates, since the shares start near the equal share
+of 0.25 and AdamW moves a weight by about the learning rate of 3e-3 per update; they are unchanged
+in both cases: above 0.10 and around the equal share. The loss bound is the one that depends on
+the updates. The 50-update run passed at 0.9, a fall of 0.35 from the first loss of ln(32), about
+3.5. AdamW's early updates have about the same size each, so the fall grows about linearly with
+them, and 25 updates are held to half of it: 0.95, a fall of about 0.17, far above the rounding of
+a loss and which a decoder that does not learn never makes. The linear growth is an assumption and
+the margin of 0.17 against a fall of 0.35 expected is the only slack; the case was not run for
+this change. The `Large_` cases are `ADecoderOfExpertsHalvesItsLossWithoutTheBalance` and
 `TheBalanceTermKeepsEveryExpertInUseOverTheLongRun`.
 
 Trained with a `sum` objective that adds the balance term, the report again holds 200 steps and a

@@ -76,6 +76,9 @@ namespace
 
         /** @brief Counts the batches being built. */
         std::atomic<std::int64_t> in_flight{0};
+
+        /** @brief Holds how long a batch takes to build; zero builds it at once. */
+        std::chrono::milliseconds pause{1};
     };
 
     /** @brief Builds the batch of an epoch and an index: one target named by both, no tensor. */
@@ -102,7 +105,8 @@ namespace
                     const std::lock_guard<std::mutex> lock(probe->mutex);
                     probe->threads.insert(std::this_thread::get_id());
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                if (probe->pause.count() > 0)
+                    std::this_thread::sleep_for(probe->pause);
                 Data::Batch batch = named_batch(epoch, index);
                 probe->in_flight.fetch_sub(1);
                 return batch;
@@ -211,6 +215,7 @@ TEST(Small_ThreadedLoader, TheBatchOfEachIndexIsHandedOverAsThatIndex)
 TEST(Small_ThreadedLoader, ACallingThreadLoaderStartsNoThread)
 {
     Probe probe;
+    probe.pause = std::chrono::milliseconds{0};
     Data::LoaderOptions options;
     options.executor = Data::ReadExecutor::CallingThread;
     const Loading loading = load(named_dataset(&probe), options);

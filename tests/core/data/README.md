@@ -205,7 +205,9 @@ With a prefetch of 4, reading indices 0 to 11 returns the batch named "0:<index>
 ### ACallingThreadLoaderStartsNoThread
 
 With `ReadExecutor::CallingThread`, every batch of indices 0 to 11 is built on the test's own
-thread and on no other.
+thread and on no other. The probe's pause is set to zero: the 1 ms sleep that widens the window of
+the worker-thread cases rounds up to a scheduler tick of about 16 ms on Windows, so twelve batches
+took 0.2 s against the 0.1 s limit of a `small` test (RW-166).
 
 ### ReadsNoFurtherAheadThanThePrefetchCount
 
