@@ -53,7 +53,7 @@
 #include <SushiAI/language/datasets/next_token_collator.hpp>
 #include <SushiAI/language/datasets/token_dataset.hpp>
 #include <SushiAI/language/datasets/token_file.hpp>
-#include <SushiAI/language/text/token.hpp>
+#include <SushiAI/language/text/token.hpp>
 #include <support/test_names.hpp>
 
 using namespace SushiAI;
@@ -283,7 +283,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Medium_LanguageDatasetsTokenDatasetStride,
 TEST_P(Medium_LanguageDatasetsTokenDatasetRefusal, MakeRefusesOptionsOutsideTheirBounds)
 {
     const RefusalCase& row = GetParam();
-    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_refusals");
+    const Support::ScratchDirectory scratch((std::string("sushiai_test_language_token_dataset_refusal_") + row.label).c_str());
     const std::filesystem::path file =
         row.absent_file ? scratch.path() / "absent.satk" : rising_file(scratch);
     TokenDatasetOptions options = tiny_options();
