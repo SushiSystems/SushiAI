@@ -52,6 +52,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/graph/traced.hpp>
@@ -1125,13 +1126,7 @@ TEST_F(Medium_AttentionGradient, AnUnmaskedAttentionDifferentiatesAtItsInput)
 
 namespace
 {
-    /** @brief Provides the Engine every causal case records on. */
-    class Medium_CausalAttention : public SaTest::EngineTest
-    {
-
-    };
-
-    /** @brief Provides the Engine and the element type of the mask cases. */
+    /** @brief Provides the Engine and the element type of the mask kernel cases. */
     class Medium_CausalAttentionMask : public SaTest::EngineTest,
                                        public ::testing::WithParamInterface<DType>
     {
@@ -1210,11 +1205,36 @@ namespace
     };
 
     /**
-     * @brief Traces @p block over a [1, K_MASK_LENGTH, K_MASK_DIM] input, fills every parameter from
-     *        the host stream, and runs it on an input and on one changed from position 3 on.
+     * @brief Evaluates @p graph on the host with @p input at @p x and every parameter filled from
+     *        the host stream, and returns the elements of @p y.
+     */
+    std::vector<double> evaluate_on_host(const Graph::Graph& graph, ValueID x, ValueID y,
+                                         const std::vector<double>& input)
+    {
+        Graph::HostEvaluator evaluator(graph);
+        SA_EXPECT_OK(evaluator.write(x, input));
+        for (ValueID id = 0; id < graph.value_count(); ++id)
+        {
+            if (graph.value(id).lifetime != Graph::Lifetime::Parameter)
+                continue;
+
+            const std::size_t count =
+                static_cast<std::size_t>(graph.value(id).shape.num_elements());
+            SA_EXPECT_OK(evaluator.write(id, noise(count, 6100 + id)));
+        }
+
+        SA_EXPECT_OK(evaluator.run());
+        const Result<std::vector<double>> read = evaluator.read(y);
+        SA_EXPECT_OK(read);
+        return read.has_value() ? read.value() : std::vector<double>();
+    }
+
+    /**
+     * @brief Traces @p block over a [1, K_MASK_LENGTH, K_MASK_DIM] input and evaluates it on the
+     *        host on an input and on one changed from position 3 on.
      */
     template<typename Block>
-    void run_twice(SushiAI::ExecutionBackend& backend, Block& block, TwoRuns& runs)
+    void run_twice(Block& block, TwoRuns& runs)
     {
         Graph::Graph graph;
         const GraphBuilder builder(graph);
@@ -1225,33 +1245,14 @@ namespace
         SA_EXPECT_OK(trace.status());
         ASSERT_FALSE(graph.has_refusal());
 
-        TensorPool pool(backend.engine());
-        SA_EXPECT_OK(pool.materialise_leaves(graph));
-        for (ValueID id = 0; id < graph.value_count(); ++id)
-        {
-            if (graph.value(id).lifetime != Graph::Lifetime::Parameter)
-                continue;
-
-            const std::size_t count =
-                static_cast<std::size_t>(graph.value(id).shape.num_elements());
-            write_tensor(pool.tensor(id), noise(count, 6100 + id));
-        }
-
-        std::unique_ptr<CompiledStep> step;
-        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend, graph, pool));
-
         std::vector<double> input = noise(K_MASK_LENGTH * K_MASK_DIM, 6001);
-        write_tensor(pool.tensor(x), input);
-        SA_EXPECT_OK(step->run());
-        runs.before = read_tensor(pool.tensor(y));
+        runs.before = evaluate_on_host(graph, x, y, input);
 
         const std::vector<double> later = noise(K_MASK_LENGTH * K_MASK_DIM, 6002);
         for (std::size_t i = K_CHANGED_POSITION * K_MASK_DIM; i < input.size(); ++i)
             input[i] = later[i];
 
-        write_tensor(pool.tensor(x), input);
-        SA_EXPECT_OK(step->run());
-        runs.after = read_tensor(pool.tensor(y));
+        runs.after = evaluate_on_host(graph, x, y, input);
     }
 
     /** @brief Counts the elements of positions [first, last) at which the two runs differ. */
@@ -1296,7 +1297,7 @@ INSTANTIATE_TEST_SUITE_P(Dtypes, Medium_CausalAttentionMask,
  * The loss is the cross-entropy of the masked [4, 4] rows, so the incoming gradient is
  * (softmax - target) / 4, which the host computes from the masked scores.
  */
-TEST_F(Medium_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlone)
+TEST(Small_BlockCausalSelfAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlone)
 {
     constexpr std::size_t K_SIDE = 4;
 
@@ -1319,16 +1320,12 @@ TEST_F(Medium_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlon
     for (std::size_t row = 0; row < K_SIDE; ++row)
         one_hot[row * K_SIDE] = 1.0;
 
-    TensorPool pool(*engine);
-    SA_EXPECT_OK(pool.materialise_leaves(graph));
-    write_tensor(pool.tensor(scores), values);
-    write_tensor(pool.tensor(targets), one_hot);
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(scores, values));
+    SA_EXPECT_OK(evaluator.write(targets, one_hot));
+    SA_EXPECT_OK(evaluator.run());
 
-    std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
-    SA_EXPECT_OK(step->run());
-
-    const std::vector<double> got = read_tensor(pool.tensor(gradients[0]));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got, evaluator.read(gradients[0]));
     ASSERT_EQ(got.size(), K_SIDE * K_SIDE);
     for (std::size_t row = 0; row < K_SIDE; ++row)
     {
@@ -1350,11 +1347,11 @@ TEST_F(Medium_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlon
 }
 
 /** @brief Tests that positions 0 to 2 of a masked attention keep their output exactly. */
-TEST_F(Medium_CausalAttention, AnEarlierPositionIgnoresALaterInput)
+TEST(Small_BlockCausalSelfAttention, AnEarlierPositionIgnoresALaterInput)
 {
     CausalSelfAttention block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, AttentionMask::Causal);
     TwoRuns runs;
-    ASSERT_NO_FATAL_FAILURE(run_twice(backend(), block, runs));
+    ASSERT_NO_FATAL_FAILURE(run_twice(block, runs));
     ASSERT_NO_FATAL_FAILURE(expect_whole_and_finite(runs));
 
     EXPECT_EQ(changed_elements(runs, 0, K_CHANGED_POSITION), 0u);
@@ -1363,23 +1360,23 @@ TEST_F(Medium_CausalAttention, AnEarlierPositionIgnoresALaterInput)
 }
 
 /** @brief Tests that without the mask an earlier position does read the later input. */
-TEST_F(Medium_CausalAttention, WithoutTheMaskAnEarlierPositionReadsALaterInput)
+TEST(Small_BlockCausalSelfAttention, WithoutTheMaskAnEarlierPositionReadsALaterInput)
 {
     CausalSelfAttention block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, AttentionMask::None);
     TwoRuns runs;
-    ASSERT_NO_FATAL_FAILURE(run_twice(backend(), block, runs));
+    ASSERT_NO_FATAL_FAILURE(run_twice(block, runs));
     ASSERT_NO_FATAL_FAILURE(expect_whole_and_finite(runs));
 
     EXPECT_GT(changed_elements(runs, 0, K_CHANGED_POSITION), 0u);
 }
 
 /** @brief Tests that a whole causal transformer block keeps the same property. */
-TEST_F(Medium_CausalAttention, ATransformerBlockKeepsEarlierPositions)
+TEST(Small_BlockCausalSelfAttention, ATransformerBlockKeepsEarlierPositions)
 {
     TransformerBlock block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, 4 * static_cast<int64_t>(K_MASK_DIM),
                            AttentionMask::Causal, NN::K_LAYER_NORM_EPSILON);
     TwoRuns runs;
-    ASSERT_NO_FATAL_FAILURE(run_twice(backend(), block, runs));
+    ASSERT_NO_FATAL_FAILURE(run_twice(block, runs));
     ASSERT_NO_FATAL_FAILURE(expect_whole_and_finite(runs));
 
     EXPECT_EQ(changed_elements(runs, 0, K_CHANGED_POSITION), 0u);

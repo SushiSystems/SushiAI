@@ -11,8 +11,8 @@ needs an engine or a stopped process runs in a `Medium_` suite.
 Suites: `Small_BlockCausalSelfAttention`, `Small_BlockCausalSelfAttentionInput`,
 `Small_BlockCausalSelfAttentionDescription`, `Small_BlockCausalSelfAttentionFactory`,
 `Small_BlockCausalSelfAttentionCache`, `Small_BlockCausalSelfAttentionRotary`,
-`Small_BlockCausalSelfAttentionPositions`, `Medium_AttentionGradient`, `Medium_CausalAttentionMask`,
-`Medium_CausalAttention`.
+`Small_BlockCausalSelfAttentionPositions`, `Medium_AttentionGradient`,
+`Medium_CausalAttentionMask`.
 
 Tests `Language::Blocks::CausalSelfAttention` in
 `modules/language/blocks/include/SushiAI/language/blocks/causal_self_attention.hpp` and its node
@@ -21,8 +21,10 @@ position, the rotary form of both, the state walk and the refusals, then the gra
 attention and the causal mask on an engine. Every case uses a width of 8 and two heads. Most
 ordinary traces read a [2, 5, 8] input, and the incremental ones read a [1, 1, 8] input over a
 per-sample shape of [5, 8]. The one numeric `Small_` case reads [1, 3, 8] and compares an
-unmasked block with the attention worked on the host; the mask has no host kernel, so every
-case that computes through it is a `Medium_` case.
+unmasked block with the attention worked on the host. `Graph::HostEvaluator` has a rule for the
+mask, so the cases that compute through it (the gradient of the mask and the three locality cases)
+are `Small_`. The one `Medium_` mask case, `TheMaskReplacesTheEntriesAboveTheDiagonal`, checks the
+mask kernel against the host reference, which is a device boundary.
 
 ### ACausalTraceKeepsTheSequenceShape
 
@@ -153,7 +155,7 @@ mask vectors are converted from FLOAT32.
 
 The gradient of the scores is the incoming gradient on and below the diagonal and zero above it. The
 loss is the cross-entropy of the masked [4, 4] rows, so the incoming gradient is (softmax - target)
-/ 4, which the host computes from the masked scores.
+/ 4, which the host computes from the masked scores; the gradient graph runs on `HostEvaluator`.
 
 ### AnEarlierPositionIgnoresALaterInput
 
