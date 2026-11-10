@@ -1,11 +1,11 @@
 # tests/vision/datasets/test_mnist.cpp
 
 
-Suites: `Medium_DatasetsMNIST`.
+Suites: `Medium_DatasetsMNIST` and `Small_DatasetsMNIST`.
 
 Tests `MNISTOptions`, `try_load_mnist` and `make_mnist` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/mnist.hpp` over IDX files the test
-writes, so no MNIST download is needed. The refusals of the factory (an unknown key, a missing
+writes, or holds in memory, so no MNIST download is needed. The refusals of the factory (an unknown key, a missing
 directory, an unknown split or layout, absent files) are tested through the dataset registry
 in `tests/vision/registration/test_registration/test_registration.cpp`, under
 `Medium_VisionMnist`; this file
@@ -16,7 +16,8 @@ tests what the loader reads.
 The fixture writes, under the system's temporary directory, "train-images-idx3-ubyte" with five
 images of 2 by 3 pixels, where pixel `j` of image `i` holds `6 i + j`, and
 "train-labels-idx1-ubyte" with the classes 3, 1, 4, 1, 5. `options` reads that directory in
-batches of two with no cap.
+batches of two with no cap. It is the file boundary: two cases read the written files through the file
+system.
 
 ## TheSamplesFormWholeBatches
 
@@ -27,6 +28,12 @@ The split is available. Five samples in batches of two give two batches of sampl
 
 Batch 1 holds images 2 and 3: its twelve pixels equal the bytes 12 to 23 divided by 255, compared
 for equality because the test divides as the loader does, and its labels are 4 and 1.
+
+## Small_DatasetsMNIST
+
+The fixture holds the same two files in a `MemorySource` under the default directory, and a host
+engine from `HostExecutionBackend`. The four cases below read through the overloads that take the
+source, so no file and no device is reached.
 
 ## TheSampleCapLimitsTheBatches
 

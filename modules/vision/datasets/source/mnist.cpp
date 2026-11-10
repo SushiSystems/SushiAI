@@ -30,10 +30,9 @@
 #include <SushiAI/vision/datasets/mnist.hpp>
 
 #include <algorithm>
-#include <fstream>
+#include <cstring>
 #include <iterator>
 #include <string>
-#include <system_error>
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
@@ -45,6 +44,7 @@
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
+#include "disk.hpp"
 
 namespace SushiAI::Vision::Datasets
 {
@@ -79,16 +79,34 @@ namespace SushiAI::Vision::Datasets
         /** @brief Names the IDX label file of the test split. */
         constexpr std::string_view K_MNIST_TEST_LABELS = "t10k-labels-idx1-ubyte";
 
-        /** @brief Reads a big-endian 32-bit integer, as the IDX format stores them. */
-        std::uint32_t read_be32(std::istream& in)
-        {
-            unsigned char bytes[4] = {0, 0, 0, 0};
-            in.read(reinterpret_cast<char*>(bytes), 4);
+        /** @brief Names this reader in a message of the source. */
+        constexpr std::string_view K_READER = "try_load_mnist";
 
-            return (static_cast<std::uint32_t>(bytes[0]) << 24)
-                 | (static_cast<std::uint32_t>(bytes[1]) << 16)
-                 | (static_cast<std::uint32_t>(bytes[2]) << 8)
-                 | static_cast<std::uint32_t>(bytes[3]);
+        /** @brief Holds the bytes of the header of an IDX3 image file. */
+        constexpr std::uint64_t K_IMAGE_HEADER_BYTES = 16;
+
+        /** @brief Holds the bytes of the header of an IDX1 label file. */
+        constexpr std::uint64_t K_LABEL_HEADER_BYTES = 8;
+
+        /** @brief Holds the bytes of one big-endian 32-bit integer. */
+        constexpr std::size_t K_WORD_BYTES = 4;
+
+        /**
+         * @brief Reads the big-endian 32-bit integer at word @p index of @p bytes, as the IDX
+         *        format stores them; a word the bytes do not reach reads as zero.
+         */
+        std::uint32_t be32_at(const std::string& bytes, std::size_t index)
+        {
+            unsigned char word[K_WORD_BYTES] = {0, 0, 0, 0};
+            const std::size_t first = index * K_WORD_BYTES;
+            if (first < bytes.size())
+                std::memcpy(word, bytes.data() + first,
+                            std::min(K_WORD_BYTES, bytes.size() - first));
+
+            return (static_cast<std::uint32_t>(word[0]) << 24)
+                 | (static_cast<std::uint32_t>(word[1]) << 16)
+                 | (static_cast<std::uint32_t>(word[2]) << 8)
+                 | static_cast<std::uint32_t>(word[3]);
         }
 
         /** @brief The IDX image file for a split. */
@@ -157,29 +175,29 @@ namespace SushiAI::Vision::Datasets
          *         positive, or the failure of an allocation.
          */
         [[nodiscard]] Status read_mnist(SushiBLAS::Engine& engine,
-                                        const MNISTOptions& options,
+                                        const MNISTOptions& options, const ByteSource& source,
                                         std::unique_ptr<Data::Dataset>& dataset)
         {
-            SA_FAIL_IF(!mnist_available(options), StatusCode::FileNotFound,
+            SA_FAIL_IF(!mnist_available(options, source), StatusCode::FileNotFound,
                        "{}", mnist_expected_paths(options));
 
             SA_FAIL_IF(options.batch_size <= 0, StatusCode::InvalidDescription,
                        "MNIST needs a positive batch size; got {}", options.batch_size);
 
-            std::ifstream images(image_path(options), std::ios::binary);
-            std::ifstream labels(label_path(options), std::ios::binary);
+            SA_TRY_ASSIGN(const std::string image_header,
+                          source.read_range(image_path(options), 0, K_IMAGE_HEADER_BYTES,
+                                            K_READER));
+            SA_TRY_ASSIGN(const std::string label_header,
+                          source.read_range(label_path(options), 0, K_LABEL_HEADER_BYTES,
+                                            K_READER));
 
-            SA_FAIL_IF(!images || !labels, StatusCode::InvalidFile,
-                       "MNIST files exist but could not be opened ({})",
-                       mnist_expected_paths(options));
+            const std::uint32_t image_magic = be32_at(image_header, 0);
+            const std::uint32_t image_count = be32_at(image_header, 1);
+            const std::uint32_t image_rows = be32_at(image_header, 2);
+            const std::uint32_t image_cols = be32_at(image_header, 3);
 
-            const std::uint32_t image_magic = read_be32(images);
-            const std::uint32_t image_count = read_be32(images);
-            const std::uint32_t image_rows = read_be32(images);
-            const std::uint32_t image_cols = read_be32(images);
-
-            const std::uint32_t label_magic = read_be32(labels);
-            const std::uint32_t label_count = read_be32(labels);
+            const std::uint32_t label_magic = be32_at(label_header, 0);
+            const std::uint32_t label_count = be32_at(label_header, 1);
 
             SA_FAIL_IF(image_magic != 0x00000803u, StatusCode::InvalidFile,
                        "{} is not an IDX3 image file (magic 0x{})",
@@ -212,20 +230,26 @@ namespace SushiAI::Vision::Datasets
             std::vector<Data::TargetDescription> targets{Data::TargetDescription{
                 std::string(Data::K_ROLE_LABELS), Shape{}, DType::Int32, classes}};
 
-            std::vector<unsigned char> raw(static_cast<std::size_t>(rows * pixels));
-            std::vector<unsigned char> raw_labels(static_cast<std::size_t>(rows));
+            const std::uint64_t image_bytes = static_cast<std::uint64_t>(rows * pixels);
+            const std::uint64_t label_bytes = static_cast<std::uint64_t>(rows);
 
             std::vector<Data::Batch> batches;
             batches.reserve(static_cast<std::size_t>(batch_total));
 
             for (int64_t b = 0; b < batch_total; ++b)
             {
-                images.read(reinterpret_cast<char*>(raw.data()),
-                            static_cast<std::streamsize>(raw.size()));
-                labels.read(reinterpret_cast<char*>(raw_labels.data()),
-                            static_cast<std::streamsize>(raw_labels.size()));
+                const std::uint64_t at = static_cast<std::uint64_t>(b);
+                SA_TRY_ASSIGN(const std::string raw,
+                              source.read_range(image_path(options),
+                                                K_IMAGE_HEADER_BYTES + at * image_bytes,
+                                                image_bytes, K_READER));
+                SA_TRY_ASSIGN(const std::string raw_labels,
+                              source.read_range(label_path(options),
+                                                K_LABEL_HEADER_BYTES + at * label_bytes,
+                                                label_bytes, K_READER));
 
-                SA_FAIL_IF(!images || !labels, StatusCode::InvalidFile,
+                SA_FAIL_IF(raw.size() != image_bytes || raw_labels.size() != label_bytes,
+                           StatusCode::InvalidFile,
                            "MNIST file ended after {} of {} batches; the download is truncated",
                            b, batch_total);
 
@@ -234,13 +258,14 @@ namespace SushiAI::Vision::Datasets
 
                 float* pixel_data = batch.inputs.data_as<float>();
                 for (std::size_t i = 0; i < raw.size(); ++i)
-                    pixel_data[i] = static_cast<float>(raw[i]) / 255.0f;
+                    pixel_data[i] =
+                        static_cast<float>(static_cast<unsigned char>(raw[i])) / 255.0f;
 
                 int32_t* label_data = batch.targets.front().values.data_as<int32_t>();
                 for (int64_t r = 0; r < rows; ++r)
                 {
-                    const int32_t label =
-                        static_cast<int32_t>(raw_labels[static_cast<std::size_t>(r)]);
+                    const int32_t label = static_cast<int32_t>(
+                        static_cast<unsigned char>(raw_labels[static_cast<std::size_t>(r)]));
                     SA_FAIL_IF(label < 0 || label >= classes, StatusCode::InvalidFile,
                                "MNIST label {} is out of range", label);
                     label_data[r] = label;
@@ -257,9 +282,13 @@ namespace SushiAI::Vision::Datasets
 
     bool mnist_available(const MNISTOptions& options) noexcept
     {
-        std::error_code ignored;
-        return std::filesystem::is_regular_file(image_path(options), ignored)
-            && std::filesystem::is_regular_file(label_path(options), ignored);
+        return mnist_available(options, Detail::file_system());
+    }
+
+    bool mnist_available(const MNISTOptions& options, const ByteSource& source) noexcept
+    {
+        return source.kind_of(image_path(options)) == PathKind::File
+            && source.kind_of(label_path(options)) == PathKind::File;
     }
 
     std::string mnist_expected_paths(const MNISTOptions& options) noexcept
@@ -272,10 +301,17 @@ namespace SushiAI::Vision::Datasets
     Result<std::unique_ptr<Data::Dataset>> try_load_mnist(SushiBLAS::Engine& engine,
                                                           const MNISTOptions& options) noexcept
     {
+        return try_load_mnist(engine, options, Detail::file_system());
+    }
+
+    Result<std::unique_ptr<Data::Dataset>> try_load_mnist(SushiBLAS::Engine& engine,
+                                                          const MNISTOptions& options,
+                                                          const ByteSource& source) noexcept
+    {
         std::unique_ptr<Data::Dataset> dataset;
-        SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
+        SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
         {
-            return read_mnist(engine, options, dataset);
+            return read_mnist(engine, options, source, dataset);
         }));
         return std::move(dataset);
     }
@@ -283,6 +319,14 @@ namespace SushiAI::Vision::Datasets
     Result<std::unique_ptr<Data::Dataset>> make_mnist(SushiBLAS::Engine& engine,
                                                       const Config::Value& attributes,
                                                       std::string_view context) noexcept
+    {
+        return make_mnist(engine, attributes, context, Detail::file_system());
+    }
+
+    Result<std::unique_ptr<Data::Dataset>> make_mnist(SushiBLAS::Engine& engine,
+                                                      const Config::Value& attributes,
+                                                      std::string_view context,
+                                                      const ByteSource& source) noexcept
     {
         SA_TRY(attributes.reject_unknown_keys(
             context,
@@ -305,7 +349,8 @@ namespace SushiAI::Vision::Datasets
                       attributes.at_or("max_samples", max_samples)
                           .as_int(prefix + " 'max_samples'"));
 
-        Result<std::unique_ptr<Data::Dataset>> loaded = try_load_mnist(engine, options);
+        Result<std::unique_ptr<Data::Dataset>> loaded =
+            try_load_mnist(engine, options, source);
 
         // A FileNotFound message holds the expected paths; the prefix names the directory.
         if (loaded.status().code() == StatusCode::FileNotFound)

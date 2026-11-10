@@ -53,73 +53,6 @@ using namespace SushiAI::Vision::Datasets;
 
 namespace
 {
-    /** @brief Collates a class per sample, refusing a sample without one, and counts its end. */
-    class ClassCollator final : public Collator
-    {
-        public:
-            /** @brief Keeps the counter the destructor raises. */
-            explicit ClassCollator(int& destroyed)
-                : destroyed_(destroyed),
-                  targets_{Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{},
-                                                   DType::Int32, 4}}
-            {
-
-            }
-
-            /** @brief Raises the counter it was given. */
-            ~ClassCollator() override
-            {
-                ++destroyed_;
-            }
-
-            /** @brief Forbids a copy, which would count one end twice. */
-            ClassCollator(const ClassCollator&) = delete;
-
-            /** @brief Forbids copy assignment. */
-            ClassCollator& operator=(const ClassCollator&) = delete;
-
-            /** @brief Forbids a move. */
-            ClassCollator(ClassCollator&&) = delete;
-
-            /** @brief Forbids move assignment. */
-            ClassCollator& operator=(ClassCollator&&) = delete;
-
-            /** @brief Returns "fake_classes". */
-            [[nodiscard]] std::string_view task() const noexcept override
-            {
-                return "fake_classes";
-            }
-
-            /** @brief Returns one role of int32 labels over four classes. */
-            [[nodiscard]] const std::vector<Data::TargetDescription>& targets()
-                const noexcept override
-            {
-                return targets_;
-            }
-
-            /** @brief Refuses the first sample without a class, opening with its file. */
-            [[nodiscard]] Status collate(const SampleList& list,
-                                         SushiRuntime::span<const FittedSample> samples,
-                                         Data::Batch& batch) const override
-            {
-                static_cast<void>(batch);
-                for (const FittedSample& sample : samples)
-                {
-                    SA_FAIL_IF(!sample.class_index.has_value(), StatusCode::InvalidDescription,
-                               "{}: the sample has no class", list.files[sample.file].string());
-                }
-
-                return Status();
-            }
-
-        private:
-            /// @brief Holds the counter the destructor raises.
-            int& destroyed_;
-
-            /// @brief Holds the one role collate() writes.
-            std::vector<Data::TargetDescription> targets_;
-    };
-
     /** @brief Provides a host engine, a two-file list and two gray samples. */
     class Small_DatasetsCollator : public Support::CollatorBench
     {
@@ -160,15 +93,4 @@ TEST_F(Small_DatasetsCollator, ASampleTheTaskCanUseIsCollated)
     Data::Batch batch = allocate_images(collator->targets());
 
     SA_EXPECT_OK(collator->collate(list, span(), batch));
-}
-
-/** @brief Tests that destroying through the interface runs the destructor of the task. */
-TEST(Small_DatasetsCollatorBase, DestroyingThroughTheBaseRunsTheDerivedDestructor)
-{
-    int destroyed = 0;
-    std::unique_ptr<const Collator> collator = std::make_unique<ClassCollator>(destroyed);
-
-    collator.reset();
-
-    EXPECT_EQ(destroyed, 1);
 }

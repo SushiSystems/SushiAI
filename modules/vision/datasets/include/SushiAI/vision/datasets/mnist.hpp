@@ -38,6 +38,7 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 
 namespace SushiAI::Vision::Datasets
 {
@@ -81,6 +82,14 @@ namespace SushiAI::Vision::Datasets
     bool mnist_available(const MNISTOptions& options) noexcept;
 
     /**
+     * @brief Whether the IDX files for @p options are present in @p source.
+     * @param options Where to look and which split.
+     * @param source What the paths are looked up in.
+     * @return True when both the image and label files are regular files of @p source.
+     */
+    bool mnist_available(const MNISTOptions& options, const ByteSource& source) noexcept;
+
+    /**
      * @brief The path pair @c mnist_available checks, for a diagnostic message.
      * @param options Where to look and which split.
      * @return "images: <path>, labels: <path>".
@@ -100,6 +109,18 @@ namespace SushiAI::Vision::Datasets
         const MNISTOptions& options = {}) noexcept;
 
     /**
+     * @brief Loads MNIST from IDX files read through @p source.
+     *
+     * The overload above calls this with the file system.
+     * @param source What the two IDX files are read from.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> try_load_mnist(
+        SushiBLAS::Engine& engine,
+        const MNISTOptions& options,
+        const ByteSource& source) noexcept;
+
+    /**
      * @brief Builds the MNIST dataset from configuration attributes.
      * @param attributes Holds "directory" (required), "split" ("train" or "test"),
      *                   "layout" ("flat" or "image"), "batch_size" and "max_samples"; a
@@ -111,5 +132,18 @@ namespace SushiAI::Vision::Datasets
         SushiBLAS::Engine& engine,
         const Config::Value& attributes,
         std::string_view context) noexcept;
+
+    /**
+     * @brief Builds the MNIST dataset from configuration attributes, reading through @p source.
+     *
+     * The overload above calls this with the file system.
+     * @param source What the two IDX files are read from.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> make_mnist(
+        SushiBLAS::Engine& engine,
+        const Config::Value& attributes,
+        std::string_view context,
+        const ByteSource& source) noexcept;
 
 } // namespace SushiAI::Vision::Datasets

@@ -40,7 +40,9 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 
 using namespace SushiAI;
@@ -55,6 +57,9 @@ namespace
     /** @brief Names the IDX image file of the training split. */
     constexpr const char* K_IMAGE_FILE = "train-images-idx3-ubyte";
 
+    /** @brief Names the IDX label file of the training split. */
+    constexpr const char* K_LABEL_FILE = "train-labels-idx1-ubyte";
+
     /** @brief Holds the class of each of the five images the tiny split holds. */
     const std::vector<std::uint8_t> K_LABELS = {3, 1, 4, 1, 5};
 
@@ -68,6 +73,45 @@ namespace
         return values;
     }
 
+    /** @brief Returns @p bytes as the text a MemorySource holds. */
+    std::string as_text(const std::vector<std::uint8_t>& bytes)
+    {
+        return std::string(bytes.begin(), bytes.end());
+    }
+
+    /**
+     * @brief Provides a host engine and a MemorySource holding the training split of five 2 by 3
+     *        images, so no file and no device is reached.
+     */
+    class Small_DatasetsMNIST : public ::testing::Test
+    {
+        protected:
+            /** @brief Adds the image and label files; pixel j of image i holds 6 i + j. */
+            void SetUp() override
+            {
+                source.add_file(options().directory / K_IMAGE_FILE,
+                                as_text(Support::idx_bytes(K_UNSIGNED_BYTE, {5, 2, 3},
+                                                           Support::rising_bytes(30, 0))));
+                source.add_file(options().directory / K_LABEL_FILE,
+                                as_text(Support::idx_bytes(K_UNSIGNED_BYTE, {5}, K_LABELS)));
+            }
+
+            /** @brief Returns options over the default directory, batches of two, every sample. */
+            static MNISTOptions options()
+            {
+                MNISTOptions made;
+                made.batch_size = 2;
+                made.max_samples = 0;
+                return made;
+            }
+
+            /** @brief Holds the host engine the batches are allocated from. */
+            HostExecutionBackend backend;
+
+            /** @brief Holds the two files of the split. */
+            MemorySource source;
+    };
+
     /** @brief Provides an engine and a training split of five 2 by 3 images. */
     class Medium_DatasetsMNIST : public SaTest::EngineTest
     {
@@ -78,7 +122,7 @@ namespace
                 SaTest::EngineTest::SetUp();
                 scratch.write(K_IMAGE_FILE, Support::idx_bytes(K_UNSIGNED_BYTE, {5, 2, 3},
                                                                Support::rising_bytes(30, 0)));
-                scratch.write("train-labels-idx1-ubyte",
+                scratch.write(K_LABEL_FILE,
                               Support::idx_bytes(K_UNSIGNED_BYTE, {5}, K_LABELS));
             }
 
@@ -125,46 +169,47 @@ TEST_F(Medium_DatasetsMNIST, ABatchHoldsScaledPixelsAndItsLabels)
 }
 
 /** @brief Tests that the cap on samples leaves out the samples past it. */
-TEST_F(Medium_DatasetsMNIST, TheSampleCapLimitsTheBatches)
+TEST_F(Small_DatasetsMNIST, TheSampleCapLimitsTheBatches)
 {
     MNISTOptions capped = options();
     capped.max_samples = 3;
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
-                            try_load_mnist(*engine, capped));
+                            try_load_mnist(backend.engine(), capped, source));
 
     EXPECT_EQ(dataset->batch_count(), 1u);
 }
 
 /** @brief Tests that a batch size that is not positive is refused. */
-TEST_F(Medium_DatasetsMNIST, ABatchSizeThatIsNotPositiveIsRefused)
+TEST_F(Small_DatasetsMNIST, ABatchSizeThatIsNotPositiveIsRefused)
 {
     MNISTOptions zero = options();
     zero.batch_size = 0;
 
-    SA_EXPECT_FAILURE(try_load_mnist(*engine, zero), StatusCode::InvalidDescription,
-                      "positive batch size");
+    SA_EXPECT_FAILURE(try_load_mnist(backend.engine(), zero, source),
+                      StatusCode::InvalidDescription, "positive batch size");
 }
 
 /** @brief Tests that an image file holding a label file's header is refused as invalid. */
-TEST_F(Medium_DatasetsMNIST, AnImageFileWithoutTheIDX3HeaderIsInvalid)
+TEST_F(Small_DatasetsMNIST, AnImageFileWithoutTheIDX3HeaderIsInvalid)
 {
-    scratch.write(K_IMAGE_FILE, Support::idx_bytes(K_UNSIGNED_BYTE, {5}, K_LABELS));
+    source.add_file(options().directory / K_IMAGE_FILE,
+                    as_text(Support::idx_bytes(K_UNSIGNED_BYTE, {5}, K_LABELS)));
 
-    SA_EXPECT_FAILURE(try_load_mnist(*engine, options()), StatusCode::InvalidFile,
-                      "is not an IDX3 image file");
+    SA_EXPECT_FAILURE(try_load_mnist(backend.engine(), options(), source),
+                      StatusCode::InvalidFile, "is not an IDX3 image file");
 }
 
 /** @brief Tests that the factory reads the image layout over the files of the directory. */
-TEST_F(Medium_DatasetsMNIST, TheFactoryReadsTheImageLayout)
+TEST_F(Small_DatasetsMNIST, TheFactoryReadsTheImageLayout)
 {
     const Config::Value attributes = SaTest::require_value(Config::parse_json(
-        "{\"directory\": \"" + scratch.path().generic_string() +
+        "{\"directory\": \"" + options().directory.generic_string() +
             "\", \"batch_size\": 2, \"max_samples\": 0, \"layout\": \"image\"}",
         "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
-                            make_mnist(*engine, attributes, "data"));
+                            make_mnist(backend.engine(), attributes, "data", source));
 
     EXPECT_EQ(dataset->sample_shape(), (Shape{2, 3, 1}));
     EXPECT_EQ(dataset->batch_count(), 2u);

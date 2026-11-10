@@ -68,6 +68,7 @@ a CSV library: `source/xml_element.cpp` and `source/csv.cpp` parse their formats
 | `<SushiAI/vision/datasets/sample_cache.hpp>` | `SampleCacheOptions`, `SampleCacheReport`, `sample_cache_path`, `write_sample_cache`, `use_sample_cache` |
 | `<SushiAI/vision/datasets/sample_pipeline.hpp>` | `SamplePipeline` |
 | `<SushiAI/vision/datasets/in_memory_sample_pipeline.hpp>` | `InMemorySamplePipeline` |
+| `<SushiAI/vision/datasets/in_memory_collator.hpp>` | `InMemoryCollator` |
 | `<SushiAI/vision/datasets/fit_pipeline.hpp>` | `K_PIPELINE_NONE`, `FitPipeline` |
 | `<SushiAI/vision/datasets/augment_pipeline.hpp>` | `K_PIPELINE_DEFAULT`, `AugmentOptions`, `AugmentPipeline` |
 | `<SushiAI/vision/datasets/pipeline_table.hpp>` | `PipelineRequest`, `PipelineFactory`, `PipelineEntry`, `pipeline_table`, `find_pipeline` |
@@ -123,7 +124,8 @@ before it loads them.
 `"image"`), `batch_size` and `max_samples`. A relative `directory` resolves against the working
 directory. A `split` or `layout` that names neither of its values fails with `InvalidDescription`.
 `try_load_mnist` takes the engine and the options; `make_mnist` takes the engine, the attributes
-and a context string.
+and a context string. Each also has an overload that takes a `ByteSource` last, which the two IDX
+files are read through (`mnist_available` takes one too); the overloads above read the file system.
 
 ### sample.hpp
 
