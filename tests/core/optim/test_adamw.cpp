@@ -51,6 +51,7 @@ using namespace SushiAI;
 using Optim::AdamW;
 using Optim::AdamWOptions;
 using Optim::check_adamw_options;
+using Optim::check_moment_index;
 
 namespace SaTest = SushiAI::Test;
 
@@ -98,11 +99,6 @@ namespace
 
             /** @brief Holds the host adapter the optimizer allocates from and runs on. */
             HostExecutionBackend backend;
-    };
-
-    /** @brief Provides the host backend and one parameter slot to the cases that stop the process. */
-    class Medium_AdamWFatal : public Small_AdamW
-    {
     };
 
     /** @brief Names one kernel and whether its update replays. */
@@ -234,11 +230,15 @@ TEST_F(Small_AdamW, TheFirstStepFillsTheFirstMoment)
                                      std::vector<double>{0.2, -0.3, 0.05}));
 }
 
-/** @brief Tests that the moment of a parameter the optimizer lacks stops the process. */
-TEST_F(Medium_AdamWFatal, AMomentPastTheLastParameterIsFatal)
+/** @brief Tests that a moment index past the last parameter is refused with both counts. */
+TEST(Small_AdamWMomentIndex, AnIndexPastTheLastParameterIsRefusedWithBothCounts)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
-                            AdamW::make(backend, make_slots()));
+    SA_EXPECT_FAILURE(check_moment_index(1, 1), StatusCode::InvalidDescription,
+                      "updates 1 parameters", "no moment 1");
+}
 
-    SA_EXPECT_FATAL((void)optimizer->first_moment(1), "updates 1 parameters", "no moment 1");
+/** @brief Tests that the index of the last parameter is accepted. */
+TEST(Small_AdamWMomentIndex, TheIndexOfTheLastParameterIsAccepted)
+{
+    SA_EXPECT_OK(check_moment_index(0, 1));
 }

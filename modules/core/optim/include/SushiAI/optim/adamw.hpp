@@ -87,6 +87,13 @@ namespace SushiAI
         [[nodiscard]] Status check_adamw_options(const AdamWOptions& options) noexcept;
 
         /**
+         * @brief Checks that @p index names a parameter of an AdamW that updates @p parameters.
+         * @return Success, or InvalidDescription naming both counts when @p index is not below
+         *         @p parameters; first_moment() and second_moment() stop the process on it.
+         */
+        [[nodiscard]] Status check_moment_index(std::size_t index, std::size_t parameters) noexcept;
+
+        /**
          * @class AdamW
          * @brief The update above, applied to a fixed parameter set.
          */

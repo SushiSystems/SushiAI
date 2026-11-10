@@ -33,11 +33,19 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
     namespace Optim
     {
+        /**
+         * @brief Checks that a write of @p given values fits a buffer of @p held slots.
+         * @return Success, or InvalidDescription naming both counts when they differ;
+         *         StepScalars::write() stops the process on it.
+         */
+        [[nodiscard]] Status check_scalar_write(std::size_t held, std::size_t given) noexcept;
+
         /**
          * @class StepScalars
          * @brief A tiny device-resident float vector, rewritten from the host per step.

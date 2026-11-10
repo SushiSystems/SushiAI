@@ -1,7 +1,7 @@
 # tests/core/optim/test_adamw.cpp
 
 
-Suites: `Small_AdamW`, `Small_AdamWKernel`, `Small_AdamWOptions`, `Medium_AdamWFatal`.
+Suites: `Small_AdamW`, `Small_AdamWKernel`, `Small_AdamWOptions`, `Small_AdamWMomentIndex`.
 
 Tests what `check_adamw_options()` refuses, the state an `AdamW` starts from and its first update.
 
@@ -45,11 +45,12 @@ square, so the update is the gradient over its own size plus `eps`.
 
 After one step the first moment is 0.1 times the gradient, within 1e-6.
 
-## AMomentPastTheLastParameterIsFatal
+## AnIndexPastTheLastParameterIsRefusedWithBothCounts
 
-Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
-`small` test on the debug build, so the case is in `Medium_AdamWFatal`; a death test is `medium` by its
-size rule.
+`check_moment_index(1, 1)` refuses with InvalidDescription and names "updates 1 parameters" and
+"no moment 1". `first_moment()` and `second_moment()` stop the process on that refusal; the
+check is tested on values, so no child process runs.
 
-`first_moment(1)` on an optimizer of one parameter stops the process with a report naming
-"updates 1 parameters" and "no moment 1".
+## TheIndexOfTheLastParameterIsAccepted
+
+`check_moment_index(0, 1)` succeeds.

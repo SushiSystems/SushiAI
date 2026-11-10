@@ -43,6 +43,14 @@ namespace SushiAI
 {
     namespace Optim
     {
+        Status check_scalar_write(std::size_t held, std::size_t given) noexcept
+        {
+            SA_FAIL_IF(given != held, StatusCode::InvalidDescription,
+                       "This step-scalar buffer holds {} slots but {} values were written", held,
+                       given);
+            return Status();
+        }
+
         Result<StepScalars> StepScalars::make(SushiBLAS::Engine& engine, std::size_t count) noexcept
         {
             SA_FAIL_IF(count == 0, StatusCode::InvalidDescription,
@@ -65,9 +73,8 @@ namespace SushiAI
 
         void StepScalars::write(SushiRuntime::span<const float> values) noexcept
         {
-            SA_FATAL_IF(values.size() != count_,
-                        "This step-scalar buffer holds {} slots but {} values were written",
-                        count_, values.size());
+            const Status checked = check_scalar_write(count_, values.size());
+            SA_FATAL_IF(!checked.is_ok(), "{}", checked.message());
 
             for (std::size_t i = 0; i < count_; ++i) data_[i] = values[i];
         }

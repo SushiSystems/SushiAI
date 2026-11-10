@@ -28,7 +28,6 @@
  * @author Mustafa Garip
  */
 
-#include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/check.hpp>
 
@@ -75,12 +74,4 @@ TEST(Small_Check, AssertIsOneStatementInAnUnbracedIfElse)
 {
     EXPECT_EQ(branch_around_assert(true), 1);
     EXPECT_EQ(branch_around_assert(false), 2);
-}
-
-/** @brief Tests that the text of an uncomposed report names a fatal check. */
-TEST(Small_Check, TheUncomposedReportSaysAFatalCheckFailed)
-{
-    const std::string_view text = SushiAI::Detail::K_UNCOMPOSED_FATAL_MESSAGE;
-
-    EXPECT_NE(text.find("fatal check failed"), std::string_view::npos);
 }

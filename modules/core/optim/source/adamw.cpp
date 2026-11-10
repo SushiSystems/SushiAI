@@ -249,19 +249,25 @@ namespace SushiAI
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
 
+        Status check_moment_index(std::size_t index, std::size_t parameters) noexcept
+        {
+            SA_FAIL_IF(index >= parameters, StatusCode::InvalidDescription,
+                       "This AdamW updates {} parameters; there is no moment {}", parameters,
+                       index);
+            return Status();
+        }
+
         const SushiBLAS::Tensor& AdamW::first_moment(std::size_t index) const noexcept
         {
-            SA_FATAL_IF(index >= state_.size(),
-                        "This AdamW updates {} parameters; there is no moment {}",
-                        state_.size(), index);
+            const Status checked = check_moment_index(index, state_.size());
+            SA_FATAL_IF(!checked.is_ok(), "{}", checked.message());
             return state_[index].first;
         }
 
         const SushiBLAS::Tensor& AdamW::second_moment(std::size_t index) const noexcept
         {
-            SA_FATAL_IF(index >= state_.size(),
-                        "This AdamW updates {} parameters; there is no moment {}",
-                        state_.size(), index);
+            const Status checked = check_moment_index(index, state_.size());
+            SA_FATAL_IF(!checked.is_ok(), "{}", checked.message());
             return state_[index].second;
         }
 

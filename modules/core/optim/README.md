@@ -24,7 +24,7 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/optim/adamw.hpp` | `AdamWOptions`, `check_adamw_options`, `AdamW` |
+| `SushiAI/optim/adamw.hpp` | `AdamWOptions`, `check_adamw_options`, `check_moment_index`, `AdamW` |
 | `SushiAI/optim/apply_step_schedule.hpp` | `apply_step_schedule`, over one schedule type and over a `RateSchedule` |
 | `SushiAI/optim/cosine_schedule.hpp` | `CosineSchedule`, `validate_cosine_schedule` |
 | `SushiAI/optim/cosine_schedule_section.hpp` | `K_COSINE_SCHEDULE_TYPE`, `read_cosine_schedule_section`, `write_cosine_schedule_section` |
@@ -37,7 +37,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/optim/run_schedule.hpp` | `K_LEARNING_RATE_KEY`, `read_rate_schedule` |
 | `SushiAI/optim/run_state.hpp` | `K_STEP_COUNT_STATE`, `K_LOSS_SCALE_STATE`, `K_LOSS_SCALE_GOOD_STEPS_STATE`, `K_MOMENTUM_ROLE`, `K_FIRST_MOMENT_ROLE`, `K_SECOND_MOMENT_ROLE`, `StateTensor`, `StateScalar`, `RunState`, `find_scalar`, `check_state_owner`, `check_scalar_list` |
 | `SushiAI/optim/sgd.hpp` | `SGDOptions`, `sgd_state_names`, `SGD` |
-| `SushiAI/optim/step_scalars.hpp` | `StepScalars` |
+| `SushiAI/optim/step_scalars.hpp` | `check_scalar_write`, `StepScalars` |
 | `SushiAI/optim/step_schedule.hpp` | `StepSchedule`, `validate_step_schedule` |
 | `SushiAI/optim/step_schedule_section.hpp` | `K_STEP_SCHEDULE_TYPE`, `read_step_schedule_section`, `write_step_schedule_section` |
 

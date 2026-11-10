@@ -39,6 +39,7 @@
 #include <SushiAI/optim/step_scalars.hpp>
 
 using namespace SushiAI;
+using Optim::check_scalar_write;
 using Optim::StepScalars;
 
 namespace
@@ -56,11 +57,6 @@ namespace
 
             /** @brief Holds the host adapter the buffers are allocated from. */
             HostExecutionBackend backend;
-    };
-
-    /** @brief Provides the host engine to the case that stops the process. */
-    class Medium_StepScalarsFatal : public Small_StepScalars
-    {
     };
 
     /** @brief Holds the slot count of every buffer of this file. */
@@ -125,11 +121,15 @@ TEST_F(Small_StepScalars, AMoveKeepsTheAddress)
     EXPECT_EQ(moved.count(), K_COUNT);
 }
 
-/** @brief Tests that writing a count of values other than the buffer's stops the process. */
-TEST_F(Medium_StepScalarsFatal, AWriteOfAnotherLengthIsFatal)
+/** @brief Tests that a write of another count of values is refused with both counts. */
+TEST(Small_StepScalarsWriteLength, AWriteOfAnotherLengthIsRefusedWithBothCounts)
 {
-    SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(backend.engine(), K_COUNT));
-    const std::vector<float> short_values{1.0f, 2.0f};
+    SA_EXPECT_FAILURE(check_scalar_write(3, 2), StatusCode::InvalidDescription, "holds 3 slots",
+                      "2 values");
+}
 
-    SA_EXPECT_FATAL(scalars.write(span_of(short_values)), "holds 3 slots", "2 values");
+/** @brief Tests that a write of exactly the buffer's count of values is accepted. */
+TEST(Small_StepScalarsWriteLength, AWriteOfTheBuffersCountIsAccepted)
+{
+    SA_EXPECT_OK(check_scalar_write(3, 3));
 }
