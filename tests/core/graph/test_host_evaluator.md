@@ -41,7 +41,8 @@ and {-5, -6} pick -2, -4 and -6, so the loss is 12 / 3 = 4.
 ## HostEvaluatesNamesTheRuledOperations
 
 `host_evaluates` is true for LEAF, MATMUL, NLL_LOSS, LAYER_NORM, SILU, RELU, ABS, SOFTPLUS, IM2COL,
-DEPTHWISE_CONV2D, BATCHNORM2D and BATCHNORM_FOLD, and false for ATAN and CAUSAL_MASK.
+DEPTHWISE_CONV2D, BATCHNORM2D, BATCHNORM_FOLD, SCATTER_ADD_ROWS and CAUSAL_MASK, and false for
+ATAN.
 
 ## AReshapeKeepsTheElementsInOrder
 
@@ -84,6 +85,21 @@ The indices {2, 0} over the table [[1, 2], [3, 4], [5, 6]] give {5, 6, 1, 2}.
 
 The index 3 over a table of three rows makes `run()` fail with `InvalidDescription`, naming
 "row 3" and "3 rows".
+
+## AScatterAddsEachRowToTheRowItsIndexNames
+
+The rows [[1, 2], [3, 4], [5, 6]] with the indices {2, 0, 2} into a result of three rows give
+[[3, 4], [0, 0], [6, 8]]: row 0 takes [3, 4], row 1 stays zero and row 2 takes [1, 2] + [5, 6].
+
+## AScatterPastTheResultIsRefused
+
+The index 3 into a result of three rows makes `run()` fail with `InvalidDescription`, naming
+"row 3" and "3 rows".
+
+## ACausalMaskFillsTheEntriesAboveTheDiagonal
+
+Two 3 by 3 matrices holding 1 to 9 and 11 to 19, with the fill -9, keep their diagonal and the
+entries below it and have the entries (0, 1), (0, 2) and (1, 2) replaced by -9.
 
 ## AChannelSliceKeepsItsRange
 

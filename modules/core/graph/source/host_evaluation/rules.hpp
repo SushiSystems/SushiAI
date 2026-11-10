@@ -167,6 +167,10 @@ namespace SushiAI
             [[nodiscard]] Status host_bias_add(const HostNodeContext& context) noexcept;
             /** @brief Writes the column sums of an [N, C] operand. */
             [[nodiscard]] Status host_sum_rows(const HostNodeContext& context) noexcept;
+            /** @brief Writes a zero [V, D] result with each row added to the row its index names. */
+            [[nodiscard]] Status host_scatter_add_rows(const HostNodeContext& context) noexcept;
+            /** @brief Writes the scores with each entry above the diagonal set to slot 0. */
+            [[nodiscard]] Status host_causal_mask(const HostNodeContext& context) noexcept;
 
             /** @brief Copies the operand, whose elements a reshape keeps in order. */
             [[nodiscard]] Status host_reshape(const HostNodeContext& context) noexcept;

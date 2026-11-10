@@ -89,8 +89,9 @@ Each seam keeps the default behaviour: a `TensorPool` built over an `Engine` all
 - `HostEvaluator(graph)` computes a graph on the host with no engine. `write(leaf, elements)`
   fills a leaf, `run()` evaluates the nodes in insertion order and `read(value)` returns a value's
   elements. Every value is held as double, so the result is the host reference of the graph, not
-  the rounding of a device run. It has a rule for 32 operations: ZERO, CONSTANT, CAST to float32
+  the rounding of a device run. It has a rule for 34 operations: ZERO, CONSTANT, CAST to float32
   or float64, ADD, SUB, MUL, SCALE, EXP, LESS_EQUAL, SELECT, GELU, SILU, RELU, ABS, SOFTPLUS, MATMUL, BIAS_ADD, SUM_ROWS,
+  SCATTER_ADD_ROWS, CAUSAL_MASK,
   RESHAPE, GATHER_ROWS, SLICE_CHANNELS, CONCAT_CHANNELS, CHANNEL_AFFINE, LOG_SOFTMAX, NLL_LOSS, LAYER_NORM,
   BATCHNORM2D, BATCHNORM_FOLD, IM2COL, DEPTHWISE_CONV2D, MAXPOOL2D and UPSAMPLE2D. A
   convolution has no node of its own: the builder emits IM2COL, MATMUL, BIAS_ADD and RESHAPE. `run()` returns `Unsupported` for any other operation, and

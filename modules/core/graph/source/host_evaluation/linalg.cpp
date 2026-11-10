@@ -23,7 +23,8 @@
 
 /**
  * @file linalg.cpp
- * @brief Defines the host rules of the matrix product, the bias row and the column sums.
+ * @brief Defines the host rules of the matrix product, the bias row, the column sums, the row
+ *        scatter and the causal mask.
  * @author Mustafa Garip
  */
 
@@ -102,6 +103,49 @@ namespace SushiAI
 
                 for (std::size_t i = 0; i < x.size(); ++i)
                     y[i % y.size()] += x[i];
+
+                return Status();
+            }
+
+            Status host_scatter_add_rows(const HostNodeContext& context) noexcept
+            {
+                const std::vector<double>& rows = context.input(0);
+                const std::vector<double>& indices = context.input(1);
+                const int64_t table_rows = context.output_value(0).shape[0];
+                const std::size_t width =
+                    static_cast<std::size_t>(context.output_value(0).shape[1]);
+                std::vector<double>& sums = context.output(0);
+
+                // The result starts at zero, and each row adds to its named row in index order.
+                for (std::size_t at = 0; at < indices.size(); ++at)
+                {
+                    const int64_t row = static_cast<int64_t>(indices[at]);
+                    SA_FAIL_IF(row < 0 || row >= table_rows, StatusCode::InvalidDescription,
+                               "SCATTER_ADD_ROWS writes row {} of a result of {} rows", row,
+                               table_rows);
+                    for (std::size_t column = 0; column < width; ++column)
+                        sums[static_cast<std::size_t>(row) * width + column] +=
+                            rows[at * width + column];
+                }
+
+                return Status();
+            }
+
+            Status host_causal_mask(const HostNodeContext& context) noexcept
+            {
+                const std::vector<double>& scores = context.input(0);
+                const Shape& shape = context.input_shape(0);
+                const std::size_t length = static_cast<std::size_t>(shape[shape.rank() - 1]);
+                const double fill = context.node().attributes.get(0);
+                std::vector<double>& masked = context.output(0);
+
+                // Entry (row, column) of each [T, T] matrix is above the diagonal when column > row.
+                for (std::size_t at = 0; at < scores.size(); ++at)
+                {
+                    const std::size_t row = (at / length) % length;
+                    const std::size_t column = at % length;
+                    masked[at] = column > row ? fill : scores[at];
+                }
 
                 return Status();
             }

@@ -331,7 +331,8 @@ INSTANTIATE_TEST_SUITE_P(
                       CoverageRow{"Abs", Ops::K_ABS.id, true},
                       CoverageRow{"Softplus", Ops::K_SOFTPLUS.id, true},
                       CoverageRow{"Atan", Ops::K_ATAN.id, false},
-                      CoverageRow{"CausalMask", Ops::K_CAUSAL_MASK.id, false}),
+                      CoverageRow{"ScatterAddRows", Ops::K_SCATTER_ADD_ROWS.id, true},
+                      CoverageRow{"CausalMask", Ops::K_CAUSAL_MASK.id, true}),
     row_name<CoverageRow>);
 
 /** @brief Tests that a reshape keeps the elements of its operand in their order. */
@@ -525,6 +526,60 @@ TEST(Small_HostEvaluator, AGatherPastTheTableIsRefused)
     SA_EXPECT_OK(evaluator.write(indices, {3}));
 
     SA_EXPECT_FAILURE(evaluator.run(), StatusCode::InvalidDescription, "row 3", "3 rows");
+}
+
+/** @brief Tests that a scatter adds each row to the row its index names, in index order. */
+TEST(Small_HostEvaluator, AScatterAddsEachRowToTheRowItsIndexNames)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID rows = builder.input(Shape{3, 2}, "rows");
+    const ValueID indices = builder.input(Shape{3}, "indices", DType::Int32);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sums, builder.scatter_add_rows(rows, indices, 3));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(rows, {1, 2, 3, 4, 5, 6}));
+    SA_EXPECT_OK(evaluator.write(indices, {2, 0, 2}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    // Row 0 takes {3, 4}, row 1 stays zero, row 2 takes {1, 2} + {5, 6} = {6, 8}.
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(sums));
+    EXPECT_EQ(result, (std::vector<double>{3, 4, 0, 0, 6, 8}));
+}
+
+/** @brief Tests that a scatter to a row past the result is refused by run(). */
+TEST(Small_HostEvaluator, AScatterPastTheResultIsRefused)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID rows = builder.input(Shape{1, 2}, "rows");
+    const ValueID indices = builder.input(Shape{1}, "indices", DType::Int32);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sums, builder.scatter_add_rows(rows, indices, 3));
+    static_cast<void>(sums);
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(rows, {1, 2}));
+    SA_EXPECT_OK(evaluator.write(indices, {3}));
+
+    SA_EXPECT_FAILURE(evaluator.run(), StatusCode::InvalidDescription, "row 3", "3 rows");
+}
+
+/** @brief Tests that a causal mask replaces every entry above the diagonal of each matrix. */
+TEST(Small_HostEvaluator, ACausalMaskFillsTheEntriesAboveTheDiagonal)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID scores = builder.input(Shape{2, 3, 3}, "scores");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID masked, builder.causal_mask(scores, -9.0));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(scores, {1, 2, 3, 4, 5, 6, 7, 8, 9,
+                                          11, 12, 13, 14, 15, 16, 17, 18, 19}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    // Per matrix the entries (0,1), (0,2) and (1,2) lie above the diagonal; the rest stay.
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(masked));
+    EXPECT_EQ(result, (std::vector<double>{1, -9, -9, 4, 5, -9, 7, 8, 9,
+                                           11, -9, -9, 14, 15, -9, 17, 18, 19}));
 }
 
 /** @brief Tests that a channel slice keeps its range of the last axis. */
