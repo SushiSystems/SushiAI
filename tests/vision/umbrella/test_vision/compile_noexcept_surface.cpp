@@ -1073,6 +1073,9 @@ namespace SushiAI::Vision::Detect::Free
                 std::declval<SushiRuntime::span<const float>>(),
                 std::declval<SushiRuntime::span<float>>())),
         "scale_points is noexcept");
+    static_assert(
+        noexcept(check_scale_sizes(std::size_t{}, std::size_t{}, std::size_t{})),
+        "check_scale_sizes is noexcept");
 } // namespace SushiAI::Vision::Detect::Free
 
 namespace SushiAI::Vision::Detect::Free

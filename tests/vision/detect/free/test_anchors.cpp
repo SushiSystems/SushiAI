@@ -96,8 +96,15 @@ TEST(Small_DetectAnchors, ScalesEachPointByItsStride)
     EXPECT_EQ(pixels, expected);
 }
 
-/** @brief Tests that scaling refuses strides that do not number one per point. */
-TEST(Medium_DetectAnchorsFatal, ScaleRejectsStridesThatDoNotMatchThePoints)
+/** @brief Tests that the size check refuses strides that do not number one per point. */
+TEST(Small_DetectAnchors, ScaleRejectsStridesThatDoNotMatchThePoints)
+{
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::Free::check_scale_sizes(16, 7, 16),
+                      StatusCode::InvalidDescription, "[A] strides", "got 16, 7 and 16 values");
+}
+
+/** @brief Tests that scaling stops the process on strides that do not number one per point. */
+TEST(Medium_DetectAnchorsFatal, ScaleStopsOnStridesThatDoNotMatchThePoints)
 {
     const std::vector<float> points(16, 0.5f);
     const std::vector<float> strides(7, 8.0f);

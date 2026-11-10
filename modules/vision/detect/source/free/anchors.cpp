@@ -84,15 +84,23 @@ namespace SushiAI
             return Status();
         }
 
+        Status check_scale_sizes(std::size_t points, std::size_t strides,
+                                 std::size_t scaled) noexcept
+        {
+            SA_FAIL_IF(points != strides * K_POINT_VALUES || scaled != points,
+                       StatusCode::InvalidDescription,
+                       "scale_points needs [A, 2] points, [A] strides and [A, 2] output; got "
+                       "{}, {} and {} values",
+                       points, strides, scaled);
+            return Status();
+        }
+
         void scale_points(SushiRuntime::span<const float> points,
                           SushiRuntime::span<const float> strides,
                           SushiRuntime::span<float> scaled) noexcept
         {
-            SA_FATAL_IF(points.size() != strides.size() * K_POINT_VALUES ||
-                            scaled.size() != points.size(),
-                        "scale_points needs [A, 2] points, [A] strides and [A, 2] output; got "
-                        "{}, {} and {} values",
-                        points.size(), strides.size(), scaled.size());
+            const Status checked = check_scale_sizes(points.size(), strides.size(), scaled.size());
+            SA_FATAL_IF(!checked.is_ok(), "{}", checked.message());
 
             for (std::size_t anchor = 0; anchor < strides.size(); ++anchor)
             {

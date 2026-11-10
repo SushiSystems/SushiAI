@@ -78,11 +78,23 @@ namespace SushiAI
                                           SushiRuntime::span<float> strides) noexcept;
 
         /**
+         * @brief Checks that three arrays hold [A, 2], [A] and [A, 2] values, the sizes
+         *        scale_points() stops on.
+         * @param points The value count of the points.
+         * @param strides The value count of the strides.
+         * @param scaled The value count of the output.
+         * @return InvalidDescription naming the three counts when they do not fit.
+         */
+        [[nodiscard]] Status check_scale_sizes(std::size_t points, std::size_t strides,
+                                               std::size_t scaled) noexcept;
+
+        /**
          * @brief Multiplies each anchor point by its stride, which gives the point in pixels.
          * @param points `[A, 2]` in grid units.
          * @param strides `[A]`.
          * @param scaled Receives `[A, 2]`; may be @p points.
-         * @pre The spans hold [A, 2], [A] and [A, 2] values.
+         * @pre The spans hold [A, 2], [A] and [A, 2] values; check_scale_sizes() says whether
+         *      they do, and a call that breaks it stops the process.
          */
         void scale_points(SushiRuntime::span<const float> points,
                           SushiRuntime::span<const float> strides,

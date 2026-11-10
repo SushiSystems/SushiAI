@@ -47,12 +47,16 @@ second.
 
 ## ScaleRejectsStridesThatDoNotMatchThePoints
 
-In `Medium_DetectAnchorsFatal`: the refusal is a death check that runs in a child process, which
-took more than the 0.1 s of a `small` test on the debug build (RW-166), and a death test is
-`medium` by its size rule. It needs no device.
+`check_scale_sizes` over 16 point values, 7 strides and 16 output values returns `InvalidDescription`
+with a message containing "[A] strides" and "got 16, 7 and 16 values". The check is the one
+`scale_points` stops on, so the refusal runs on counts and needs no child process.
 
-Seven strides for eight points fail with a message containing "[A] strides" and "got 16, 7 and
-16 values".
+## ScaleStopsOnStridesThatDoNotMatchThePoints
+
+In `Medium_DetectAnchorsFatal`, the one boundary of the unit: `scale_points` over the same sizes
+stops the process with the same message. A death check runs in a child process, which took more than
+the 0.1 s of a `small` test on the debug build (RW-166), and a death test is `medium` by its size
+rule. It needs no device.
 
 ## RejectsALevelWithoutCellsOrStride
 
