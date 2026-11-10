@@ -1,7 +1,7 @@
 # tests/vision/training/test_pixel_targets.cpp
 
 
-Suites: `Medium_VisionTrainingPixelTargets`.
+Suites: `Medium_VisionTrainingPixelTargets` and `Small_VisionTrainingPixelTargetsOverflow`.
 
 Tests `validate_pixel_labels`, `fill_pixel_targets` and the refusals of `fill_dice_targets`. The
 cases allocate INT32 and float32 tensors on the CPU SYCL device through `EngineTest`, so the suite
@@ -45,6 +45,18 @@ A mask of ignored pixels alone gives the indices 0, 3, 6, 9, 12, 15 and six weig
 
 A label of 9, a weight leaf of five pixels and a real tensor given as the indices each fail with
 `Incompatible`, and after the three calls the indices are still -7 and the weights still -7.
+
+### APixelCountPastInt32IsRefusedWithoutAllocation
+
+Suite `Small_VisionTrainingPixelTargetsOverflow`. Mask, index and weight tensors that are headers
+alone, each claiming 2147483648 elements (INT32_MAX + 1) and holding no storage, give
+`fill_pixel_targets` over one class and over three classes an `Incompatible` failure naming
+"cannot be indexed". A refusal that read a label would dereference the missing storage.
+
+### APixelsTimesClassesPastInt32IsRefused
+
+Suite `Small_VisionTrainingPixelTargetsOverflow`. 2^20 pixels over 2048 classes make 2^31
+indices, one more than INT32 holds, and fail with `Incompatible` naming "cannot be indexed".
 
 ### ARefusedDiceFillChangesNothing
 

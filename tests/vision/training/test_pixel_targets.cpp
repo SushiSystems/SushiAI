@@ -210,6 +210,51 @@ TEST_F(Medium_VisionTrainingPixelTargets, ARefusedPixelFillChangesNothing)
     expect_reals(weights, std::vector<double>(6, K_UNTOUCHED));
 }
 
+/**
+ * @brief Tests that a pixel count whose indices pass INT32_MAX is refused before any element is
+ *        read or allocated.
+ *
+ * The tensors are headers only: they carry the element count and the type and hold no storage, so
+ * a refusal that reached the labels would dereference null.
+ */
+TEST(Small_VisionTrainingPixelTargetsOverflow, APixelCountPastInt32IsRefusedWithoutAllocation)
+{
+    constexpr std::int64_t pixels = static_cast<std::int64_t>(INT32_MAX) + 1;
+    SushiBLAS::Tensor mask;
+    mask.dtype = DType::Int32;
+    mask.num_elements = pixels;
+    SushiBLAS::Tensor indices;
+    indices.dtype = DType::Int32;
+    indices.num_elements = pixels;
+    SushiBLAS::Tensor weights;
+    weights.dtype = DType::Float32;
+    weights.num_elements = pixels;
+
+    SA_EXPECT_FAILURE(fill_pixel_targets(mask, 1, K_IGNORE, indices, weights),
+                      StatusCode::Incompatible, "2147483648 pixels", "cannot be indexed");
+    SA_EXPECT_FAILURE(fill_pixel_targets(mask, K_CLASSES, K_IGNORE, indices, weights),
+                      StatusCode::Incompatible, "cannot be indexed");
+}
+
+/** @brief Tests that a product of pixels and classes past INT32_MAX is refused likewise. */
+TEST(Small_VisionTrainingPixelTargetsOverflow, APixelsTimesClassesPastInt32IsRefused)
+{
+    // 1 << 20 pixels over 2048 classes is 2^31 indices, one past what INT32 holds.
+    constexpr std::int64_t pixels = std::int64_t{1} << 20;
+    SushiBLAS::Tensor mask;
+    mask.dtype = DType::Int32;
+    mask.num_elements = pixels;
+    SushiBLAS::Tensor indices;
+    indices.dtype = DType::Int32;
+    indices.num_elements = pixels;
+    SushiBLAS::Tensor weights;
+    weights.dtype = DType::Float32;
+    weights.num_elements = pixels;
+
+    SA_EXPECT_FAILURE(fill_pixel_targets(mask, 2048, K_IGNORE, indices, weights),
+                      StatusCode::Incompatible, "cannot be indexed");
+}
+
 /** @brief Tests that a refused Dice fill leaves the five leaves as they were. */
 TEST_F(Medium_VisionTrainingPixelTargets, ARefusedDiceFillChangesNothing)
 {
