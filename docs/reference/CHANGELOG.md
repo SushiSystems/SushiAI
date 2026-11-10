@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- 2026-11-10 — datasets: Added `InMemoryCollator` beside the `Collator` port (`63e2a12b`).
+- 2026-11-10 — datasets: Gave `mnist_available`, `try_load_mnist` and `make_mnist` an overload over a `ByteSource` (`53e10492`).
+- 2026-11-10 — detect: Added `Free::check_scale_sizes`, the refusal `scale_points` stops on (`a66b6ac8`).
+- 2026-11-10 — optim: Added `check_moment_index` and `check_scalar_write` (`92a990f1`).
+- 2026-11-10 — config: Added `read_json_stream_events` and `ChunkedTextBuffer` (`9671e209`).
+- 2026-11-10 — execution: Added `StepTasks::task_origins`, `CompiledStep::task_origins` and `StateIDSource` (`42840e51`).
+- 2026-11-10 — cli: Made `find_project_root` take an `is_root` check (`1bf402e7`).
 - 2026-11-10 — test_tree: Bring the gating run inside its time budget (RW-166, `03e07592`).
 - 2026-11-10 — darknet_era_yolo: Resolve the yolov4-tiny second mask the anchor head assignment gives (RW-163, `867ca940`).
 - 2026-11-10 — graph_capabilities: Add host kernels for CAUSAL_MASK and SCATTER_ADD_ROWS in Graph::HostEvaluator (RW-164, `31c7d600`).
