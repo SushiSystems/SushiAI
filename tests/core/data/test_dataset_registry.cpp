@@ -44,6 +44,7 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/optim/optimizer.hpp>
@@ -378,9 +379,12 @@ TEST(Small_RingsOptions, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
                       StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
 }
 
-TEST_F(Medium_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
+/** @brief Tests that an unknown optimizer type is refused with every type the registry has. */
+TEST(Small_OptimizerRegistry, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
 {
-    SA_EXPECT_FAILURE(Optim::make_optimizer(backend(), "lion", {}, attributes_from("{}"),
+    HostExecutionBackend backend;
+
+    SA_EXPECT_FAILURE(Optim::make_optimizer(backend, "lion", {}, attributes_from("{}"),
                                             "optimizer"),
                       StatusCode::InvalidDescription, "lion", "optimizer type", "'adamw'", "'sgd'");
 }

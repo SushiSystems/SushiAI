@@ -47,6 +47,7 @@
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/threaded_loader.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/model_text/model_text.hpp>
@@ -165,6 +166,12 @@ namespace
     /** @brief Provides the engine the datasets are generated on. */
     class Medium_Dataset : public SaTest::EngineTest
     {
+
+    };
+
+    /** @brief Provides a host backend, so a synthetic set is generated with no device. */
+    class Small_DatasetSeed : public ::testing::Test
+    {
         protected:
             /** @brief Returns the inputs of batch @p index of a synthetic set seeded @p seed. */
             std::vector<float> synthetic_inputs(std::uint64_t seed, std::size_t index)
@@ -173,7 +180,7 @@ namespace
                 options.seed = seed;
                 std::vector<float> values;
                 Result<std::unique_ptr<Data::SyntheticClassification>> made =
-                    Data::SyntheticClassification::make(backend(), options);
+                    Data::SyntheticClassification::make(backend, options);
                 EXPECT_TRUE(SaTest::status_is_ok(Detail::status_of(made)));
                 if (!made.has_value())
                     return values;
@@ -184,6 +191,9 @@ namespace
                 values.assign(data, data + batch.inputs.num_elements);
                 return values;
             }
+
+            /** @brief Holds the host adapter the sets are generated on. */
+            HostExecutionBackend backend;
     };
 
     /** @brief Runs each case on a kind of dataset whose batches the dataset holds. */
@@ -300,7 +310,7 @@ TEST_F(Medium_Dataset, AReadGivesInputsOfBatchSizeByFeatureCount)
 }
 
 /** @brief Tests that one seed gives the same inputs and another seed other inputs. */
-TEST_F(Medium_Dataset, TheSeedFixesTheSyntheticInputs)
+TEST_F(Small_DatasetSeed, TheSeedFixesTheSyntheticInputs)
 {
     const std::vector<float> first = synthetic_inputs(5, 1);
 

@@ -1,7 +1,7 @@
 # tests/core/data/test_dataset.cpp
 
 
-Suites: `Small_SyntheticLabels`, `Small_SyntheticMeans`, `Medium_Dataset`, `Medium_DatasetExtent`, `Medium_RingsOption`, `Medium_DatasetSharing`,
+Suites: `Small_SyntheticLabels`, `Small_SyntheticMeans`, `Small_DatasetSeed`, `Medium_Dataset`, `Medium_DatasetExtent`, `Medium_RingsOption`, `Medium_DatasetSharing`,
 `Medium_DatasetRange`, `Medium_DatasetRefusal`.
 
 Tests what `Data::SyntheticClassification` generates, how every dataset reads a batch or a range of
@@ -19,7 +19,9 @@ Batch 1 of the synthetic set holds [4, 3] inputs.
 
 ## TheSeedFixesTheSyntheticInputs
 
-The inputs of batch 1 are equal for two sets seeded 5 and differ for a set seeded 6.
+The inputs of batch 1 are equal for two sets seeded 5 and differ for a set seeded 6. The sets are
+generated on a `HostExecutionBackend`, whose engine draws the noise on the host, so the case
+needs no device.
 
 ## LabelsRunRoundRobinOverTheWholeSet
 

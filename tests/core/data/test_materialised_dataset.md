@@ -1,7 +1,7 @@
 # tests/core/data/test_materialised_dataset.cpp
 
 
-Suites: `Medium_MaterialisedDataset`.
+Suites: `Small_MaterialisedDataset`, `Medium_MaterialisedDataset`.
 
 Tests `Data::MaterialisedDataset` and `Data::share_batch`.
 
@@ -19,7 +19,9 @@ value per sample.
 
 ## ShareBatchCopiesNoElement
 
-`Data::share_batch` leaves the batch with the data pointers of the held batch and its role.
+`Data::share_batch` leaves the batch with the data pointers of the held batch and its role. The held
+batch is allocated on the engine of a `HostExecutionBackend`, which gives its tensors storage and
+needs no device.
 
 ## ShareBatchGivesTheRolesAndTheLayoutOfTheHeldBatch
 

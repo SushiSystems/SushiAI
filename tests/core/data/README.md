@@ -62,7 +62,7 @@ The key "batch_sizes" fails `read_rings_options` with an error whose message con
 "data", 'batch_sizes' and 'batch_size'. `make_rings` calls the same reader, so the refusal comes
 before any allocation.
 
-Suites: `Medium_Registries`, `Medium_RingsBand`, `Medium_OptimizerKeys`.
+Suites: `Medium_Registries`, `Medium_RingsBand`, `Medium_OptimizerKeys`, `Small_OptimizerRegistry`.
 
 Two registries need an Engine to exercise: datasets allocate device tensors, and optimizers
 allocate their state buffers. The layer and objective registries are host-lane and live in the
@@ -107,6 +107,8 @@ is why `dataset.hpp` warns about `set_seed`. Two datasets of seed 42 hold the sa
 ### AnUnknownOptimizerTypeListsEveryTypeThisBuildHas
 
 The type "lion" raises an error whose message contains "lion", "optimizer type", 'adamw' and 'sgd'.
+The case runs on a `HostExecutionBackend`: the registry lookup refuses before any optimizer is
+built, so it needs no device.
 
 ### AnUnknownOptimizerKeyIsRejectedByItsOwnFactory
 

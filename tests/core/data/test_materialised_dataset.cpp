@@ -44,6 +44,7 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
@@ -108,10 +109,12 @@ TEST_F(Medium_MaterialisedDataset, AReadGivesTensorsThatMatchWhatTheDatasetState
 }
 
 /** @brief Tests that share_batch makes a batch hold the same tensors under the same roles. */
-TEST_F(Medium_MaterialisedDataset, ShareBatchCopiesNoElement)
+TEST(Small_MaterialisedDataset, ShareBatchCopiesNoElement)
 {
+    HostExecutionBackend backend;
     SA_ASSERT_OK_AND_ASSIGN(const Data::Batch held,
-                            Data::allocate_batch(*engine, K_ROWS, four_floats(), labels()));
+                            Data::allocate_batch(backend.engine(), K_ROWS, four_floats(),
+                                                 labels()));
     Data::Batch batch;
 
     SA_EXPECT_OK(Data::share_batch(held, batch));
