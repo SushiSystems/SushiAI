@@ -12,11 +12,13 @@ from pathlib import Path
 
 import pytest
 from sushicore.cmake_driver import CMakeDriver
+from sushicore.console_memory import RecordingConsole
+from sushicore.proc_memory import RecordingRunner
 
 from sushiai.services import project
 from sushiai.services.toolbox import default_toolbox
 
-from recorded_tools import Recorded, offline_config, recorded_tools
+from recorded_tools import Recorded, offline_config, recorded_tools, write_executable
 
 
 class _StuckDriver(CMakeDriver):
@@ -156,3 +158,52 @@ def test_a_suite_reaches_ctest_as_the_labels_of_the_shared_command(suite, includ
     words = _ctest(recorded)
     assert (_value_of(words, "-L"), _value_of(words, "-LE")) == (include, exclude)
     assert Path(_value_of(words, "--output-junit")).name == "junit.xml"
+
+
+class _FailingShardRunner(RecordingRunner):
+    """A runner whose ctest leaves the files of a run in which one case of one shard failed."""
+
+    def __init__(self, console, tree: Path, shard: str) -> None:
+        """Keep the tree the run writes its results into and the shard that fails."""
+        super().__init__(console)
+        self._tree = tree
+        self._shard = shard
+
+    def run_drained(self, cmd, cwd, env=None) -> int:
+        """Records *cmd*; a ctest run writes its JUnit file and the shard's result file and fails."""
+        code = super().run_drained(cmd, cwd, env)
+        if "--output-junit" not in cmd:
+            return code
+        junit = Path(cmd[cmd.index("--output-junit") + 1])
+        junit.parent.mkdir(parents=True, exist_ok=True)
+        junit.write_text(
+            f'<testsuite><testcase name="{self._shard}" status="fail"><failure/></testcase></testsuite>',
+            encoding="utf-8")
+        results = self._tree / "test_results" / "gtest"
+        results.mkdir(parents=True, exist_ok=True)
+        (results / f"{self._shard}.xml").write_text(
+            '<testsuites><testsuite><testcase name="One" classname="Small_A"><failure/></testcase>'
+            "</testsuite></testsuites>", encoding="utf-8")
+        return 1
+
+
+@pytest.mark.medium
+def test_a_failed_shard_reruns_by_gtest_filter_on_its_program_and_not_by_ctest_over_the_shard(tree):
+    """sa hands the shared command a run_program, so only the failing case of a failed shard reruns."""
+    build = tree / "build" / "default-debug"
+    shard = "sushiai_tests.small_shard_0of1"
+    program = write_executable(build / "bin" / "sushiai_tests")
+    (build / "CTestTestfile.cmake").write_text(
+        f'add_test([=[{shard}]=] "{program.as_posix()}")\n', encoding="utf-8")
+    console = RecordingConsole()
+    runner = _FailingShardRunner(console, build, shard)
+    base = recorded_tools()
+    tools = dataclasses.replace(base.tools, console=console, runner=runner,
+                                driver=CMakeDriver(console, runner))
+
+    assert project.test(tools, memory_limit_gb=0.0) == 1
+
+    commands = [command.argv for command in runner.commands]
+    reruns = [argv for argv in commands if argv[0] == str(program)]
+    assert [argv[1] for argv in reruns] == ["--gtest_filter=Small_A.One"]
+    assert len([argv for argv in commands if "--output-on-failure" in argv]) == 1
