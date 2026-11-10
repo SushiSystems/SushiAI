@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-10 — cli: Required sushicore 0.12.2, which narrows a sharded test run by `--filter` and reruns a failed shard's cases.
 - 2026-11-10 — tests: Registered the cases of each test program as CTest shards per size, and taught the time reader the per-case XML of the shards (`SushiAITestProgram.cmake`, `test_budget.py`).
 - 2026-11-10 — vision: Replaced the source and sink pair of the dataset build with `DatasetStorage` (`byte_sink.hpp`, `reader_section.hpp`).
 - 2026-11-10 — vision: Added `MemorySource::remove` (`byte_source.hpp`).
