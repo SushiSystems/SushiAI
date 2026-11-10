@@ -6,8 +6,8 @@ The tests of the module `core/config`, one file per header of `modules/core/conf
 
 Suites: `Small_JsonEvents`, `Medium_JsonEvents`.
 
-Tests `Config::read_json_text_events` on text in memory (`Small_`) and `Config::read_json_events`
-on files (`Medium_`). A file case writes its file under the system's temporary directory and
+Tests `Config::read_json_text_events` and `Config::read_json_stream_events` on text in memory
+(`Small_`) and `Config::read_json_events` on files (`Medium_`). A file case writes its file under the system's temporary directory and
 removes it at its end. A local `EventLog` implements `Config::JSONEvents`, keeps
 every event as one line of text and can return false at a chosen event.
 
@@ -24,8 +24,8 @@ In `[9223372036854775807, 18446744073709551615]` the first entry arrives as
 
 ### ADocumentLongerThanTheBufferArrivesWhole
 
-A file holding an array of 100 whole numbers, read through a 16-byte buffer given to
-`read_json_events`, whose text is longer than twice that buffer, gives 102 events. The last
+An array of 100 whole numbers, served by a `Config::ChunkedTextBuffer` 16 bytes per refill to
+`read_json_stream_events`, whose text is longer than twice that chunk, gives 102 events. The last
 number is "whole 99" and the last event is the end of the array.
 
 ### AHandlerThatStopsEndsTheReadWithSuccess

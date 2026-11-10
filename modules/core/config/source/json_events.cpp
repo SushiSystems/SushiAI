@@ -29,14 +29,17 @@
 
 #include <SushiAI/config/json_events.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <ios>
 #include <limits>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <nlohmann/json.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
@@ -245,6 +248,40 @@ namespace SushiAI
                     return in.bad();
                 }, adapter, file);
             });
+        }
+
+        Status read_json_stream_events(std::istream& in, std::string_view name,
+                                       JSONEvents& handler) noexcept
+        {
+            return Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
+            {
+                EventAdapter adapter(handler);
+                return parse_with([&]()
+                {
+                    return Document::sax_parse(in, &adapter);
+                }, [&]()
+                {
+                    return in.bad();
+                }, adapter, std::string(name));
+            });
+        }
+
+        ChunkedTextBuffer::ChunkedTextBuffer(std::string text, std::size_t chunk_bytes)
+            : text_(std::move(text)), chunk_bytes_(chunk_bytes)
+        {
+            SA_FATAL_IF(chunk_bytes == 0, "A chunked text cannot be served in empty chunks");
+        }
+
+        std::streambuf::int_type ChunkedTextBuffer::underflow()
+        {
+            if (served_ == text_.size())
+                return traits_type::eof();
+
+            const std::size_t count = std::min(chunk_bytes_, text_.size() - served_);
+            char* const first = text_.data() + served_;
+            setg(first, first, first + count);
+            served_ += count;
+            return traits_type::to_int_type(*gptr());
         }
 
         Status read_json_text_events(std::string_view text, std::string_view name,

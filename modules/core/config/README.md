@@ -53,7 +53,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
 | `SushiAI/config/model_writer.hpp` | `write_model` |
 | `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data` |
-| `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events`, `read_json_text_events` |
+| `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events`, `read_json_stream_events`, `ChunkedTextBuffer`, `read_json_text_events` |
 | `SushiAI/config/registry.hpp` | `find_entry` |
 | `SushiAI/config/section_reader.hpp` | `KeySpan`, `member_of`, `entry_of`, `list_quoted`, `read_real`, `read_whole`, `read_float32`, `read_string`, `read_array`, `SectionReader` |
 
@@ -81,6 +81,11 @@ number above the largest `std::int64_t` arrives as `real`.
 
 Every event returns whether the read goes on. An event that returns false ends the read, and
 `read_json_events` returns success: the handler chose to stop and keeps its own reason.
+
+`read_json_stream_events(in, name, handler)` reads the same events from any open `std::istream`, and
+`ChunkedTextBuffer(text, chunk_bytes)` is its in-memory source: a stream buffer that serves a text a
+few bytes per refill, as a file buffer does, so a document longer than the chunk is read with no
+file.
 
 `read_json_text_events(text, name, handler)` hands the events of a document already in memory,
 for a reader that takes its bytes from elsewhere than a path. `name` stands for the path in its

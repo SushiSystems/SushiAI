@@ -32,6 +32,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <istream>
+#include <streambuf>
+#include <string>
 #include <string_view>
 #include <SushiAI/failure/status.hpp>
 
@@ -103,6 +106,48 @@ namespace SushiAI
         [[nodiscard]] Status read_json_events(
             const std::filesystem::path& path, JSONEvents& handler,
             std::size_t buffer_bytes = K_JSON_EVENT_BUFFER_BYTES) noexcept;
+
+        /**
+         * @brief Streams the JSON document read from @p in to @p handler, one event at a time.
+         * @param in The open stream; read to the end of the document, never closed.
+         * @param name Names the document in a failure, as a path would.
+         * @param handler Receives the events, as read_json_events() hands them.
+         * @return InvalidFile, naming @p name and the byte offset, for text that is no JSON
+         *         document, and for a stream that failed under the parser.
+         */
+        [[nodiscard]] Status read_json_stream_events(std::istream& in, std::string_view name,
+                                                     JSONEvents& handler) noexcept;
+
+        /**
+         * @class ChunkedTextBuffer
+         * @brief Serves a text from memory a few bytes per refill, as a file buffer does.
+         *
+         * The in-memory adapter of the file read of read_json_events(): a document longer than
+         * the chunk reaches the parser in several refills, with no file.
+         */
+        class ChunkedTextBuffer final : public std::streambuf
+        {
+            public:
+                /**
+                 * @brief Holds a copy of @p text, served @p chunk_bytes at a time.
+                 * @pre @p chunk_bytes is positive; zero stops the process.
+                 */
+                ChunkedTextBuffer(std::string text, std::size_t chunk_bytes);
+
+            protected:
+                /** @brief Hands over the next chunk, or ends the stream when none is left. */
+                int_type underflow() override;
+
+            private:
+                /// @brief The text served.
+                std::string text_;
+
+                /// @brief The most bytes one refill hands over.
+                std::size_t chunk_bytes_ = 0;
+
+                /// @brief The bytes of text_ already handed over.
+                std::size_t served_ = 0;
+        };
 
         /**
          * @brief Hands the JSON document in @p text to @p handler, one event at a time.

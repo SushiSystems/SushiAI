@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <istream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -129,7 +130,7 @@ TEST(Small_JsonEvents, AWholeNumberAboveInt64IsAReal)
 }
 
 /** @brief Tests that a document longer than the read buffer arrives whole. */
-TEST(Medium_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
+TEST(Small_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
 {
     constexpr std::size_t entries = 100;
     constexpr std::size_t buffer_bytes = 16;
@@ -139,11 +140,11 @@ TEST(Medium_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
     text += "]";
     ASSERT_GT(text.size(), 2 * buffer_bytes);
 
-    const SushiAI::Test::ScratchFile file("sushiai_test_json_events_long.json");
-    write_text(file, text);
+    Config::ChunkedTextBuffer buffer(text, buffer_bytes);
+    std::istream in(&buffer);
 
     EventLog log;
-    SA_EXPECT_OK(Config::read_json_events(file.path(), log, buffer_bytes));
+    SA_EXPECT_OK(Config::read_json_stream_events(in, "<chunked>", log));
 
     ASSERT_EQ(log.events().size(), entries + 2);
     EXPECT_EQ(log.events()[entries], "whole " + std::to_string(entries - 1));
