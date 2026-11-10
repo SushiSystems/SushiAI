@@ -11,10 +11,13 @@ The reasoning is in cli/README.md under "config.py".
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
 
 from sushicore.module_config import ModuleConfig
 from sushicore.profile import ModuleProfile
 from sushicore.stack_config import StackConfig
+from sushicore.workspace import walk_up
 
 #: Describes SushiAI to the shared machinery; every consumer reads this one profile.
 PROFILE = ModuleProfile(
@@ -35,8 +38,25 @@ PROFILE = ModuleProfile(
 
 _MODULE = ModuleConfig(PROFILE)
 
-find_project_root = _MODULE.find_project_root
 config_dir = _MODULE.config_dir
+
+
+def find_project_root(start: Path | None = None,
+                      is_root: Callable[[Path], bool] | None = None) -> Path:
+    """Returns the nearest ancestor of *start* (the working directory by default) that is a root.
+
+    @param start Where the walk begins.
+    @param is_root Tells whether a folder is the project root. The default is the check of
+        sushicore, which looks for the root marker on disk; a test passes its own to walk a
+        tree it never writes.
+    @raise SystemExit when no ancestor is a root.
+    """
+    if is_root is None:
+        return _MODULE.find_project_root(start)
+    root = walk_up(start or Path.cwd(), is_root)
+    if root is None:
+        raise SystemExit(PROFILE.not_a_project_message())
+    return root
 
 #: Maps each field to its environment variable; `sa config` reads the reverse map.
 _ENV_OVERRIDES = PROFILE.env_overrides()

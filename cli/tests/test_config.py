@@ -13,11 +13,11 @@ import pytest
 from sushiai import config
 
 
-@pytest.mark.medium
-def test_find_project_root_raises_outside_checkout(tmp_path):
-    """No CMakeLists.txt anywhere above -> a clear SystemExit, not a crash."""
+@pytest.mark.small
+def test_find_project_root_raises_outside_checkout():
+    """No ancestor is a root -> a clear SystemExit, not a crash."""
     with pytest.raises(SystemExit):
-        config.find_project_root(tmp_path)
+        config.find_project_root(Path("nowhere") / "below", is_root=lambda folder: False)
 
 
 @pytest.mark.medium

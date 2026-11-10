@@ -82,9 +82,6 @@ def _configured_tree(root: Path, build_type: str = "release") -> Path:
     return tree
 
 
-@pytest.mark.parametrize(("requested", "expected"),
-                         [("debug", "release"), ("release", "release"), ("asan", "release"),
-                          ("minsizerel", "release"), ("relwithdebinfo", "relwithdebinfo")])
 @pytest.mark.small
 @pytest.mark.parametrize(("requested", "expected"),
                          [("debug", "release"), ("release", "release"), ("asan", "release"),

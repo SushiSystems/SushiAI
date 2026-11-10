@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import subprocess
 from pathlib import Path
 
@@ -140,9 +141,10 @@ def _value_of(words: list[str], option: str) -> str | None:
 @pytest.mark.medium
 @pytest.mark.parametrize("jobs", [3, None])
 def test_jobs_reach_ctest_as_given(jobs, recorded, tree):
-    """--jobs reaches ctest unchanged, and None leaves the count to ctest."""
+    """--jobs reaches ctest unchanged; None lets sushicore choose one job per core, within free memory."""
     assert project.test(recorded.tools, jobs=jobs, memory_limit_gb=0.0) == 0
-    assert _value_of(_ctest(recorded), "--parallel") == (None if jobs is None else str(jobs))
+    given = int(_value_of(_ctest(recorded), "--parallel"))
+    assert given == jobs if jobs is not None else 1 <= given <= (os.cpu_count() or 1)
 
 
 @pytest.mark.medium
