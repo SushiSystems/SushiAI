@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-11-10 — darknet_era_yolo: Resolve the yolov4-tiny second mask the anchor head assignment gives (RW-163, `867ca940`).
+- 2026-11-10 — graph_capabilities: Add host kernels for CAUSAL_MASK and SCATTER_ADD_ROWS in Graph::HostEvaluator (RW-164, `31c7d600`).
+- 2026-11-10 — test_tree: Test fill_pixel_targets against an INT32 pixel count overflow (RW-165, `96007d42`).
 - 2026-11-10 — cli: Required sushicore 0.12.2, which narrows a sharded test run by `--filter` and reruns a failed shard's cases.
 - 2026-11-10 — tests: Registered the cases of each test program as CTest shards per size, and taught the time reader the per-case XML of the shards (`SushiAITestProgram.cmake`, `test_budget.py`).
 - 2026-11-10 — vision: Replaced the source and sink pair of the dataset build with `DatasetStorage` (`byte_sink.hpp`, `reader_section.hpp`).
