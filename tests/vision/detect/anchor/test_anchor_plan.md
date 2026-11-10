@@ -5,8 +5,17 @@ Suites: `Small_DetectAnchorPlan` and `Small_DetectAnchorPlanRefusal`.
 
 Tests `plan_anchors`, which chooses or takes a count per head, clusters the boxes, assigns the
 anchors to the heads by stride, measures the fit and derives the assignment thresholds. The
-file uses a ladder of six sizes with 400 boxes per rung, one blob of 2000 boxes and a set of
+file uses a ladder of six sizes with 50 boxes per rung, one blob of 2000 boxes and a set of
 two sizes.
+
+Size (RW-166): the ladder had 400 boxes per rung and the tests that plan it two or three times
+(`ChosenCountEqualsTheStepsMadeByHand`, `StridesInAnyOrderGiveEachHeadTheAnchorsOfItsStride`,
+`TwoCallsGiveTheSamePlan`) took more than the 0.1 s of a `small` test on the debug build. The
+clustering runs up to 300 passes over every box for every count tried, so its time is linear in
+the boxes. The ladder now has 50 boxes per rung, 300 in all, one eighth of the time. The rungs
+are 1.8 times apart and each is jittered by 2 %, so 50 boxes still fix a rung's centre far inside
+the gain that a sixth anchor gives; no assertion of the file names the number of boxes. The
+suites stay `small`.
 
 ## LadderWithTwoStridesPlansTwoHeadsOfThreeAnchors
 

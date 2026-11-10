@@ -4,8 +4,16 @@
 Suites: `Small_DetectAnchorCount`, `Small_DetectAnchorCountOptions` and `Small_DetectAnchorCountHeads`.
 
 Tests `choose_anchor_count`, which clusters to one more anchor per head until the gain in mean
-best IoU falls below `min_gain`. The file uses three box sets: a ladder of six sizes with 400
+best IoU falls below `min_gain`. The file uses three box sets: a ladder of six sizes with 50
 boxes per rung, one blob of 2000 boxes, and a set of two sizes.
+
+Size (RW-166): the ladder had 400 boxes per rung and `TrialsHoldTheFitOfEachCountClusteredDirectly`
+clusters it eight times (four trials and four direct fits), which took more than the 0.1 s of a
+`small` test on the debug build. The clustering is linear in the boxes, so the ladder now has 50
+boxes per rung, 300 in all, one eighth of the time. The gains the file asserts (at least
+`min_gain` from one to two and from two to three per head, below it from three to four) come
+from the rungs being 1.8 times apart against a 2 % jitter, which the box count does not change.
+The suites stay `small`.
 
 ## LadderWithTwoHeadsChoosesThreePerHead
 

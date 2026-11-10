@@ -80,8 +80,12 @@ namespace
     /** @brief Holds the number of rungs of the ladder. */
     constexpr std::int64_t K_RUNGS = 6;
 
-    /** @brief Holds the number of boxes generated at each rung. */
-    constexpr std::size_t K_BOXES_PER_RUNG = 400;
+    /**
+     * @brief Holds the number of boxes generated at each rung: 50, a rung's spread being 2 % per
+     *        side, so 50 boxes fix its centre well inside the gain a split of a rung gives.
+     *        Clustering costs time linear in the boxes, so 300 boxes cost one eighth of 2400.
+     */
+    constexpr std::size_t K_BOXES_PER_RUNG = 50;
 
     /** @brief Holds the largest share a side of the ladder is jittered by. */
     constexpr double K_JITTER = 0.02;
