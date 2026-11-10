@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- 2026-11-10 — model_import: Run both ends of the anchor path in a program test (RW-132, `a87d12c8`).
+- 2026-11-10 — yolo26: Build the detection objective (RW-35, `a87d12c8`).
+- 2026-11-10 — yolo26: Assign labels in two passes in the training loop (RW-36, `a87d12c8`).
+- 2026-11-10 — model_import: Report mean average precision in `sushiai inference` (RW-135, `a87d12c8`).
+- 2026-11-10 — documentation_architecture: Share the training loop and step checks of the two detection engines (RW-144, `a87d12c8`).
+- 2026-11-10 — datasets_tasks: Run segmentation (RW-77, `a87d12c8`).
+- 2026-11-10 — datasets_tasks: See the loader allocate from two threads (RW-60, `a87d12c8`).
+- 2026-11-10 — rulings_carry_out: Test a model file with a missing block (RW-6, `a87d12c8`).
+- 2026-11-10 — datasets_tasks: Withdraw the death test inside an engine fixture; the test review removed the cases it named (RW-61, `a87d12c8`).
 - 2026-11-10 — datasets: Added `InMemoryCollator` beside the `Collator` port (`63e2a12b`).
 - 2026-11-10 — datasets: Gave `mnist_available`, `try_load_mnist` and `make_mnist` an overload over a `ByteSource` (`53e10492`).
 - 2026-11-10 — detect: Added `Free::check_scale_sizes`, the refusal `scale_points` stops on (`a66b6ac8`).
