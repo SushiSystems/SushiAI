@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-11-11 — failure_contract: Confirm the error contract in a build (RW-11, `27959df0`).
+- 2026-11-11 — model_import: Load the files the import writes (RW-56, `27959df0`).
+- 2026-11-11 — documentation_architecture: Refuse `if_absent: "local"` under `deterministic: true` (RW-141, `27959df0`).
 - 2026-11-10 — model_import: Run both ends of the anchor path in a program test (RW-132, `a87d12c8`).
 - 2026-11-10 — yolo26: Build the detection objective (RW-35, `a87d12c8`).
 - 2026-11-10 — yolo26: Assign labels in two passes in the training loop (RW-36, `a87d12c8`).
