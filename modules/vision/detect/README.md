@@ -376,6 +376,8 @@ and `plan_anchors` calls them in order. The rules are in SPEC sections 5.2 to 5.
 | Thresholds | `derive_assignment_thresholds` | `match_threshold` and `ignore_threshold` from the fit |
 | Review | `review_anchors` | The fit of an existing layout, a proposal of the same counts, and `Keep` or `Propose`; it changes nothing |
 
+A Darknet cfg is the source of truth for the heads of its model: pretrained weights are trained against the masks it states, so the importer uses a `mask=` as written and does not call `assign_anchors_to_heads`. `yolov4-tiny` shows the difference: its second head uses the mask 1,2,3 and leaves anchor 0 unused, where the split by area gives 0,1,2. `assign_anchors_to_heads` is the rule for a model with no cfg mask.
+
 An imported model keeps the anchors, heads and thresholds of its file. `review_anchors` is the
 call for such a model, and `plan_anchors` is the call for a model that has no anchors yet.
 

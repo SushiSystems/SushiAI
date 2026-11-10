@@ -43,12 +43,12 @@ namespace SushiAI
     namespace Vision::Detect::Anchor
     {
         /**
-         * @brief Returns a layout whose heads take runs of anchors, small areas to small strides.
+         * @brief Returns a layout of runs of anchors, small areas to small strides, for a model
+         *        with no cfg mask; a Darknet `mask=` is kept as stated.
          * @param anchors Kept in their order; a head's slots name them in ascending area.
          * @param strides One per head, above zero; head `k` of the layout has `strides[k]`.
          * @param per_head One count per stride; empty splits evenly, the rest to small strides.
-         * @return InvalidDescription for a bad anchor, stride or count; Incompatible when the
-         *         counts disagree with the anchors or the heads.
+         * @return InvalidDescription for a bad input; Incompatible for counts that disagree.
          */
         [[nodiscard]] Result<AnchorLayout>
         assign_anchors_to_heads(SushiRuntime::span<const AnchorSize> anchors,

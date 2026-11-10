@@ -646,6 +646,27 @@ TEST(Small_DarknetModel, MasksListTheAnchorsOfEachHead)
               (std::vector<std::vector<std::int64_t>>{{3, 4, 5}, {0, 1, 2}}));
 }
 
+/**
+ * @brief Tests that the mask a cfg states wins over the split by area and stride.
+ *
+ * The six anchors of yolov3-tiny give {3, 4, 5} and {0, 1, 2} by area; the second head of
+ * yolov4-tiny states mask 1,2,3, which pretrained weights are trained against.
+ */
+TEST(Small_DarknetModel, MasksOfACfgOverrideTheAlgorithmicSplit)
+{
+    std::string text = std::string(K_TINY_BACKBONE).append(K_TINY_HEADS);
+    const std::string_view algorithmic = "mask = 0,1,2";
+    const std::size_t at = text.find(algorithmic);
+    ASSERT_NE(at, std::string::npos);
+    text.replace(at, algorithmic.size(), "mask = 1,2,3");
+
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
+                            translate_darknet_text(text, DarknetNormalisation::Separate));
+
+    EXPECT_EQ(model.layout.head_anchors,
+              (std::vector<std::vector<std::int64_t>>{{3, 4, 5}, {1, 2, 3}}));
+}
+
 /** @brief Tests that the shapes name the layer of each convolution of the file. */
 TEST(Small_DarknetModel, ShapesNameTheLayerOfEachConvolution)
 {

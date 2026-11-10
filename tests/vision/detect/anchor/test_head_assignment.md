@@ -1,8 +1,7 @@
 # tests/vision/detect/anchor/test_head_assignment.cpp
 
 
-Suites: `Small_DetectAnchorHeadAssignment`, `Small_DetectAnchorHeadAssignmentCfg` and
-`Small_DetectAnchorHeadAssignmentCharacterization`.
+Suites: `Small_DetectAnchorHeadAssignment` and `Small_DetectAnchorHeadAssignmentCfg`.
 
 Tests `assign_anchors_to_heads`, which gives each head, in the order of its stride, a run of
 anchor indices in ascending area and returns an `AnchorLayout`.
@@ -15,11 +14,12 @@ and the expected masks, and the computed masks equal the expected ones. The `Yol
 anchors over the strides 32, 16 and 8 giving {6, 7, 8}, {3, 4, 5} and {0, 1, 2}; the
 `Yolov3Tiny` row is six anchors over the strides 32 and 16 giving {3, 4, 5} and {0, 1, 2}.
 
-## DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor
+## SixRisingAnchorsOverTwoHeadsSplitThreeAndThree
 
-Suite `Small_DetectAnchorHeadAssignmentCharacterization`. For six rising anchors over the
-strides 32 and 16, the first computed mask is {3, 4, 5}. The second is {0, 1, 2}, which is not
-the cfg's {1, 2, 3}. The second mask is the unit's own output and is pinned, not derived.
+Six anchors of 140, 621, 2146, 6642, 22815 and 109736 square pixels over the strides 32 and 16
+split three and three, the smallest areas to the smaller stride: {3, 4, 5} and {0, 1, 2}. A cfg
+that states another mask, such as `yolov4-tiny` with {3, 4, 5} and {1, 2, 3}, keeps its own; that
+is tested in `tests/vision/importers/test_darknet_model.cpp`.
 
 ## TheRemainderGoesToTheHeadOfSmallestStride
 

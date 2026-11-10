@@ -24,7 +24,7 @@
 
 /**
  * @file test_head_assignment.cpp
- * @brief Tests the assignment of anchors to heads against the masks of six cfgs and hand cases.
+ * @brief Tests the assignment of anchors to heads against the masks of five cfgs and hand cases.
  * @author Mustafa Garip
  */
 
@@ -182,24 +182,19 @@ INSTANTIATE_TEST_SUITE_P(
     cfg_name);
 
 /**
- * @brief Pins that `yolov4-tiny` gets 0,1,2 where its cfg has 1,2,3, one anchor apart.
+ * @brief Tests that six anchors of rising area over two heads split three and three by stride.
  *
- * The computed second mask is the unit's own output, not a derived value; the test pins it until
- * the difference from the cfg is resolved.
+ * The areas are 140, 621, 2146, 6642, 22815 and 109736 square pixels, already ascending. Three
+ * anchors per head, the smallest area to the smaller stride 16: head 0 (stride 32) takes
+ * {3, 4, 5} and head 1 (stride 16) takes {0, 1, 2}. A cfg may state another mask; the Darknet
+ * importer follows it, as `MasksOfACfgOverrideTheAlgorithmicSplit` tests.
  */
-TEST(Small_DetectAnchorHeadAssignmentCharacterization,
-     DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor)
+TEST(Small_DetectAnchorHeadAssignment, SixRisingAnchorsOverTwoHeadsSplitThreeAndThree)
 {
-    const Masks cfg_masks = {{3, 4, 5}, {1, 2, 3}};
-
     const Result<AnchorLayout> result = assign(make_rising_anchors(), {32, 16});
 
     ASSERT_TRUE(result.has_value()) << result.status().message();
-    const Masks& computed = result.value().head_anchors;
-    EXPECT_EQ(computed[0], cfg_masks[0]);
-    // The cfg's second mask is the computed one with anchor 0 dropped and anchor 3 added.
-    EXPECT_EQ(computed[1], (std::vector<std::int64_t>{0, 1, 2}));
-    EXPECT_NE(computed[1], cfg_masks[1]);
+    EXPECT_EQ(result.value().head_anchors, (Masks{{3, 4, 5}, {0, 1, 2}}));
 }
 
 /** @brief Tests that of seven anchors over two heads the smaller stride takes four. */

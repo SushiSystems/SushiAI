@@ -99,6 +99,11 @@ One row per anchor, six in all: `IsItsPixelSizeOverTheNetworkSize` holds the pix
 
 The masks are {3, 4, 5} and {0, 1, 2}.
 
+## MasksOfACfgOverrideTheAlgorithmicSplit
+
+The yolov3-tiny text with its second mask changed to 1,2,3, as in yolov4-tiny, gives the masks
+{3, 4, 5} and {1, 2, 3}, not the {0, 1, 2} that the split by area and stride gives.
+
 ## ShapesNameTheLayerOfEachConvolution
 
 The Folded form lists 13 convolution shapes on the layers 0, 2, 4, 6, 8, 10, 12, 13, 14, 15,
