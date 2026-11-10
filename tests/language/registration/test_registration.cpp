@@ -703,19 +703,13 @@ namespace
     constexpr std::int64_t K_LONG_STEPS = 200;
 
     /**
-     * @brief Holds the updates the short run trains the one batch for: a quarter of the long run,
-     *        which with the half-width decoder is about a tenth of its time on the debug build.
-     */
-    constexpr std::int64_t K_SHORT_STEPS = 50;
-
-    /**
-     * @brief Holds the updates the short balance run trains the one batch for: half of the short
-     *        run. AdamW moves each weight by about the learning rate per update, so the fall of
-     *        the loss grows about linearly with the updates, and the usage bounds hold at every
+     * @brief Holds the updates the short runs train the one batch for: an eighth of the long run.
+     *        AdamW moves each weight by about the learning rate per update, so the fall of the
+     *        loss grows about linearly with the updates, and the usage bounds hold at every
      *        update, since the shares start near the equal share and move by at most a few times
      *        the learning rate per update.
      */
-    constexpr std::int64_t K_BALANCE_STEPS = 25;
+    constexpr std::int64_t K_SHORT_STEPS = 25;
 
     /** @brief Holds the learning rate of the AdamW that trains the decoder. */
     constexpr double K_LEARNING_RATE = 3e-3;
@@ -724,18 +718,11 @@ namespace
     constexpr double K_LONG_REMAINING_FRACTION = 0.5;
 
     /**
-     * @brief Holds the fraction of the first loss the last one must be below after the short run:
-     *        a fall of a tenth, the same direction as the long run. The first loss is near
-     *        ln(32), about 3.5, so a tenth is 0.35, far above the float rounding of a loss.
+     * @brief Holds the fraction of the first loss the last one must be below after a short run:
+     *        a fall of 0.05 of the first loss. The first loss is near ln(32), about 3.5, so the
+     *        fall is about 0.17, half the 0.35 that 50 updates passed with, far above rounding.
      */
-    constexpr double K_SHORT_REMAINING_FRACTION = 0.9;
-
-    /**
-     * @brief Holds the fraction of the first loss the last one must be below after the short
-     *        balance run: half the fall of K_SHORT_REMAINING_FRACTION for half the updates, so
-     *        a fall of 0.05 of the first loss, about 0.17.
-     */
-    constexpr double K_BALANCE_REMAINING_FRACTION = 0.95;
+    constexpr double K_SHORT_REMAINING_FRACTION = 0.95;
 
     /** @brief Holds the smallest share an expert keeps of the batch with the balance on. */
     constexpr double K_SMALLEST_SHARE = 0.10;
@@ -1011,8 +998,8 @@ TEST_F(Large_Moe, ADecoderOfExpertsHalvesItsLossWithoutTheBalance)
 /** @brief Tests that the balance term keeps every expert of both blocks in use. */
 TEST_F(Medium_Moe, TheBalanceTermKeepsEveryExpertInUse)
 {
-    expect_balance_keeps_every_expert_in_use(backend(), K_NARROW_EXPERT_DECODER, K_BALANCE_STEPS,
-                                             K_BALANCE_REMAINING_FRACTION);
+    expect_balance_keeps_every_expert_in_use(backend(), K_NARROW_EXPERT_DECODER, K_SHORT_STEPS,
+                                             K_SHORT_REMAINING_FRACTION);
 }
 
 /** @brief Tests that the balance term keeps every expert in use through 200 updates. */

@@ -95,8 +95,9 @@ is below half the first. The last metrics hold no `expert_usage_min`.
 ### TheBalanceTermKeepsEveryExpertInUse
 
 Size (RW-166): the two cases below ran 200 updates of a width-16 decoder and took 19 s each on the
-debug build, over the 5 s of a `medium` test. Each is now two cases of one claim. The `Medium_Moe`
-case runs 25 updates of the same decoder at width 8 (`K_NARROW_EXPERT_DECODER`: embedding 8,
+debug build, over the 5 s of a `medium` test. Each is now two cases of one claim. Both `Medium_Moe`
+cases run the same short run, `K_SHORT_STEPS`: the fit-alone case also ran 5.4 s at 50 updates, so
+it takes the 25 updates and the 0.95 bound below as well. Each `Medium_Moe` case runs 25 updates of the same decoder at width 8 (`K_NARROW_EXPERT_DECODER`: embedding 8,
 expert hidden size 8, two heads of 4; the two blocks, the four experts, the vocabulary of 32 and
 the window of 8 stay, so every expert of both blocks is still routed to) and asks the last loss to
 be below 0.95 of the first. The `Large_Moe` case runs the original 200 updates at width 16 and asks
