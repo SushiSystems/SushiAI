@@ -47,12 +47,18 @@ namespace SushiAI::Vision::Segment
         }
     } // namespace
 
-    Result<ConfusionMatrix> ConfusionMatrix::make(std::int32_t classes) noexcept
+    Status check_confusion_class_count(std::int32_t classes) noexcept
     {
         SA_FAIL_IF(classes < 1 || classes > K_MAX_CONFUSION_CLASSES,
                    StatusCode::InvalidDescription,
                    "{}: {} classes; a matrix counts 1 to {}", K_UNIT, classes,
                    K_MAX_CONFUSION_CLASSES);
+        return Status();
+    }
+
+    Result<ConfusionMatrix> ConfusionMatrix::make(std::int32_t classes) noexcept
+    {
+        SA_TRY(check_confusion_class_count(classes));
 
         return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [classes]()
         {

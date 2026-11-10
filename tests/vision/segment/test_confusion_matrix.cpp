@@ -40,6 +40,7 @@
 #include <support/test_names.hpp>
 
 using namespace SushiAI;
+using Vision::Segment::check_confusion_class_count;
 using Vision::Segment::ConfusionMatrix;
 
 namespace
@@ -214,12 +215,22 @@ INSTANTIATE_TEST_SUITE_P(
                                         "4097 classes", "4096"}),
     count_name);
 
-/** @brief Tests that make accepts a class count at either edge of its bounds. */
-TEST_P(Small_SegmentConfusionMatrixEdge, MakeAcceptsAClassCountAtTheEdgeOfItsBounds)
+/**
+ * @brief Tests that the check accepts a class count at either edge of its bounds.
+ *
+ * The check allocates nothing, so the largest count is tried without building the 128 MiB matrix.
+ */
+TEST_P(Small_SegmentConfusionMatrixEdge, TheCheckAcceptsAClassCountAtTheEdgeOfItsBounds)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix, ConfusionMatrix::make(GetParam()));
+    SA_EXPECT_OK(check_confusion_class_count(GetParam()));
+}
 
-    EXPECT_EQ(matrix.class_count(), GetParam());
+/** @brief Tests that make builds a matrix over the class count it is given. */
+TEST(Small_SegmentConfusionMatrixMake, MakeBuildsAMatrixOverTheGivenClassCount)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix, ConfusionMatrix::make(1));
+
+    EXPECT_EQ(matrix.class_count(), 1);
 }
 
 INSTANTIATE_TEST_SUITE_P(Counts, Small_SegmentConfusionMatrixEdge,

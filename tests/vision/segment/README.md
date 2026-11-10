@@ -45,9 +45,14 @@ Rows over 0 and `K_MAX_CONFUSION_CLASSES + 1`. `ConfusionMatrix::make(0)` fails 
 `InvalidDescription`, "ConfusionMatrix" and "0 classes". `make(K_MAX_CONFUSION_CLASSES + 1)` fails
 with "4097 classes" and "4096".
 
-### MakeAcceptsAClassCountAtTheEdgeOfItsBounds
+### TheCheckAcceptsAClassCountAtTheEdgeOfItsBounds
 
-Rows over 1 and `K_MAX_CONFUSION_CLASSES`: `make` succeeds and the matrix reports that class count.
+Rows over 1 and `K_MAX_CONFUSION_CLASSES`: `check_confusion_class_count` succeeds. The check allocates
+nothing, so the largest count does not build the 128 MiB matrix in a `Small_` case.
+
+### MakeBuildsAMatrixOverTheGivenClassCount
+
+`make(1)` succeeds and the matrix reports one class.
 
 ### AddRefusesWithoutCounting
 

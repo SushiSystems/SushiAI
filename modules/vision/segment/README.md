@@ -33,7 +33,7 @@ depend on it.
 | `<SushiAI/vision/segment/ignore_index.hpp>` | `K_DEFAULT_IGNORE_INDEX` |
 | `<SushiAI/vision/segment/fill_outline.hpp>` | `fill_outline` |
 | `<SushiAI/vision/segment/rasterise_outlines.hpp>` | `ClassOutline`, `rasterise_outlines` |
-| `<SushiAI/vision/segment/confusion_matrix.hpp>` | `K_MAX_CONFUSION_CLASSES`, `ConfusionMatrix` |
+| `<SushiAI/vision/segment/confusion_matrix.hpp>` | `K_MAX_CONFUSION_CLASSES`, `check_confusion_class_count`, `ConfusionMatrix` |
 | `<SushiAI/vision/segment/intersection_over_union.hpp>` | `class_occurs`, `class_iou`, `mean_iou` |
 | `<SushiAI/vision/segment/pixel_accuracy.hpp>` | `pixel_accuracy` |
 | `<SushiAI/vision/segment/argmax_classes.hpp>` | `argmax_classes` |
@@ -90,7 +90,8 @@ The nearest-neighbour resize of an index image is `Imaging::resize_nearest`.
 index, and `merge` adds another matrix, so a matrix kept across batches holds exact sums. A
 predicted class is not checked where the pixel is ignored. `add` checks every pixel before it
 counts one, so a refused batch leaves the matrix unchanged. The class count is at most
-`K_MAX_CONFUSION_CLASSES`, 4096, which is a matrix of 128 MiB.
+`K_MAX_CONFUSION_CLASSES`, 4096, which is a matrix of 128 MiB; `check_confusion_class_count(classes)`
+says so without allocating, and `make` runs it first.
 
 ### intersection_over_union.hpp
 

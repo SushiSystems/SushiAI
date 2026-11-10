@@ -43,6 +43,13 @@ namespace SushiAI::Vision::Segment
     inline constexpr std::int32_t K_MAX_CONFUSION_CLASSES = 4096;
 
     /**
+     * @brief Checks that a matrix is built over @p classes classes, allocating nothing.
+     * @return Success, or InvalidDescription naming the count and the bounds for a count outside
+     *         [1, K_MAX_CONFUSION_CLASSES]; ConfusionMatrix::make() runs it first.
+     */
+    [[nodiscard]] Status check_confusion_class_count(std::int32_t classes) noexcept;
+
+    /**
      * @brief Counts pixels by true class and predicted class, over as many batches as are added.
      *
      * Every count is an int64, so a sum over batches is exact. A pixel whose true class is the
