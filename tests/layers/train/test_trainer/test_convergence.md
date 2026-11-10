@@ -92,8 +92,8 @@ here.
 ## ABatchOfAnotherShapeIsRefusedWithBothShapes
 
 A trainer compiled for a batch of 8 samples with 6 features refuses a batch of 4 samples. The
-refusal is `Incompatible`, and its message contains "[4, 6]" and "[8, 6]". The trainer compiles
-and trains on a device, so the case stays `Medium_`.
+refusal is `Incompatible`, and its message contains "[4, 6]" and "[8, 6]". The trainer runs on the
+host backend and the refusal comes before any task, so the case is `Small_`.
 
 ## BoundSlotsDecayByTheRoleOfTheirParameter
 

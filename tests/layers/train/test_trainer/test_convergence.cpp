@@ -744,21 +744,35 @@ TEST_F(Medium_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchNorm)
     EXPECT_NE(SaTest::read_tensor(weight->parameter), weight_before);
 }
 
-/** @brief Tests that a batch of 4 samples is refused by a trainer compiled for 8, naming both shapes. */
-TEST_F(Medium_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
+/**
+ * @brief Tests that a batch of 4 samples is refused by a trainer compiled for 8, naming both
+ *        shapes. The trainer runs on the host backend, and the refusal is decided before any task
+ *        is recorded, so no device is reached.
+ */
+TEST_F(Small_TrainingBinding, ABatchOfAnotherShapeIsRefusedWithBothShapes)
 {
     MLP model{NN::Linear{6, 12}, NN::ReLU{}, NN::Linear{12, 5}};
-    prepare(model, 8, 6, 5);
-    ASSERT_TRUE(ready);
-    use_sgd(Optim::SGDOptions{});
-    make_trainer(Train::TrainerOptions{});
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(model, 8, 6, 5));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
+                            NN::ModelState::create(backend.engine(), model));
+    TensorPool pool(backend.engine());
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(backend, built, state, pool));
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::Optimizer> optimizer,
+                            Optim::SGD::make(backend, slots, Optim::SGDOptions{}));
+    const Train::CrossEntropyObjective objective = SaTest::classifier_objective(built);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(backend, built, pool, objective, *optimizer,
+                                                 Train::TrainerOptions{}));
 
     Data::SyntheticOptions data_options = data_for(4, 1, 6, 5);
     data_options.seed = K_DATA_SEED;
-    make_dataset(data_options);
-
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(backend, data_options));
     Data::Batch wrong_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, wrong_batch)));
+
     SA_EXPECT_FAILURE(trainer->run_step(wrong_batch), StatusCode::Incompatible, "[4, 6]",
                       "[8, 6]");
 }
