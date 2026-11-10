@@ -1,11 +1,12 @@
 # tests/core/graph/test_compiled_step.cpp
 
 
-Suites: `Small_CompiledStepChecks`, `Medium_CompiledStep`,
-`Medium_CompiledStepAttribution`.
+Suites: `Small_CompiledStepChecks`, `Small_CompiledStep`, `Small_CompiledStepAttribution`,
+`Medium_CompiledStep`, `Medium_CompiledStepAttribution`.
 
 Tests `CompiledStep::restore_run_count`, `CompiledStep::run_at` and the node range of `CompiledStep::compile` in
-`modules/core/graph/include/SushiAI/graph/compiled_step.hpp`, and `Graph::check_compilable`. The `Small_` cases need no device. The
+`modules/core/graph/include/SushiAI/graph/compiled_step.hpp`, and `Graph::check_compilable`. The `Small_` cases need no device: `Small_CompiledStep` and `Small_CompiledStepAttribution` own a
+`HostExecutionBackend`, whose recording runs on the host and keeps the origin of each task. The
 `Medium_` fixture is an `EngineTest`, and each case passes its `backend()` to `CompiledStep::compile`.
 Each case compiles one dropout of rate 0.25 over a leaf of 256 ones with a fixed site seed, so
 the step's output is the mask: 4/3 where the published rule keeps an element and 0 elsewhere. The
@@ -89,10 +90,10 @@ apart.
 
 ### TheOptimizerCarriesTheTrailingOrigin
 
-With a trailing recorder, exactly one row carries the origin `step.trailing` and none has an
-empty origin.
+`Small_CompiledStepAttribution`. With a trailing recorder, exactly one task of
+`CompiledStep::task_origins()` carries the origin `step.trailing` and none has an empty origin.
 
 ### AViewLeavesNoOriginOpen
 
-No row carries the origin of the reshape node, none has an empty origin, and the second relu
+`Small_CompiledStepAttribution`. No task carries the origin of the reshape node, none has an empty origin, and the second relu
 carries its own origin, so the origin a view's rule opened was closed again.

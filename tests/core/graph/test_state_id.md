@@ -3,16 +3,17 @@
 
 Suites: `Small_StateID`.
 
-Tests the process-wide counter behind `StateID` and the identity a `StateIdentity` draws,
-copies and moves.
+Tests `StateIDSource`, the counter behind `StateID`, and the identity a `StateIdentity` draws,
+copies and moves. Each case draws from a `StateIDSource` of its own through `StateIdentity::get(source)`,
+so none reads or moves the process-wide source `Detail::draw_state_id()` uses.
 
 ## NoDrawnIdentityIsNoState
 
-`draw_state_id` does not return `K_NO_STATE`.
+A fresh `StateIDSource` does not draw `K_NO_STATE`.
 
 ## EachDrawIsAboveTheOneBefore
 
-Three draws in a row return three increasing identities.
+Three draws in a row from one source return three increasing identities.
 
 ## CopySelfAssignmentKeepsTheIdentity
 

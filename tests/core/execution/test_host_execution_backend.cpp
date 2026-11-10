@@ -27,8 +27,15 @@
  * @author Mustafa Garip
  */
 
+#include <memory>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/random/random.hpp>
+#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <support/step_tasks_contract.hpp>
 
 namespace SaTest = SushiAI::Test;
@@ -72,4 +79,21 @@ TEST_F(Small_StepTasksContract, ARecordingWithNoTaskReplaysAsSuccess)
 TEST_F(Small_StepTasksContract, RecordAndRunRunsItsWorkOnce)
 {
     SaTest::StepTasksContract::expect_record_and_run_runs_its_work_once(backend);
+}
+
+/** @brief Tests that the host tasks report the origin each task was recorded under. */
+TEST_F(Small_StepTasksContract, TheTasksReportTheOriginEachWasRecordedUnder)
+{
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target,
+                            SushiAI::allocate_tensor(backend.engine(), SushiAI::Shape{4}));
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SushiAI::StepTasks> tasks, backend.make_tasks());
+    SushiBLAS::RandomOps random(tasks->recorder(), backend.engine().rng());
+
+    {
+        const SushiBLAS::TaskRecorder::OriginScope scope = tasks->recorder().origin("node.a");
+        random.constant(target, 1.0);
+    }
+    random.constant(target, 2.0);
+
+    EXPECT_EQ(tasks->task_origins(), (std::vector<std::string>{"node.a", ""}));
 }

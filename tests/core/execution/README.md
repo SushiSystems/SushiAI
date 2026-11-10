@@ -39,7 +39,10 @@ The `Small_StepTasksContract` cases run the shared `StepTasksContract` of
 `tests/support/step_tasks_contract.hpp` against `HostExecutionBackend`, the adapter that needs no
 runtime. The contract holds the promises of a `StepTasks`: a recorded task writes its values on
 replay, a second replay runs the tasks again, hooks run before the tasks in the order added, a
-recording of no task replays as success, and `record_and_run` runs its work once.
+recording of no task replays as success, and `record_and_run` runs its work once. The host adapter
+also keeps the origin of each task, which `StepTasks::task_origins()` returns: a task recorded in an
+origin scope returns its label and one recorded outside a scope returns an empty one
+(`TheTasksReportTheOriginEachWasRecordedUnder`).
 
 ## test_runtime_execution_backend.cpp
 

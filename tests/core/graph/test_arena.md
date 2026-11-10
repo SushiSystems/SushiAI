@@ -1,7 +1,12 @@
 # tests/core/graph/test_arena.cpp
 
 
-Suites: `Medium_Arena`, `Medium_ArenaDeathTest`.
+Suites: `Small_Arena`, `Medium_Arena`, `Medium_ArenaDeathTest`.
+
+`Small_Arena` runs `AViewAddressesItsOwnElements`, `TheEmptyPlanPacksNothing` and
+`APlannedPoolAllocatesOneStorageForAWholeArena` on the engine of a `HostExecutionBackend`, which
+allocates arenas with storage and no device. The cases that stop the process are `Medium_`, since a
+death test starts a child process.
 
 The memory planner rests on three device-side claims, and the file checks each one.
 

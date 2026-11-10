@@ -45,15 +45,36 @@ namespace SushiAI
         /** @brief Marks state that has not been assigned an identity. */
         inline constexpr StateID K_NO_STATE{0};
 
+        /**
+         * @class StateIDSource
+         * @brief Hands out identities, each above every one it handed out before.
+         *
+         * The process draws from one source; a test builds its own and reads the order of its
+         * draws without touching the process-wide counter.
+         */
+        class StateIDSource final
+        {
+            public:
+                /** @brief Draws an identity no earlier call on this source returned. */
+                [[nodiscard]] StateID draw() noexcept
+                {
+                    return StateID{next_.fetch_add(1, std::memory_order_relaxed)};
+                }
+
+            private:
+                /// @brief Holds the next identity to hand out; 0 is K_NO_STATE and is never drawn.
+                std::atomic<std::uint64_t> next_{1};
+        };
+
         namespace Detail
         {
-            /** @brief Holds the next identity to hand out; the one counter of the process. */
-            inline std::atomic<std::uint64_t> next_state_id{1};
+            /** @brief Holds the one source of the process. */
+            inline StateIDSource process_state_ids;
 
             /** @brief Draws an identity no earlier call in this process returned. */
             [[nodiscard]] inline StateID draw_state_id() noexcept
             {
-                return StateID{next_state_id.fetch_add(1, std::memory_order_relaxed)};
+                return process_state_ids.draw();
             }
 
         } // namespace Detail
@@ -114,6 +135,18 @@ namespace SushiAI
                 {
                     if (id_ == K_NO_STATE)
                         id_ = Detail::draw_state_id();
+
+                    return id_;
+                }
+
+                /**
+                 * @brief Returns the identity, drawing one from @p source if none.
+                 * @pre No other thread calls get() on this holder at the same time.
+                 */
+                [[nodiscard]] StateID get(StateIDSource& source) noexcept
+                {
+                    if (id_ == K_NO_STATE)
+                        id_ = source.draw();
 
                     return id_;
                 }

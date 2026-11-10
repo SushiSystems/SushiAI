@@ -47,6 +47,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
@@ -78,6 +79,14 @@ namespace
     class Medium_CompiledStep : public SaTest::EngineTest
     {
 
+    };
+
+    /** @brief Provides a host backend, so a step is compiled and run with no device. */
+    class Small_CompiledStep : public ::testing::Test
+    {
+        protected:
+            /** @brief Holds the host adapter the pool allocates from and the step runs on. */
+            HostExecutionBackend backend;
     };
 
     /** @brief Holds the element count of the masked value. */
@@ -220,14 +229,21 @@ TEST_F(Medium_CompiledStep, RunAtDrawsTheMaskOfItsIndexAndCountsTheRun)
 }
 
 /** @brief Tests that a step that has run refuses a restore and keeps its count. */
-TEST_F(Medium_CompiledStep, ARestoreAfterARunIsRefusedWithTheCount)
+TEST_F(Small_CompiledStep, ARestoreAfterARunIsRefusedWithTheCount)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(backend()));
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID leaf = builder.parameter(Shape{static_cast<int64_t>(4)}, "leaf");
+    static_cast<void>(builder.scale(leaf, 2.0));
+    TensorPool pool(backend.engine());
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<CompiledStep> step,
+                            CompiledStep::compile(backend, graph, pool));
 
-    SA_EXPECT_OK(made->step->run());
-    SA_EXPECT_FAILURE(made->step->restore_run_count(4), StatusCode::InvalidDescription,
+    SA_EXPECT_OK(step->run());
+    SA_EXPECT_FAILURE(step->restore_run_count(4), StatusCode::InvalidDescription,
                       "before its first run", "run 1");
-    EXPECT_EQ(made->step->run_count(), 1u);
+    EXPECT_EQ(step->run_count(), 1u);
 }
 
 /** @brief Tests that a graph whose refused emitter result was dropped may not be compiled. */
@@ -282,26 +298,26 @@ TEST_F(Medium_CompiledStep, TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst)
 }
 
 /** @brief Tests that a range that ends behind the last node is refused with its bounds. */
-TEST_F(Medium_CompiledStep, ARangeOutsideTheGraphIsRefused)
+TEST_F(Small_CompiledStep, ARangeOutsideTheGraphIsRefused)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID leaf = builder.parameter(Shape{static_cast<int64_t>(4)}, "leaf");
     static_cast<void>(builder.scale(leaf, 2.0));
 
-    TensorPool pool(*engine);
+    TensorPool pool(backend.engine());
     SA_EXPECT_OK(pool.materialise_leaves(graph));
     const Graph::NodeID count = static_cast<Graph::NodeID>(graph.node_count());
-    SA_EXPECT_FAILURE(CompiledStep::compile(backend(), graph, pool, nullptr, nullptr,
+    SA_EXPECT_FAILURE(CompiledStep::compile(backend, graph, pool, nullptr, nullptr,
                                             Graph::NodeRange{0, count + 1}),
                       StatusCode::InvalidDescription, "does not lie in a graph");
     SA_EXPECT_FAILURE(
-        CompiledStep::compile(backend(), graph, pool, nullptr, nullptr, Graph::NodeRange{1, 0}),
+        CompiledStep::compile(backend, graph, pool, nullptr, nullptr, Graph::NodeRange{1, 0}),
         StatusCode::InvalidDescription, "[1, 0)");
 }
 
 /** @brief Tests that compile refuses a graph whose refused emitter result was dropped. */
-TEST_F(Medium_CompiledStep, AGraphWithADroppedRefusalIsNotCompiled)
+TEST_F(Small_CompiledStep, AGraphWithADroppedRefusalIsNotCompiled)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -310,9 +326,9 @@ TEST_F(Medium_CompiledStep, AGraphWithADroppedRefusalIsNotCompiled)
     static_cast<void>(builder.reshape(doubled, Shape{static_cast<int64_t>(5)}));
     ASSERT_TRUE(graph.has_refusal());
 
-    TensorPool pool(*engine);
+    TensorPool pool(backend.engine());
     SA_EXPECT_OK(pool.materialise_leaves(graph));
-    SA_EXPECT_FAILURE(CompiledStep::compile(backend(), graph, pool), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(CompiledStep::compile(backend, graph, pool), StatusCode::InvalidDescription,
                       "refused operation");
 }
 
@@ -508,6 +524,14 @@ namespace
         return origins;
     }
 
+    /** @brief Provides a host backend, which keeps the origin of each task it records. */
+    class Small_CompiledStepAttribution : public ::testing::Test
+    {
+        protected:
+            /** @brief Holds the host adapter the chain is compiled on. */
+            HostExecutionBackend backend;
+    };
+
     /** @brief Provides the Engine every case compiles on. */
     class Medium_CompiledStepAttribution : public SaTest::EngineTest
     {
@@ -593,43 +617,27 @@ TEST_F(Medium_CompiledStepAttribution, TwoStepsOfEqualGraphsCarryEqualOrigins)
 }
 
 /** @brief Tests that the work a trailing recorder adds carries the origin step.trailing. */
-TEST_F(Medium_CompiledStepAttribution, TheOptimizerCarriesTheTrailingOrigin)
+TEST_F(Small_CompiledStepAttribution, TheOptimizerCarriesTheTrailingOrigin)
 {
-    const auto collector = std::make_shared<RunCollector>();
-    const SushiRuntime::RunObserverHandle handle =
-        SaTest::TestEnvironment::runtime().add_run_observer(collector);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Chain> chain,
-                            make_chain(backend(), "chain.step", true));
+                            make_chain(backend, "chain.step", true));
 
-    SA_EXPECT_OK(chain->step->run());
-    flush();
+    const std::vector<std::string> recorded = chain->step->task_origins();
 
-    ASSERT_FALSE(collector->lost());
-    const std::vector<SeenRun> runs = collector->runs();
-    ASSERT_EQ(runs.size(), 1u);
-    ASSERT_NE(runs[0].table, nullptr);
-    const std::multiset<std::string> origins = origins_of(*runs[0].table);
+    const std::multiset<std::string> origins(recorded.begin(), recorded.end());
     EXPECT_EQ(origins.count(std::string(K_TRAILING_ORIGIN)), 1u);
     EXPECT_EQ(origins.count(std::string()), 0u);
 }
 
 /** @brief Tests that the node behind a view records nothing and leaves no origin to the next. */
-TEST_F(Medium_CompiledStepAttribution, AViewLeavesNoOriginOpen)
+TEST_F(Small_CompiledStepAttribution, AViewLeavesNoOriginOpen)
 {
-    const auto collector = std::make_shared<RunCollector>();
-    const SushiRuntime::RunObserverHandle handle =
-        SaTest::TestEnvironment::runtime().add_run_observer(collector);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Chain> chain,
-                            make_chain(backend(), "chain.step", false));
+                            make_chain(backend, "chain.step", false));
 
-    SA_EXPECT_OK(chain->step->run());
-    flush();
+    const std::vector<std::string> recorded = chain->step->task_origins();
 
-    ASSERT_FALSE(collector->lost());
-    const std::vector<SeenRun> runs = collector->runs();
-    ASSERT_EQ(runs.size(), 1u);
-    ASSERT_NE(runs[0].table, nullptr);
-    const std::multiset<std::string> origins = origins_of(*runs[0].table);
+    const std::multiset<std::string> origins(recorded.begin(), recorded.end());
     EXPECT_EQ(origins.count(origin_of_producer(chain->graph, chain->view)), 0u);
     EXPECT_EQ(origins.count(std::string()), 0u);
     EXPECT_GE(origins.count(origin_of_producer(chain->graph, chain->second)), 1u);

@@ -87,6 +87,15 @@ namespace SushiAI
                     return sink_.recorded_count();
                 }
 
+                /** @brief Returns the origin of each task the sink keeps. */
+                std::vector<std::string> task_origins() const override
+                {
+                    std::vector<std::string> origins;
+                    for (const SushiBLAS::HostTaskRecord& record : sink_.records())
+                        origins.push_back(record.origin);
+                    return origins;
+                }
+
                 /** @brief Returns success: the sink throws at record time and keeps no refusal. */
                 Status refusal() const override
                 {

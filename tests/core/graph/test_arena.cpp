@@ -36,6 +36,7 @@
 #include <SushiRuntime/region/buffer_region.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/engine_fixture/test_graph.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/arena.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -57,6 +58,14 @@ using Graph::ValueID;
 namespace
 {
     class Medium_Arena : public SaTest::EngineTest {};
+
+    /** @brief Provides a host engine, so a plan is packed and viewed with no device. */
+    class Small_Arena : public ::testing::Test
+    {
+        protected:
+            /** @brief Holds the host adapter the arenas and the pool allocate from. */
+            HostExecutionBackend backend;
+    };
 
     /** @brief Names the suite of the cases that expect the process to stop. */
     using Medium_ArenaDeathTest = Medium_Arena;
@@ -219,11 +228,11 @@ TEST_F(Medium_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
 }
 
 /** @brief Tests that a view addresses the elements at its placement offset. */
-TEST_F(Medium_Arena, AViewAddressesItsOwnElements)
+TEST_F(Small_Arena, AViewAddressesItsOwnElements)
 {
     const Chain chain;
     SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(chain.graph));
-    SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas, ArenaSet::make(*engine, plan));
+    SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas, ArenaSet::make(backend.engine(), plan));
 
     const SushiBLAS::Tensor view = arenas.view(chain.b, Shape{16}, DType::Float32);
     const std::size_t offset = plan.placement(chain.b).offset;
@@ -307,11 +316,11 @@ TEST_F(Medium_ArenaDeathTest, AdoptingASecondPlanIsRefused)
 }
 
 /** @brief Tests that an empty plan packs nothing and allocates every value alone. */
-TEST_F(Medium_Arena, TheEmptyPlanPacksNothing)
+TEST_F(Small_Arena, TheEmptyPlanPacksNothing)
 {
     // The empty plan is the unpacked control; see tests/core/graph/README.md.
     const Chain chain;
-    Graph::TensorPool pool(*engine);
+    Graph::TensorPool pool(backend.engine());
 
     SA_EXPECT_OK(pool.adopt(MemoryPlan{}));
     SA_EXPECT_OK(pool.materialise_leaves(chain.graph));
@@ -328,10 +337,10 @@ TEST_F(Medium_Arena, TheEmptyPlanPacksNothing)
 }
 
 /** @brief Tests that a planned pool allocates one storage for the values of one arena. */
-TEST_F(Medium_Arena, APlannedPoolAllocatesOneStorageForAWholeArena)
+TEST_F(Small_Arena, APlannedPoolAllocatesOneStorageForAWholeArena)
 {
     const Chain chain;
-    Graph::TensorPool pool(*engine);
+    Graph::TensorPool pool(backend.engine());
 
     SA_EXPECT_OK(pool.adopt(MemoryPlan::build(chain.graph).value()));
     SA_EXPECT_OK(pool.materialise_leaves(chain.graph));

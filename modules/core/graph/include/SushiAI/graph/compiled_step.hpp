@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -148,6 +149,18 @@ namespace SushiAI
                 [[nodiscard]] std::size_t operation_count() const noexcept
                 {
                     return operations_;
+                }
+
+                /**
+                 * @brief Returns the origin label of each task the step recorded, in order.
+                 *
+                 * The tasks of a node carry "<node id>:<operation>"; those of a trailing recorder
+                 * carry "step.trailing". Empty when the backend keeps no labels: only the host
+                 * backend does.
+                 */
+                [[nodiscard]] std::vector<std::string> task_origins() const
+                {
+                    return tasks_->task_origins();
                 }
 
                 /** @brief Returns what the selector chose for each fused node. */

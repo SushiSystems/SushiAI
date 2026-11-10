@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <functional>
 #include <string>
+#include <vector>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -62,6 +63,18 @@ namespace SushiAI
 
             /** @brief Returns how many tasks the recording holds. */
             [[nodiscard]] virtual std::size_t task_count() const noexcept = 0;
+
+            /**
+             * @brief Returns the origin label each recorded task carries, in record order.
+             *
+             * An empty label means the recorder had no origin scope open when the task was
+             * recorded. A recording that keeps no labels of its own, as one whose runtime reports
+             * them in a node table after the run, returns none.
+             */
+            [[nodiscard]] virtual std::vector<std::string> task_origins() const
+            {
+                return {};
+            }
 
             /** @brief Returns the refusal kept while recording, or success when none was kept. */
             [[nodiscard]] virtual Status refusal() const = 0;
