@@ -16,11 +16,11 @@ program per tier pays it once. An application builds `sushiai_<app>_tests`. Run 
 CLI, for example `sa run sushiai_core_tests -- --gtest_filter=Small_Ir.*`.
 
 A case's suite prefix gives its size, which is its ctest label and sets its timeout per case:
-`Small_` is `small` (60 s), `Medium_` is `medium` (300 s) and `Large_` is `large` (900 s). A small
-case uses one process and no device, a medium one a CPU SYCL device, threads or files, and a large
-one a real GPU or a run longer than medium allows. A suite without one of these prefixes fails the
-configure. The ctest timeouts only detect a hang; the cmake file sets them to 60, 300 and 900 s until
-RW-151 moves them to 1, 10 and 120 s, which `cli/tests/conftest.py` already uses. The limit a case is
+`Small_` is `small` (1 s), `Medium_` is `medium` (10 s) and `Large_` is `large` (120 s), as in
+`cli/tests/conftest.py`. A small case uses one process and no device, a medium one a CPU SYCL device,
+threads or files, and a large one a real GPU or a run longer than medium allows. A suite without one
+of these prefixes fails the configure. The ctest timeout of a shard is the case timeout times the
+cases of the shard, and only detects a hang. The limit a case is
 held to is the budget of `tools/testing/test_budget.py`: 0.1 s for a `small` case and 5 s for a
 `medium` case after the shared fixture. The cases of a size named in `SUSHIAI_QUARANTINED_TESTS` run
 in a test of their own with the label `quarantined` beside the size.

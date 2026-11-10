@@ -54,9 +54,9 @@ set(SUSHIAI_SHARD_CASES_LARGE 1)
 
 # One group per size: suite prefix, CTest label, timeout in seconds per case, cases per shard.
 set(SUSHIAI_SIZE_GROUPS
-    "Small_|small|60|${SUSHIAI_SHARD_CASES_SMALL}"
-    "Medium_|medium|300|${SUSHIAI_SHARD_CASES_MEDIUM}"
-    "Large_|large|900|${SUSHIAI_SHARD_CASES_LARGE}")
+    "Small_|small|1|${SUSHIAI_SHARD_CASES_SMALL}"
+    "Medium_|medium|10|${SUSHIAI_SHARD_CASES_MEDIUM}"
+    "Large_|large|120|${SUSHIAI_SHARD_CASES_LARGE}")
 
 # Where each shard writes its per-case GoogleTest XML; the time reader reads the folder, so the
 # per-case limits of the testing skill still apply to a case run inside a shard.
