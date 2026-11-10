@@ -753,11 +753,24 @@ namespace
     /** @brief Holds the width between the two linear layers of a feed-forward. */
     constexpr std::int64_t K_HIDDEN = 64;
 
-    /** @brief Holds the updates the one batch is trained for. */
-    constexpr std::int64_t K_STEPS = 400;
+    /** @brief Holds how long the one batch is trained and how far the loss must have fallen. */
+    struct OverfitRun
+    {
+        std::int64_t steps;          /**< The updates the one batch is trained for. */
+        double remaining_fraction;   /**< The fraction of the first loss the last one must be below. */
+    };
 
-    /** @brief Holds the fraction of the first loss the last one must be below. */
-    constexpr double K_REMAINING_FRACTION = 0.1;
+    /** @brief Holds the run that overfits: 400 updates, the last loss below a tenth of the first. */
+    constexpr OverfitRun K_LONG_RUN{400, 0.1};
+
+    /**
+     * @brief Holds the run that checks the direction of the overfit in a `medium` test: 40 updates,
+     *        the last loss below nine tenths of the first.
+     *
+     * An update takes about 75 ms on the debug build, so 5 s holds 66 at most; 40 leaves room for
+     * the graph build. The first loss is near ln(64), 4.2, so 0.9 of it is a fall of 0.4.
+     */
+    constexpr OverfitRun K_SHORT_RUN{40, 0.9};
 
     /**
      * @brief Bounds how far the first loss may lie from ln(V), the loss of a uniform guess;
@@ -931,13 +944,16 @@ namespace
         return ids;
     }
 
-    /** @brief Returns the cosine schedule of the overfit: a warm-up, then a decay. */
-    Optim::CosineSchedule make_schedule()
+    /**
+     * @brief Returns the cosine schedule of the overfit: a warm-up of a twentieth of the run, 20
+     *        of the 400 updates of the long run, then a decay.
+     */
+    Optim::CosineSchedule make_schedule(std::int64_t steps)
     {
         Optim::CosineSchedule schedule;
         schedule.base_rate = 3e-3;
-        schedule.warmup_iterations = 20;
-        schedule.total_iterations = K_STEPS;
+        schedule.warmup_iterations = steps / 20;
+        schedule.total_iterations = steps;
         schedule.final_rate = 3e-4;
         return schedule;
     }
@@ -986,15 +1002,15 @@ namespace
     }
 
     /**
-     * @brief Runs the K_STEPS updates of the schedule and returns the first and last loss.
+     * @brief Runs the @p steps updates of the schedule and returns the first and last loss.
      * @return The losses, or DeviceFailed for an update whose loss is not finite.
      */
     Result<Overfit> run_updates(Train::TrainingStep& step, Optim::AdamW& optimizer,
-                                const Optim::CosineSchedule& schedule,
+                                const Optim::CosineSchedule& schedule, std::int64_t steps,
                                 const Train::TrainingGraph& built, Graph::TensorPool& pool)
     {
         Overfit result;
-        for (std::int64_t update = 0; update < K_STEPS; ++update)
+        for (std::int64_t update = 0; update < steps; ++update)
         {
             Optim::apply_step_schedule(schedule, optimizer);
             SA_TRY(step.run());
@@ -1011,14 +1027,14 @@ namespace
 
     /** @brief Provides the engine the dataset, the state and the step of a decoder are built on. */
     template <typename Model>
-    class Medium_DecoderOverfit : public SaTest::EngineTest
+    class DecoderOverfit : public SaTest::EngineTest
     {
         protected:
             /**
-             * @brief Trains a decoder of type Model on one fixed batch for K_STEPS updates.
+             * @brief Trains a decoder of type Model on one fixed batch for the updates of @p run.
              * @return What the run measured, or the first failure.
              */
-            [[nodiscard]] Result<Overfit> train_one_batch()
+            [[nodiscard]] Result<Overfit> train_one_batch(const OverfitRun& run)
             {
                 const SaTest::ScratchFile file(Model::K_FILE);
                 SA_TRY_ASSIGN(const std::unique_ptr<Language::Datasets::TokenDataset> dataset,
@@ -1064,31 +1080,60 @@ namespace
                 SA_TRY(dataset->read(0, batch));
                 SA_TRY(feed_once(batch, built, pool));
 
-                SA_TRY_ASSIGN(Overfit result, run_updates(*step, *optimizer, make_schedule(),
-                                                          built, pool));
+                SA_TRY_ASSIGN(Overfit result, run_updates(*step, *optimizer, make_schedule(run.steps),
+                                                          run.steps, built, pool));
                 result.compile_count = step->step().compile_count();
                 result.optimizer_steps = optimizer->step_count();
                 return result;
             }
     };
 
+    /** @brief Provides the short run of each decoder. */
+    template <typename Model>
+    class Medium_DecoderOverfit : public DecoderOverfit<Model>
+    {
+
+    };
+
+    /** @brief Provides the long run of each decoder. */
+    template <typename Model>
+    class Large_DecoderOverfit : public DecoderOverfit<Model>
+    {
+
+    };
+
     using Decoders = ::testing::Types<Decoder, RotaryDecoder>;
+
+    /** @brief Expects the losses of @p result to hold what a run of @p run promises. */
+    void expect_overfit(const Overfit& result, const OverfitRun& run)
+    {
+        EXPECT_NEAR(result.first_loss, std::log(static_cast<double>(K_OVERFIT_VOCABULARY)),
+                    K_FIRST_LOSS_TOLERANCE);
+        EXPECT_LT(result.last_loss, run.remaining_fraction * result.first_loss);
+        EXPECT_LT(Language::Training::perplexity(result.last_loss),
+                  Language::Training::perplexity(result.first_loss));
+        EXPECT_EQ(result.compile_count, 1u);
+        EXPECT_EQ(result.optimizer_steps, static_cast<std::uint64_t>(run.steps));
+    }
 } // namespace
 
 TYPED_TEST_SUITE(Medium_DecoderOverfit, Decoders, DecoderName);
+TYPED_TEST_SUITE(Large_DecoderOverfit, Decoders, DecoderName);
 
-/** @brief Tests that the loss of one fixed batch falls below a tenth of its start. */
-TYPED_TEST(Medium_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
+/** @brief Tests that the loss of one fixed batch falls below nine tenths of its start in 40 updates. */
+TYPED_TEST(Medium_DecoderOverfit, ATwoBlockDecoderLowersTheLossOfOneBatch)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const Overfit result, this->train_one_batch());
+    SA_ASSERT_OK_AND_ASSIGN(const Overfit result, this->train_one_batch(K_SHORT_RUN));
 
-    EXPECT_NEAR(result.first_loss, std::log(static_cast<double>(K_OVERFIT_VOCABULARY)),
-                K_FIRST_LOSS_TOLERANCE);
-    EXPECT_LT(result.last_loss, K_REMAINING_FRACTION * result.first_loss);
-    EXPECT_LT(Language::Training::perplexity(result.last_loss),
-              Language::Training::perplexity(result.first_loss));
-    EXPECT_EQ(result.compile_count, 1u);
-    EXPECT_EQ(result.optimizer_steps, static_cast<std::uint64_t>(K_STEPS));
+    expect_overfit(result, K_SHORT_RUN);
+}
+
+/** @brief Tests that the loss of one fixed batch falls below a tenth of its start in 400 updates. */
+TYPED_TEST(Large_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Overfit result, this->train_one_batch(K_LONG_RUN));
+
+    expect_overfit(result, K_LONG_RUN);
 }
 
 namespace

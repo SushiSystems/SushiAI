@@ -4,7 +4,8 @@
 Suites: `Small_LanguageTrainingNextTokenObjective`, `Small_LanguageTrainingNextTokenObjectiveExtents`,
 `Small_LanguageTrainingNextTokenObjectiveIndex`, `Small_LanguageTrainingNextTokenObjectiveLargest`,
 `Small_LanguageTrainingNextTokenObjectiveFactory`, `Small_LanguageTrainingNextTokenObjectiveOutputKey`,
-`Medium_NextTokenObjective`, `Medium_NextTokenTrainer`, `Medium_DecoderOverfit`.
+`Medium_NextTokenObjective`, `Medium_NextTokenTrainer`, `Medium_DecoderOverfit`,
+`Large_DecoderOverfit`.
 
 Tests `Language::Training::NextTokenObjective` in
 `modules/language/training/include/SushiAI/language/training/next_token_objective.hpp` and its factory `make_next_token_objective`. Unless a
@@ -99,6 +100,16 @@ A label of 9 with five tokens is refused as `Incompatible`. The message contains
 9" and "holds 5 tokens".
 
 ## ATwoBlockDecoderOverfitsOneBatch
+
+In `Large_DecoderOverfit`, over the two decoders. Size (RW-166): the case took 27 s and 31 s for
+400 updates on the debug build, about 75 ms an update, over the 5 s of a `medium` test, and a loss
+below a tenth of its start needs the long run, so it is `large`, unchanged. Its direction is kept
+as `ATwoBlockDecoderLowersTheLossOfOneBatch` in `Medium_DecoderOverfit`, which runs the same decoders
+on the same batch for 40 updates, 3 s, with a warm-up of a twentieth of the run (2 updates, as 20 is of
+400) and asks the last loss to be below 0.9 of the first. The first loss is near ln(64), about 4.2,
+so 0.9 is a fall of 0.4, far above the rounding of a loss and out of reach of a decoder that does
+not learn. Every other check, the first loss near ln(64), the perplexity falling, one compile and
+as many optimizer steps as updates, runs in both. The text below describes the long run.
 
 A typed case over two decoders, `Learned` and `Rotary`. Each has a token table of 64 rows, two
 causal blocks of width 32 with two heads and a feed-forward width of 64, and a head tied to the

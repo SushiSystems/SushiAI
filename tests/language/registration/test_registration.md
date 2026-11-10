@@ -2,7 +2,8 @@
 
 
 Suites: `Small_LanguageRegistration`, `Small_DecoderFromFiles`, `Medium_DecoderFromFiles`,
-`Medium_Moe`, `Medium_MoeMixture`, `Medium_MoeRouterGradient`, in `sushiai_language_tests`.
+`Medium_Moe`, `Large_Moe`, `Medium_MoeMixture`, `Medium_MoeRouterGradient`, in
+`sushiai_language_tests`.
 
 Tests the three registration entry points of the language module, `Language::register_nodes`,
 `Language::register_datasets` and `Language::register_objectives`, that model files using their
@@ -92,6 +93,19 @@ window of 8 and a vocabulary of 32, and fit one batch of four rows for 200 updat
 is below half the first. The last metrics hold no `expert_usage_min`.
 
 ### TheBalanceTermKeepsEveryExpertInUse
+
+Size (RW-166): the two cases below ran 200 updates of a width-16 decoder and took 19 s each on the
+debug build, over the 5 s of a `medium` test. Each is now two cases of one claim. The `Medium_Moe`
+case runs 50 updates of the same decoder at width 8 (`K_NARROW_EXPERT_DECODER`: embedding 8,
+expert hidden size 8, two heads of 4; the two blocks, the four experts, the vocabulary of 32 and
+the window of 8 stay, so every expert of both blocks is still routed to) and asks the last loss to
+be below 0.9 of the first. The `Large_Moe` case runs the original 200 updates at width 16 and asks
+for 0.5, as before. The width and the updates are each cut to about a half and a quarter, a tenth
+of the time in all. 0.9 is a fall of about 0.35 from the first loss of ln(32), about 3.5, which is
+far above the rounding of a loss and which a decoder that does not learn never makes. The usage
+bounds are unchanged in both: above 0.10 and around the equal share of 0.25. The `Large_` cases
+are `ADecoderOfExpertsHalvesItsLossWithoutTheBalance` and
+`TheBalanceTermKeepsEveryExpertInUseOverTheLongRun`.
 
 Trained with a `sum` objective that adds the balance term, the report again holds 200 steps and a
 last loss below half the first. `expert_usage_min` is above 0.10, at most 0.25 plus 256 times the

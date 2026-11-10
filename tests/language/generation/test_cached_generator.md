@@ -32,6 +32,8 @@ Suite `Medium_CachedSlide`, rows over the table (12 tokens) and the one-block ri
 
 Rows over the three decoders: a second prompt after a first one gives what a fresh generator gives and what the window generator gives.
 
+Size (RW-166): the rows ran 12 and 26 tokens, and the two slowest took 7.7 s and 5.1 s on the debug build, over the 5 s of a `medium` test. The case takes its own token count, not that of the sliding run. The first prompt holds 4 ids and the window is 8, so the first run wraps the ring once, which is what leaves a state a second prompt could wrongly inherit, when it continues for window - 4 + 1 = 5 tokens. The second run holds 2 + 5 = 7 ids and stays inside the window, where every decoder, the two-block ring too, equals the window generator, so the case needs no slide. The three comparisons are unchanged.
+
 ## AStepOrARingThatDoesNotFitIsRefused
 
 Four rows: a step that carries nothing, a misnamed mask leaf, a ring without its angle function, and a step fed both the position and the slot. Each fails with `InvalidDescription`.

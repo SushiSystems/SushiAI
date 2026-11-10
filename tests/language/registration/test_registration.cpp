@@ -699,14 +699,27 @@ namespace
     /** @brief Holds the experts of each block, which the model file states as well. */
     constexpr std::int64_t K_DECODER_EXPERTS = 4;
 
-    /** @brief Holds the updates the one batch is trained for. */
-    constexpr std::int64_t K_STEPS = 200;
+    /** @brief Holds the updates the long run trains the one batch for. */
+    constexpr std::int64_t K_LONG_STEPS = 200;
+
+    /**
+     * @brief Holds the updates the short run trains the one batch for: a quarter of the long run,
+     *        which with the half-width decoder is about a tenth of its time on the debug build.
+     */
+    constexpr std::int64_t K_SHORT_STEPS = 50;
 
     /** @brief Holds the learning rate of the AdamW that trains the decoder. */
     constexpr double K_LEARNING_RATE = 3e-3;
 
-    /** @brief Holds the fraction of the first loss the last one must be below. */
-    constexpr double K_REMAINING_FRACTION = 0.5;
+    /** @brief Holds the fraction of the first loss the last one must be below after the long run. */
+    constexpr double K_LONG_REMAINING_FRACTION = 0.5;
+
+    /**
+     * @brief Holds the fraction of the first loss the last one must be below after the short run:
+     *        a fall of a tenth, the same direction as the long run. The first loss is near
+     *        ln(32), about 3.5, so a tenth is 0.35, far above the float rounding of a loss.
+     */
+    constexpr double K_SHORT_REMAINING_FRACTION = 0.9;
 
     /** @brief Holds the smallest share an expert keeps of the batch with the balance on. */
     constexpr double K_SMALLEST_SHARE = 0.10;
@@ -727,6 +740,31 @@ namespace
             {"type": "position_embedding"},
             {"type": "transformer_block", "heads": 2, "experts": 4, "hidden": 16},
             {"type": "transformer_block", "heads": 2, "experts": 4, "hidden": 16},
+            {"type": "language_head", "tie": 0}
+        ],
+        "outputs": [
+            {"node": 4},
+            {"node": 2, "port": "balance", "name": "balance2"},
+            {"node": 2, "port": "usage", "name": "usage2"},
+            {"node": 3, "port": "balance", "name": "balance3"},
+            {"node": 3, "port": "usage", "name": "usage3"}
+        ]
+    })";
+
+    /**
+     * @brief Holds the decoder of K_EXPERT_DECODER at half the width: 8 in place of 16 for the
+     *        embedding and for the hidden size of each expert, two heads of 4. The blocks, the
+     *        experts, the vocabulary and the window stay, so every expert of both blocks is still
+     *        routed to.
+     */
+    constexpr std::string_view K_NARROW_EXPERT_DECODER = R"({
+        "format_version": 2,
+        "input": {"shape": [8], "dtype": "int32"},
+        "layers": [
+            {"type": "embedding", "num_embeddings": 32, "embedding_dim": 8},
+            {"type": "position_embedding"},
+            {"type": "transformer_block", "heads": 2, "experts": 4, "hidden": 8},
+            {"type": "transformer_block", "heads": 2, "experts": 4, "hidden": 8},
             {"type": "language_head", "tie": 0}
         ],
         "outputs": [
@@ -790,12 +828,13 @@ namespace
     }
 
     /**
-     * @brief Trains K_EXPERT_DECODER on the one batch for K_STEPS updates.
+     * @brief Trains the decoder @p model_file on the one batch for @p steps updates.
      * @param type The objective row; @p attributes its keys, as JSON text.
      * @return The report of the run, or the first failure.
      */
-    Result<Train::RunReport> fit_decoder(SushiAI::ExecutionBackend& backend, std::string_view type,
-                                         std::string_view attributes)
+    Result<Train::RunReport> fit_decoder(SushiAI::ExecutionBackend& backend,
+                                         std::string_view model_file, std::int64_t steps,
+                                         std::string_view type, std::string_view attributes)
     {
         NN::NodeRegistry nodes;
         SA_TRY(NN::register_layers(nodes));
@@ -804,7 +843,7 @@ namespace
         SA_TRY(Train::register_objectives(objectives));
         SA_TRY(Language::register_objectives(objectives));
 
-        const Config::ModelSpec spec = SaTest::model_from(K_EXPERT_DECODER);
+        const Config::ModelSpec spec = SaTest::model_from(model_file);
         SA_TRY_ASSIGN(NN::ModelGraph model, NN::build_model(nodes, spec));
 
         // The factory of an objective reads the shapes the model publishes.
@@ -847,7 +886,7 @@ namespace
                       Optim::AdamW::make(backend, slots, adamw));
 
         Train::TrainerOptions options;
-        options.epochs = K_STEPS;
+        options.epochs = steps;
         SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
                       Train::Trainer::make(backend, built, pool, *objective, *optimizer,
                                            options));
@@ -892,36 +931,79 @@ TEST_F(Medium_Moe, ADenseMixtureDifferentiatesAtItsInput)
     ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(backend(), 0, RoutedVariable::Input, 9500));
 }
 
+namespace
+{
+    /** @brief Expects the fit alone to lower the loss below @p remaining of its start. */
+    void expect_fit_alone_lowers_the_loss(SushiAI::ExecutionBackend& backend,
+                                          std::string_view model_file, std::int64_t steps,
+                                          double remaining)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
+                                fit_decoder(backend, model_file, steps, "next_token",
+                                            K_FIT_ALONE));
+
+        EXPECT_EQ(report.steps, static_cast<std::size_t>(steps));
+        EXPECT_LT(report.last_loss, remaining * report.first_loss) << report.to_string();
+        EXPECT_EQ(report.last_metrics.find("expert_usage_min"), nullptr);
+    }
+
+    /** @brief Expects the balance term to keep every expert of both blocks in use. */
+    void expect_balance_keeps_every_expert_in_use(SushiAI::ExecutionBackend& backend,
+                                                  std::string_view model_file,
+                                                  std::int64_t steps, double remaining)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
+                                fit_decoder(backend, model_file, steps, "sum",
+                                            K_FIT_AND_BALANCE));
+
+        EXPECT_EQ(report.steps, static_cast<std::size_t>(steps));
+        EXPECT_LT(report.last_loss, remaining * report.first_loss) << report.to_string();
+
+        const Train::Metric* const smallest = report.last_metrics.find("expert_usage_min");
+        const Train::Metric* const largest = report.last_metrics.find("expert_usage_max");
+        ASSERT_NE(smallest, nullptr);
+        ASSERT_NE(largest, nullptr);
+        EXPECT_GT(smallest->value, K_SMALLEST_SHARE) << report.to_string();
+
+        // The shares of a block sum to one, so the equal share lies between the extremes.
+        const double equal_share = 1.0 / static_cast<double>(K_DECODER_EXPERTS);
+        EXPECT_LE(smallest->value, equal_share + K_SHARE_TOLERANCE);
+        EXPECT_GE(largest->value, equal_share - K_SHARE_TOLERANCE);
+    }
+
+    /** @brief Provides the Engine every long case records on. */
+    class Large_Moe : public SaTest::EngineTest
+    {
+
+    };
+} // namespace
+
 /** @brief Tests that the fit alone lowers the loss; nothing is asserted about the usage. */
 TEST_F(Medium_Moe, ADecoderOfExpertsLowersItsLossWithoutTheBalance)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
-                            fit_decoder(backend(), "next_token", K_FIT_ALONE));
+    expect_fit_alone_lowers_the_loss(backend(), K_NARROW_EXPERT_DECODER, K_SHORT_STEPS,
+                                     K_SHORT_REMAINING_FRACTION);
+}
 
-    EXPECT_EQ(report.steps, static_cast<std::size_t>(K_STEPS));
-    EXPECT_LT(report.last_loss, K_REMAINING_FRACTION * report.first_loss) << report.to_string();
-    EXPECT_EQ(report.last_metrics.find("expert_usage_min"), nullptr);
+/** @brief Tests that the fit alone halves the loss of the full-width decoder in 200 updates. */
+TEST_F(Large_Moe, ADecoderOfExpertsHalvesItsLossWithoutTheBalance)
+{
+    expect_fit_alone_lowers_the_loss(backend(), K_EXPERT_DECODER, K_LONG_STEPS,
+                                     K_LONG_REMAINING_FRACTION);
 }
 
 /** @brief Tests that the balance term keeps every expert of both blocks in use. */
 TEST_F(Medium_Moe, TheBalanceTermKeepsEveryExpertInUse)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
-                            fit_decoder(backend(), "sum", K_FIT_AND_BALANCE));
+    expect_balance_keeps_every_expert_in_use(backend(), K_NARROW_EXPERT_DECODER, K_SHORT_STEPS,
+                                             K_SHORT_REMAINING_FRACTION);
+}
 
-    EXPECT_EQ(report.steps, static_cast<std::size_t>(K_STEPS));
-    EXPECT_LT(report.last_loss, K_REMAINING_FRACTION * report.first_loss) << report.to_string();
-
-    const Train::Metric* const smallest = report.last_metrics.find("expert_usage_min");
-    const Train::Metric* const largest = report.last_metrics.find("expert_usage_max");
-    ASSERT_NE(smallest, nullptr);
-    ASSERT_NE(largest, nullptr);
-    EXPECT_GT(smallest->value, K_SMALLEST_SHARE) << report.to_string();
-
-    // The shares of a block sum to one, so the equal share lies between the extremes.
-    const double equal_share = 1.0 / static_cast<double>(K_DECODER_EXPERTS);
-    EXPECT_LE(smallest->value, equal_share + K_SHARE_TOLERANCE);
-    EXPECT_GE(largest->value, equal_share - K_SHARE_TOLERANCE);
+/** @brief Tests that the balance term keeps every expert in use through 200 updates. */
+TEST_F(Large_Moe, TheBalanceTermKeepsEveryExpertInUseOverTheLongRun)
+{
+    expect_balance_keeps_every_expert_in_use(backend(), K_EXPERT_DECODER, K_LONG_STEPS,
+                                             K_LONG_REMAINING_FRACTION);
 }
 
 namespace

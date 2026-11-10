@@ -685,7 +685,8 @@ TEST_P(Medium_CachedGeneration, ASecondPromptMatchesAFreshGenerator)
 {
     const std::vector<TokenID> first{5, 9, 13, 2};
     const std::vector<TokenID> second{20, 3};
-    const std::int64_t tokens = GetParam().sliding_tokens;
+    // Window - prompt + 1 tokens: the first run wraps the ring once, the second stays inside it.
+    const std::int64_t tokens = K_WINDOW - static_cast<std::int64_t>(first.size()) + 1;
     static_cast<void>(continue_with(*decoder.cached.generator, first, tokens));
     const std::vector<TokenID> reused = continue_with(*decoder.cached.generator, second, tokens);
 
