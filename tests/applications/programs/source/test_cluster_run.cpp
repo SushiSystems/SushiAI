@@ -48,6 +48,8 @@
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/engine_fixture/test_environment.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/execution/execution.hpp>
@@ -74,6 +76,9 @@ namespace
     using namespace SushiAI;
     using namespace SushiAI::Apps::ClusterTest;
     namespace Distributed = SushiRuntime::Distributed;
+
+    /** @brief Provides the program's runtime for the single-machine reference of each case. */
+    class Medium_ClusterRun : public SushiAI::Test::EngineTest {};
 
     /** @brief Holds how long the master waits for the worker. */
     constexpr std::chrono::seconds K_WAIT{10};
@@ -163,14 +168,13 @@ namespace
     }
 
     /**
-     * @brief Returns the parameters after one step of @p spec over its whole batch on one
-     *        machine, from the parameters the seed gives.
+     * @brief Returns the parameters after one step of @p files over its whole batch on one
+     *        machine, from the parameters the seed gives, on @p backend, the backend of the
+     *        program.
      */
-    std::vector<float> single_machine_step(const ClusterTestFiles& files)
+    std::vector<float> single_machine_step(const ClusterTestFiles& files,
+                                           SushiAI::ExecutionBackend& backend)
     {
-        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-        SushiBLAS::Engine engine(runtime);
-        SushiAI::RuntimeExecutionBackend backend(runtime, engine);
         const Apps::Registries registries = Apps::compose_registries().value();
         std::unique_ptr<Apps::TrainingSetup> setup =
             Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend, K_SEED)
@@ -190,7 +194,7 @@ namespace
         Data::Batch batch;
         SA_EXPECT_OK(setup->dataset().read(0, batch));
         SA_EXPECT_OK(trainer->run_step(batch).status());
-        runtime.wait().value();
+        SushiAI::Test::TestEnvironment::runtime().wait().value();
         return values_of(setup->parameters());
     }
 
@@ -207,7 +211,7 @@ namespace
  * @brief Tests that the master's cluster run trains one step from a training file, with
  *        replica 1 served by the worker's kernel over an InProcessFabric.
  */
-TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
+TEST_F(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
 {
     const ClusterTestFiles files("sushiai_cluster_run_model.json");
     const Config::TrainSpec& spec = files.spec;
@@ -285,7 +289,7 @@ TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
     EXPECT_NE(bytes_of(setup->parameters()), before) << "the step did not update a parameter";
 
     // Two replicas of two rows equal one step over the four rows within the tolerances.
-    const std::vector<float> expected = single_machine_step(files);
+    const std::vector<float> expected = single_machine_step(files, this->backend());
     const std::vector<float> trained = values_of(setup->parameters());
     expect_within_tolerances(trained, expected);
 }

@@ -45,7 +45,8 @@
 #include <SushiRuntime/distributed/kernel_registry.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
-#include <SushiAI/execution/runtime_execution_backend.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/engine_fixture/test_environment.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
@@ -61,23 +62,37 @@ namespace
     namespace Distributed = SushiRuntime::Distributed;
 
     /**
-     * @brief Holds a master with no worker, its binding, and two float32 parameters of 3 and
-     *        2 elements.
+     * @brief Holds a master with no worker, attached to the runtime of the program, its binding,
+     *        and two float32 parameters of 3 and 2 elements.
      */
-    class Medium_ParameterPublish : public ::testing::Test
+    class Medium_ParameterPublish : public SushiAI::Test::EngineTest
     {
         protected:
-            /** @brief Attaches the master and allocates the parameters. */
-            Medium_ParameterPublish()
-                : runtime_(SushiRuntime::Runtime::create().value()), engine_(runtime_), backend_(runtime_, engine_),
-                  cluster_(Distributed::Cluster::attach(
-                               runtime_, Distributed::InProcessTransport::make_master(fabric_))
-                               .value()),
-                  binding_(cluster_, SushiRuntime::make_sushi<Distributed::KernelRegistry>())
+            /** @brief Attaches the master to the program's runtime and allocates the parameters. */
+            void SetUp() override
             {
-                parameters_.push_back(allocate_tensor(engine_, Shape{3}, DType::Float32).value());
-                parameters_.push_back(allocate_tensor(engine_, Shape{2}, DType::Float32).value());
+                SushiAI::Test::EngineTest::SetUp();
+                cluster_ = std::make_unique<Distributed::Cluster>(
+                    Distributed::Cluster::attach(
+                        SushiAI::Test::TestEnvironment::runtime(),
+                        Distributed::InProcessTransport::make_master(fabric_))
+                        .value());
+                binding_ = std::make_unique<SushiBLAS::ClusterBinding>(
+                    *cluster_, SushiRuntime::make_sushi<Distributed::KernelRegistry>());
+                parameters_.push_back(allocate_tensor(*engine, Shape{3}, DType::Float32).value());
+                parameters_.push_back(allocate_tensor(*engine, Shape{2}, DType::Float32).value());
                 fill(1.0f);
+            }
+
+            /** @brief Releases the parameters and the binding, then detaches the master, so the
+             *         next test attaches its own to the same runtime. */
+            void TearDown() override
+            {
+                parameters_.clear();
+                binding_.reset();
+                cluster_->detach();
+                cluster_.reset();
+                SushiAI::Test::EngineTest::TearDown();
             }
 
             /** @brief Writes @p first, @p first + 1, ... into the parameters, in pack order. */
@@ -129,20 +144,11 @@ namespace
             /// @brief The fabric the master listens on; it dies last.
             Distributed::InProcessFabric fabric_;
 
-            /// @brief The master's runtime.
-            SushiRuntime::Runtime runtime_;
-
-            /// @brief The engine over runtime_.
-            SushiBLAS::Engine engine_;
-
-            /// @brief The backend over runtime_ and engine_.
-            SushiAI::RuntimeExecutionBackend backend_;
-
-            /// @brief The master.
-            Distributed::Cluster cluster_;
+            /// @brief The master, attached to the runtime of the program from SetUp to TearDown.
+            std::unique_ptr<Distributed::Cluster> cluster_;
 
             /// @brief The binding the pack is shared through.
-            SushiBLAS::ClusterBinding binding_;
+            std::unique_ptr<SushiBLAS::ClusterBinding> binding_;
 
             /// @brief The parameters, in pack order.
             std::vector<SushiBLAS::Tensor> parameters_;
@@ -182,16 +188,16 @@ namespace
 TEST_F(Medium_ParameterPublish, MakeSharesThePack)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ParameterPublish> publish,
-                            ParameterPublish::make(backend_, binding_, layout(), parameters_));
+                            ParameterPublish::make(backend(), *binding_, layout(), parameters_));
 
-    EXPECT_TRUE(binding_.is_shared(publish->pack()));
+    EXPECT_TRUE(binding_->is_shared(publish->pack()));
 }
 
 /** @brief Tests that make() copies the parameters into the pack. */
 TEST_F(Medium_ParameterPublish, MakeCopiesTheParametersIntoThePack)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ParameterPublish> publish,
-                            ParameterPublish::make(backend_, binding_, layout(), parameters_));
+                            ParameterPublish::make(backend(), *binding_, layout(), parameters_));
 
     expect_pack_holds_parameters(*publish);
 }
@@ -200,12 +206,12 @@ TEST_F(Medium_ParameterPublish, MakeCopiesTheParametersIntoThePack)
 TEST_F(Medium_ParameterPublish, AReplayGathersTheNewParameters)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ParameterPublish> publish,
-                            ParameterPublish::make(backend_, binding_, layout(), parameters_));
+                            ParameterPublish::make(backend(), *binding_, layout(), parameters_));
     const Graph::Graph empty;
-    Graph::TensorPool pool(engine_);
+    Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Graph::CompiledStep> step,
-        Graph::CompiledStep::compile(backend_, empty, pool, publish.get()));
+        Graph::CompiledStep::compile(backend(), empty, pool, publish.get()));
     EXPECT_EQ(step->operation_count(), 1u);
 
     fill(-4.0f);
@@ -219,7 +225,7 @@ TEST_P(Medium_ParameterPublishRefusal, MakeRefusesParametersThatDifferFromTheLay
     const RefusalRow& row = GetParam();
     const std::vector<SushiBLAS::Tensor> listed = parameters_at(row.indices);
 
-    SA_EXPECT_FAILURE(ParameterPublish::make(backend_, binding_, layout(), listed),
+    SA_EXPECT_FAILURE(ParameterPublish::make(backend(), *binding_, layout(), listed),
                       StatusCode::InvalidDescription, row.needle);
 }
 
