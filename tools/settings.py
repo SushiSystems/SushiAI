@@ -52,5 +52,6 @@ K_MODULE_WORKSPACE_READ = '\\bhub (?:install|add|link|doctor|status|pin)\\b|SUSH
 K_TEST_TIMES: dict[str, float] = {
     "small_test_s": 0.1,
     "medium_test_s": 5,
+    "large_test_s": 30,
     "pre_merge_s": 600,
 }

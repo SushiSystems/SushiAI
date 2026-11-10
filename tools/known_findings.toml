@@ -1,0 +1,141 @@
+
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/core/data/test_dataset.cpp"
+count = 1
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_suite_fixture_mix"
+path = "tests/core/data/test_dataset_registry.cpp"
+count = 1
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/core/distribution/test_cluster_section.cpp"
+count = 19
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/core/distribution/test_replica_plan.cpp"
+count = 1
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/core/graph/lowering/test_loss.cpp"
+count = 1
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/core/graph/lowering/test_unlowered.cpp"
+count = 2
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_suite_fixture_mix"
+path = "tests/core/graph/test_fusion_selector.cpp"
+count = 4
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/layers/train/test_trainer/test_resilience.cpp"
+count = 1
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/blocks/test_detect_head.cpp"
+count = 1
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/datasets/test_augment_pipeline.cpp"
+count = 2
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/datasets/test_binary_collator.cpp"
+count = 2
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/datasets/test_reader_dataset.cpp"
+count = 1
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/datasets/test_reader_section.cpp"
+count = 9
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/datasets/test_segmentation_collator.cpp"
+count = 2
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/importers/test_darknet_import/test_decode.cpp"
+count = 6
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/importers/test_darknet_import/test_yolov3_tiny_layers.cpp"
+count = 2
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/segment/test_confusion_matrix.cpp"
+count = 2
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/segment/test_intersection_over_union.cpp"
+count = 1
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/training/test_pixel_cross_entropy_objective.cpp"
+count = 2
+backlog = "RW-168"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/vision/training/test_truth_from_roles.cpp"
+count = 6
+backlog = "RW-168"

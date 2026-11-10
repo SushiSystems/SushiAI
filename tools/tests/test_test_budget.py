@@ -22,6 +22,7 @@ from testing.test_budget import (  # noqa: E402
     evaluate,
     exit_code,
     main,
+    missing_limits,
     parse_exemptions,
     parse_gtest_xml,
     parse_junit,
@@ -30,7 +31,7 @@ from testing.test_budget import (  # noqa: E402
     suite_and_size,
 )
 
-K_LIMITS = {"small_test_s": 1, "medium_test_s": 10, "pre_merge_s": 300}
+K_LIMITS = {"small_test_s": 1, "medium_test_s": 10, "large_test_s": 60, "pre_merge_s": 300}
 
 
 def junit(cases: dict[str, float], skipped: tuple[str, ...] = ()) -> str:
@@ -125,13 +126,22 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(report.line,
                          "budget: small 0.2 s (core), pre-merge 3 s sum of 300 s, shape 50% small, 50% medium, 0% large")
 
-    def test_a_large_test_has_no_time_limit_and_counts_in_the_shape(self) -> None:
-        report = run({"Large_M.Crush": 5000.0, "Small_A.One": 0.1, "Small_A.Two": 0.1, "Small_A.Three": 0.1},
-                     scope="large", wall=5001.0)
-        self.assertEqual(report.findings, ())
-        self.assertEqual(report.rerun, ())
-        self.assertIn("large tier 5000 s sum, 5001 s wall", report.line)
+    def test_a_large_test_within_its_limit_counts_in_the_shape_and_the_large_total(self) -> None:
+        report = run({"Large_M.Scene": 50.0, "Small_A.One": 0.1, "Small_A.Two": 0.1, "Small_A.Three": 0.1},
+                     scope="large", wall=51.0)
+        self.assertEqual((report.findings, report.rerun), ((), ()))
+        self.assertIn("large tier 50 s sum, 51 s wall", report.line)
         self.assertIn("shape 75% small, 0% medium, 25% large", report.line)
+
+    def test_a_large_test_over_its_limit_is_named_for_a_rerun_and_judged_alone(self) -> None:
+        first = run({"Large_M.Crush": 61.0}, scope="large")
+        self.assertEqual(first.rerun, ("Large_M.Crush",))
+        alone = run({"Large_M.Crush": 61.0}, scope="large", rerun=[Timing("Large_M.Crush", 62.0)])
+        self.assertEqual(alone.findings, ("Large_M.Crush: 62.0 s alone, over the large limit of 60 s",))
+
+    def test_a_budget_without_every_limit_names_the_missing_ones(self) -> None:
+        self.assertEqual(missing_limits({"small_test_s": 1, "pre_merge_s": 300}), ["medium_test_s", "large_test_s"])
+        self.assertEqual(missing_limits(K_LIMITS), [])
 
     def test_a_test_over_its_limit_is_named_for_a_rerun_and_judged_by_the_rerun(self) -> None:
         first = run({"Small_A.Slow": 1.5})
@@ -229,6 +239,31 @@ class TestMainCommand(unittest.TestCase):
             "rerun: ^(Small_A\\.Slow)$",
             "Small_A.Slow: 5.0 s, over the small limit of 1 s (not rerun)",
         ]))
+
+
+    def test_refuses_a_budget_without_the_large_limit(self) -> None:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = main([str(self.junit)], budget={"small_test_s": 1, "medium_test_s": 10, "pre_merge_s": 300})
+        self.assertEqual((code, err.getvalue().strip()), (2, "K_TEST_TIMES in tools/settings.py lacks large_test_s"))
+
+    def test_list_over_writes_the_tests_over_a_limit_and_prints_nothing(self) -> None:
+        listed = Path(self._folder.name) / "over.txt"
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = main([str(self.junit), "--gate", "--list-over", str(listed)], budget=K_LIMITS)
+        self.assertEqual((code, out.getvalue(), listed.read_text(encoding="utf-8")), (0, "", "Small_A.Slow\n"))
+
+    def test_joins_the_times_of_every_rerun_file(self) -> None:
+        first = Path(self._folder.name) / "first.xml"
+        second = Path(self._folder.name) / "second.xml"
+        self.junit.write_text(junit({"Small_A.Slow": 5.0, "Small_A.Late": 5.0}), encoding="utf-8")
+        first.write_text(junit({"Small_A.Slow": 0.2}), encoding="utf-8")
+        second.write_text(junit({"Small_A.Late": 3.0}), encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = main([str(self.junit), "--rerun", str(first), "--rerun", str(second), "--gate"], budget=K_LIMITS)
+        self.assertEqual((code, out.getvalue().splitlines()[1:]), (1, ["Small_A.Late: 3.0 s alone, over the small limit of 1 s"]))
 
 
 if __name__ == "__main__":

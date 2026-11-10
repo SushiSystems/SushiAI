@@ -47,10 +47,16 @@ def drop_ignored(root: Path, paths: list[Path]) -> list[Path]:
 
 
 def ignored_folders(root: Path) -> frozenset[Path]:
-    """Returns every folder below root that git ignores whole; none outside a repository."""
+    """Returns every folder below root that git ignores whole; none outside a repository.
+
+    Git lists an ignored folder with a trailing slash, but a folder link differently: a Windows
+    junction is a folder to git and keeps the slash, a POSIX symlink is a file to git and loses it.
+    An entry without the slash that opens as a folder is therefore a link to one and counts too.
+    """
     output = _git(root, ["ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory"])
     if output is None:
         return frozenset()
     return frozenset(
-        (root / entry).resolve() for entry in output.split("\0") if entry.endswith("/")
+        (root / entry).resolve() for entry in output.split("\0")
+        if entry and (entry.endswith("/") or (root / entry).is_dir())
     )

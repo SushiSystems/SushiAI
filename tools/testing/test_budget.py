@@ -5,8 +5,8 @@
 """Applies the time limits of `testing` to the times of one test run and prints a line and the findings.
 
 Usage: python tools/testing/test_budget.py JUNIT [--cases FOLDER] [--programs MAP] [--exemptions TOML]
-           [--rerun JUNIT_OR_FOLDER] [--scope default|large|partial] [--wall SECONDS] [--root ROOT --base REVISION]
-           [--not-rebuilt] [--gate] [--factor N]
+           [--rerun JUNIT_OR_FOLDER ...] [--scope default|large|partial] [--wall SECONDS] [--root ROOT --base REVISION]
+           [--not-rebuilt] [--gate] [--factor N] [--list-over FILE]
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from testing.added_tests import added_cases  # noqa: E402
 K_BUDGET: dict[str, float] = getattr(settings, "K_TEST_TIMES", {})
 K_NOISE_FACTOR: float = getattr(settings, "K_TEST_NOISE_FACTOR", 1.25)
 K_SIZES = ("small", "medium", "large")
-K_TEST_LIMITS = {"small": "small_test_s", "medium": "medium_test_s"}
+K_TEST_LIMITS = {"small": "small_test_s", "medium": "medium_test_s", "large": "large_test_s"}
 K_EXIT_CLEAN = 0
 K_EXIT_FINDINGS = 1
 K_EXIT_USAGE = 2
@@ -141,6 +141,11 @@ def parse_programs(text: str) -> dict[str, str]:
     return json.loads(text)
 
 
+def missing_limits(budget: dict[str, float]) -> list[str]:
+    """Returns the keys of the limits the reader needs that *budget* does not hold, in a fixed order."""
+    return [key for key in (*K_TEST_LIMITS.values(), "pre_merge_s") if key not in budget]
+
+
 def _limit(budget: dict[str, float], key: str) -> float:
     """Returns one limit of the budget."""
     return float(budget[key])
@@ -152,7 +157,7 @@ def evaluate(timings: list[Timing], *, programs: dict[str, str], exemptions: dic
              budget: dict[str, float] | None = None) -> Report:
     """Applies the time limits to a run and returns its line, its findings and the tests to rerun.
 
-    A `large` test has no time limit, only its timeout, so it counts in the shape and the totals alone.
+    Each size has a per-test limit; only `small` and `medium` count toward the pre-merge total.
     *budget* holds the limits and defaults to K_TEST_TIMES of the settings.
     """
     budget = K_BUDGET if budget is None else budget
@@ -270,7 +275,8 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
                         help="folder of the GoogleTest XML files the shards wrote; their per-case times join JUNIT")
     parser.add_argument("--programs", type=Path, help="JSON object from suite name to test program")
     parser.add_argument("--exemptions", type=Path)
-    parser.add_argument("--rerun", type=Path, help="JUnit file, or folder of GoogleTest XML files, of the tests named by `rerun:`, run alone")
+    parser.add_argument("--rerun", type=Path, action="append",
+                        help="JUnit file, or folder of GoogleTest XML files, of tests run alone; repeatable")
     parser.add_argument("--scope", choices=("default", "large", "partial"), default="partial")
     parser.add_argument("--wall", type=float, help="wall time of the whole run, in seconds")
     parser.add_argument("--root", type=Path, help="the repository root, for open backlog IDs and added cases")
@@ -278,6 +284,8 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--not-rebuilt", action="store_true", help="the run did not rebuild; it never gates")
     parser.add_argument("--gate", action="store_true", help="exit 1 when there is a finding")
     parser.add_argument("--factor", type=float, default=K_NOISE_FACTOR)
+    parser.add_argument("--list-over", type=Path,
+                        help="write the tests over a limit to this file, one per line, and print nothing else")
     return parser.parse_args(argv)
 
 
@@ -290,13 +298,16 @@ def main(argv: list[str] | None = None, *, budget: dict[str, float] | None = Non
     from suite name to test program. The exemption TOML holds `"Suite.Case" = "RW-12"` under
     `[exempt]`, and an exempt test is left out of every limit and total. The first run names the tests
     over a limit in a `rerun:` line; the caller reruns them alone and passes that file as --rerun, and
-    then only a test over its limit alone is a finding. Without --gate the exit code is 0. *budget* holds
+    then only a test over its limit alone is a finding. --rerun may be given more than once, and
+    --list-over writes the names of that `rerun:` line to a file for a caller that reads them, printing
+    nothing. Without --gate the exit code is 0. *budget* holds
     the limits and defaults to K_TEST_TIMES of the settings.
     """
     budget = K_BUDGET if budget is None else budget
     arguments = _arguments(sys.argv[1:] if argv is None else argv)
-    if not budget:
-        print("no K_TEST_TIMES in tools/settings.py", file=sys.stderr)
+    missing = missing_limits(budget)
+    if missing:
+        print(f"K_TEST_TIMES in tools/settings.py lacks {', '.join(missing)}", file=sys.stderr)
         return K_EXIT_USAGE
     exemptions = parse_exemptions(arguments.exemptions.read_text(encoding="utf-8")) if arguments.exemptions else {}
     programs = parse_programs(arguments.programs.read_text(encoding="utf-8")) if arguments.programs else {}
@@ -311,9 +322,13 @@ def main(argv: list[str] | None = None, *, budget: dict[str, float] | None = Non
         timings += read_gtest_folder(arguments.cases)
     report = evaluate(
         timings, programs=programs, exemptions=exemptions,
-        rerun=read_times(arguments.rerun) if arguments.rerun else None, scope=arguments.scope,
+        rerun=[timing for path in arguments.rerun for timing in read_times(path)] if arguments.rerun else None,
+        scope=arguments.scope,
         wall=arguments.wall, factor=arguments.factor, added=added, base=arguments.base,
         rebuilt=not arguments.not_rebuilt, open_backlog=open_backlog, budget=budget)
+    if arguments.list_over:
+        arguments.list_over.write_text("".join(f"{name}\n" for name in report.rerun), encoding="utf-8")
+        return K_EXIT_CLEAN
     for line in render(report, rerun_given=arguments.rerun is not None):
         print(line)
     return exit_code(report, gate=arguments.gate, rebuilt=not arguments.not_rebuilt)
