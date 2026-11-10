@@ -11,7 +11,9 @@ The listing, lookup and refusal cases run in `Small_ModelState` on a `HostExecut
 engine holds the host storage `create` and `from_entries` allocate. The cases that bind storage
 to a pool and share it between pools, and the death case, stay in `Medium_ModelState`: the first
 two see device memory and a death test starts a child process. `CreateListsBuffersAfterATrainingTrace`
-stays medium as its record says, and compares the constant starting values with equality.
+runs small like the other listings and compares the constant starting values with equality.
+`HostExecutionBackend` is the in-memory adapter of the engine port, so it is the seam the records
+name as the host entry description: no `Detail::describe_parameter` case is added beside it.
 
 ## CreateListsParametersInWalkOrder
 

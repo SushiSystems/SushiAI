@@ -52,9 +52,10 @@ A tutorial whose code sample does not compile is worse than no tutorial, and pro
 made to fail a build. So the sample lives in this file as well, and the two must be kept
 identical: if you edit one, edit the other.
 
-TheTutorialsCustomLayerTracesAndIsWalkable and TheTutorialIsRightThatMulWouldNotBroadcast also
-pin the two claims §6 makes about the sample: that bias_add is required and is not a stylistic
-choice, and that the two ways of getting `fields()` wrong fail differently.
+TheTutorialsCustomLayerTracesAndIsWalkable and BiasAddAcceptsAFeatureVectorOverABatch also
+pin the claim §6 makes about the sample: that bias_add is required and is not a stylistic
+choice. That mul refuses a [4] row against a [4, 3] matrix is a promise of the graph builder, kept by
+`BinaryEmittersRejectUnequalShapesWithoutBroadcasting` in `tests/core/graph/test_builder.cpp`.
 
 ## ParametersAreDeclaredAsGradientRequiringLeaves
 

@@ -452,18 +452,19 @@ TEST(Small_Trace, ARecordedTargetSurvivesAMoveOfItsBuffer)
 }
 
 /**
- * @brief Tests that the discarding sink accepts an update in Training mode and adds no value to
+ * @brief Tests that a Training trace over a local sink accepts an update and adds no value to
  *        the graph.
  */
-TEST(Small_Trace, TheDiscardingSinkAcceptsAnUpdateAndAddsNoValue)
+TEST(Small_Trace, ATrainingTraceAcceptsAnUpdateAndAddsNoValue)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     Buffer buffer = defined_buffer();
+    BufferUpdateList sink;
     const std::size_t before = graph.value_count();
 
-    const Trace trace = Trace::training(builder, NN::discard_updates());
+    const Trace trace = Trace::training(builder, sink);
 
     EXPECT_EQ(trace.mode(), TraceMode::Training);
     SA_EXPECT_OK(trace.update(buffer, x, 0.1, 1.0));

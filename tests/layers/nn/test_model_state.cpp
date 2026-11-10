@@ -122,7 +122,7 @@ TEST_F(Small_ModelState, CreateListsParametersInWalkOrder)
  * @brief Tests that a training trace of a BatchNorm2d lists its two parameters and its two
  *        buffers under the row's name, with the buffers' constant starting values.
  */
-TEST_F(Medium_ModelState, CreateListsBuffersAfterATrainingTrace)
+TEST_F(Small_ModelState, CreateListsBuffersAfterATrainingTrace)
 {
     NN::ModelGraph model(Shape{4, 4, 3});
     SA_ASSERT_OK_AND_ASSIGN(const auto norm,
@@ -135,7 +135,7 @@ TEST_F(Medium_ModelState, CreateListsBuffersAfterATrainingTrace)
     NN::BufferUpdateList list;
     SA_EXPECT_OK(model.trace(NN::Trace::training(builder, list), x));
 
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
     const auto entries = state.entries();
     ASSERT_EQ(entries.size(), 4u);
     EXPECT_EQ(entries[0].name, "bn.weight");

@@ -112,11 +112,11 @@ An `update()` leaves the graph's value count unchanged and the buffer without a 
 After the buffer of a recorded update is move-constructed into another, the update's `target`
 equals the moved buffer's state and is not `K_NO_STATE`.
 
-## TheDiscardingSinkAcceptsAnUpdateAndAddsNoValue
+## ATrainingTraceAcceptsAnUpdateAndAddsNoValue
 
-A trace made with `NN::discard_updates()` is in Training mode, its `update()` returns ok and
-the graph gains no value. That the sink is one process-wide object is how it is held and is not
-checked.
+A trace made over a local `BufferUpdateList` is in Training mode, its `update()` returns ok and
+the graph gains no value. The case passes a local sink and not `NN::discard_updates()`, which is
+one process-wide object; no `Small_` case reaches it.
 
 ## AnUpdateOfAnUndefinedBufferIsFatal
 

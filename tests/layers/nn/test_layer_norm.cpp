@@ -97,6 +97,9 @@ namespace
         return trace.status();
     }
 
+    /** @brief Holds an epsilon that is not the default, so a stored default cannot pass for it. */
+    constexpr double K_STORED_EPSILON = 1e-3;
+
     /** @brief Traces a layer over a value id the one-value graph does not hold. */
     void trace_over_a_value_the_graph_lacks()
     {
@@ -138,50 +141,46 @@ TEST(Small_LayerNorm, ATraceDeclaresTheGainAndTheBiasAndEmitsOneNode)
     EXPECT_EQ(graph.value(y).dtype, DType::Float32);
 }
 
-/** @brief Tests that the gain is a [dim] scale of the input's type. */
+/**
+ * @brief Tests that the gain is a [dim] scale of the input's type, and that the epsilon the
+ *        layer holds is the one the node stores.
+ */
 TEST(Small_LayerNorm, TheGainIsAScaleOfTheInputType)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     LayerNorm layer = make_layer();
+    layer.epsilon = K_STORED_EPSILON;
 
-    static_cast<void>(layer.forward(Trace::evaluation(builder),
-                                    builder.input(Shape{5, K_DIM}, "x", DType::Float64)));
+    const Graph::ValueID y = layer.forward(Trace::evaluation(builder),
+                                           builder.input(Shape{5, K_DIM}, "x", DType::Float64));
 
     ASSERT_TRUE(layer.weight.declared());
     EXPECT_EQ(layer.weight.shape(), (Shape{K_DIM}));
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Scale);
     EXPECT_EQ(layer.weight.dtype(), DType::Float64);
+    EXPECT_EQ(graph.node(graph.value(y).producer).attributes.values[0], K_STORED_EPSILON);
 }
 
-/** @brief Tests that the bias is a [dim] bias of the input's type. */
+/**
+ * @brief Tests that the bias is a [dim] bias of the input's type, and that the epsilon the
+ *        layer holds is the one the node stores.
+ */
 TEST(Small_LayerNorm, TheBiasIsABiasOfTheInputType)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     LayerNorm layer = make_layer();
+    layer.epsilon = K_STORED_EPSILON;
 
-    static_cast<void>(layer.forward(Trace::evaluation(builder),
-                                    builder.input(Shape{5, K_DIM}, "x", DType::Float64)));
+    const Graph::ValueID y = layer.forward(Trace::evaluation(builder),
+                                           builder.input(Shape{5, K_DIM}, "x", DType::Float64));
 
     ASSERT_TRUE(layer.bias.declared());
     EXPECT_EQ(layer.bias.shape(), (Shape{K_DIM}));
     EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
     EXPECT_EQ(layer.bias.dtype(), DType::Float64);
-}
-
-/** @brief Tests that the layer's epsilon is the one the node stores. */
-TEST(Small_LayerNorm, TheEpsilonIsStoredInTheNode)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    LayerNorm layer = make_layer();
-    layer.epsilon = 1e-3;
-
-    const Graph::ValueID y = layer.forward(Trace::evaluation(builder),
-                                           builder.input(Shape{5, K_DIM}, "x"));
-
-    EXPECT_EQ(graph.node(graph.value(y).producer).attributes.values[0], 1e-3);
+    EXPECT_EQ(graph.node(graph.value(y).producer).attributes.values[0], K_STORED_EPSILON);
 }
 
 /** @brief Tests that the state walk yields the two parameters, weight before bias. */

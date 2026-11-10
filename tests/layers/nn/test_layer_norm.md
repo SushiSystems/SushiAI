@@ -18,19 +18,14 @@ result is LAYER_NORM, reads the input, the weight and the bias in that order and
 
 ## TheGainIsAScaleOfTheInputType
 
-After a trace over a [5, 4] float64 input, the weight is declared with the shape [4], the type
-float64 and the role `ParameterRole::Scale`.
+After a trace over a [5, 4] float64 input of a layer whose `epsilon` is 1e-3, the weight is declared
+with the shape [4], the type float64 and the role `ParameterRole::Scale`, and the node's attribute
+slot 0 holds 1e-3.
 
 ## TheBiasIsABiasOfTheInputType
 
 After the same trace, the bias is declared with the shape [4], the type float64 and the role
-`ParameterRole::Bias`.
-
-## TheEpsilonIsStoredInTheNode
-
-A layer whose `epsilon` is 1e-3 puts 1e-3 in the node's attribute slot 0. The record asked for the
-epsilon inside the gain and bias tests; it has a test of its own here, so each of the three names
-one promise.
+`ParameterRole::Bias`, and the node's attribute slot 0 holds 1e-3.
 
 ## TheWalkYieldsTheGainThenTheBias
 

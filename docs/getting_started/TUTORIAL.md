@@ -291,8 +291,8 @@ member it names.
 
 > The layer above is not just quoted here: it is compiled. `Small_Module`'s
 > `TheTutorialsCustomLayerTracesAndIsWalkable` and
-> `TheTutorialIsRightThatMulWouldNotBroadcast` hold the same code and assert
-> both claims this section makes about it, so this sample cannot rot into
+> `BiasAddAcceptsAFeatureVectorOverABatch` hold the same code and assert
+> the claims this section makes about it, so this sample cannot rot into
 > something that does not build. Edit one, edit the other.
 
 If your layer needs an operation the builder does not have, you are adding an
