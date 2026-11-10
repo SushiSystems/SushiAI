@@ -38,7 +38,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/training/pixel_labels.hpp>
 
@@ -53,14 +53,14 @@ namespace
     /** @brief Holds the class count, C. */
     constexpr std::int64_t K_CLASSES = 3;
 
-    /** @brief Provides an engine and the INT32 masks the cases check. */
-    class Medium_VisionTrainingPixelLabels : public SaTest::EngineTest
+    /** @brief Provides a host engine and the INT32 masks the cases check. */
+    class Small_VisionTrainingPixelLabelsMask : public ::testing::Test
     {
         protected:
             /** @brief Returns an INT32 tensor of @p shape holding @p values. */
             SushiBLAS::Tensor make_ids(const Shape& shape, const std::vector<std::int32_t>& values)
             {
-                Result<SushiBLAS::Tensor> made = allocate_tensor(*engine, shape, DType::Int32);
+                Result<SushiBLAS::Tensor> made = allocate_tensor(backend.engine(), shape, DType::Int32);
                 EXPECT_TRUE(made.status().is_ok());
 
                 std::int32_t* const ids = made.value().data_as<std::int32_t>();
@@ -69,6 +69,9 @@ namespace
 
                 return std::move(made).value();
             }
+
+            /** @brief The backend whose engine holds the host storage of every mask. */
+            SushiAI::HostExecutionBackend backend;
     };
 } // namespace
 
@@ -84,7 +87,7 @@ TEST(Small_VisionTrainingPixelLabels, TheCallersIgnoreIndexReplacesTheDefault)
 }
 
 /** @brief Tests that a mask of rank three is checked by its element count alone. */
-TEST_F(Medium_VisionTrainingPixelLabels, AMaskOfRankThreeIsCheckedByItsElementCount)
+TEST_F(Small_VisionTrainingPixelLabelsMask, AMaskOfRankThreeIsCheckedByItsElementCount)
 {
     const SushiBLAS::Tensor mask = make_ids(Shape{2, 2, 2}, {0, 1, 2, 0, 1, 2, 255, 0});
 

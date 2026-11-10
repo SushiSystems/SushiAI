@@ -53,6 +53,7 @@
 #include <SushiAI/vision/training/head_delta_rule.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/conv2d.hpp>
@@ -93,6 +94,25 @@ using Vision::Training::AnchorTrainingStep;
 namespace
 {
     class Medium_AnchorTrainingStep : public SaTest::EngineTest {};
+
+    /**
+     * @brief Provides a host backend for the refusals a step makes before it launches a task.
+     *
+     * The step is built and refused on the host engine, so no device is reached.
+     */
+    class Small_AnchorTrainingStep : public ::testing::Test
+    {
+        protected:
+            /** @brief Returns the backend whose tasks run on the host. */
+            SushiAI::ExecutionBackend& backend()
+            {
+                return host_;
+            }
+
+        private:
+            /** @brief Holds the host backend. */
+            SushiAI::HostExecutionBackend host_;
+    };
 
     /** @brief Holds the images per step. */
     constexpr std::int64_t K_BATCH = 2;
@@ -571,7 +591,7 @@ TEST_F(Medium_AnchorTrainingStep, OneStepBlendsARunningMeanOnce)
 }
 
 /** @brief Tests that a valid row whose centre lies right of the input is refused by its row. */
-TEST_F(Medium_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
+TEST_F(Small_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
 {
     TwoHeadCase model;
     model.prepare(backend(), two_heads("head.0", "head.1"));
@@ -579,7 +599,7 @@ TEST_F(Medium_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
     model.make_step(backend());
     ASSERT_NE(model.step, nullptr);
 
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(backend().engine()));
     GroundTruthBatch truth = make_truth();
     // Row 0 of image 1 moves to corners 7 and 9 along the columns: a centre of exactly 1.
     truth.boxes[8] = 7.0f;
@@ -590,7 +610,7 @@ TEST_F(Medium_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
 }
 
 /** @brief Tests that make refuses a training pool that holds no input leaf. */
-TEST_F(Medium_AnchorTrainingStep, MakeRefusesAPoolWithoutTheInputLeaf)
+TEST_F(Small_AnchorTrainingStep, MakeRefusesAPoolWithoutTheInputLeaf)
 {
     TwoHeadCase model;
     model.prepare(backend(), two_heads("head.0", "head.1"));
@@ -605,7 +625,7 @@ TEST_F(Medium_AnchorTrainingStep, MakeRefusesAPoolWithoutTheInputLeaf)
 }
 
 /** @brief Tests that an objective naming a head the model lacks is refused by that name. */
-TEST_F(Medium_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefused)
+TEST_F(Small_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefused)
 {
     TwoHeadCase model;
     model.prepare(backend(), two_heads("head.0", "head.9"));
@@ -618,7 +638,7 @@ TEST_F(Medium_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefused)
 }
 
 /** @brief Tests that a host stage reading a value the graph lacks is refused with the count. */
-TEST_F(Medium_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsRefused)
+TEST_F(Small_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsRefused)
 {
     TwoHeadCase model;
     model.prepare(backend(), two_heads("head.0", "head.1"));
@@ -635,7 +655,7 @@ TEST_F(Medium_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsRefuse
 }
 
 /** @brief Tests that a stage placed behind a reader of a leaf it writes is refused. */
-TEST_F(Medium_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused)
+TEST_F(Small_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused)
 {
     TwoHeadCase model;
     model.prepare(backend(), two_heads("head.0", "head.1"));
@@ -653,7 +673,7 @@ TEST_F(Medium_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused)
 }
 
 /** @brief Tests that a step compiled without a host stage refuses host work and calls none. */
-TEST_F(Medium_AnchorTrainingStep, AStepWithoutAHostStageRefusesHostWork)
+TEST_F(Small_AnchorTrainingStep, AStepWithoutAHostStageRefusesHostWork)
 {
     TwoHeadCase model;
     model.prepare(backend(), two_heads("head.0", "head.1"));

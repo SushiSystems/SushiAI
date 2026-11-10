@@ -1,7 +1,7 @@
 # tests/vision/training/test_free_training_step.cpp
 
 
-Suites: `Medium_FreeTrainingStep` and, in a build with the profiler at level 1 or above,
+Suites: `Small_FreeTrainingStep`, `Medium_FreeTrainingStep` and, in a build with the profiler at level 1 or above,
 `Medium_FreeTrainingZones`.
 
 Tests `FreeTrainingStep` of `free_training_step.hpp` on the two-level case of
@@ -44,8 +44,9 @@ refusal belongs to `check_truth_layout`.
 
 ### MakeRefusesAPoolWithoutTheInputLeaf
 
-`make` over a pool that holds no tensor for a port fails with `InvalidDescription` naming "has no
-tensor in the training pool".
+`make` over an empty pool, whose input leaf has no tensor, fails with `InvalidDescription` naming
+"input leaf" and "bind_parameters". The case is in `Small_FreeTrainingStep`, on a
+`HostExecutionBackend`, because the refusal comes before any task.
 
 ### AStepPutsReadbackAssignAndLossInItsPeriod
 

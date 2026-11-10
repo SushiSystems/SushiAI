@@ -53,6 +53,7 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -630,6 +631,23 @@ namespace
     {
     };
 
+    /**
+     * @brief Provides a host backend for the feed, which refuses a label before any task runs.
+     */
+    class Small_PixelCrossEntropyObjectiveFeed : public ::testing::Test
+    {
+        protected:
+            /** @brief Returns the backend whose tasks run on the host. */
+            SushiAI::ExecutionBackend& backend()
+            {
+                return host_;
+            }
+
+        private:
+            /** @brief Holds the host backend. */
+            SushiAI::HostExecutionBackend host_;
+    };
+
 } // namespace
 
 /** @brief Tests the cross entropy and its gradient at the logits, two pixels ignored. */
@@ -711,7 +729,7 @@ TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AMaskWithNoKeptPixelGivesNoGra
 }
 
 /** @brief Tests that a label at the class count stops the feed and names its pixel. */
-TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, ALabelOutsideTheClassesStopsTheFeed)
+TEST_F(Small_PixelCrossEntropyObjectiveFeed, ALabelOutsideTheClassesStopsTheFeed)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,

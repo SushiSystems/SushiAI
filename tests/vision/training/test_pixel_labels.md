@@ -1,7 +1,7 @@
 # tests/vision/training/test_pixel_labels.cpp
 
 
-Suites: `Small_VisionTrainingPixelLabels` and `Medium_VisionTrainingPixelLabels`.
+Suites: `Small_VisionTrainingPixelLabels` and `Small_VisionTrainingPixelLabelsMask`.
 
 Tests `validate_pixel_label_values` with an ignore index the caller chooses, and
 `validate_pixel_labels` with a mask of rank three.
@@ -12,9 +12,9 @@ three case allocates a tensor on the CPU SYCL device through `EngineTest`, so it
 label above the classes, a negative label, a wrong pixel count and a real mask. This file covers
 another ignore index and another rank.
 
-## Medium_VisionTrainingPixelLabels
+## Small_VisionTrainingPixelLabelsMask
 
-The fixture builds INT32 tensors of class indices on the test's engine.
+The fixture builds INT32 tensors of class indices on the engine of a `HostExecutionBackend`.
 
 ## TheCallersIgnoreIndexReplacesTheDefault
 

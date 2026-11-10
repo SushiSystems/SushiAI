@@ -1,12 +1,13 @@
 # tests/vision/training/test_anchor_training_step.cpp
 
 
-Suite: `Medium_AnchorTrainingStep`.
+Suites: `Medium_AnchorTrainingStep` and `Small_AnchorTrainingStep`.
 
 Tests `AnchorTrainingStep` of `anchor_training_step.hpp` on a two-head case: a model with a stem,
 a biased running-mean norm and two heads of 14 channels (`head.0` finer than `head.1`), a batch of
-2, an SGD optimizer and a truth of boxes. The cases train on the CPU SYCL device through
-`EngineTest`, so they are medium. `test_detection_truth_check.cpp` tests why a truth is refused;
+2, an SGD optimizer and a truth of boxes. The cases that train run on the CPU SYCL device through
+`EngineTest`, so they are medium. The six refusals below are decided before a task is launched, so
+they run in `Small_AnchorTrainingStep` on a `HostExecutionBackend`. `test_detection_truth_check.cpp` tests why a truth is refused;
 the step calls those checks.
 
 ### TheLeavesFedAreTheDeltasOfTheHeads
@@ -50,5 +51,6 @@ An objective that names `head.9` fails in `make` with `InvalidDescription` namin
 
 ### AHostStageThatReadsAValueTheGraphLacksIsRefused, AHostStageBehindAReaderOfItsLeafIsRefused, AStepWithoutAHostStageRefusesHostWork
 
-These three refuse in `Train::TrainingStep`, not in the anchor step, and keep their place here
-until `layers/train` gains a host seam for them (RW-155).
+These three refuse in `Train::TrainingStep`, not in the anchor step. They run on the host backend
+because that backend is the seam `layers/train` offers for them (REPORT.md, decision 78); no change to
+`Train::TrainingStep` is made.

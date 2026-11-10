@@ -1,12 +1,13 @@
 # tests/vision/training/test_free_bias_init.cpp
 
 
-Suites: `Small_TrainingFreeClassBias`, `Medium_TrainingFreeBiasInit` and
+Suites: `Small_TrainingFreeClassBias`, `Small_TrainingFreeBiasInit`, `Medium_TrainingFreeBiasInit` and
 `Medium_TrainingFreeBiasInitCopies`.
 
 Tests `free_class_bias` and `initialize_free_biases` of `free_bias_init.hpp`, which start the last
-box and class biases of an anchor-free detect head. The state cases allocate on the CPU SYCL
-device through `EngineTest`, so they are medium. The traced head has three levels of 8, 4 and 2
+box and class biases of an anchor-free detect head. The traced-head cases allocate on the CPU SYCL
+device through `EngineTest`, so they are medium. The refusal cases build their state from entries
+on the engine of a `HostExecutionBackend` and are small. The traced head has three levels of 8, 4 and 2
 cells over a 64 by 64 input, three classes and both copies, under the state prefix `23`.
 
 ### MatchesTheClosedForm

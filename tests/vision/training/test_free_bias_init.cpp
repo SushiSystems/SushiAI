@@ -41,6 +41,7 @@
 
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -77,6 +78,14 @@ namespace
     class Medium_TrainingFreeBiasInit : public SushiAI::Test::EngineTest
     {
 
+    };
+
+    /** @brief Provides the host engine the hand-made states of the refusal cases live on. */
+    class Small_TrainingFreeBiasInit : public ::testing::Test
+    {
+        protected:
+            /** @brief The backend whose engine holds the host storage of every state. */
+            SushiAI::HostExecutionBackend backend;
     };
 
     /** @brief Holds the class count of the fixture. */
@@ -226,23 +235,29 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<CopyRow>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that a prefix the state lacks is refused by entry and changes nothing. */
-TEST_F(Medium_TrainingFreeBiasInit, RefusesAPrefixTheStateLacks)
-{
-    TracedHead traced;
-    ASSERT_TRUE(SushiAI::Test::status_is_ok(trace_head(backend(), traced)));
-    flush();
-    SA_EXPECT_FAILURE(initialize_free_biases(traced.facts, "22", *traced.state),
-                      StatusCode::InvalidDescription, "'22.cv2.0.2.bias'");
-    expect_bias(*traced.state, "23.cv2.0.2.bias", 0.0);
-}
-
-/** @brief Tests that an entry of another extent is refused, named, and no bias changes. */
-TEST_F(Medium_TrainingFreeBiasInit, AnEntryOfAnotherExtentIsRefusedAndNoBiasChanges)
+TEST_F(Small_TrainingFreeBiasInit, RefusesAPrefixTheStateLacks)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         NN::ModelState state,
         NN::ModelState::from_entries(
-            *engine, {bias_entry("p.cv2.0.2.bias", 1, Shape{4}, DType::Float32),
+            backend.engine(), {bias_entry("23.cv2.0.2.bias", 1, Shape{4}, DType::Float32),
+                               bias_entry("23.cv3.0.2.bias", 2, Shape{3}, DType::Float32)}));
+    SushiAI::Test::write_tensor(*state.tensor("23.cv2.0.2.bias").value(),
+                                std::vector<double>(4, 5.0));
+
+    SA_EXPECT_FAILURE(initialize_free_biases(single_level_facts(), "22", state),
+                      StatusCode::InvalidDescription, "'22.cv2.0.2.bias'");
+
+    expect_bias(state, "23.cv2.0.2.bias", 5.0);
+}
+
+/** @brief Tests that an entry of another extent is refused, named, and no bias changes. */
+TEST_F(Small_TrainingFreeBiasInit, AnEntryOfAnotherExtentIsRefusedAndNoBiasChanges)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        NN::ModelState state,
+        NN::ModelState::from_entries(
+            backend.engine(), {bias_entry("p.cv2.0.2.bias", 1, Shape{4}, DType::Float32),
                       bias_entry("p.cv3.0.2.bias", 2, Shape{4}, DType::Float32)}));
     SushiAI::Test::write_tensor(*state.tensor("p.cv2.0.2.bias").value(),
                                 std::vector<double>(4, 5.0));
@@ -254,12 +269,12 @@ TEST_F(Medium_TrainingFreeBiasInit, AnEntryOfAnotherExtentIsRefusedAndNoBiasChan
 }
 
 /** @brief Tests that an entry of another element type is refused, named, and no bias changes. */
-TEST_F(Medium_TrainingFreeBiasInit, AnEntryOfAnotherElementTypeIsRefusedAndNoBiasChanges)
+TEST_F(Small_TrainingFreeBiasInit, AnEntryOfAnotherElementTypeIsRefusedAndNoBiasChanges)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         NN::ModelState state,
         NN::ModelState::from_entries(
-            *engine, {bias_entry("p.cv2.0.2.bias", 1, Shape{4}, DType::Float32),
+            backend.engine(), {bias_entry("p.cv2.0.2.bias", 1, Shape{4}, DType::Float32),
                       bias_entry("p.cv3.0.2.bias", 2, Shape{3}, DType::Float64)}));
     SushiAI::Test::write_tensor(*state.tensor("p.cv2.0.2.bias").value(),
                                 std::vector<double>(4, 5.0));

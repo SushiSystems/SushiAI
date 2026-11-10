@@ -2,8 +2,8 @@
 
 
 Suites: `Small_PixelCrossEntropyObjective`, `Small_PixelCrossEntropyObjectiveExtents`,
-`Small_PixelCrossEntropyObjectiveModels`, `Medium_PixelCrossEntropyObjectiveEndToEnd` and
-`Medium_SegmentOverfit`.
+`Small_PixelCrossEntropyObjectiveModels`, `Small_PixelCrossEntropyObjectiveFeed`,
+`Medium_PixelCrossEntropyObjectiveEndToEnd` and `Medium_SegmentOverfit`.
 
 Tests `PixelCrossEntropyObjective` and the two factories of `pixel_cross_entropy_objective.hpp`
 and `dice_objective.hpp` that read a pixel objective from a model. The `Small_` cases build a
@@ -81,8 +81,8 @@ A mask of ignored pixels alone gives a loss of 0 and a gradient of zeros.
 
 ### ALabelOutsideTheClassesStopsTheFeed
 
-A label at the class count stops the feed and names its pixel. The case stays `Medium_`: it builds
-its state and pool on the engine, and a host-memory pool is not available (RW-155).
+A label at the class count stops the feed and names its pixel. The case builds its state and pool on
+the engine of a `HostExecutionBackend` and the feed refuses before any task runs, so it is `Small_`.
 
 ### TheLossFallsOnOneBatch, TheMeanIouRisesOnOneBatch
 

@@ -36,7 +36,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -208,8 +208,13 @@ namespace
             EXPECT_NEAR(actual[i], expected[i], K_BIAS_TOLERANCE) << "entry " << i;
     }
 
-    /** @brief Provides the engine the states of the Medium cases are allocated on. */
-    class Medium_AnchorBiasInit : public SaTest::EngineTest {};
+    /** @brief Provides the host engine the states of the cases are allocated on. */
+    class Small_AnchorBiasInitState : public ::testing::Test
+    {
+        protected:
+            /** @brief The backend whose engine holds the host storage of every state. */
+            HostExecutionBackend backend;
+    };
 } // namespace
 
 /** @brief Tests that the objectness bias is log(8 / (640 / stride)^2) at strides 8, 16 and 32. */
@@ -295,27 +300,27 @@ TEST(Small_AnchorBiasInit, AnExtentThatDoesNotDivideTheInputIsRefused)
 }
 
 /** @brief Tests that the first head gains the biases of stride 4 and keeps its box entries. */
-TEST_F(Medium_AnchorBiasInit, TheFirstHeadGainsTheBiasesOfItsStride)
+TEST_F(Small_AnchorBiasInitState, TheFirstHeadGainsTheBiasesOfItsStride)
 {
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, initialized_state(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, initialized_state(backend.engine()));
 
     expect_biases_equal(read_entry(state, "0.bias"), expected_bias(4));
 }
 
 /** @brief Tests that the second head gains the biases of stride 8 and keeps its box entries. */
-TEST_F(Medium_AnchorBiasInit, TheSecondHeadGainsTheBiasesOfItsStride)
+TEST_F(Small_AnchorBiasInitState, TheSecondHeadGainsTheBiasesOfItsStride)
 {
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, initialized_state(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, initialized_state(backend.engine()));
 
     expect_biases_equal(read_entry(state, "2.bias"), expected_bias(8));
 }
 
 /** @brief Tests that an entry of the wrong extent refuses the call and names the entry. */
-TEST_F(Medium_AnchorBiasInit, AnEntryOfTheWrongExtentIsRefusedAndNamed)
+TEST_F(Small_AnchorBiasInitState, AnEntryOfTheWrongExtentIsRefusedAndNamed)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         NN::ModelState state,
-        NN::ModelState::from_entries(*engine, {make_entry("0.bias", 1, Shape{14}),
+        NN::ModelState::from_entries(backend.engine(), {make_entry("0.bias", 1, Shape{14}),
                                                make_entry("2.bias", 2, Shape{13})}));
     start_entry(state, "0.bias");
     start_entry(state, "2.bias");
@@ -327,11 +332,11 @@ TEST_F(Medium_AnchorBiasInit, AnEntryOfTheWrongExtentIsRefusedAndNamed)
 }
 
 /** @brief Tests that the refusal of an entry of the wrong extent changes no bias. */
-TEST_F(Medium_AnchorBiasInit, AnEntryOfTheWrongExtentLeavesEveryBiasUnchanged)
+TEST_F(Small_AnchorBiasInitState, AnEntryOfTheWrongExtentLeavesEveryBiasUnchanged)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         NN::ModelState state,
-        NN::ModelState::from_entries(*engine, {make_entry("0.bias", 1, Shape{14}),
+        NN::ModelState::from_entries(backend.engine(), {make_entry("0.bias", 1, Shape{14}),
                                                make_entry("2.bias", 2, Shape{13})}));
     start_entry(state, "0.bias");
     start_entry(state, "2.bias");
@@ -344,11 +349,11 @@ TEST_F(Medium_AnchorBiasInit, AnEntryOfTheWrongExtentLeavesEveryBiasUnchanged)
 }
 
 /** @brief Tests that an entry the state does not hold is refused and named. */
-TEST_F(Medium_AnchorBiasInit, AnAbsentEntryIsRefusedAndNamed)
+TEST_F(Small_AnchorBiasInitState, AnAbsentEntryIsRefusedAndNamed)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         NN::ModelState state,
-        NN::ModelState::from_entries(*engine, {make_entry("0.bias", 1, Shape{14})}));
+        NN::ModelState::from_entries(backend.engine(), {make_entry("0.bias", 1, Shape{14})}));
     const std::vector<AnchorBiasHead> heads = {AnchorBiasHead{"0.bias", 4},
                                                AnchorBiasHead{"2.bias", 8}};
 
@@ -357,11 +362,11 @@ TEST_F(Medium_AnchorBiasInit, AnAbsentEntryIsRefusedAndNamed)
 }
 
 /** @brief Tests that a head list of another length than the task's is refused. */
-TEST_F(Medium_AnchorBiasInit, AHeadCountThatDiffersFromTheTaskIsRefused)
+TEST_F(Small_AnchorBiasInitState, AHeadCountThatDiffersFromTheTaskIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         NN::ModelState state,
-        NN::ModelState::from_entries(*engine, {make_entry("0.bias", 1, Shape{14})}));
+        NN::ModelState::from_entries(backend.engine(), {make_entry("0.bias", 1, Shape{14})}));
     const std::vector<AnchorBiasHead> heads = {AnchorBiasHead{"0.bias", 4}};
 
     SA_EXPECT_FAILURE(initialize_anchor_biases(task_of_the_cases(), heads, state),

@@ -42,6 +42,7 @@
 
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/profile/profile_config.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
@@ -69,6 +70,21 @@ using Vision::Training::FreeLossTerms;
 namespace
 {
     class Medium_FreeTrainingStep : public SaTest::EngineTest {};
+
+    /** @brief Provides a host backend for the refusals a step makes before it launches a task. */
+    class Small_FreeTrainingStep : public ::testing::Test
+    {
+        protected:
+            /** @brief Returns the backend whose tasks run on the host. */
+            SushiAI::ExecutionBackend& backend()
+            {
+                return host_;
+            }
+
+        private:
+            /** @brief Holds the host backend. */
+            SushiAI::HostExecutionBackend host_;
+    };
 
 #if SA_ENABLE_PROFILER
     class Medium_FreeTrainingZones : public SaTest::EngineTest {};
@@ -262,7 +278,7 @@ TEST_F(Medium_FreeTrainingStep, ARefusedTruthCountsNoRun)
 }
 
 /** @brief Tests that make refuses an empty pool, whose input leaf has no tensor. */
-TEST_F(Medium_FreeTrainingStep, MakeRefusesAPoolWithoutTheInputLeaf)
+TEST_F(Small_FreeTrainingStep, MakeRefusesAPoolWithoutTheInputLeaf)
 {
     TwoLevelCase model;
     model.prepare(backend());
