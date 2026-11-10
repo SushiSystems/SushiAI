@@ -179,6 +179,10 @@
 #include <SushiAI/distribution/replica_model.hpp>
 #include <SushiAI/distribution/replica_step.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
+#include <SushiAI/distribution/exchange_targets.hpp>
+#include <SushiAI/distribution/in_memory_replica_model.hpp>
+#include <SushiAI/distribution/in_memory_replica_model_factory.hpp>
+#include <SushiAI/distribution/in_memory_replica_serve_observer.hpp>
 #endif
 #include <SushiAI/eager/region_names.hpp>
 #include <SushiAI/eager/slot_ledger.hpp>

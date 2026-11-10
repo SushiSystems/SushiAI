@@ -3909,7 +3909,7 @@ namespace SushiAI::Distribution
 namespace SushiAI::Distribution
 {
     static_assert(
-        noexcept(std::declval<GradientExchange&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<GradientExchange&>().make(std::declval<RuntimeBackend&>(),
                 std::declval<SushiBLAS::ClusterBinding&>(), std::declval<const ReplicaPlan&>(),
                 std::declval<const ExchangeRun&>(), std::declval<const SushiBLAS::TensorPack&>(),
                 std::declval<const SushiBLAS::PackLayout&>(),
@@ -3940,7 +3940,7 @@ namespace SushiAI::Distribution
 namespace SushiAI::Distribution
 {
     static_assert(
-        noexcept(std::declval<ParameterPublish&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<ParameterPublish&>().make(std::declval<RuntimeAccess&>(),
                 std::declval<SushiBLAS::ClusterBinding&>(),
                 std::declval<const SushiBLAS::PackLayout&>(),
                 std::declval<std::vector<SushiBLAS::Tensor>>())),

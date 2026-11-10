@@ -351,14 +351,16 @@ TEST_P(Medium_DarknetImportEndToEnd, TheImportedTensorsSupplyEveryEntryOnce)
 /** @brief Tests that the files the import writes read back as the import. */
 TEST_P(Medium_DarknetImportEndToEnd, TheWrittenFilesReadBackAsTheImport)
 {
-    const SaTest::ScratchDirectory directory("sushiai_test_darknet_written_files");
+    const std::string name = "sushiai_test_darknet_written_files_" + std::string(GetParam());
+    const SaTest::ScratchDirectory directory(name.c_str());
     SaTest::check_written_files(run, directory.path());
 }
 
 /** @brief Tests that the written weights load into a state equal to the direct store's. */
 TEST_P(Medium_DarknetImportEndToEnd, TheWrittenWeightsLoadAsTheDirectStore)
 {
-    const SaTest::ScratchDirectory directory("sushiai_test_darknet_written_weights");
+    const std::string name = "sushiai_test_darknet_written_weights_" + std::string(GetParam());
+    const SaTest::ScratchDirectory directory(name.c_str());
     SaTest::check_written_weights(*engine, run, directory.path());
 }
 
