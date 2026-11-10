@@ -20,6 +20,7 @@ from sushicore import build_admission, build_report
 from sushicore.build_tree import K_DEFAULT_BUILD_TYPE, refuse_another_build_type
 from sushicore.cmake_cache import cached_value
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
+from sushicore.testing.program_runner import ProgramRunner
 from sushicore.provision.sushi_packages import PackageError, PackageSet, configure_arguments
 from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
 from sushicore.toolchain_args import vcpkg_prefix as _vcpkg_prefix
@@ -384,7 +385,8 @@ def test(tools: Toolbox, suite: Suite = Suite.gating, filter: str | None = None,
         profile=PROFILE, project_root=lambda: root, console=lambda: console,
         build_tree=lambda: build_dir, run=tools.runner.run,
         run_ctest=lambda directory, **options: tools.driver.ctest_run(
-            cfg, directory, env, **options))
+            cfg, directory, env, **options),
+        run_program=ProgramRunner(build_dir, tools.runner.run, env))
     # all and large name the large tests on purpose, so they are the two that lift its filter rule.
     labels = _SUITE_LABELS[suite] if suite is not Suite.all else (TestLabel.QUARANTINED,)
     return run_tests(module, select_labels(labels, every_size=suite is Suite.all), name_filter=filter,
