@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-10 — test_tree: Bring the gating run inside its time budget (RW-166, `03e07592`).
 - 2026-11-10 — darknet_era_yolo: Resolve the yolov4-tiny second mask the anchor head assignment gives (RW-163, `867ca940`).
 - 2026-11-10 — graph_capabilities: Add host kernels for CAUSAL_MASK and SCATTER_ADD_ROWS in Graph::HostEvaluator (RW-164, `31c7d600`).
 - 2026-11-10 — test_tree: Test fill_pixel_targets against an INT32 pixel count overflow (RW-165, `96007d42`).
