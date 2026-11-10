@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — 57 of 60 jobs are done and 3 are failed (T3, T6, M51); each record they leave is under "Not done as written"
+**Status:** Open — 59 of 60 jobs are done; T6 waits on the final build and test run for RW-151's timeouts
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -13,7 +13,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | --- | --- | --- | --- |
 | T1 | `tests/support/tolerance.hpp` in use, with the ruling of decision 1 applied to every named epsilon |  | done |
 | T2 | One engine and device per program through SushiRuntime's fixture base; `EngineTest` stops making one per test | SushiRuntime T1 | done |
-| T3 | In-memory adapters beside their ports: a host `Dataset`, `Objective`, `EpochAware`, `ReplicaModel`, `ReplicaServeObserver`, `StepRecorder`, `GraphBuilder`, `PrecisionPolicy`, `RegionPartitioner`, `StepExecutor`, `Collator`, `SamplePipeline`, `SampleSource`, `MaskSource`, `PartnerSource`, and the failure module's block counter and fatal sink |  | failed |
+| T3 | In-memory adapters beside their ports: a host `Dataset`, `Objective`, `EpochAware`, `ReplicaModel`, `ReplicaServeObserver`, `StepRecorder`, `GraphBuilder`, `PrecisionPolicy`, `RegionPartitioner`, `StepExecutor`, `Collator`, `SamplePipeline`, `SampleSource`, `MaskSource`, `PartnerSource`, and the failure module's block counter and fatal sink |  | done |
 | T4 | Byte-source and stream seams for the dataset readers, the checkpoint loader and the weight importer |  | done |
 | T5 | The SushiLog sink moved to SushiLog's scoped in-memory sink | sushilog T1 | done |
 | T6 | The defects of this report, each with a test that fails first, and the pages corrected |  | failed |
@@ -69,7 +69,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M48 | the tests of `vision/importers` (23 files): 92 rewrite, 23 resize, 14 split, 10 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M49 | the tests of `vision/registration` (3 files): 20 rewrite, 9 resize, 7 split, 4 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M50 | the tests of `vision/segment` (7 files): 8 rewrite, 4 split, 3 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M51 | the tests of `vision/training` (37 files): 88 rewrite, 19 resize, 25 split, 8 merge, 9 delete | T1, T2, T3, T4, T5, T6, T7, T8 | failed |
+| M51 | the tests of `vision/training` (37 files): 88 rewrite, 19 resize, 25 split, 8 merge, 9 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M52 | the tests of `vision/umbrella` (2 files): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 
 ## Not done as written
@@ -80,21 +80,10 @@ backlog entry where one is open. A mark "(owner)" means the shape of the fix is 
 The audit read the tree against the records by test name, size label, seam and file. A record of
 rewrite, split or merge was checked by sampling only, so this list is the floor, not the whole.
 
-**T3.** `GraphBuilder` has no port and no adapter (decision 66): it is a concrete emitter over `Graph`,
-which is in memory, and no stand-in of it remains in the tests. A port would be an interface of about
-a hundred emitters with one implementation. The `Collator` adapter, `InMemoryCollator`, is built
-(decision 62).
-
 **T6.** RW-151 (open, blocked): `tests/README.md` states the 0.1 s and 5 s limits; the ctest timeouts of
 `cmake/SushiAITestProgram.cmake` stay 60, 300 and 900 s, since a change to 1, 10 and 120 s needs a
 gating run that passes and none has been made (decision 63). RW-152 is answered by the tree and is
 listed for the orchestrator to close (decision 64).
-
-**M51.** The `FreeTrainingStep` add sits in `tests/vision/training`
-(`Small_FreeTrainingStep.MakeRefusesAPoolWithoutTheInputLeaf`), not in `tests/language/training` as the
-order says: the step is `Vision::Training::FreeTrainingStep`, and a test there would add a language to
-vision edge to the test program (owner: the module boundary; decision 78). Every other record of the
-job is applied (decision 78).
 
 ## Acceptance
 
