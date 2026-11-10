@@ -1,7 +1,8 @@
 # tests/vision/detect/free/test_anchors.cpp
 
 
-Suites: `Small_DetectAnchors`, `Medium_DetectAnchors` and `Small_DetectAnchorLeaves`.
+Suites: `Small_DetectAnchors`, `Medium_DetectAnchors`, `Medium_DetectAnchorsFatal` and
+`Small_DetectAnchorLeaves`.
 
 Tests the anchor grid and the per-image anchor leaves. The copies between a level and the joined
 anchor axis are tested in `test_level_rows.cpp`; `SplitsIntoALevelsPointsAndStrides` only reads
@@ -45,6 +46,10 @@ case lists: the first level row by row, x before y, then the second level.
 second.
 
 ## ScaleRejectsStridesThatDoNotMatchThePoints
+
+In `Medium_DetectAnchorsFatal`: the refusal is a death check that runs in a child process, which
+took more than the 0.1 s of a `small` test on the debug build (RW-166), and a death test is
+`medium` by its size rule. It needs no device.
 
 Seven strides for eight points fail with a message containing "[A] strides" and "got 16, 7 and
 16 values".

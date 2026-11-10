@@ -95,7 +95,7 @@ TEST(Small_Ir, ASecondProducerForOneValueIsFatal)
     SA_EXPECT_FATAL((void)graph.add_node(Ops::K_SUB.id, {a, b}, {c}), "already written");
 }
 
-TEST(Small_Ir, ReferencingAnUnknownValueIsFatal)
+TEST(Medium_IrFatal, ReferencingAnUnknownValueIsFatal)
 {
     Graph::Graph graph;
     const ValueID a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
@@ -456,7 +456,7 @@ TEST(Small_Ir, StateLeavesListTheBindingsInBindingOrder)
 }
 
 /** @brief Tests that a state binds one leaf and a leaf stands for one state, in one graph. */
-TEST(Small_Ir, BindStateLeafIsFatalForASecondBindingOfAStateOrOfALeaf)
+TEST(Medium_IrFatal, BindStateLeafIsFatalForASecondBindingOfAStateOrOfALeaf)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -470,7 +470,7 @@ TEST(Small_Ir, BindStateLeafIsFatalForASecondBindingOfAStateOrOfALeaf)
 }
 
 /** @brief Tests that bind_state_leaf is fatal without an identity and for an unknown value. */
-TEST(Small_Ir, BindStateLeafIsFatalForNoIdentityOrAnUnknownValue)
+TEST(Medium_IrFatal, BindStateLeafIsFatalForNoIdentityOrAnUnknownValue)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

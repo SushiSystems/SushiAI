@@ -1,7 +1,7 @@
 # tests/core/graph/test_fusion.cpp
 
 
-Suites: `Small_Fusion`.
+Suites: `Small_Fusion`, `Small_FusionFormIdentity`, `Small_FusionFormWithoutSpill`, `Medium_FusionFatal`.
 
 Tests the matches and the refusals of the static fusion pass on synthetic graphs.
 
@@ -223,6 +223,9 @@ and `has_refusal()` is still true.
 naming "FusionOptions::observed" and "which this graph does not have".
 
 ## AGraphThatIsNotInTopologicalOrderIsFatal
+
+This case is in the suite `Medium_FusionFatal`: the death check runs in a child process and took
+more than the 0.1 s of a `small` test on the debug build (RW-166).
 
 Two RELU nodes added by hand, the first reading the value the second writes, make `fuse` stop
 the process with a report naming "Node 0 reads value 1" and "which node 1 writes later".

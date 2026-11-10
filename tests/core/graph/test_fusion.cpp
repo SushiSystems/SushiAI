@@ -707,7 +707,7 @@ TEST_F(Small_Fusion, ObservingAValueThatDoesNotExistIsFatal)
 }
 
 /** @brief Tests that a graph out of topological order stops the process. */
-TEST_F(Small_Fusion, AGraphThatIsNotInTopologicalOrderIsFatal)
+TEST(Medium_FusionFatal, AGraphThatIsNotInTopologicalOrderIsFatal)
 {
     Graph::Graph graph;
     const ValueID a = graph.add_value(Shape{K_ROWS}, DType::Float32, Graph::Lifetime::Activation,

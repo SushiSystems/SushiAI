@@ -1,7 +1,7 @@
 # tests/core/graph/test_ir.cpp
 
 
-Suites: `Small_Ir`.
+Suites: `Small_Ir`, `Small_IrMatmulRow`, `Small_IrLifetimeRow`, `Medium_IrFatal`.
 
 Tests the IR's single-assignment and ordering rules and the builder's shape inference.
 
@@ -113,7 +113,10 @@ SushiBLAS.
 
 ## ABufferLeafIsPersistent
 
-Every case of this file is in the suite `Small_Ir`.
+Every case of this file is in the suite `Small_Ir`, except the three cases that stop the process
+(`ReferencingAnUnknownValueIsFatal` and the two `BindStateLeafIsFatal...` cases), which are in
+`Medium_IrFatal`. Each death check runs in a child process, so these cases exceeded the 0.1 s
+limit of a `small` test on the debug build (RW-166); a death test is `medium` by its size rule.
 
 `GraphBuilder::buffer` declares a value of the shape, type and name it was given, with the
 lifetime `Lifetime::Buffer`. Its producer is a K_LEAF node. `is_persistent(BUFFER)` is true and

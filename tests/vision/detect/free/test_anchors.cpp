@@ -97,7 +97,7 @@ TEST(Small_DetectAnchors, ScalesEachPointByItsStride)
 }
 
 /** @brief Tests that scaling refuses strides that do not number one per point. */
-TEST(Small_DetectAnchors, ScaleRejectsStridesThatDoNotMatchThePoints)
+TEST(Medium_DetectAnchorsFatal, ScaleRejectsStridesThatDoNotMatchThePoints)
 {
     const std::vector<float> points(16, 0.5f);
     const std::vector<float> strides(7, 8.0f);
