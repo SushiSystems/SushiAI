@@ -131,6 +131,11 @@ namespace
             HostExecutionBackend backend;
     };
 
+    /** @brief Provides the host backend to the cases that stop the process. */
+    class Medium_GradientClipFatal : public Small_GradientClip
+    {
+    };
+
     /** @brief Names one clip norm and the parameter an SGD ends at; a norm of 0 means no clip. */
     struct ClipRow
     {
@@ -343,7 +348,7 @@ TEST_F(Small_GradientClip, ASeparateKernelRefusesTheClip)
 }
 
 /** @brief Tests that a norm set on an optimizer with no clip stops the process. */
-TEST_F(Small_GradientClip, ANormSetWithoutAClipIsFatal)
+TEST_F(Medium_GradientClipFatal, ANormSetWithoutAClipIsFatal)
 {
     const std::unique_ptr<Optim::SGD> optimizer =
         make_sgd(backend, make_slots(backend, {{3.0, 4.0}}));
@@ -352,7 +357,7 @@ TEST_F(Small_GradientClip, ANormSetWithoutAClipIsFatal)
 }
 
 /** @brief Tests that a norm no clip can use stops the process. */
-TEST_F(Small_GradientClip, ANormThatIsNotPositiveAndFiniteIsFatal)
+TEST_F(Medium_GradientClipFatal, ANormThatIsNotPositiveAndFiniteIsFatal)
 {
     const std::unique_ptr<Optim::SGD> optimizer =
         make_sgd(backend, make_slots(backend, {{3.0, 4.0}}));

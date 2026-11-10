@@ -83,7 +83,7 @@ TEST(Small_Ir, AddNodeClaimsItsOutputs)
     EXPECT_EQ(graph.node(node).inputs.size(), 2u);
 }
 
-TEST(Small_Ir, ASecondProducerForOneValueIsFatal)
+TEST(Medium_IrFatal, ASecondProducerForOneValueIsFatal)
 {
     // A value has exactly one producer; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -285,7 +285,7 @@ TEST(Small_Ir, NodesAreEmittedInTopologicalOrder)
     EXPECT_LT(graph.value(y).producer, graph.value(z).producer);}
 
 /** @brief Tests that insert_node is fatal for a producer placed after the node that reads it. */
-TEST(Small_Ir, InsertNodeIsFatalForAResultThatIsAlreadyReadEarlier)
+TEST(Medium_IrFatal, InsertNodeIsFatalForAResultThatIsAlreadyReadEarlier)
 {
     // insert_node refuses a producer placed after its reader; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -316,7 +316,7 @@ TEST(Small_Ir, InsertNodeAcceptsAResultAheadOfItsReader)
     EXPECT_EQ(graph.value(y).producer, Graph::NodeID{1});
 }
 
-TEST(Small_Ir, InsertNodeIsFatalForAnOperandProducedNoEarlierThanItself)
+TEST(Medium_IrFatal, InsertNodeIsFatalForAnOperandProducedNoEarlierThanItself)
 {
     // The mirror of the case above, and the one that was guarded first.
     Graph::Graph graph;
@@ -587,7 +587,7 @@ TEST(Small_Ir, AMarkedRefusalSurvivesWithoutNodes)
     EXPECT_TRUE(graph.without_nodes().has_refusal());
 }
 
-TEST(Small_Ir, ASecondProducerNamesBothOperationsAndTheRule)
+TEST(Medium_IrFatal, ASecondProducerNamesBothOperationsAndTheRule)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -602,7 +602,7 @@ TEST(Small_Ir, ASecondProducerNamesBothOperationsAndTheRule)
                     "sushiai.tanh", "sushiai.relu", "single-assignment");
 }
 
-TEST(Small_Ir, AnUnknownOperandNamesTheOperationThatAskedForIt)
+TEST(Medium_IrFatal, AnUnknownOperandNamesTheOperationThatAskedForIt)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

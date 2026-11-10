@@ -1,9 +1,14 @@
 # tests/core/graph/test_memory_plan.cpp
 
 
-Suites: `Small_MemoryPlan`.
+Suites: `Small_MemoryPlan`, `Medium_MemoryPlanFatal`.
 
 Tests that the memory planner never shares a byte between two values live together.
+
+Size (RW-166): the four cases that stop the process (`AScratchRequestOfAnUnknownNodeIsFatal`,
+`PinningAValueThatDoesNotExistIsFatal`, `AGraphThatIsNotInTopologicalOrderIsFatal` and
+`AskingForAValueThePlanDoesNotCoverIsFatal`) are in `Medium_MemoryPlanFatal`: each death check
+runs in a child process and took more than the 0.1 s of a `small` test on the debug build.
 
 This file needs no device: no engine, no allocator, no SYCL. The memory planner is a pure
 function of the IR, which is the reason the IR is a host-lane structure, and every case is a

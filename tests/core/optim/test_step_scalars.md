@@ -1,7 +1,7 @@
 # tests/core/optim/test_step_scalars.cpp
 
 
-Suites: `Small_StepScalars`.
+Suites: `Small_StepScalars`, `Medium_StepScalarsFatal`.
 
 Tests that `StepScalars` holds a zeroed buffer at one address and rewrites it in place.
 
@@ -30,6 +30,10 @@ A buffer of three slots reports `count()` 3, a non-null address and three zeros.
 A buffer moved into a new object keeps the address taken before the move and its count.
 
 ## AWriteOfAnotherLengthIsFatal
+
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_StepScalarsFatal`; a death test is `medium` by its
+size rule.
 
 `write()` of two values into a buffer of three stops the process and names "holds 3 slots" and
 "2 values".

@@ -58,6 +58,11 @@ namespace
             HostExecutionBackend backend;
     };
 
+    /** @brief Provides the host engine to the case that stops the process. */
+    class Medium_StepScalarsFatal : public Small_StepScalars
+    {
+    };
+
     /** @brief Holds the slot count of every buffer of this file. */
     constexpr std::size_t K_COUNT = 3;
 
@@ -121,7 +126,7 @@ TEST_F(Small_StepScalars, AMoveKeepsTheAddress)
 }
 
 /** @brief Tests that writing a count of values other than the buffer's stops the process. */
-TEST_F(Small_StepScalars, AWriteOfAnotherLengthIsFatal)
+TEST_F(Medium_StepScalarsFatal, AWriteOfAnotherLengthIsFatal)
 {
     SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(backend.engine(), K_COUNT));
     const std::vector<float> short_values{1.0f, 2.0f};

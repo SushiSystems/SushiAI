@@ -1,7 +1,8 @@
 # tests/vision/datasets/test_fit_sample.cpp
 
 
-Suites: `Small_DatasetsFitSample` and `Small_DatasetsFitSampleLetterboxRow`.
+Suites: `Small_DatasetsFitSample`, `Small_DatasetsFitSampleLetterboxRow` and
+`Medium_DatasetsFitSampleFatal`.
 
 Tests `fit_sample` in `modules/vision/datasets/include/SushiAI/vision/datasets/fit_sample.hpp`.
 A box corner may differ from its expected value by 1e-4 pixels.
@@ -36,6 +37,10 @@ kept.
 A target size of 0 by 4 fails with `InvalidDescription`, "fit_sample" and "0 by 4".
 
 ## ASourceOfNoPixelsStopsTheProcess
+
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_DatasetsFitSampleFatal`; a death test is `medium` by its
+size rule.
 
 A default `ImageView` as the source stops the process with "resize_bilinear" and "no pixels".
 

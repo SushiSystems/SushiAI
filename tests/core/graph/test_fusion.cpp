@@ -691,7 +691,7 @@ TEST_F(Small_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
 }
 
 /** @brief Tests that an observed value the graph does not have stops the process. */
-TEST_F(Small_Fusion, ObservingAValueThatDoesNotExistIsFatal)
+TEST(Medium_FusionFatal, ObservingAValueThatDoesNotExistIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

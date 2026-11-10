@@ -71,7 +71,7 @@ TEST(Small_InMemoryEpochAware, TheLatestEpochWinsAndEveryCallIsCounted)
 }
 
 /** @brief Tests that a negative epoch stops the process, as the interface states. */
-TEST(Small_InMemoryEpochAware, ANegativeEpochStopsTheProcess)
+TEST(Medium_InMemoryEpochAwareFatal, ANegativeEpochStopsTheProcess)
 {
     const Data::InMemoryEpochAware adapter;
 

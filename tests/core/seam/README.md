@@ -5,7 +5,7 @@ prefix of a case gives its ctest label.
 
 ## test_seam.cpp
 
-Suites: `Small_Seam`.
+Suites: `Small_Seam`, `Medium_SeamFatal`.
 
 Tests the seam in `modules/core/seam/include/SushiAI/seam/seam.hpp`, the one place where an
 exception of SushiBLAS
@@ -63,6 +63,10 @@ A SushiRuntime `Error` keeps its text and maps by its code, one row per code:
 | `CompileFailed` | `OutOfMemory` while allocating, `DeviceFailed` while executing | it names no cause, so the phase decides, as for a plain `std::runtime_error` |
 
 ### RuntimeDanglingResourceIsFatal
+
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_SeamFatal`; a death test is `medium` by its
+size rule.
 
 `DanglingResource` stops the process and returns no Status, because a tensor freed before the
 step that names it breaks the contract of the pool. The case checks the report with

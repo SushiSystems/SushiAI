@@ -100,6 +100,11 @@ namespace
             HostExecutionBackend backend;
     };
 
+    /** @brief Provides the host backend and one parameter slot to the cases that stop the process. */
+    class Medium_AdamWFatal : public Small_AdamW
+    {
+    };
+
     /** @brief Names one kernel and whether its update replays. */
     struct KernelRow
     {
@@ -230,7 +235,7 @@ TEST_F(Small_AdamW, TheFirstStepFillsTheFirstMoment)
 }
 
 /** @brief Tests that the moment of a parameter the optimizer lacks stops the process. */
-TEST_F(Small_AdamW, AMomentPastTheLastParameterIsFatal)
+TEST_F(Medium_AdamWFatal, AMomentPastTheLastParameterIsFatal)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
                             AdamW::make(backend, make_slots()));

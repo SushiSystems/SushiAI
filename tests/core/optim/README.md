@@ -56,7 +56,7 @@ The cosine schedule gives 0.25 before the third update, within the derived doubl
 
 ## test_cosine_schedule.cpp
 
-Suites: `Small_CosineSchedule`.
+Suites: `Small_CosineSchedule`, `Medium_CosineScheduleFatal`.
 
 Tests `Optim::CosineSchedule::rate_at`, `Optim::validate_cosine_schedule` and the section
 reader and writer of `cosine_schedule_section.hpp`. The schedule most cases start from has the
@@ -86,6 +86,10 @@ With `total_iterations` equal to `warmup_iterations`, `validate_cosine_schedule`
 at iteration 9 is 0.9 and the rate at iteration 10 is 0.1.
 
 ### ANegativeIterationIsFatal
+
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_CosineScheduleFatal`; a death test is `medium` by its
+size rule.
 
 `rate_at(-1)` stops the process with a report containing "iteration 0 or later".
 
@@ -122,7 +126,8 @@ and a message containing "schedule 'base_rate'" and "finite".
 
 ## test_gradient_clip.cpp
 
-Suites: `Medium_GradientClip`.
+Suites: `Medium_GradientClip`, `Medium_GradientClipRow`, `Medium_GradientClipFatal`,
+`Small_GradientClip`, `Small_GradientClipType`, `Small_GradientClipNorm`.
 
 Tests the gradient clip of `Optim::Optimizer`: `enable_gradient_clip`, `set_clip_norm`, the
 `clip_norm` key of `Optim::make_optimizer` and the update a clipped step applies. The fixture
@@ -172,6 +177,10 @@ Over two slots, `record_into_step` returns 2 for an SGD without a clip, whose
 fails with a message containing "UpdateKernel::Fused".
 
 ### ANormSetWithoutAClipIsFatal
+
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so both checks of this section are in `Medium_GradientClipFatal`;
+a death test is `medium` by its size rule.
 
 `set_clip_norm(1.0)` on an optimizer without a clip stops the process with a report containing
 "no gradient clip". After a clip is enabled, `set_clip_norm(0.0)` stops it with "clip norm" and

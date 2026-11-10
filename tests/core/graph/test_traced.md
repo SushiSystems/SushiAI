@@ -1,7 +1,7 @@
 # tests/core/graph/test_traced.cpp
 
 
-Suites: `Small_Traced`.
+Suites: `Small_Traced`, `Medium_TracedFatal`.
 
 Tests Traced and the refusal it carries through a chain of emitters.
 
@@ -94,10 +94,18 @@ graph and no refusal.
 
 ## ValueOnAFailureIsFatalAndPrintsTheFailure
 
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_TracedFatal`; a death test is `medium` by its
+size rule.
+
 `value()` on a failed `Traced` stops the process with a report containing "Traced::value() was
 called on a failure" and the failure's message.
 
 ## BuildingFromASuccessStatusIsFatal
+
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_TracedFatal`; a death test is `medium` by its
+size rule.
 
 `Traced(Status())` stops the process with "a Traced was built from a success Status".
 

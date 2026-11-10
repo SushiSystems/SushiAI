@@ -166,7 +166,7 @@ After a trace, a `linear` row has two parameters, and one with `use_bias` false 
 
 How the config layer parses its JSON documents and which ones it refuses.
 
-Suites: `Unit_Config`.
+Suites: `Unit_Config`, `Medium_ValueFatal`.
 
 Tests how the config layer parses its JSON documents and which ones it refuses.
 
@@ -239,6 +239,10 @@ are an empty object, therefore reads its optional keys through the same call as 
 "not valid JSON".
 
 ## AnObjectBuiltFromMismatchedVectorsIsFatal
+
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_ValueFatal`; a death test is `medium` by its
+size rule.
 
 `Value::object` of two keys and one value stops the process with a report holding "2 keys" and
 "1 value".

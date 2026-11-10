@@ -245,14 +245,14 @@ TEST(Small_Traced, TryPassesASuccessfulTracedValueOn)
     EXPECT_TRUE(reached_end);
 }
 
-TEST(Small_Traced, ValueOnAFailureIsFatalAndPrintsTheFailure)
+TEST(Medium_TracedFatal, ValueOnAFailureIsFatalAndPrintsTheFailure)
 {
     const Traced traced(description_failure("stride must be positive"));
     SA_EXPECT_FATAL((void)traced.value(),
                     "Traced::value() was called on a failure", "stride must be positive");
 }
 
-TEST(Small_Traced, BuildingFromASuccessStatusIsFatal)
+TEST(Medium_TracedFatal, BuildingFromASuccessStatusIsFatal)
 {
     SA_EXPECT_FATAL((void)Traced(Status()), "a Traced was built from a success Status");
 }

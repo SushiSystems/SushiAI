@@ -86,7 +86,7 @@ TEST(Small_InMemoryPartnerSource, TheJournalKeepsTheSampleIndexOfEachCall)
 }
 
 /** @brief Tests that a script with no entry stops the process. */
-TEST(Small_InMemoryPartnerSource, AnEmptyScriptStopsTheProcess)
+TEST(Medium_InMemoryPartnerSourceFatal, AnEmptyScriptStopsTheProcess)
 {
     SA_EXPECT_FATAL(InMemoryPartnerSource(std::vector<MosaicPartners>{}),
                     "InMemoryPartnerSource", "no partners");

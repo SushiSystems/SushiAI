@@ -222,7 +222,7 @@ TEST(Small_Value, MalformedJSONNamesTheOriginAndTheComplaint)
                       "train.json", "not valid JSON");
 }
 
-TEST(Small_Value, AnObjectBuiltFromMismatchedVectorsIsFatal)
+TEST(Medium_ValueFatal, AnObjectBuiltFromMismatchedVectorsIsFatal)
 {
     std::vector<std::string> keys{"a", "b"};
     std::vector<Value> values{Value::integer(1)};

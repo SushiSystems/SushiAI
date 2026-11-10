@@ -95,7 +95,7 @@ TEST(Small_InMemoryMaskSource, AScriptedFailureIsReturnedForItsIndexOnly)
 }
 
 /** @brief Tests that an index outside the source stops the process. */
-TEST(Small_InMemoryMaskSource, AnIndexOutsideTheSourceStopsTheProcess)
+TEST(Medium_InMemoryMaskSourceFatal, AnIndexOutsideTheSourceStopsTheProcess)
 {
     InMemoryMaskSource source;
     static_cast<void>(source.add(mask_of(2, 2, 1)));

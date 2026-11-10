@@ -219,6 +219,10 @@ and `has_refusal()` is still true.
 
 ## ObservingAValueThatDoesNotExistIsFatal
 
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_FusionFatal`; a death test is `medium` by its
+size rule.
+
 `fuse` with an observed id five past the graph's value count stops the process with a report
 naming "FusionOptions::observed" and "which this graph does not have".
 

@@ -1,7 +1,7 @@
 # tests/core/graph/test_cast_insertion.cpp
 
 
-Suites: `Small_CastInsertion`.
+Suites: `Small_CastInsertion`, `Medium_CastInsertionNodeFatal`.
 
 Tests the parts of the cast pass that `tests/core/autograd/test_backward.cpp` does not: the
 report of a pass that converts nothing, a narrow graph under the mixed policy, and the exact
@@ -35,6 +35,10 @@ A policy that asks a float32 RELU to compute in int32 makes `insert_casts` retur
 graph keeps its node and value counts.
 
 ## ANodeWithoutAResultIsFatal
+
+Size (RW-166): the death check runs in a child process and took more than the 0.1 s of a
+`small` test on the debug build, so the case is in `Medium_CastInsertionNodeFatal`; a death test is `medium` by its
+size rule.
 
 A RELU node added by hand with no result stops the process in `insert_casts` with a report
 naming the operation and "declares no result".

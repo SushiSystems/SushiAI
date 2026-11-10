@@ -448,7 +448,7 @@ TEST(Small_MemoryPlan, ScratchRequestsHaveAnArenaOfTheirOwn)
     EXPECT_EQ(fixture.plan.scratch_placement(fixture.second, 1), nullptr);
 }
 
-TEST(Small_MemoryPlan, AScratchRequestOfAnUnknownNodeIsFatal)
+TEST(Medium_MemoryPlanFatal, AScratchRequestOfAnUnknownNodeIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -644,7 +644,7 @@ TEST(Small_MemoryPlan, APinnedValueKeepsItsOwnAllocation)
     EXPECT_TRUE(plan.is_packed(b));
 }
 
-TEST(Small_MemoryPlan, PinningAValueThatDoesNotExistIsFatal)
+TEST(Medium_MemoryPlanFatal, PinningAValueThatDoesNotExistIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -669,7 +669,7 @@ TEST(Small_MemoryPlan, ZeroAlignmentIsRefused)
                       "PlanOptions::alignment", "multiple of zero");
 }
 
-TEST(Small_MemoryPlan, AGraphThatIsNotInTopologicalOrderIsFatal)
+TEST(Medium_MemoryPlanFatal, AGraphThatIsNotInTopologicalOrderIsFatal)
 {
     // The pass relies on topological order; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -684,7 +684,7 @@ TEST(Small_MemoryPlan, AGraphThatIsNotInTopologicalOrderIsFatal)
                     "which node 1 writes later");
 }
 
-TEST(Small_MemoryPlan, AskingForAValueThePlanDoesNotCoverIsFatal)
+TEST(Medium_MemoryPlanFatal, AskingForAValueThePlanDoesNotCoverIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

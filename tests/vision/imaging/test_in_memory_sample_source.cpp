@@ -156,7 +156,7 @@ TEST(Small_InMemorySampleSource, LoadsListsTheLoadedIndicesInCallOrder)
 }
 
 /** @brief Tests that an index outside the source stops the process, as the interface states. */
-TEST(Small_InMemorySampleSource, AnIndexOutsideTheSourceStopsTheProcess)
+TEST(Medium_InMemorySampleSourceFatal, AnIndexOutsideTheSourceStopsTheProcess)
 {
     InMemorySampleSource source;
     static_cast<void>(source.add(filled(2, 2, 1)));

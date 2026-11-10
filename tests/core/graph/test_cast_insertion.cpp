@@ -152,7 +152,7 @@ TEST(Small_CastInsertion, APolicyAskingForAnIntegerConversionIsRefused)
 }
 
 /** @brief Tests that a node writing no value stops the process. */
-TEST(Small_CastInsertion, ANodeWithoutAResultIsFatal)
+TEST(Medium_CastInsertionNodeFatal, ANodeWithoutAResultIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

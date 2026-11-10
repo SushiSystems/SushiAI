@@ -209,7 +209,7 @@ TEST(Small_Seam, RuntimeFailureThatTheUserCanActOnMapsByItsCode)
         StatusCode::DeviceFailed, "no plan");
 }
 
-TEST(Small_Seam, RuntimeDanglingResourceIsFatal)
+TEST(Medium_SeamFatal, RuntimeDanglingResourceIsFatal)
 {
     SA_EXPECT_FATAL(
         (void)status_of_error(runtime_failure(ErrorCode::DanglingResource, "freed"),

@@ -218,7 +218,7 @@ TEST(Small_DatasetsFitSample, AnInputSizeOutsideTheBoundsIsRefused)
 }
 
 /** @brief Tests that a source of no pixels stops the process in the resize that reads it. */
-TEST(Small_DatasetsFitSample, ASourceOfNoPixelsStopsTheProcess)
+TEST(Medium_DatasetsFitSampleFatal, ASourceOfNoPixelsStopsTheProcess)
 {
     FittedSample fitted;
     SA_EXPECT_FATAL(static_cast<void>(fit_sample(

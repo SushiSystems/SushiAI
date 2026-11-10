@@ -132,7 +132,7 @@ TEST(Small_CosineSchedule, ADecayOfNoLengthDividesByNothing)
 }
 
 /** @brief Tests that a negative iteration stops the process. */
-TEST(Small_CosineSchedule, ANegativeIterationIsFatal)
+TEST(Medium_CosineScheduleFatal, ANegativeIterationIsFatal)
 {
     const CosineSchedule schedule = make_schedule();
 
