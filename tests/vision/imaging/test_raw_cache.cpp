@@ -42,6 +42,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
+#include <support/scratch_names.hpp>
 #include <support/test_names.hpp>
 
 using namespace SushiAI::Vision::Imaging;
@@ -116,7 +117,7 @@ namespace
         public:
             /** @brief Creates the directory empty. */
             explicit ScratchDirectory(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
+                : path_(std::filesystem::temp_directory_path() / SushiAI::Test::unique_scratch_name(name))
             {
                 std::filesystem::remove_all(path_);
                 std::filesystem::create_directories(path_);

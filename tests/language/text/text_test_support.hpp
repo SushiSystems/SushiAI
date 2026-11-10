@@ -41,6 +41,7 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <support/scratch_names.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/text/token.hpp>
@@ -55,7 +56,7 @@ namespace SushiAI::Language::Text::Support
         public:
             /** @brief Creates the directory empty. */
             explicit ScratchDirectory(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
+                : path_(std::filesystem::temp_directory_path() / SushiAI::Test::unique_scratch_name(name))
             {
                 std::filesystem::remove_all(path_);
                 std::filesystem::create_directories(path_);

@@ -79,6 +79,7 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
+#include <support/scratch_names.hpp>
 #include <support/tolerance.hpp>
 #include <SushiAI/optim/adamw.hpp>
 #include <SushiAI/optim/apply_step_schedule.hpp>
@@ -1036,7 +1037,7 @@ namespace
              */
             [[nodiscard]] Result<Overfit> train_one_batch(const OverfitRun& run)
             {
-                const SaTest::ScratchFile file(Model::K_FILE);
+                const SaTest::ScratchFile file(SushiAI::Test::unique_scratch_name(Model::K_FILE).c_str());
                 SA_TRY_ASSIGN(const std::unique_ptr<Language::Datasets::TokenDataset> dataset,
                               make_token_dataset(*this->engine, file.path()));
                 SA_FAIL_IF(dataset->batch_count() != 1u, StatusCode::Incompatible,

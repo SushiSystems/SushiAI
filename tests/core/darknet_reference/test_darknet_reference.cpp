@@ -38,6 +38,7 @@
 #include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
+#include <support/scratch_names.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/darknet_reference/darknet_reference.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -103,7 +104,8 @@ namespace
             /** @brief Creates the folder and its run folder. */
             void SetUp() override
             {
-                root_ = std::filesystem::temp_directory_path() / "sushiai_darknet_reference_test";
+                root_ = std::filesystem::temp_directory_path() /
+                    SushiAI::Test::unique_scratch_name("sushiai_darknet_reference_test");
                 std::error_code ignored;
                 std::filesystem::remove_all(root_, ignored);
                 std::filesystem::create_directories(root_ / "references" / K_MODEL);

@@ -39,6 +39,7 @@
 #include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
+#include <support/scratch_names.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
@@ -53,7 +54,7 @@ namespace SushiAI::Language::Datasets::Support
         public:
             /** @brief Creates the directory empty. */
             explicit ScratchDirectory(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
+                : path_(std::filesystem::temp_directory_path() / SushiAI::Test::unique_scratch_name(name))
             {
                 std::filesystem::remove_all(path_);
                 std::filesystem::create_directories(path_);

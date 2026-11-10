@@ -37,6 +37,7 @@
 #include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
+#include <support/scratch_names.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
@@ -311,7 +312,7 @@ namespace
     {
         public:
             explicit TemporaryDirectory(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
+                : path_(std::filesystem::temp_directory_path() / SushiAI::Test::unique_scratch_name(name))
             {
                 std::filesystem::remove_all(path_);
                 std::filesystem::create_directories(path_);

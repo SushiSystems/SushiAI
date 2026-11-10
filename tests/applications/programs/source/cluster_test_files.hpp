@@ -40,6 +40,7 @@
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_step.hpp>
 #include <SushiAI/scratch_files/scratch_file.hpp>
+#include <support/scratch_names.hpp>
 
 /** @brief Holds what the tests of the cluster run of `sushiai train` share. */
 namespace SushiAI::Apps::ClusterTest
@@ -143,7 +144,7 @@ namespace SushiAI::Apps::ClusterTest
     {
         /** @brief Writes the architecture file under @p name and parses the training file. */
         explicit ClusterTestFiles(const char* name, const std::string& listen = "127.0.0.1:0")
-            : model_file(name)
+            : model_file(Test::unique_scratch_name(name).c_str())
         {
             {
                 std::ofstream written(model_file.path());
