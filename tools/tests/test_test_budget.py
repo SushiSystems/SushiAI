@@ -169,11 +169,16 @@ class TestEvaluate(unittest.TestCase):
 
     def test_an_exempt_test_is_left_out_and_a_stale_exemption_is_a_finding(self) -> None:
         exempt = {"Medium_M.Crush": "RW-40", "Small_A.Fine": "RW-41"}
-        report = run({"Medium_M.Crush": 700.0, "Small_A.Fine": 0.1}, exemptions=exempt, scope="default",
+        report = run({"Medium_M.Crush": 700.0, "Small_A.Fine": 0.4}, exemptions=exempt, scope="default",
                      open_backlog=frozenset({"RW-40", "RW-41"}))
         self.assertEqual(len(report.findings), 1)
-        self.assertIn("Small_A.Fine: exempt as RW-41 but within its limit", report.findings[0])
+        self.assertIn("Small_A.Fine: exempt as RW-41 but well within its limit", report.findings[0])
         self.assertIn("2 exempt, 700 s left out", report.line)
+
+    def test_an_exempt_test_that_hovers_just_under_its_limit_keeps_its_entry(self) -> None:
+        report = run({"Medium_M.Edge": 9.9}, exemptions={"Medium_M.Edge": "RW-40"}, scope="partial",
+                     open_backlog=frozenset({"RW-40"}))
+        self.assertEqual(report.findings, ())
 
     def test_an_exemption_needs_an_open_backlog_id(self) -> None:
         report = run({"Medium_M.Crush": 700.0}, exemptions={"Medium_M.Crush": "RW-40"}, open_backlog=frozenset())

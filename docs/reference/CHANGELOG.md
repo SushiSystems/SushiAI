@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-11 — tests: Moved the `ServedKernelMachine` rows to medium and exempted the one-step cluster run over the medium limit (RW-169).
+- 2026-11-11 — cli: Required sushicore 0.13, whose test command fails a run of a current tree that breaks a time limit, and told it whether the tree is current; the large shards each hold the one accelerator slot.
 - 2026-11-11 — failure_contract: Confirm the error contract in a build (RW-11, `27959df0`).
 - 2026-11-11 — model_import: Load the files the import writes (RW-56, `27959df0`).
 - 2026-11-11 — documentation_architecture: Refuse `if_absent: "local"` under `deterministic: true` (RW-141, `27959df0`).

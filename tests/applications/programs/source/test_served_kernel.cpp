@@ -56,7 +56,7 @@ namespace
     };
 
     /** @brief Runs the rows of machine names the placement matches with the section's labels. */
-    class Small_ServedKernelMachine : public ::testing::TestWithParam<MachineCase> {};
+    class Medium_ServedKernelMachine : public ::testing::TestWithParam<MachineCase> {};
 
     /** @brief Returns the files of @p files as a replica source. */
     std::shared_ptr<const Apps::ReplicaSource> source_of(const ClusterTestSpec& files)
@@ -80,7 +80,7 @@ TEST(Small_ServedKernel, RefusesAMachineNoReplicaNames)
 }
 
 /** @brief Tests that a machine is found by the name placement matches it with. */
-TEST_P(Small_ServedKernelMachine, FindsTheReplicaOfAMachineNamedInAnotherForm)
+TEST_P(Medium_ServedKernelMachine, FindsTheReplicaOfAMachineNamedInAnotherForm)
 {
     const ClusterTestSpec files;
 
@@ -90,7 +90,7 @@ TEST_P(Small_ServedKernelMachine, FindsTheReplicaOfAMachineNamedInAnotherForm)
     EXPECT_TRUE(kernel.has_value()) << kernel.status().message();
 }
 
-INSTANTIATE_TEST_SUITE_P(Rows, Small_ServedKernelMachine,
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_ServedKernelMachine,
                          ::testing::Values(MachineCase{"AnUpperCaseQualifiedName", "WORKER.lab"},
                                            MachineCase{"TheExactLabel", "worker"}),
                          [](const ::testing::TestParamInfo<MachineCase>& info)

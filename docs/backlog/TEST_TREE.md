@@ -10,6 +10,7 @@
 | RW-119 | P2 | open | Move three tests into their mirror files | the cases of `check.hpp`, `load_sample_mask.hpp` and `perplexity.hpp` leave `test_status.cpp`, `test_fit_mask.cpp` and `test_next_token_targets.cpp` |  |  | 2026-10-19 |
 | RW-159 | P2 | open | Build the CLI seams the M3 resizes need and move the colour-name test to a checker | the CLI tests named in the test review decision 16 (REPORT.md as of `a87d12c8`) run small and the raw rich colour rule is a checker under tools/ |  | `cli/tests/test_config.py` | 2026-11-07 |
 | RW-168 | P2 | open | Give every test a name and suite that check_test_odr accepts | check_test_odr.py prints nothing for this repository and its known findings are gone |  |  | 2026-11-11 |
+| RW-169 | P2 | open | Bring the one-step cluster run test back under the medium limit | Medium_ClusterRun.RegressionOneStepFromAFileMatchesTheSingleMachineStep runs under 5 s alone and leaves tests/budget_exemptions.toml |  | `tests/applications/programs/source/test_cluster_run.cpp` | 2026-11-11 |
 
 ## Known issues
 

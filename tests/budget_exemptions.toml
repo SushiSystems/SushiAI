@@ -1,0 +1,11 @@
+# budget_exemptions.toml
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026-present Mustafa Garip & Sushi Systems
+# Licensed under the Apache License 2.0. See LICENSE.
+#
+# The tests over their time limit, each with the open backlog ID that brings it back within it.
+# One entry per test: "Suite.Case" = "RW-12". The time reader fails an entry whose test falls to half
+# its limit, so the list only shrinks.
+
+[exempt]
+"Medium_ClusterRun.RegressionOneStepFromAFileMatchesTheSingleMachineStep" = "RW-169"

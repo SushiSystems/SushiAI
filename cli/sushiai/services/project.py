@@ -386,7 +386,8 @@ def test(tools: Toolbox, suite: Suite = Suite.gating, filter: str | None = None,
         build_tree=lambda: build_dir, run=tools.runner.run,
         run_ctest=lambda directory, **options: tools.driver.ctest_run(
             cfg, directory, env, **options),
-        run_program=ProgramRunner(build_dir, tools.runner.run, env))
+        run_program=ProgramRunner(build_dir, tools.runner.run, env),
+        rebuilt=lambda directory: tools.driver.tree_is_current(cfg, directory, env))
     # all and large name the large tests on purpose, so they are the two that lift its filter rule.
     labels = _SUITE_LABELS[suite] if suite is not Suite.all else (TestLabel.QUARANTINED,)
     return run_tests(module, select_labels(labels, every_size=suite is Suite.all), name_filter=filter,

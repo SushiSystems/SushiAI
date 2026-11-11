@@ -151,6 +151,10 @@ def _limit(budget: dict[str, float], key: str) -> float:
     return float(budget[key])
 
 
+#: The share of its limit an exempt test falls to before its entry must go.
+K_EXEMPT_RETURN_SHARE = 0.5
+
+
 def evaluate(timings: list[Timing], *, programs: dict[str, str], exemptions: dict[str, str],
              rerun: list[Timing] | None, scope: str, wall: float | None, factor: float,
              added: int | None, base: str, rebuilt: bool, open_backlog: frozenset[str] | None,
@@ -177,8 +181,8 @@ def evaluate(timings: list[Timing], *, programs: dict[str, str], exemptions: dic
         key = K_TEST_LIMITS.get(size)
         if timing.name in exemptions:
             exempt_seconds += timing.seconds
-            if key is not None and timing.seconds <= _limit(budget, key):
-                findings.append(f"{timing.name}: exempt as {exemptions[timing.name]} but within its limit; "
+            if key is not None and timing.seconds <= K_EXEMPT_RETURN_SHARE * _limit(budget, key):
+                findings.append(f"{timing.name}: exempt as {exemptions[timing.name]} but well within its limit; "
                                 f"remove the entry")
             continue
         sized[size] += timing.seconds
