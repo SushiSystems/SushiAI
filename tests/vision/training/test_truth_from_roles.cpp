@@ -242,7 +242,8 @@ TEST(Small_TruthFromHostRoles, MakesTheFlagsBytes)
 /** @brief Tests that the roles are found by name, in whatever order the batch holds them. */
 TEST(Small_TruthFromHostRoles, FindsTheRolesInAnotherOrder)
 {
-    std::vector<HostRole> roles = HostRoles().roles();
+    const HostRoles host;
+    std::vector<HostRole> roles = host.roles();
     std::swap(roles[0], roles[2]);
 
     GroundTruthBatch truth;
@@ -274,7 +275,8 @@ TEST(Small_TruthFromHostRoles, KeepsTheStorageOfATruthBetweenBatchesOfOneSize)
 /** @brief Tests that a batch without one of the three roles is refused with the role. */
 TEST_P(Small_TruthFromHostRolesMissing, RefusesABatchThatLacksARole)
 {
-    std::vector<HostRole> roles = HostRoles().roles();
+    const HostRoles host;
+    std::vector<HostRole> roles = host.roles();
     const std::size_t missing = GetParam();
     const std::string role = roles[missing].role;
     roles.erase(roles.begin() + static_cast<std::ptrdiff_t>(missing));
@@ -332,7 +334,8 @@ INSTANTIATE_TEST_SUITE_P(
 /** @brief Tests that a role whose values the host cannot read in order is refused. */
 TEST(Small_TruthFromHostRoles, RefusesARoleTheHostCannotReadInOrder)
 {
-    std::vector<HostRole> roles = HostRoles().roles();
+    const HostRoles host;
+    std::vector<HostRole> roles = host.roles();
     roles[1].values = nullptr;
     GroundTruthBatch truth;
 
