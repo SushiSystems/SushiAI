@@ -416,6 +416,61 @@ TEST_F(Medium_StateCheckpoint, AnUnwritablePathIsInvalidFile)
                       StatusCode::InvalidFile);
 }
 
+/** @brief Tests that a save over a file replaces it whole and leaves no partial file. */
+TEST_F(Medium_StateCheckpoint, ASaveOverAFileReplacesItAndLeavesNoPartialFile)
+{
+    const ScratchFile file("sushiai_state_replace.sushi");
+
+    NormModel saved_model;
+    trace_norm(saved_model);
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState saved,
+                            NN::ModelState::create(*engine, saved_model.model));
+    fill_state(saved, 1.0f);
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), saved));
+    fill_state(saved, 2.0f);
+    std::vector<std::uint32_t> expected;
+    collect_bits(saved, expected);
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), saved));
+
+    NormModel loaded_model;
+    trace_norm(loaded_model);
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState loaded,
+                            NN::ModelState::create(*engine, loaded_model.model));
+    SA_EXPECT_OK(IO::load_checkpoint(file.path(), loaded));
+    std::vector<std::uint32_t> after;
+    collect_bits(loaded, after);
+
+    EXPECT_EQ(after, expected);
+    std::error_code ignored;
+    EXPECT_FALSE(std::filesystem::exists(file.path().string() + ".partial", ignored));
+}
+
+/** @brief Tests that a save onto a directory is refused and leaves the directory and no partial file. */
+TEST_F(Medium_StateCheckpoint, ASaveOntoADirectoryIsRefusedAndLeavesNoPartialFile)
+{
+    const std::filesystem::path target =
+        std::filesystem::temp_directory_path() / "sushiai_state_refused_target";
+    std::error_code ignored;
+    std::filesystem::remove_all(target, ignored);
+    ASSERT_TRUE(std::filesystem::create_directories(target));
+    {
+        std::ofstream kept(target / "kept.txt");
+        kept << "kept";
+    }
+
+    NormModel norm;
+    trace_norm(norm);
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, norm.model));
+    fill_state(state, 1.0f);
+
+    SA_EXPECT_FAILURE(IO::save_checkpoint(target, state), StatusCode::InvalidFile);
+
+    EXPECT_TRUE(std::filesystem::is_directory(target, ignored));
+    EXPECT_TRUE(std::filesystem::exists(target / "kept.txt", ignored));
+    EXPECT_FALSE(std::filesystem::exists(target.string() + ".partial", ignored));
+    std::filesystem::remove_all(target, ignored);
+}
+
 namespace
 {
     using Shallow = NN::Sequential<NN::Linear>;

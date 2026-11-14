@@ -9,6 +9,7 @@ sushiai_add_module(NAME io TIER layers
     SOURCES
         source/checkpoint.cpp
         source/checkpoint_format.cpp
+        source/committed_file.cpp
         source/import_weights.cpp
         source/imported_model_writer.cpp
         source/importer_registry.cpp

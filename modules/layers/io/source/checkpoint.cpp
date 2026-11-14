@@ -38,6 +38,7 @@
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
 #include <SushiAI/nn/model_state.hpp>
+#include "committed_file.hpp"
 #include "model_records.hpp"
 
 namespace SushiAI
@@ -46,19 +47,15 @@ namespace SushiAI
     {
         Status save_checkpoint(const std::filesystem::path& path, NN::ModelState& state) noexcept
         {
-            std::ofstream out(path, std::ios::binary);
-            SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",
-                       path.string());
-
-            SA_TRY_ASSIGN(CheckpointWriter writer,
-                          CheckpointWriter::create(
-                              out, static_cast<std::uint32_t>(state.entries().size())));
-            SA_TRY(Detail::write_model_records(writer, state));
-            writer.finish();
-
-            SA_FAIL_IF(!out, StatusCode::InvalidFile, "failed writing the checkpoint to '{}'",
-                       path.string());
-            return Status();
+            return Detail::write_committed(path, [&](std::ofstream& out) -> Status
+            {
+                SA_TRY_ASSIGN(CheckpointWriter writer,
+                              CheckpointWriter::create(
+                                  out, static_cast<std::uint32_t>(state.entries().size())));
+                SA_TRY(Detail::write_model_records(writer, state));
+                writer.finish();
+                return Status();
+            });
         }
 
         Status load_checkpoint(const std::filesystem::path& path, NN::ModelState& state) noexcept

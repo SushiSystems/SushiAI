@@ -50,6 +50,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/imported_model.hpp>
+#include "committed_file.hpp"
 
 namespace SushiAI
 {
@@ -128,14 +129,11 @@ namespace SushiAI
             [[nodiscard]] Status write_text(const std::filesystem::path& path,
                                             std::string_view text)
             {
-                std::ofstream out(path, std::ios::binary);
-                SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",
-                           path.string());
-
-                out.write(text.data(), static_cast<std::streamsize>(text.size()));
-                out.flush();
-                SA_FAIL_IF(!out, StatusCode::InvalidFile, "failed writing '{}'", path.string());
-                return Status();
+                return Detail::write_committed(path, [&](std::ofstream& out) -> Status
+                {
+                    out.write(text.data(), static_cast<std::streamsize>(text.size()));
+                    return Status();
+                });
             }
 
             /**
@@ -146,22 +144,18 @@ namespace SushiAI
             [[nodiscard]] Status write_weights(const std::filesystem::path& path,
                                                SushiRuntime::span<const ImportedTensor> tensors)
             {
-                std::ofstream out(path, std::ios::binary);
-                SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",
-                           path.string());
-
-                SA_TRY_ASSIGN(CheckpointWriter writer,
-                              CheckpointWriter::create(
-                                  out, static_cast<std::uint32_t>(tensors.size())));
-                for (const ImportedTensor& tensor : tensors)
+                return Detail::write_committed(path, [&](std::ofstream& out) -> Status
                 {
-                    SA_TRY(writer.write(tensor.record, tensor.payload.data()));
-                }
-                writer.finish();
-
-                out.flush();
-                SA_FAIL_IF(!out, StatusCode::InvalidFile, "failed writing '{}'", path.string());
-                return Status();
+                    SA_TRY_ASSIGN(CheckpointWriter writer,
+                                  CheckpointWriter::create(
+                                      out, static_cast<std::uint32_t>(tensors.size())));
+                    for (const ImportedTensor& tensor : tensors)
+                    {
+                        SA_TRY(writer.write(tensor.record, tensor.payload.data()));
+                    }
+                    writer.finish();
+                    return Status();
+                });
             }
 
         } // namespace

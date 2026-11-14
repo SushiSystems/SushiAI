@@ -20,7 +20,10 @@ state and an optimizer of the same type, strictly both ways, and returns the `Ru
 through a pointer. `check_run_seed` refuses a progress whose seed is not the seed of the run
 that resumes. The private header
 `source/model_records.hpp` holds the writer and the strict reader of the model-state records,
-which the two writers and the three loaders share.
+which the two writers and the three loaders share. The private header `source/committed_file.hpp`
+holds the write every file of the module goes through: the bytes go to `<name>.partial` and the
+file takes its name by a rename only when the whole write succeeded, so a save that fails or is
+refused leaves a file already of that name as it was and no partial file behind.
 
 The module also owns the door a model of another framework enters through,
 `docs/design/MODEL_IMPORT/README.md`. `ImportedModel` is what an importer returns: a

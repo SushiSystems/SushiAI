@@ -51,6 +51,7 @@
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/optim/run_state.hpp>
+#include "committed_file.hpp"
 #include "model_records.hpp"
 
 namespace SushiAI
@@ -355,25 +356,21 @@ namespace SushiAI
             {
                 SA_TRY_ASSIGN(Optim::RunState run, optimizer.run_state());
 
-                std::ofstream out(path, std::ios::binary);
-                SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",
-                           path.string());
-
-                SA_TRY_ASSIGN(CheckpointWriter writer,
-                              CheckpointWriter::create(
-                                  out, static_cast<std::uint32_t>(state.entries().size()),
-                                  static_cast<std::uint32_t>(run.scalars.size() +
-                                                             run.tensors.size() +
-                                                             K_PROGRESS_RECORDS)));
-                SA_TRY(Detail::write_model_records(writer, state));
-                SA_TRY(writer.begin_run_state(optimizer.type_name()));
-                SA_TRY(write_run_records(writer, run));
-                SA_TRY(write_progress_records(writer, progress));
-                writer.finish();
-
-                SA_FAIL_IF(!out, StatusCode::InvalidFile,
-                           "failed writing the checkpoint to '{}'", path.string());
-                return Status();
+                return Detail::write_committed(path, [&](std::ofstream& out) -> Status
+                {
+                    SA_TRY_ASSIGN(CheckpointWriter writer,
+                                  CheckpointWriter::create(
+                                      out, static_cast<std::uint32_t>(state.entries().size()),
+                                      static_cast<std::uint32_t>(run.scalars.size() +
+                                                                 run.tensors.size() +
+                                                                 K_PROGRESS_RECORDS)));
+                    SA_TRY(Detail::write_model_records(writer, state));
+                    SA_TRY(writer.begin_run_state(optimizer.type_name()));
+                    SA_TRY(write_run_records(writer, run));
+                    SA_TRY(write_progress_records(writer, progress));
+                    writer.finish();
+                    return Status();
+                });
             });
         }
 
