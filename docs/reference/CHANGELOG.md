@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-14 — darknet_era_yolo: Map boxes back through the letterbox (RW-49, `0366e785`).
+- 2026-11-14 — datasets: Added the `fit` role to a detection batch and `FitTransform` to a fitted sample, so a report can map a box to pixels of its source (`roles.hpp`, `fitted_sample.hpp`).
 - 2026-11-14 — datasets_tasks: Let `Trainer::fit` resume past epoch 0 (RW-73, `b0eac4a6`).
 - 2026-11-14 — datasets_tasks: Keep the old file when a save is refused (RW-75, `e3e26e48`).
 - 2026-11-14 — config: Read the score threshold, the suppression threshold and the confidence floor of a detection report from a `detection` object of the data file, which `sushiai inference` applies (`train_config.hpp`, RW-57).
