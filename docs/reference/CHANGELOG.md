@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-14 — datasets_tasks: Checkpoint inside an epoch (RW-71, `ebaa2982`).
+- 2026-11-14 — train: Breaking change: Wrote the checkpoint during a run when a version 4 training file states `checkpoint_every`; `K_TRAIN_VERSION` is 4 and the importer writes it (`train_config.hpp`).
 - 2026-11-14 — darknet_era_yolo: Map boxes back through the letterbox (RW-49, `0366e785`).
 - 2026-11-14 — datasets: Added the `fit` role to a detection batch and `FitTransform` to a fitted sample, so a report can map a box to pixels of its source (`roles.hpp`, `fitted_sample.hpp`).
 - 2026-11-14 — datasets_tasks: Let `Trainer::fit` resume past epoch 0 (RW-73, `b0eac4a6`).

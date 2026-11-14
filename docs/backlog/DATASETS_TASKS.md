@@ -10,7 +10,6 @@
 | RW-66 | P2 | open | Give the decoders one exception boundary | the four functions of `vision/codecs` share one unit, and `raw_decoder` leaves `decode_image.cpp` |  |  | 2026-10-19 |
 | RW-67 | P2 | open | Test a 16-bit PNG without a `gAMA` chunk | the case exists |  |  | 2026-10-19 |
 | RW-68 | P2 | open | Let a collator say it reads no mask | a collator that reads no mask stops a mask being decoded |  |  | 2026-10-19 |
-| RW-71 | P2 | open | Checkpoint inside an epoch | `sushiai train` saves at a batch and the written batch index is that batch |  |  | 2026-10-19 |
 | RW-72 | P2 | open | Test the cluster loop and the trainer run from a start other than zero | a test starts the cluster loop and the `Trainer` fallback run past epoch 0 and past batch 0, as `test_epoch_loop.cpp` does |  |  | 2026-10-25 |
 | RW-74 | P2 | open | Write version 2 of the weight file from the YOLO26 exporter | `tools/reference/export_yolo26_reference.py` writes version 2 |  |  | 2026-10-19 |
 | RW-76 | P2 | open | Let an objective name its metrics before it measures | a sum of two terms computes mean IoU once |  |  | 2026-10-19 |
