@@ -94,6 +94,7 @@ size 4 and 416 by 416, so these are runs of the chain and not of a recipe.
 | `sa inference` with the imported weights | 419 detections over 128 images; mean average precision at IoU 0.5 of 0.2695 over 929 boxes, at a score floor of 0.001 |
 | `sa train`, 1 epoch, the import's recipe | 32 updates, all under the warm-up; loss 25.15; the host working set peaked at 227 MB |
 | `sa inference` with that checkpoint | 394 detections; mean average precision of 0.2657 |
+| `sa train`, 5 epochs, the import's recipe (rate 1e-3, warm-up of 1000 updates) | Loss fell from 25.15 to 24.99 as the rate climbed from 1e-9 to 6.6e-7; the run took 62 s |
 | `sa train`, 5 epochs, rate 1e-3, warm-up of 10 updates | Loss rose from 34.12 to 87.95; the run took 52 s and the host working set peaked at 254 MB |
 | `sa train`, 5 epochs, rate 1e-5, warm-up of 10 updates | Loss fell from 24.31 to 19.57 |
 
@@ -102,7 +103,6 @@ precision measures fit, not generalisation. Darknet's own `detector map` on the 
 weights printed 0.2378 over the same 929 boxes. The two numbers agree once the mean is taken the
 same way: Darknet divides by its 80 classes and `sa inference` by the 71 that have truth, and with
 `detection.confidence_floor` at 0.005, Darknet's floor, the report reads 0.2668 and 0.2668 x 71 / 80
-is the 0.2378. The two five-epoch runs show that the import's rate of 1e-3 diverges at batch size 4
-and that a rate of 1e-5 descends. The training parity suites, which compare the gradients with
+is the 0.2378. The three five-epoch runs show that the import's own recipe descends at batch size 4, that a rate of 1e-3 reached within 10 updates diverges, and that a rate of 1e-5 descends. The warm-up of 1000 updates is what keeps the first 160 updates small. The training parity suites, which compare the gradients with
 Darknet's, passed in a separate run for every model but one: the YOLOv7 one-batch overfit ends at
 10.45 percent of its first cost against a bound of 10 percent.
