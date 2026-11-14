@@ -74,26 +74,31 @@ namespace SushiAI::Apps::TinyYoloTest
                    "max_objects": 8, "classes": 2})";
     }
 
-    /** @brief Returns the training file: the anchor objective, one epoch, @p checkpoint. */
-    inline std::string training_text(const std::filesystem::path& checkpoint)
+    /**
+     * @brief Returns the training file: the anchor objective, @p epochs epochs, @p checkpoint.
+     * @param every The text of a checkpoint_every object, or empty for a file with none.
+     */
+    inline std::string training_text(const std::filesystem::path& checkpoint, int epochs = 1,
+                                     const std::string& every = "")
     {
         return R"({
-            "sushiai_train": 3,
+            "sushiai_train": 4,
             "model": "model.json",
             "objective": {"type": "anchor"},
             "data": )" + data_block() + R"(,
             "optimizer": {"type": "sgd", "momentum": 0.9, "learning_rate": 0.001},
-            "epochs": 1,
+            "epochs": )" + std::to_string(epochs) + R"(,
             "seed": 7,
-            "checkpoint": ")" + checkpoint.generic_string() + R"("
-        })";
+            "checkpoint": ")" + checkpoint.generic_string() + R"(")"
+               + (every.empty() ? std::string() : R"(, "checkpoint_every": )" + every) + "}";
     }
 
     /** @brief Returns the parsed training file, which writes its checkpoint to @p checkpoint. */
-    inline Config::TrainSpec training_spec(const std::filesystem::path& checkpoint)
+    inline Config::TrainSpec training_spec(const std::filesystem::path& checkpoint,
+                                           int epochs = 1, const std::string& every = "")
     {
-        const Config::Value root =
-            Test::require_value(Config::parse_json(training_text(checkpoint), "<test>"));
+        const Config::Value root = Test::require_value(
+            Config::parse_json(training_text(checkpoint, epochs, every), "<test>"));
         return Test::require_value(Config::parse_train(root, "<test>", fixture_directory()));
     }
 
@@ -102,9 +107,11 @@ namespace SushiAI::Apps::TinyYoloTest
      * @return The outcome of the run, or the first failure of the setup, the run or the save.
      */
     inline Result<TrainingOutcome> train_the_fixture(ExecutionBackend& backend,
-                                                     const std::filesystem::path& checkpoint)
+                                                     const std::filesystem::path& checkpoint,
+                                                     int epochs = 1,
+                                                     const std::string& every = "")
     {
-        return run_training_file("<test>", training_spec(checkpoint), backend);
+        return run_training_file("<test>", training_spec(checkpoint, epochs, every), backend);
     }
 
     /**

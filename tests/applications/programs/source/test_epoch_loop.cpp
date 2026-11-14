@@ -117,6 +117,63 @@ TEST(Small_EpochLoop, SetsTheRateBeforeEveryUpdate)
     EXPECT_EQ(calls, (std::vector<char>{'r', 'u', 'r', 'u', 'r', 'u'}));
 }
 
+/** @brief Tests that the hook after an update sees each update of the run in the run's terms. */
+TEST(Small_EpochLoop, CallsTheHookAfterEveryUpdateWithItsPlaceInTheRun)
+{
+    std::vector<Apps::UpdateAt> seen;
+    Apps::EpochSteps steps;
+    steps.run_step = [](std::size_t)
+    {
+        return Status();
+    };
+    steps.report = [](std::int64_t, std::int64_t)
+    {
+    };
+    steps.after_update = [&seen](const Apps::UpdateAt& at)
+    {
+        seen.push_back(at);
+        return Status();
+    };
+
+    SA_EXPECT_OK(Apps::run_epoch_loop(plan_of(2, 4, 2), steps));
+
+    ASSERT_EQ(seen.size(), 4u);
+    EXPECT_EQ(seen[0].epoch, 1);
+    EXPECT_EQ(seen[0].batch, 2u);
+    EXPECT_EQ(seen[0].updates, 1);
+    EXPECT_EQ(seen[1].epoch, 2);
+    EXPECT_EQ(seen[1].batch, 0u);
+    EXPECT_EQ(seen[1].updates, 2);
+    EXPECT_EQ(seen[3].epoch, 2);
+    EXPECT_EQ(seen[3].batch, 2u);
+    EXPECT_EQ(seen[3].updates, 4);
+}
+
+/** @brief Tests that a failed hook ends the loop with its status. */
+TEST(Small_EpochLoop, AFailedHookEndsTheLoopWithItsStatus)
+{
+    std::size_t updates = 0;
+    Apps::EpochSteps steps;
+    steps.run_step = [&updates](std::size_t)
+    {
+        ++updates;
+        return Status();
+    };
+    steps.report = [](std::int64_t, std::int64_t)
+    {
+    };
+    steps.after_update = [](const Apps::UpdateAt& at) -> Status
+    {
+        SA_FAIL_IF(at.updates == 2, StatusCode::InvalidFile, "the write after update {} failed",
+                   at.updates);
+        return Status();
+    };
+
+    SA_EXPECT_FAILURE(Apps::run_epoch_loop(plan_of(2), steps), StatusCode::InvalidFile,
+                      "after update 2");
+    EXPECT_EQ(updates, 2u);
+}
+
 /** @brief Tests that the first failed update ends the loop with its status. */
 TEST(Small_EpochLoop, StopsAtTheFirstFailedUpdate)
 {

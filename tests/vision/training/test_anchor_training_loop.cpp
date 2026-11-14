@@ -469,3 +469,43 @@ TEST_F(Medium_AnchorTrainingLoop, ACallbackThatThrowsEndsTheRunAsAFailure)
     EXPECT_NE(report.status().message().find("stop here"), std::string::npos);
     EXPECT_EQ(optimizer_->step_count(), 1u);
 }
+
+/** @brief Tests that the hook after an update sees every update of the run. */
+TEST_F(Medium_AnchorTrainingLoop, TheHookAfterAnUpdateSeesEveryUpdate)
+{
+    ASSERT_NE(step_, nullptr);
+    const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
+
+    std::vector<AnchorProgress> seen;
+    AnchorLoopOptions options;
+    options.epochs = 2;
+    options.after_update = [&seen](const AnchorProgress& progress)
+    {
+        seen.push_back(progress);
+        return Status();
+    };
+
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorRunReport report,
+                            run_anchor_training(*step_, dataset, options));
+
+    EXPECT_EQ(seen.size(), report.updates);
+    EXPECT_EQ(epochs_of(seen), (std::vector<std::int64_t>{1, 1, 1, 2, 2, 2}));
+}
+
+/** @brief Tests that a failed hook ends the run with its status after that update. */
+TEST_F(Medium_AnchorTrainingLoop, AFailedHookEndsTheRunWithItsStatus)
+{
+    ASSERT_NE(step_, nullptr);
+    const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
+
+    AnchorLoopOptions options;
+    options.after_update = [](const AnchorProgress&) -> Status
+    {
+        SA_FAIL_IF(true, StatusCode::InvalidFile, "the write after the update failed");
+        return Status();
+    };
+
+    SA_EXPECT_FAILURE(run_anchor_training(*step_, dataset, options), StatusCode::InvalidFile,
+                      "the write after the update");
+    EXPECT_EQ(optimizer_->step_count(), 1u);
+}

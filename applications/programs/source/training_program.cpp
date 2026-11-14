@@ -196,6 +196,13 @@ namespace SushiAI
                     spec, dataset, setup->given(), setup->objective(), built, setup->state(),
                     setup->pool(), *optimizer, setup->take_updates(), schedule, start,
                 };
+                SA_FAIL_IF(!spec.cluster.is_null()
+                               && spec.checkpoint_every.unit != Config::CheckpointUnit::None,
+                           StatusCode::Unsupported,
+                           "'{}' states 'checkpoint_every' and a 'cluster' section; a cluster run "
+                           "writes its checkpoint at the end only",
+                           origin);
+
                 // A file with a cluster section trains over its replicas; see cluster_training.hpp.
                 const SushiRuntime::span<const Optim::ParameterSlot> slots(
                     setup->parameters().data(), setup->parameters().size());

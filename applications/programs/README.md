@@ -183,6 +183,15 @@ optimizer, which is its step count and its momentum buffers or moments, and the
 reads the step count, so the resumed run goes on at the iteration and the rate the saved run
 would have had next. A file states `weights` or `resume`; `Config::check_start` refuses both.
 
+A file of version 4 may state `checkpoint_every`. The run then writes the `checkpoint` path in the
+middle of the run as well: `checkpoint_after_update` (`training_run.hpp`) asks
+`progress_to_checkpoint` after every update, with the epoch and batch of the run and the count of
+its updates, and writes through `IO::save_run_checkpoint` the progress that names the epoch and
+batch the next update reads. The three loops that train call it: the epoch loop through
+`EpochSteps::after_update` and the anchor and anchor-free loops through their `after_update`
+option. A run that stops after a periodic write goes on from that file through `resume`, at the
+epoch and batch the write names.
+
 `start_state` then calls `IO::check_run_seed`: a checkpoint written under another `seed` than
 the training file states is refused with the file and both seeds. The progress it hands back
 goes into `PreparedRun::start`, and each run does three things with it before its first

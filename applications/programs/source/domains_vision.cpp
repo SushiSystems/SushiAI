@@ -158,12 +158,22 @@ namespace SushiAI
                 options.schedule = run.schedule;
                 options.first_epoch = static_cast<std::int64_t>(run.start.epoch);
                 options.first_batch = static_cast<std::size_t>(run.start.batch);
+                const auto first_iteration = static_cast<std::int64_t>(run.optimizer.step_count());
                 options.on_update = [epochs, batches](
                                         const Vision::Training::AnchorProgress& progress)
                 {
                     if (is_reported_epoch(progress.epoch, epochs)
                         && progress.batch + 1 == batches)
                         print_epoch(progress, epochs);
+                };
+                options.after_update = [&run, &step, first_iteration](
+                                           const Vision::Training::AnchorProgress& progress)
+                {
+                    return checkpoint_after_update(
+                        run,
+                        UpdateAt{progress.epoch, progress.batch,
+                                 progress.iteration - first_iteration},
+                        step->run_count());
                 };
 
                 // The progress lines carry what the report holds, so only its status is read.
@@ -265,12 +275,22 @@ namespace SushiAI
                 options.schedule = run.schedule;
                 options.first_epoch = static_cast<std::int64_t>(run.start.epoch);
                 options.first_batch = static_cast<std::size_t>(run.start.batch);
+                const auto first_iteration = static_cast<std::int64_t>(run.optimizer.step_count());
                 options.on_update = [epochs, batches](
                                         const Vision::Training::FreeProgress& progress)
                 {
                     if (is_reported_epoch(progress.epoch, epochs)
                         && progress.batch + 1 == batches)
                         print_free_epoch(progress, epochs);
+                };
+                options.after_update = [&run, &step, first_iteration](
+                                           const Vision::Training::FreeProgress& progress)
+                {
+                    return checkpoint_after_update(
+                        run,
+                        UpdateAt{progress.epoch, progress.batch,
+                                 progress.iteration - first_iteration},
+                        step->run_count());
                 };
 
                 // The progress lines carry what the report holds, so only its status is read.

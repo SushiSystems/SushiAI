@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <string>
+#include <system_error>
 #include <gtest/gtest.h>
 #include "tiny_yolo_files.hpp"
 #include <SushiAI/engine_fixture/engine_test.hpp>
@@ -117,6 +118,24 @@ TEST_F(Medium_InferenceProgram, TheAnchorReportPrintsItsBoxesInPixelsOfTheSource
 
     EXPECT_NE(report.printed.find("in pixels of the source image of each file"), std::string::npos)
         << report.printed;
+}
+
+/** @brief Tests that a run with checkpoint_every ends with a whole checkpoint and no partial file. */
+TEST_F(Medium_InferenceProgram, ARunWithCheckpointEveryLeavesAWholeCheckpointAndNoPartialFile)
+{
+    const SaTest::ScratchFile checkpoint("sushiai_inference_program_every.sushi");
+
+    testing::internal::CaptureStdout();
+    const Result<Apps::TrainingOutcome> trained =
+        TinyYolo::train_the_fixture(backend(), checkpoint.path(), 2, R"({"batches": 1})");
+    const std::string printed = testing::internal::GetCapturedStdout();
+    ASSERT_TRUE(trained.has_value()) << trained.status().message();
+
+    EXPECT_NE(printed.find("compiles: 1"), std::string::npos) << printed;
+    EXPECT_TRUE(std::filesystem::exists(checkpoint.path()));
+    std::error_code ignored;
+    EXPECT_FALSE(std::filesystem::exists(checkpoint.path().string() + ".partial", ignored));
+    SA_EXPECT_OK(TinyYolo::report_the_fixture(backend(), checkpoint.path()));
 }
 
 /** @brief Tests that the anchor report compiles one graph. */

@@ -32,6 +32,8 @@
 #include <cstdint>
 #include <string>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/io/run_checkpoint.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
@@ -56,6 +58,52 @@ namespace SushiAI
             }
 
         } // namespace
+
+        std::optional<IO::RunProgress> progress_to_checkpoint(const CheckpointSchedule& schedule,
+                                                              const UpdateAt& at,
+                                                              std::size_t step_runs) noexcept
+        {
+            const Config::CheckpointEvery& every = schedule.every;
+            if (every.unit == Config::CheckpointUnit::None)
+                return std::nullopt;
+
+            const bool ends_epoch = at.batch + 1 == schedule.batches;
+            const bool ends_run = ends_epoch && at.epoch == schedule.epochs;
+            if (ends_run)
+                return std::nullopt;
+
+            const bool due = every.unit == Config::CheckpointUnit::Batches
+                ? at.updates % every.count == 0
+                : ends_epoch && at.epoch % every.count == 0;
+            if (!due)
+                return std::nullopt;
+
+            IO::RunProgress progress;
+            progress.seed = schedule.start.seed;
+            progress.step_runs = static_cast<std::uint64_t>(step_runs);
+            const auto current_epoch = schedule.start.epoch + static_cast<std::uint64_t>(at.epoch - 1);
+            progress.epoch = ends_epoch ? current_epoch + 1 : current_epoch;
+            progress.batch = ends_epoch ? 0 : static_cast<std::uint64_t>(at.batch + 1);
+            return progress;
+        }
+
+        Status checkpoint_after_update(const PreparedRun& run, const UpdateAt& at,
+                                       std::size_t step_runs)
+        {
+            CheckpointSchedule schedule;
+            schedule.every = run.spec.checkpoint_every;
+            schedule.epochs = run.spec.epochs;
+            schedule.batches = run.dataset.batch_count();
+            schedule.start = run.start;
+
+            const std::optional<IO::RunProgress> progress =
+                progress_to_checkpoint(schedule, at, step_runs);
+            if (!progress)
+                return Status();
+
+            SA_ZONE("io", "checkpoint");
+            return IO::save_run_checkpoint(run.spec.checkpoint, run.state, run.optimizer, *progress);
+        }
 
         IO::RunProgress finished_progress(const PreparedRun& run,
                                           std::size_t step_runs) noexcept

@@ -37,6 +37,10 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <SushiAI/config/train_config.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/execution/execution_backend.hpp>
@@ -117,6 +121,41 @@ namespace SushiAI
          */
         [[nodiscard]] IO::RunProgress finished_progress(const PreparedRun& run,
                                                         std::size_t step_runs) noexcept;
+
+        /** @brief Names the update a run has just finished, in the terms of the run. */
+        struct UpdateAt
+        {
+            std::int64_t epoch = 0;   /**< The epoch of this run the update belongs to, from 1. */
+            std::size_t batch = 0;    /**< The batch of that epoch the update read. */
+            std::int64_t updates = 0; /**< The updates this run has finished, that one included. */
+        };
+
+        /** @brief Holds what decides whether a checkpoint is due and where it goes on from. */
+        struct CheckpointSchedule
+        {
+            Config::CheckpointEvery every; /**< What the training file asks for. */
+            std::int64_t epochs = 0;       /**< The epochs this run covers. */
+            std::size_t batches = 0;       /**< The batches of one epoch. */
+            IO::RunProgress start{};       /**< Where this run started: its seed and first epoch. */
+        };
+
+        /**
+         * @brief Returns the progress a checkpoint after @p at records, when one is due.
+         *
+         * Due after every count-th update or every count-th epoch, never after the last update of
+         * the run, which writes its own. The progress names the epoch and batch read next.
+         * @param step_runs The run count of the training step after @p at.
+         */
+        [[nodiscard]] std::optional<IO::RunProgress> progress_to_checkpoint(
+            const CheckpointSchedule& schedule, const UpdateAt& at, std::size_t step_runs) noexcept;
+
+        /**
+         * @brief Writes the checkpoint of @p run when one is due after @p at.
+         * @param step_runs The run count of the training step after @p at.
+         * @return Success, also when none is due; or the failure of the write.
+         */
+        [[nodiscard]] Status checkpoint_after_update(const PreparedRun& run, const UpdateAt& at,
+                                                     std::size_t step_runs);
 
         /**
          * @brief Checks that @p run can start at the batch its start names.

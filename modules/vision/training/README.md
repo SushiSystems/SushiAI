@@ -43,7 +43,7 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/free_objective.hpp>` | `K_FREE_OBJECTIVE_TYPE`, `K_FREE_PROJECTION_ROLE`, `FreeObjective`, `add_free_loss_metrics` |
 | `<SushiAI/vision/training/free_objective_factory.hpp>` | `build_free_objective`, `make_free_objective` |
 | `<SushiAI/vision/training/free_training_step.hpp>` | `FreeTrainingStep` |
-| `<SushiAI/vision/training/free_training_loop.hpp>` | `FreeProgress`, `FreeLoopOptions`, `FreeRunReport`, `run_free_training` |
+| `<SushiAI/vision/training/free_training_loop.hpp>` | `FreeProgress`, `FreeUpdateHook`, `FreeLoopOptions`, `FreeRunReport`, `run_free_training` |
 | `<SushiAI/vision/training/free_model_facts.hpp>` | `FreeLevelPorts`, `FreeLevelFacts`, `FreeModelFacts`, `derive_free_model_facts` |
 | `<SushiAI/vision/training/free_bias_init.hpp>` | `free_class_bias`, `initialize_free_biases` |
 | `<SushiAI/vision/training/anchor_head.hpp>` | `AnchorHead` |
@@ -54,7 +54,7 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/anchor_objective.hpp>` | `AnchorHead`, `AnchorObjective` |
 | `<SushiAI/vision/training/anchor_objective_factory.hpp>` | `build_anchor_objective`, `make_anchor_objective` |
 | `<SushiAI/vision/training/anchor_training_step.hpp>` | `AnchorTrainingStep` |
-| `<SushiAI/vision/training/anchor_training_loop.hpp>` | `AnchorProgress`, `AnchorProgressCallback`, `AnchorLoopOptions`, `AnchorRunReport`, `run_anchor_training` |
+| `<SushiAI/vision/training/anchor_training_loop.hpp>` | `AnchorProgress`, `AnchorProgressCallback`, `AnchorUpdateHook`, `AnchorLoopOptions`, `AnchorRunReport`, `run_anchor_training` |
 | `<SushiAI/vision/training/truth_from_roles.hpp>` | `K_TRUTH_BOX_VALUES`, `describe_truth_roles`, `HostRole`, `truth_from_host_roles`, `truth_from_roles` |
 | `<SushiAI/vision/training/detection_truth_check.hpp>` | `check_truth_layout`, `check_truth_labels` |
 | `<SushiAI/vision/training/detection_run_check.hpp>` | `DetectionRunSubject`, `DetectionRunPlan`, `make_detection_run_plan`, `check_detection_run` |
@@ -239,8 +239,11 @@ Before the first update it checks the epochs, the batch count, the batch size ag
 heads, and the schedule, then matches the roles of `describe_truth_roles` once, with the slot
 count the dataset's `boxes` role states. For each batch it calls `Dataset::read`,
 `truth_from_roles`, `Optim::apply_step_schedule` when `options.schedule` is set, and
-`AnchorTrainingStep::run`, then hands an `AnchorProgress` to `options.on_update`. One `Batch`
-and one `GroundTruthBatch` serve the whole run. A callback that throws ends the run as a failure.
+`AnchorTrainingStep::run`, then hands an `AnchorProgress` to `options.on_update` and then to
+`options.after_update`. One `Batch` and one `GroundTruthBatch` serve the whole run. A callback
+that throws ends the run as a failure; `after_update` returns a `Status`, and a failed one ends
+the run with that status, which is how a caller writes a checkpoint after an update and refuses
+to go on when the write fails. `FreeLoopOptions` has the same two members.
 
 A resumed run sets `options.first_epoch` and `options.first_batch`. The first pass calls
 `Data::begin_epoch` with `first_epoch` and reads from `first_batch` on; each later pass takes

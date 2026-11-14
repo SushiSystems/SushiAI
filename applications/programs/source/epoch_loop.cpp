@@ -40,6 +40,7 @@ namespace SushiAI
     {
         Status run_epoch_loop(const EpochPlan& plan, const EpochSteps& steps)
         {
+            std::int64_t updates = 0;
             for (std::int64_t epoch = 1; epoch <= plan.epochs; ++epoch)
             {
                 if (steps.enter_epoch)
@@ -53,6 +54,10 @@ namespace SushiAI
                         steps.set_rate();
 
                     SA_TRY(steps.run_step(index));
+                    ++updates;
+
+                    if (steps.after_update)
+                        SA_TRY(steps.after_update(UpdateAt{epoch, index, updates}));
                 }
 
                 if (is_reported_epoch(epoch, plan.epochs))

@@ -54,6 +54,9 @@ namespace SushiAI::Vision::Training
     /** @brief Receives the progress of one update; a throw ends the run as a failure. */
     using AnchorProgressCallback = std::function<void(const AnchorProgress&)>;
 
+    /** @brief Runs after the progress of one update; a failure ends the run with that status. */
+    using AnchorUpdateHook = std::function<Status(const AnchorProgress&)>;
+
     /** @brief States how an anchor run is driven. */
     struct AnchorLoopOptions
     {
@@ -61,6 +64,7 @@ namespace SushiAI::Vision::Training
         /// @brief Points at the schedule of the rate; null keeps the optimizer's own rate.
         const Optim::RateSchedule* schedule = nullptr;
         AnchorProgressCallback on_update; /**< Called after each update; may be empty. */
+        AnchorUpdateHook after_update;    /**< Called after on_update; may be empty. */
         std::int64_t first_epoch = 0;     /**< Epoch index the first pass reads, from 0. */
         std::size_t first_batch = 0;      /**< Batch the first pass starts at; below the count. */
     };

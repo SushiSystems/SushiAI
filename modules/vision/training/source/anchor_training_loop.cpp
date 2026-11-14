@@ -114,6 +114,8 @@ namespace SushiAI::Vision::Training
                 ++report.updates;
 
                 SA_TRY(report_run_progress(options.on_update, progress));
+                if (options.after_update)
+                    SA_TRY(options.after_update(progress));
             }
         }
 

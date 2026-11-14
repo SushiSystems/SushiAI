@@ -1,6 +1,6 @@
 # Periodic checkpoints: plan
 
-**Status:** Open — planned, nothing written
+**Status:** Open — built and measured; the next commit closes it
 **Designs:** DATASETS
 
 ## 1. Problem
@@ -31,11 +31,10 @@ Each task has one criterion. The build and the test run come once, after the thr
 | Id | Task | Accepted when |
 | --- | --- | --- |
 | T1 | Read and check `checkpoint_every` | A config test accepts `{"epochs": 2}` and `{"batches": 3}` into the spec, and refuses an empty object, both members, a member of 0 or below, a member that is no integer, an unknown member, and a version 3 file that names the key |
-| T2 | Call a hook from the epoch loop | A loop test over 3 epochs of 4 batches records the epoch and the next batch at each call: for `batches: 5` the calls come after updates 5 and 10, for `epochs: 2` after the last batch of epoch 1 |
-| T3 | Write it from `sushiai train` | A program test runs the tiny fixture with `batches: 1` and loads the checkpoint with `load_run_checkpoint`: its progress is the epoch and the batch after the last update, and a run of the same file with `resume` set to it ends where the uninterrupted run ended |
+| T2 | Call a hook from the loops and decide by one rule | Each of the three loops calls its hook after every update with the update's place in the run, and a rule test over 3 epochs of 4 batches shows when a checkpoint is due and what progress it records: for `batches: 5` after update 5, for `epochs: 2` after the last batch of epoch 2, never after the last update, and in the epoch and batch of the data for a resumed run |
+| T3 | Write it from `sushiai train` | A program test runs the tiny fixture for 2 epochs with `batches: 1`, finds a whole checkpoint and no partial file, and reports it; and one measured run of YOLOv3-tiny, killed after a periodic write and resumed, ends at the bytes of the run that was not interrupted (`REPORT.md`) |
 
-T4 closes the work: the training file page, the programs README, the changelog and RW-71 and
-the entry T1 opens for the cluster and the fallback run.
+T4 closes the work: the training file page, the programs README, the changelog and RW-71.
 
 ## 4. Not in this work
 

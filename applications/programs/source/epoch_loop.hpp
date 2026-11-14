@@ -67,6 +67,9 @@ namespace SushiAI
 
             /** @brief Prints the progress line of an epoch, as epoch of epochs. */
             std::function<void(std::int64_t epoch, std::int64_t epochs)> report;
+
+            /** @brief Runs after each update, where a checkpoint may be due; empty for a run with none. */
+            std::function<Status(const UpdateAt& at)> after_update;
         };
 
         /**

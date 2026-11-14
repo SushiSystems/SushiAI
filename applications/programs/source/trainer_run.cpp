@@ -107,6 +107,10 @@ namespace SushiAI
                 {
                     print_epoch(epoch, epochs, last);
                 };
+                steps.after_update = [&run, &trainer](const UpdateAt& at) -> Status
+                {
+                    return checkpoint_after_update(run, at, trainer->step().run_count());
+                };
                 SA_TRY(run_epochs(run, steps));
 
                 RunSummary summary;

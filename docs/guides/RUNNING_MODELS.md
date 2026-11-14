@@ -65,10 +65,11 @@ Four things about the schema are worth knowing before you write one, and each
 closes a way of being silently wrong:
 
 - **Each document leads with a version key.** A format change is then an error
-  rather than a misread. The training file states version 3, which may carry a
-  `cluster` section and the `deterministic` key; a file that states version 2
-  or 1 still reads, a `deterministic` key in it is an error, and a `cluster`
-  section in a version 1 file is an error.
+  rather than a misread. The training file states version 4, which may carry a
+  `cluster` section, the `deterministic` key and the `checkpoint_every` key; a
+  file that states version 3, 2 or 1 still reads, a `checkpoint_every` key in
+  version 3 or older is an error, a `deterministic` key in version 2 or older is
+  an error, and a `cluster` section in a version 1 file is an error.
 - **`units` is an output width only.** The input width is chained from
   `input.features`, so a dimension mismatch between adjacent layers is not
   expressible.
@@ -97,6 +98,7 @@ Seven optional parts of `train.json`:
 | `data` with `reader` | A dataset read from files, in place of `type` |
 | `deterministic` | Version 3 only. A boolean, `true` when absent. While it is `true`, the same files, seed and device give the same weights after every step, bit for bit, and a key that asks for an unordered path is refused when the file is read, naming the key. `false` opens such paths. One key asks for one: a `cluster` replica with `"if_absent": "local"` runs a lost worker's replica on the master's device, so a file that states it also states `"deterministic": false`. The data loader hands batches over in index order whatever `workers` and `prefetch` say |
 | `cluster` | Version 2 and later. The replicas that train the model on several machines. Its fields are in `modules/core/distribution/README.md` |
+| `checkpoint_every` | Version 4 only, and only with a `checkpoint` path. `{ "batches": N }` or `{ "epochs": N }`, a positive integer: the run writes `checkpoint` after every N-th update, or after the last batch of every N-th epoch, and not after the last update, where it writes the final checkpoint anyway. Each write replaces the file whole, and a run that stops can go on from it through `resume`. A write stalls the run for the time of the write, 70 MB for YOLOv3-tiny. A file with a `cluster` section refuses the key |
 
 A `data` block with `reader`:
 

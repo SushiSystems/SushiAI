@@ -335,3 +335,98 @@ TEST_F(Medium_TrainingRun, AClassificationRunPrintsAFallingLoss)
     ASSERT_EQ(losses.size(), static_cast<std::size_t>(K_EPOCHS)) << run.printed;
     EXPECT_LT(losses.back(), losses.front()) << run.printed;
 }
+
+namespace
+{
+    /** @brief Holds the schedule of a run of 3 epochs of 4 batches that asks for @p every. */
+    Apps::CheckpointSchedule schedule_asking(Config::CheckpointUnit unit, std::int64_t count)
+    {
+        Apps::CheckpointSchedule schedule;
+        schedule.every.unit = unit;
+        schedule.every.count = count;
+        schedule.epochs = 3;
+        schedule.batches = 4;
+        schedule.start.seed = 7;
+        return schedule;
+    }
+} // namespace
+
+/** @brief Tests that a file without checkpoint_every is never due. */
+TEST(Small_CheckpointSchedule, AFileThatAsksForNoCheckpointIsNeverDue)
+{
+    const Apps::CheckpointSchedule schedule = schedule_asking(Config::CheckpointUnit::None, 0);
+
+    EXPECT_FALSE(Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{1, 1, 2}, 2).has_value());
+}
+
+/** @brief Tests that batches counts every update of the run and names the batch that comes next. */
+TEST(Small_CheckpointSchedule, BatchesIsDueAfterEveryCountthUpdateAndNamesTheNextBatch)
+{
+    const Apps::CheckpointSchedule schedule = schedule_asking(Config::CheckpointUnit::Batches, 5);
+
+    const std::optional<IO::RunProgress> due =
+        Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{2, 0, 5}, 5);
+
+    ASSERT_TRUE(due.has_value());
+    EXPECT_EQ(due->seed, 7u);
+    EXPECT_EQ(due->step_runs, 5u);
+    EXPECT_EQ(due->epoch, 1u);
+    EXPECT_EQ(due->batch, 1u);
+}
+
+/** @brief Tests that batches is not due between two counts. */
+TEST(Small_CheckpointSchedule, BatchesIsNotDueBetweenTwoCounts)
+{
+    const Apps::CheckpointSchedule schedule = schedule_asking(Config::CheckpointUnit::Batches, 5);
+
+    EXPECT_FALSE(Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{2, 1, 6}, 6).has_value());
+}
+
+/** @brief Tests that a count that lands on the end of an epoch goes on at batch 0 of the next. */
+TEST(Small_CheckpointSchedule, ACountOnTheEndOfAnEpochGoesOnAtTheNextEpoch)
+{
+    const Apps::CheckpointSchedule schedule = schedule_asking(Config::CheckpointUnit::Batches, 4);
+
+    const std::optional<IO::RunProgress> due =
+        Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{1, 3, 4}, 4);
+
+    ASSERT_TRUE(due.has_value());
+    EXPECT_EQ(due->epoch, 1u);
+    EXPECT_EQ(due->batch, 0u);
+}
+
+/** @brief Tests that epochs is due after the last batch of every count-th epoch only. */
+TEST(Small_CheckpointSchedule, EpochsIsDueAfterTheLastBatchOfEveryCountthEpoch)
+{
+    const Apps::CheckpointSchedule schedule = schedule_asking(Config::CheckpointUnit::Epochs, 2);
+
+    EXPECT_FALSE(Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{1, 3, 4}, 4).has_value());
+    EXPECT_FALSE(Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{2, 2, 7}, 7).has_value());
+    const std::optional<IO::RunProgress> due =
+        Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{2, 3, 8}, 8);
+    ASSERT_TRUE(due.has_value());
+    EXPECT_EQ(due->epoch, 2u);
+    EXPECT_EQ(due->batch, 0u);
+}
+
+/** @brief Tests that the last update of the run is never due, since the run writes its own end. */
+TEST(Small_CheckpointSchedule, TheLastUpdateOfTheRunIsNeverDue)
+{
+    const Apps::CheckpointSchedule schedule = schedule_asking(Config::CheckpointUnit::Batches, 1);
+
+    EXPECT_FALSE(Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{3, 3, 12}, 12).has_value());
+}
+
+/** @brief Tests that a resumed run names the epoch and the batch of the data, not of the run. */
+TEST(Small_CheckpointSchedule, AResumedRunNamesTheEpochAndTheBatchOfTheData)
+{
+    Apps::CheckpointSchedule schedule = schedule_asking(Config::CheckpointUnit::Batches, 2);
+    schedule.start.epoch = 4;
+
+    const std::optional<IO::RunProgress> due =
+        Apps::progress_to_checkpoint(schedule, Apps::UpdateAt{1, 1, 2}, 2);
+
+    ASSERT_TRUE(due.has_value());
+    EXPECT_EQ(due->epoch, 4u);
+    EXPECT_EQ(due->batch, 2u);
+}
