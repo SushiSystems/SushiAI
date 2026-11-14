@@ -305,7 +305,8 @@ namespace SushiAI
             std::mt19937_64 rng(options.seed);
             std::uniform_real_distribution<double> theta_dist(0.0, K_TWO_PI);
             std::uniform_real_distribution<double> band_dist(0.0, options.ring_width);
-            std::normal_distribution<double> jitter(0.0, options.position_noise);
+            // The noise may be 0, which a normal distribution refuses, so a unit normal is scaled.
+            std::normal_distribution<double> unit_jitter(0.0, 1.0);
             std::normal_distribution<double> distractor(0.0, 1.0);
 
             std::vector<Batch> batches;
@@ -333,8 +334,10 @@ namespace SushiAI
                         const double theta = theta_dist(rng);
 
                         float* row = x + r * features;
-                        row[0] = static_cast<float>(radius * std::cos(theta) + jitter(rng));
-                        row[1] = static_cast<float>(radius * std::sin(theta) + jitter(rng));
+                        row[0] = static_cast<float>(
+                            radius * std::cos(theta) + options.position_noise * unit_jitter(rng));
+                        row[1] = static_cast<float>(
+                            radius * std::sin(theta) + options.position_noise * unit_jitter(rng));
                         for (int64_t f = 0; f < options.distractor_features; ++f)
                             row[2 + f] = static_cast<float>(distractor(rng));
                     }

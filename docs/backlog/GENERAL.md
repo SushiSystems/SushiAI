@@ -10,9 +10,11 @@
 | RW-172 | P1 | decision | Release a SushiRuntime that carries in_process_transport for the distributed layer | A SushiRuntime tag holds SushiRuntime/in_process_transport/in_process_transport.hpp and sa build --distributed passes against the pin |  | `cli/sushistack.deps.toml` | 2026-11-14 |
 | RW-173 | P3 | open | Give the upstream-main job the SushiProfiler and SushiLog refs SushiRuntime main needs | The Against SushiRuntime and SushiBLAS main job builds SushiRuntime main without the ScopedZone and __COUNTER__ errors |  | `.github/workflows/ci.yml` | 2026-11-14 |
 | RW-179 | P3 | open | Make the checker tests independent of where TMP points | tools/check_all.py passes with TMP and TEMP set to a folder inside the repository |  | `tools/check_all.py` | 2026-11-14 |
+| RW-180 | P2 | open | Decide whether the TSan race in GraphPairTask is real and fix or justify it | The thread job reports no race at graph_task_sink.cpp:65, or a suppression names its reason and this entry |  | `.github/workflows/ci.yml` | 2026-11-14 |
 
 ## Known issues
 
 | ID | Origin | Symptom | Workaround | Fix | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- |
 | KI-18 | dependency | sa build links a sibling checkout over the pinned tag, so it can build an old library | Point SUSHI<NAME>_DIR at a clean clone of the pinned tag, under sources/<name>/<version> |  | `cli/sushistack.deps.toml` | 2026-11-14 |
+| KI-21 | dependency | TSan: data race at SushiBLAS graph_task_sink.cpp:65, GraphPairTask body read on a worker | none |  | `.github/workflows/ci.yml` | 2026-11-14 |
