@@ -1651,3 +1651,35 @@ and a filled `yolo_txt` block, and the evaluation file of T1; the model and weig
 
 dispatch: T5 and T6 — sonnet medium, 49 turns, passed, rung 1
 
+### T0, T4 and T7, run on a built tree
+
+2026-11-14, a debug tree built against SushiBLAS v0.1.2, SushiRuntime v0.5.2, SushiLog v0.3.1 and
+SushiProfiler v0.4.1 without the distributed layer, `SA_REFERENCE_DATA_DIR` set as in T0.
+
+T0: `sushiai_vision_tests --gtest_filter=*Darknet*` ran 353 cases in 3290 s and 352 passed, the
+host working set peaking at 1036 MB. These include the forward tables, layers, decode and
+training-step cases of YOLOv3, YOLOv4 and YOLOv7 and their tiny variants. The one failure,
+`Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth`, is a convergence case: the cost
+fell from 35.64 to 3.73 in 200 steps against a bound of 3.56 (RW-174). A gating run without the
+variable skipped 99 of these cases and still read as passed (RW-175).
+
+T4: `sa inference` over coco128 `train2017` with the stock weights, batch 4, 416 by 416, resized,
+printed 419 detections above 0.25 and a mean average precision at IoU 0.5 of 0.2695 over 929 boxes,
+detections scored above 0.001.
+
+T7: Darknet's own `detector map` on the same 128 images with the same `.cfg` and `.weights`
+(`build/darknet.exe` of `_darknet`, stretched to 416 by 416) printed a mean average precision of
+0.2378 over 929 truth boxes, and at a confidence of 0.25 true positives 148 and false positives
+268, 416 detections.
+
+| | Darknet | SushiAI |
+| --- | --- | --- |
+| Truth boxes | 929 | 929 |
+| Detections above 0.25 | 416 | 419 |
+| Mean average precision at IoU 0.5 | 0.2378 | 0.2695 |
+
+The truth counts are equal and the detections above 0.25 differ by three. The two precisions are not
+yet one quantity: Darknet's map code scores detections above a fixed 0.005 and SushiAI above 0.001,
+and the area rules of the two curves were not compared. Ruled 2026-11-14: the forward pass is taken
+as equal to Darknet's at the level the parity cases check; the precisions are compared again once
+RW-57 gives `eval.json` the same floor.
