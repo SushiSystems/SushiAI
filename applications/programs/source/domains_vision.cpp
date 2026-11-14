@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -48,6 +49,8 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
+#include <SushiAI/vision/datasets/detection_collator.hpp>
+#include <SushiAI/vision/imaging/fit_transform.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/profile/profile.hpp>
@@ -408,24 +411,63 @@ namespace SushiAI
                 return count;
             }
 
-            /** @brief Prints the first @p count rows of the detections of image @p image. */
+            /**
+             * @brief Returns how image @p image of @p batch sat in its source, or nothing.
+             * @return Nothing when the batch has no readable fit role or the image has no source.
+             */
+            std::optional<Vision::Imaging::FitTransform> fit_of(const Data::Batch& batch,
+                                                                std::size_t image)
+            {
+                const Data::BatchTarget* const role = Data::find_target(batch.targets,
+                                                                        Data::K_ROLE_FIT);
+                if (role == nullptr)
+                    return std::nullopt;
+
+                const SushiBLAS::Tensor& tensor = role->values;
+                if (tensor.data_or_null() == nullptr || !tensor.is_contiguous()
+                    || tensor.dtype != DType::Float32)
+                    return std::nullopt;
+
+                const auto* const values = static_cast<const float*>(tensor.data_or_null())
+                    + image * static_cast<std::size_t>(Vision::Datasets::K_FIT_VALUES);
+                if (values[0] < 1.0f || values[1] < 1.0f)
+                    return std::nullopt;
+
+                Vision::Imaging::FitTransform fit;
+                fit.source.height = static_cast<std::int32_t>(values[0]);
+                fit.source.width = static_cast<std::int32_t>(values[1]);
+                fit.scale_x = values[2];
+                fit.scale_y = values[3];
+                fit.offset_x = values[4];
+                fit.offset_y = values[5];
+                return fit;
+            }
+
+            /**
+             * @brief Prints the first @p count rows of the detections of image @p image.
+             * @param fit When set, the boxes are mapped to pixels of the source image first.
+             */
             void print_detections(std::size_t image, const std::vector<float>& detections,
-                                  std::size_t count)
+                                  std::size_t count,
+                                  const std::optional<Vision::Imaging::FitTransform>& fit = {})
             {
                 std::cout << SushiLog::format_text("image {}: {} detections\n", image, count);
                 for (std::size_t at = 0; at < count; ++at)
                 {
                     const float* const row =
                         detections.data() + at * Vision::Detect::K_DETECTION_VALUES;
+                    Vision::Imaging::PixelBox box{row[0], row[1], row[2], row[3]};
+                    if (fit)
+                        box = Vision::Imaging::box_in_source(*fit, box);
                     std::cout << SushiLog::format_text(
                         "  class {}  score {}  box {} {} {} {}\n",
                         SushiLog::right(
                             static_cast<std::int64_t>(row[Vision::Detect::K_DETECTION_CLASS]), 3),
                         SushiLog::fixed(row[Vision::Detect::K_DETECTION_SCORE], 4),
-                        SushiLog::right(SushiLog::fixed(row[0], 2), 8),
-                        SushiLog::right(SushiLog::fixed(row[1], 2), 8),
-                        SushiLog::right(SushiLog::fixed(row[2], 2), 8),
-                        SushiLog::right(SushiLog::fixed(row[3], 2), 8));
+                        SushiLog::right(SushiLog::fixed(box.x1, 2), 8),
+                        SushiLog::right(SushiLog::fixed(box.y1, 2), 8),
+                        SushiLog::right(SushiLog::fixed(box.x2, 2), 8),
+                        SushiLog::right(SushiLog::fixed(box.y2, 2), 8));
                 }
             }
 
@@ -479,10 +521,14 @@ namespace SushiAI
                 print_inference_header(
                     run, SushiLog::format_text("{} heads, {} classes", heads.size(),
                                                  task.num_classes));
+                const bool sourced =
+                    Data::find_target(run.dataset.targets(), Data::K_ROLE_FIT) != nullptr;
                 std::cout << SushiLog::format_text(
                     "Detections : score above {}, suppression above {}; boxes are x1 y1 x2 y2 "
-                    "in pixels of the {} by {} input\n\n",
-                    score_threshold, suppression_threshold, input[1], input[0]);
+                    "in pixels of the {}\n\n",
+                    score_threshold, suppression_threshold,
+                    sourced ? std::string("source image of each file")
+                            : SushiLog::format_text("{} by {} input", input[1], input[0]));
 
                 // Suppression runs at the validation confidence; the printout cuts at the score.
                 Vision::Detect::NMSConfig config;
@@ -530,7 +576,8 @@ namespace SushiAI
                     {
                         const std::size_t count =
                             count_confident(detections[image], score_threshold);
-                        print_detections(b * batch_size + image, detections[image], count);
+                        print_detections(b * batch_size + image, detections[image], count,
+                                         fit_of(batch, image));
                         found += count;
                     }
 

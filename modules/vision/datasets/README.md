@@ -96,7 +96,7 @@ a CSV library: `source/xml_element.cpp` and `source/csv.cpp` parse their formats
 | `<SushiAI/vision/datasets/batch_inputs.hpp>` | `K_BYTE_SCALE`, `write_batch_inputs` |
 | `<SushiAI/vision/datasets/collator.hpp>` | `Collator` |
 | `<SushiAI/vision/datasets/classification_collator.hpp>` | `K_TASK_CLASSIFICATION`, `ClassificationCollator` |
-| `<SushiAI/vision/datasets/detection_collator.hpp>` | `K_TASK_DETECTION`, `K_BOX_COORDINATES`, `DetectionCollator` |
+| `<SushiAI/vision/datasets/detection_collator.hpp>` | `K_TASK_DETECTION`, `K_BOX_COORDINATES`, `K_FIT_VALUES`, `DetectionCollator` |
 | `<SushiAI/vision/datasets/reader_dataset.hpp>` | `ReaderDatasetOptions`, `ReaderDataset` |
 | `<SushiAI/vision/datasets/reader_table.hpp>` | `ReaderRequest`, `SampleReader`, `ReaderEntry`, `reader_table`, `find_reader` |
 | `<SushiAI/vision/datasets/task_table.hpp>` | `CollatorRequest`, `CollatorFactory`, `DatasetBuilder`, `TaskEntry`, `task_table`, `find_task` |

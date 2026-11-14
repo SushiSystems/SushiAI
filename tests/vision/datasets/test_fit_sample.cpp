@@ -149,6 +149,38 @@ TEST(Small_DatasetsFitSample, ResizeFillsTheImageAndCarriesTheFileAndTheClass)
     EXPECT_EQ(*fitted.class_index, 3);
 }
 
+/** @brief Tests that a resize records the source size and the scale of each axis. */
+TEST(Small_DatasetsFitSample, ResizeRecordsTheSourceSizeAndTheScaleOfEachAxis)
+{
+    const Image source = Support::uniform_image(ImageSize{2, 4}, 1, 100);
+
+    FittedSample fitted;
+    SA_EXPECT_OK(fit_sample(Sample{}, source.view(),
+                            options_of(ImageSize{4, 4}, SampleFit::Resize), fitted));
+
+    EXPECT_EQ(fitted.fit.source, (ImageSize{2, 4}));
+    EXPECT_EQ(fitted.fit.scale_x, 1.0f);
+    EXPECT_EQ(fitted.fit.scale_y, 2.0f);
+    EXPECT_EQ(fitted.fit.offset_x, 0.0f);
+    EXPECT_EQ(fitted.fit.offset_y, 0.0f);
+}
+
+/** @brief Tests that a letterbox records the source size, its one scale and its padding offsets. */
+TEST(Small_DatasetsFitSample, LetterboxRecordsTheSourceSizeTheScaleAndThePaddingAsOffsets)
+{
+    const Image source = Support::uniform_image(ImageSize{2, 4}, 1, 200);
+
+    FittedSample fitted;
+    SA_EXPECT_OK(fit_sample(Sample{}, source.view(),
+                            options_of(ImageSize{4, 4}, SampleFit::Letterbox), fitted));
+
+    EXPECT_EQ(fitted.fit.source, (ImageSize{2, 4}));
+    EXPECT_EQ(fitted.fit.scale_x, 1.0f);
+    EXPECT_EQ(fitted.fit.scale_y, 1.0f);
+    EXPECT_EQ(fitted.fit.offset_x, 0.0f);
+    EXPECT_EQ(fitted.fit.offset_y, 1.0f);
+}
+
 /** @brief Tests that a letterbox pads the short axis and fills the rest with the source. */
 TEST_P(Small_DatasetsFitSampleLetterboxRow, LetterboxPadsTheShortAxis)
 {

@@ -129,8 +129,9 @@ Still lacking:
   `subdivisions`, `max_batches`, `jitter`, `random` and the augmentation keys.
 - **Heads whose training options differ are refused**, naming the two heads and the key.
 - **`sushiai inference` reports by the model's task type**; a model without a task takes the
-  class report. Its score and suppression thresholds are constants of the program, since
-  `eval.json` has no key for them, and boxes are printed in pixels of the network input.
+  class report. Its score and suppression thresholds and its confidence floor default to constants of the
+  program and a `detection` object of `eval.json` sets them, and boxes are printed in pixels of
+  the source image through the `fit` role of the batch.
 - **One image file cannot be given to `inference`**; it reads the split of `eval.json`.
 
 ### The format engine

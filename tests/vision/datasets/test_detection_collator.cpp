@@ -41,6 +41,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/datasets/detection_collator.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
+#include <SushiAI/vision/imaging/fit_transform.hpp>
 #include <support/test_names.hpp>
 
 using namespace SushiAI;
@@ -99,15 +100,15 @@ INSTANTIATE_TEST_SUITE_P(
                       MakeRefusal{"ZeroObjects", 3, 0, "0 objects"}),
     [](const ::testing::TestParamInfo<MakeRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
-/** @brief Tests that detection publishes boxes, classes and valid with M slots per image. */
-TEST(Small_DetectionCollatorTargets, DetectionPublishesThreeRoles)
+/** @brief Tests that detection publishes boxes, classes, valid and fit, with M slots per image. */
+TEST(Small_DetectionCollatorTargets, DetectionPublishesFourRoles)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DetectionCollator> collator,
                             DetectionCollator::make(3, 4));
     const std::vector<Data::TargetDescription>& targets = collator->targets();
 
     EXPECT_EQ(collator->task(), K_TASK_DETECTION);
-    ASSERT_EQ(targets.size(), 3u);
+    ASSERT_EQ(targets.size(), 4u);
     EXPECT_EQ(targets[0].role, Data::K_ROLE_BOXES);
     EXPECT_EQ(targets[0].sample_shape, (Shape{4, 4}));
     EXPECT_EQ(targets[0].dtype, DType::Float32);
@@ -118,6 +119,9 @@ TEST(Small_DetectionCollatorTargets, DetectionPublishesThreeRoles)
     EXPECT_EQ(targets[2].role, Data::K_ROLE_VALID);
     EXPECT_EQ(targets[2].sample_shape, Shape{4});
     EXPECT_EQ(targets[2].dtype, DType::Float32);
+    EXPECT_EQ(targets[3].role, Data::K_ROLE_FIT);
+    EXPECT_EQ(targets[3].sample_shape, Shape{K_FIT_VALUES});
+    EXPECT_EQ(targets[3].dtype, DType::Float32);
 }
 
 /** @brief Tests that detection writes pixel corners in object order and zeroes the padding. */
@@ -140,6 +144,28 @@ TEST_F(Small_DetectionCollator, DetectionWritesCornersAndPadsWithZero)
               (std::vector<double>{0.0, 0.0, 2.0, 0.0}));
     EXPECT_EQ(SaTest::read_tensor(batch.targets[2].values),
               (std::vector<double>{0.0, 0.0, 1.0, 0.0}));
+}
+
+/** @brief Tests that detection writes the source size and the placement of each image. */
+TEST_F(Small_DetectionCollator, DetectionWritesTheFitOfEachImage)
+{
+    samples[0].fit = Vision::Imaging::resize_transform(Vision::Imaging::ImageSize{8, 16},
+                                                       Vision::Imaging::ImageSize{4, 4});
+    samples[1].fit.source = Vision::Imaging::ImageSize{20, 10};
+    samples[1].fit.scale_x = 0.5f;
+    samples[1].fit.scale_y = 0.5f;
+    samples[1].fit.offset_x = 8.0f;
+    samples[1].fit.offset_y = 16.0f;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DetectionCollator> collator,
+                            DetectionCollator::make(3, 2));
+    Data::Batch batch = allocate_images(collator->targets());
+
+    SA_EXPECT_OK(collator->collate(list, span(), batch));
+
+    // Every value is a power of two or a count, so the copy compares exactly.
+    EXPECT_EQ(SaTest::read_tensor(batch.targets[3].values),
+              (std::vector<double>{8.0, 16.0, 0.25, 0.5, 0.0, 0.0,
+                                   20.0, 10.0, 0.5, 0.5, 8.0, 16.0}));
 }
 
 /** @brief Tests that an image with more objects than M is a failure naming its file. */

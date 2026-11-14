@@ -47,7 +47,7 @@ The `data` block names a reader and a task instead of a `type`:
 | Key | Value here | Meaning |
 | --- | --- | --- |
 | `reader` | `yolo_txt` | The on-disk layout |
-| `task` | `detection` | The roles a batch carries: `boxes`, `classes` and `valid`. Images are fitted as the model file's `fit` says |
+| `task` | `detection` | The roles a batch carries: `boxes`, `classes`, `valid` and `fit`. Images are fitted as the model file's `fit` says |
 | `root` | `../../../datasets/coco128` | The directory of the dataset, against the directory of `train.json` |
 | `split` | `train` | The image list `root/train.txt`, or the folder `root/images/train` |
 | `batch_size` | `8` | Images per batch; the images past the last whole batch are not read |

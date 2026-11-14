@@ -47,7 +47,7 @@ struct Batch { SushiBLAS::Tensor inputs; std::vector<BatchTarget> targets; };
 | Binary | `labels` | `[N]` float32, 0 or 1 |
 | Multi-label | `labels` | `[N, C]` float32 |
 | Regression | `values` | `[N, K]` float32 |
-| Detection | `boxes`, `classes`, `valid` | `[N, M, 4]` float32 corners in pixels of the input, `[N, M]` int32, `[N, M]` float32 |
+| Detection | `boxes`, `classes`, `valid`, `fit` | `[N, M, 4]` float32 corners in pixels of the input, `[N, M]` int32, `[N, M]` float32, `[N, 6]` float32: the source height and width, then the scale and offset of each axis, so a report can print a box in pixels of the source |
 | Semantic segmentation | `mask` | `[N, H, W]` int32, with an ignore index |
 
 An objective already declares the leaves it reads by role (`Train::Objective::declare`). The

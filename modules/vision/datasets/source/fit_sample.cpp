@@ -52,24 +52,29 @@ namespace SushiAI::Vision::Datasets
         /** @brief Names a function that writes the fitted image and returns the moved labels. */
         using Fit = Result<Imaging::Labels> (*)(const Sample& sample, Imaging::ImageView source,
                                                 const SampleFitOptions& options,
-                                                Imaging::Image& destination);
+                                                Imaging::Image& destination,
+                                                Imaging::FitTransform& transform);
 
         /** @brief Scales each axis to the input size; the labels scale with their axis. */
         Result<Imaging::Labels> fit_by_resize(const Sample& sample, Imaging::ImageView source,
                                               const SampleFitOptions& options,
-                                              Imaging::Image& destination)
+                                              Imaging::Image& destination,
+                                              Imaging::FitTransform& transform)
         {
             SA_TRY(Imaging::resize_bilinear(source, options.size, destination));
+            transform = Imaging::resize_transform(source.size(), options.size);
             return Result<Imaging::Labels>(Imaging::to_pixel_labels(sample.objects, options.size));
         }
 
         /** @brief Letterboxes the image and moves the labels by the same plan. */
         Result<Imaging::Labels> fit_by_letterbox(const Sample& sample, Imaging::ImageView source,
                                                  const SampleFitOptions& options,
-                                                 Imaging::Image& destination)
+                                                 Imaging::Image& destination,
+                                                 Imaging::FitTransform& transform)
         {
             SA_TRY_ASSIGN(const Imaging::LetterboxPlan plan,
                           Imaging::plan_letterbox(options.letterbox, source.size(), options.size));
+            transform = Imaging::letterbox_transform(plan);
 
             Imaging::apply_letterbox(source, plan, destination);
             return Result<Imaging::Labels>(Imaging::apply_letterbox(
@@ -93,7 +98,8 @@ namespace SushiAI::Vision::Datasets
 
         return Detail::at_boundary(K_FITTER, [&]()
         {
-            SA_TRY_ASSIGN(fitted.objects, K_FITS[fit](sample, source, options, fitted.image));
+            SA_TRY_ASSIGN(fitted.objects,
+                          K_FITS[fit](sample, source, options, fitted.image, fitted.fit));
             Imaging::clip_labels(fitted.objects, options.size);
             Imaging::remove_empty_boxes(fitted.objects);
 

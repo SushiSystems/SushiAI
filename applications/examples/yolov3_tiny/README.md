@@ -49,7 +49,7 @@ layout: `images/train2017/*.jpg` with one `labels/train2017/*.txt` per image, ea
 | Key | Value | Meaning |
 | --- | --- | --- |
 | `reader` | `yolo_txt` | The on-disk layout |
-| `task` | `detection` | The roles a batch carries: `boxes`, `classes` and `valid` |
+| `task` | `detection` | The roles a batch carries: `boxes`, `classes`, `valid` and `fit` |
 | `split` | `train2017` | The image list `root/train2017.txt`, or the folder `root/images/train2017` |
 | `batch_size` | `16` | Images per batch; images past the last whole batch are not read |
 | `input` | `[416, 416]` | Height and width every image is fitted to |

@@ -108,6 +108,17 @@ TEST_F(Medium_InferenceProgram, TheAnchorReportPrintsItsFiguresOverEveryImage)
         << report.printed;
 }
 
+/** @brief Tests that the anchor report prints its boxes in pixels of the source image. */
+TEST_F(Medium_InferenceProgram, TheAnchorReportPrintsItsBoxesInPixelsOfTheSourceImage)
+{
+    const SaTest::ScratchFile checkpoint("sushiai_inference_program_source_pixels.sushi");
+
+    const PrintedReport report = report_after_training(backend(), checkpoint.path());
+
+    EXPECT_NE(report.printed.find("in pixels of the source image of each file"), std::string::npos)
+        << report.printed;
+}
+
 /** @brief Tests that the anchor report compiles one graph. */
 TEST_F(Medium_InferenceProgram, TheAnchorReportCompilesOneGraph)
 {

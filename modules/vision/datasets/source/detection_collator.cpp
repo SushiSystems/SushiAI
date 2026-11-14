@@ -77,6 +77,8 @@ namespace SushiAI::Vision::Datasets
               Data::TargetDescription{std::string(Data::K_ROLE_CLASSES), Shape{max_objects},
                                       DType::Int32, class_count},
               Data::TargetDescription{std::string(Data::K_ROLE_VALID), Shape{max_objects},
+                                      DType::Float32, 0},
+              Data::TargetDescription{std::string(Data::K_ROLE_FIT), Shape{K_FIT_VALUES},
                                       DType::Float32, 0}}
     {
 
@@ -109,10 +111,15 @@ namespace SushiAI::Vision::Datasets
         SA_TRY_ASSIGN(SushiBLAS::Tensor* const valid,
                       Detail::role_tensor(batch, Data::K_ROLE_VALID, DType::Float32, rows,
                                           K_COLLATOR));
+        SA_TRY_ASSIGN(SushiBLAS::Tensor* const fits,
+                      Detail::role_tensor(batch, Data::K_ROLE_FIT, DType::Float32,
+                                          static_cast<std::int64_t>(samples.size()) * K_FIT_VALUES,
+                                          K_COLLATOR));
 
         float* box_out = boxes->data_as<float>();
         std::int32_t* class_out = classes->data_as<std::int32_t>();
         float* valid_out = valid->data_as<float>();
+        float* fit_out = fits->data_as<float>();
 
         std::fill_n(box_out, static_cast<std::size_t>(rows * K_BOX_COORDINATES), 0.0f);
         std::fill_n(class_out, static_cast<std::size_t>(rows), 0);
@@ -120,6 +127,15 @@ namespace SushiAI::Vision::Datasets
 
         for (std::size_t i = 0; i < samples.size(); ++i)
         {
+            const Imaging::FitTransform& fit = samples[i].fit;
+            float* placement = fit_out + i * static_cast<std::size_t>(K_FIT_VALUES);
+            placement[0] = static_cast<float>(fit.source.height);
+            placement[1] = static_cast<float>(fit.source.width);
+            placement[2] = fit.scale_x;
+            placement[3] = fit.scale_y;
+            placement[4] = fit.offset_x;
+            placement[5] = fit.offset_y;
+
             const Imaging::Labels& objects = samples[i].objects;
 
             SA_FAIL_IF(objects.size() > slots, StatusCode::InvalidDescription,

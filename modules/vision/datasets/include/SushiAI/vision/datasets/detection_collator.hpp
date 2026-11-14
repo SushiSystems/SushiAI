@@ -46,6 +46,9 @@ namespace SushiAI::Vision::Datasets
     /** @brief Holds the coordinate count of one box: x1, y1, x2, y2. */
     inline constexpr std::int64_t K_BOX_COORDINATES = 4;
 
+    /** @brief Counts the values of the fit role of one image: the source size and the placement. */
+    inline constexpr std::int64_t K_FIT_VALUES = 6;
+
     /**
      * @brief Writes boxes [N, M, 4] float32, classes [N, M] int32 and valid [N, M] float32.
      *

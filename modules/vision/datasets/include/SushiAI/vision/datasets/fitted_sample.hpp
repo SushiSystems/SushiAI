@@ -34,6 +34,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/vision/imaging/fit_transform.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 
@@ -50,6 +51,9 @@ namespace SushiAI::Vision::Datasets
     {
         /** @brief Holds the pixels at the input size. */
         Imaging::Image image;
+
+        /** @brief Holds how the source image sits in image; the identity for a sample with none. */
+        Imaging::FitTransform fit;
 
         /** @brief Holds the index, in SampleList::files, of the file the pixels came from. */
         std::uint32_t file = 0;

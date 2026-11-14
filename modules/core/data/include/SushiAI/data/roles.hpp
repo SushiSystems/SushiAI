@@ -53,5 +53,13 @@ namespace SushiAI
         /** @brief Names the role that holds the real numbers a sample regresses to. */
         inline constexpr std::string_view K_ROLE_VALUES = "values";
 
+        /**
+         * @brief Names the role that holds how a source image sits in its sample.
+         *
+         * Six floats per sample: the source height and width, then the scale and the offset of
+         * each axis, the column first.
+         */
+        inline constexpr std::string_view K_ROLE_FIT = "fit";
+
     } // namespace Data
 } // namespace SushiAI

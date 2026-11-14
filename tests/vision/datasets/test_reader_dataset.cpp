@@ -402,7 +402,7 @@ TEST_F(Small_DatasetsReaderDataset, ADetectionBatchMovesTheBoxesWithTheImage)
 {
     const Data::Batch batch = read_detection_batch(backend, files);
 
-    ASSERT_EQ(batch.targets.size(), 3u);
+    ASSERT_EQ(batch.targets.size(), 4u);
     const std::vector<double> boxes = SaTest::read_tensor(batch.targets[0].values);
     EXPECT_NEAR(boxes[8], 1.0, K_PIXEL_TOLERANCE);
     EXPECT_NEAR(boxes[9], 1.0, K_PIXEL_TOLERANCE);
@@ -415,7 +415,7 @@ TEST_F(Small_DatasetsReaderDataset, ADetectionBatchFlagsTheObjectRowAndItsClass)
 {
     const Data::Batch batch = read_detection_batch(backend, files);
 
-    ASSERT_EQ(batch.targets.size(), 3u);
+    ASSERT_EQ(batch.targets.size(), 4u);
     EXPECT_EQ(SaTest::read_tensor(batch.targets[2].values),
               (std::vector<double>{0.0, 0.0, 1.0, 0.0}));
     EXPECT_EQ(SaTest::read_tensor(batch.targets[1].values)[2], 2.0);
