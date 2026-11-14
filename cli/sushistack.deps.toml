@@ -43,13 +43,13 @@ commit  = "fa97fde6d8b495a1856159c9929a000a817e5450"
 
 # SushiRuntime, the task graph and devices. The CLI builds or reuses its package at this tag, so no checkout beside this one is needed.
 [sushisystems.sushiruntime]
-version = "v0.5.1"
-commit  = "ed24bba0ffff681fffa0f274e14290f725a32eb1"
+version = "v0.5.2"
+commit  = "636091305b2e93e3b64a2c5d3e3cfc5a7d252d66"
 
 # SushiBLAS, the tensor and BLAS engine, pinned the same way.
 [sushisystems.sushiblas]
-version = "v0.1.1"
-commit  = "80f5f0cbcb0f299440938772dba9aceefb92a02a"
+version = "v0.1.2"
+commit  = "3aff9ff2c825b83ad068e562818f460e02bdca6d"
 
 [nlohmann-json]
 description   = "Header-only JSON parser. Read by modules/core/config/source/*.cpp alone, to turn a configuration file into Config::Value; the library's name appears in no public header, so it links PRIVATE and no consumer of SushiAI inherits it."
