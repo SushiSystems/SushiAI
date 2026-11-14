@@ -11,8 +11,10 @@
 | RW-159 | P2 | open | Build the CLI seams the M3 resizes need and move the colour-name test to a checker | the CLI tests named in the test review decision 16 (REPORT.md as of `a87d12c8`) run small and the raw rich colour rule is a checker under tools/ |  | `cli/tests/test_config.py` | 2026-11-07 |
 | RW-168 | P2 | open | Give every test a name and suite that check_test_odr accepts | check_test_odr.py prints nothing for this repository and its known findings are gone |  |  | 2026-11-11 |
 | RW-169 | P2 | open | Bring the one-step cluster run test back under the medium limit | Medium_ClusterRun.RegressionOneStepFromAFileMatchesTheSingleMachineStep runs under 5 s alone and leaves tests/budget_exemptions.toml |  | `tests/applications/programs/source/test_cluster_run.cpp` | 2026-11-11 |
+| RW-175 | P2 | open | Say in the test summary how many cases a missing reference directory skipped | A run without SA_REFERENCE_DATA_DIR prints the count of skipped Darknet cases and the variable, and the gating line does not read as all passed |  | `modules/core/darknet_reference/README.md` | 2026-11-14 |
 
 ## Known issues
 
 | ID | Origin | Symptom | Workaround | Fix | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- |
+| KI-19 | dependency | SushiCore: sa test --filter with a regex becomes a GoogleTest filter that matches no test | Run the program with sa run PROGRAM -- --gtest_filter=PATTERN |  | `cli/sushiai/services/project.py` | 2026-11-14 |
