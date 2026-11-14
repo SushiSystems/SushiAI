@@ -264,7 +264,7 @@ the run and marks one `inference.batch` period per batch.
 The third argument may be one image file (`.jpg`, `.jpeg` or `.png`) in place of the data file.
 `image_data_document` then builds a data block with the `image_file` reader, a batch of one and
 the model's input size and class count, and the detection report lists the detections and scores
-nothing (`Comparison::DetectionsOnly`). A model without a task that states `classes` refuses it.
+nothing (`Comparison::DetectionsOnly`). The class count comes from the task, or from the last layer that states `classes` (the `detect` row of an anchor-free model); a model with neither refuses the image.
 
 ### Forward pass only
 

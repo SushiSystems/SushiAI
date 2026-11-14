@@ -81,6 +81,22 @@ TEST(Small_ImageInput, TheBlockReadsTheFileForTheModelsInputAndClasses)
     EXPECT_EQ(input[1].as_int("width").value(), 6);
 }
 
+/** @brief Tests that a model whose task states no classes takes them from its last detect layer. */
+TEST(Small_ImageInput, AModelWhoseTaskStatesNoClassesReadsThemFromItsLastLayerThatHasThem)
+{
+    Config::ModelSpec model = detector_of_three_classes();
+    model.task = Config::Value::object({"type"}, {Config::Value::string("anchor_free_detection")});
+    Config::LayerSpec head;
+    head.type = "detect";
+    head.attributes = Config::Value::object({"classes"}, {Config::Value::integer(7)});
+    model.layers.push_back(head);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Config::DataDocument document,
+                            Apps::image_data_document("pictures/cat.jpg", model));
+
+    EXPECT_EQ(document.data.attributes.at("classes", "block").value().as_int("classes").value(), 7);
+}
+
 /** @brief Tests that a model whose task states no classes is refused. */
 TEST(Small_ImageInput, AModelWithoutAClassCountIsRefused)
 {

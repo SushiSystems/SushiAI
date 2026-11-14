@@ -111,7 +111,7 @@ through the `anchor_detection` inference row (`run_inference_file`).
 ## source/test_image_input.cpp
 
 Builds the data block of one image file from a model of an 8 by 6 input and a task of 3 classes, and
-refuses a model whose task states no classes. `is_image_path` is decided by the extension alone.
+reads the classes from the task or, when the task has none, from the last layer that has them, and refuses a model with neither. `is_image_path` is decided by the extension alone.
 
 ## source/test_profile_session.cpp
 

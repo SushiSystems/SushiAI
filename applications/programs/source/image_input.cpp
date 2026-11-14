@@ -29,6 +29,7 @@
 
 #include "image_input.hpp"
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -47,6 +48,35 @@ namespace SushiAI
 
             /** @brief Names the key of the task section that counts the classes. */
             constexpr const char* K_CLASSES_KEY = "classes";
+
+            /**
+             * @brief Finds the class count a model states, in its task or in its last layer that has one.
+             * @return The count, or InvalidDescription when neither states it.
+             */
+            [[nodiscard]] Result<std::int64_t> classes_of(const Config::ModelSpec& model)
+            {
+                if (!model.task.is_null() && model.task.has(K_CLASSES_KEY))
+                {
+                    SA_TRY_ASSIGN(const Config::Value& stated,
+                                  model.task.at(K_CLASSES_KEY, "the task section"));
+                    return stated.as_int("the task classes");
+                }
+
+                for (auto layer = model.layers.rbegin(); layer != model.layers.rend(); ++layer)
+                {
+                    if (layer->attributes.has(K_CLASSES_KEY))
+                    {
+                        SA_TRY_ASSIGN(const Config::Value& stated,
+                                      layer->attributes.at(K_CLASSES_KEY, "a layer"));
+                        return stated.as_int("the layer classes");
+                    }
+                }
+
+                SA_FAIL_IF(true, StatusCode::InvalidDescription,
+                           "an image file feeds a model that states its 'classes' in its task or "
+                           "in one of its layers");
+                return std::int64_t{0};
+            }
         } // namespace
 
         bool is_image_path(const std::filesystem::path& path) noexcept
@@ -61,12 +91,7 @@ namespace SushiAI
                        "an image file feeds a model whose input is [height, width, channels]; "
                        "this model's input is {}",
                        model.input_shape.to_string());
-            SA_FAIL_IF(model.task.is_null() || !model.task.has(K_CLASSES_KEY),
-                       StatusCode::InvalidDescription,
-                       "an image file feeds a model whose task states its 'classes'");
-            SA_TRY_ASSIGN(const Config::Value& stated,
-                          model.task.at(K_CLASSES_KEY, "the task section"));
-            SA_TRY_ASSIGN(const std::int64_t classes, stated.as_int("the task classes"));
+            SA_TRY_ASSIGN(const std::int64_t classes, classes_of(model));
 
             const std::filesystem::path folder = image.parent_path();
             std::vector<std::string> keys = {"reader",  "task",       "root",       "file",
