@@ -157,7 +157,8 @@ namespace SushiAI
                                   const std::filesystem::path& checkpoint_path,
                                   const Config::ModelSpec& model_spec,
                                   const Config::DataSpec& data_spec, ExecutionBackend& backend,
-                                  const Config::DetectionSettings& detection)
+                                  const Config::DetectionSettings& detection,
+                                  Comparison comparison)
         {
             SushiBLAS::Engine& engine = backend.engine();
 
@@ -208,7 +209,7 @@ namespace SushiAI
             // The report is the row of the task type; see applications/programs/README.md.
             PreparedInference prepared{
                 model_path, checkpoint_path, model_spec, model.size(),
-                *dataset, *step, published, backend, &model, &state, detection,
+                *dataset, *step, published, backend, &model, &state, detection, comparison,
             };
             if (tasked)
             {

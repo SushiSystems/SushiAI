@@ -25,6 +25,7 @@ sushiai_add_module(NAME datasets TIER vision
         source/idx.cpp
         source/idx_file.cpp
         source/image_extensions.cpp
+        source/image_file.cpp
         source/image_folder.cpp
         source/load_sample_image.cpp
         source/load_sample_mask.cpp

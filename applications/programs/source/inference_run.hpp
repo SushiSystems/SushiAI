@@ -31,6 +31,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <string_view>
 #include <vector>
@@ -53,6 +54,13 @@ namespace SushiAI
 
     namespace Apps
     {
+        /** @brief Names whether a report compares what the model found with truth the data carries. */
+        enum class Comparison : std::uint8_t
+        {
+            WithTruth,      /**< The report scores the detections against the boxes of the data. */
+            DetectionsOnly, /**< The data is one image with no truth, so the report scores nothing. */
+        };
+
         /**
          * @struct PreparedInference
          * @brief Holds what `sushiai inference` built before a report starts; a report owns none.
@@ -91,6 +99,9 @@ namespace SushiAI
 
             /** @brief The thresholds the evaluation file states; a report keeps its own default. */
             Config::DetectionSettings detection = {};
+
+            /** @brief Whether a detection report scores its detections against the data's truth. */
+            Comparison comparison = Comparison::WithTruth;
         };
 
         /**

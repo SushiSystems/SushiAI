@@ -38,6 +38,7 @@
 #include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include "image_input.hpp"
 #include "inference_program.hpp"
 #include "profile_arguments.hpp"
 #include "profile_session.hpp"
@@ -51,12 +52,14 @@ namespace
     constexpr std::string_view K_USAGE =
         "sushiai inference - evaluate a trained checkpoint over a dataset.\n"
         "\n"
-        "Usage: sushiai inference <model.json> <model.sushi> <eval.json>\n"
+        "Usage: sushiai inference <model.json> <model.sushi> <eval.json | image>\n"
         "                         [--profile <profile.json>]\n"
         "\n"
         "  model.json   the architecture the checkpoint was trained under\n"
         "  model.sushi  the weights `sushiai train` or `sushiai import` wrote\n"
         "  eval.json    the data to evaluate on; the architecture file carries none\n"
+        "  image        one .jpg, .jpeg or .png file in place of eval.json: the report lists\n"
+        "               its detections and scores nothing\n"
         "  --profile    starts a SushiProfiler session from profile.json for the run and\n"
         "               writes the record that file names, whether the run succeeds or not\n"
         "\n"
@@ -87,8 +90,10 @@ namespace
         const std::filesystem::path data_path = arguments.positional[2];
 
         SA_TRY_ASSIGN(const sa::Config::ModelSpec model_spec, sa::Config::load_model(model_path));
+        const bool one_image = sa::Apps::is_image_path(data_path);
         SA_TRY_ASSIGN(const sa::Config::DataDocument data_document,
-                      sa::Config::load_data_document(data_path));
+                      one_image ? sa::Apps::image_data_document(data_path, model_spec)
+                                : sa::Config::load_data_document(data_path));
 
         SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
         sb::Engine engine(runtime);
@@ -104,7 +109,9 @@ namespace
         return sa::Apps::end_profiled_run(
             profile,
             sa::Apps::run_inference_file(model_path, checkpoint_path, model_spec,
-                                         data_document.data, backend, data_document.detection));
+                                         data_document.data, backend, data_document.detection,
+                                         one_image ? sa::Apps::Comparison::DetectionsOnly
+                                                   : sa::Apps::Comparison::WithTruth));
     }
 } // namespace
 

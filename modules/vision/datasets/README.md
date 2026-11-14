@@ -8,7 +8,7 @@ loaders they stand on, and the MNIST dataset loader.
 A format reader knows one on-disk layout and no task. It lists the samples of a root and a
 split, parses each sample's annotation once, and returns a `SampleList` or a failure that names
 the file and the line or record at fault. It decodes no pixel, builds no batch and runs no
-transform. The eight readers are `read_image_folder`, `read_yolo_txt`, `read_idx`, `read_cifar`,
+transform. The nine readers are `read_image_folder`, `read_image_file`, `read_yolo_txt`, `read_idx`, `read_cifar`,
 `read_coco_json`, `read_voc_xml`, `read_mask_png` and `read_csv`; each takes its options struct,
 whose first two fields are `root` and `split`, and returns `Result<SampleList>`. `parse_xml` is
 the XML parser `read_voc_xml` stands on. Everything is in namespace `SushiAI::Vision::Datasets`.
@@ -86,6 +86,7 @@ a CSV library: `source/xml_element.cpp` and `source/csv.cpp` parse their formats
 | `<SushiAI/vision/datasets/byte_source.hpp>` | `PathKind`, `EntryKind`, `ListDepth`, `ByteSource`, `MemorySource` |
 | `<SushiAI/vision/datasets/byte_sink.hpp>` | `ByteSink`, `MemorySink`, `DatasetStorage` |
 | `<SushiAI/vision/datasets/image_folder.hpp>` | `ImageFolderOptions`, `read_image_folder` |
+| `<SushiAI/vision/datasets/image_file.hpp>` | `ImageFileOptions`, `read_image_file` |
 | `<SushiAI/vision/datasets/yolo_txt.hpp>` | `YOLOTxtOptions`, `yolo_label_path`, `read_yolo_txt` |
 | `<SushiAI/vision/datasets/idx_file.hpp>` | `IDXElement`, `idx_element_bytes`, `IDXHeader`, `read_idx_header`, `read_idx_payload` |
 | `<SushiAI/vision/datasets/idx.hpp>` | `IDXOptions`, `read_idx` |
@@ -146,6 +147,10 @@ files are read through (`mnist_available` takes one too); the overloads above re
 ### image_folder.hpp
 
 [`include/SushiAI/vision/datasets/image_folder.md`](include/SushiAI/vision/datasets/image_folder.md) describes it.
+
+### image_file.hpp
+
+[`include/SushiAI/vision/datasets/image_file.md`](include/SushiAI/vision/datasets/image_file.md) describes it.
 
 ### yolo_txt.hpp
 

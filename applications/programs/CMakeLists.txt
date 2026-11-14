@@ -8,9 +8,9 @@
 # chosen here, at link time; no source holds an #if.
 
 if(SA_BUILD_VISION)
-    set(SUSHIAI_PROGRAM_DOMAINS source/domains_vision.cpp)
+    set(SUSHIAI_PROGRAM_DOMAINS source/domains_vision.cpp source/image_input.cpp)
 else()
-    set(SUSHIAI_PROGRAM_DOMAINS source/domains_vision_none.cpp)
+    set(SUSHIAI_PROGRAM_DOMAINS source/domains_vision_none.cpp source/image_input_none.cpp)
 endif()
 if(SA_BUILD_LANGUAGE)
     list(APPEND SUSHIAI_PROGRAM_DOMAINS source/domains_language.cpp)

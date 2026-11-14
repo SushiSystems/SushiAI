@@ -565,7 +565,8 @@ namespace SushiAI
                 std::size_t found = 0;
 
                 const bool labelled =
-                    Data::find_target(run.dataset.targets(), Data::K_ROLE_BOXES) != nullptr;
+                    run.comparison == Comparison::WithTruth
+                    && Data::find_target(run.dataset.targets(), Data::K_ROLE_BOXES) != nullptr;
                 Vision::Detect::AveragePrecision metric;
                 Vision::Detect::GroundTruthBatch truth;
 
@@ -619,7 +620,7 @@ namespace SushiAI
                     print_mean_average_precision(metric, confidence_floor);
                 else
                     std::cout << "Mean average precision : not computed, the data carries no "
-                                 "boxes role\n";
+                                 "boxes to score against\n";
                 return Status();
             }
 
@@ -738,7 +739,8 @@ namespace SushiAI
                 std::size_t found = 0;
 
                 const bool labelled =
-                    Data::find_target(run.dataset.targets(), Data::K_ROLE_BOXES) != nullptr;
+                    run.comparison == Comparison::WithTruth
+                    && Data::find_target(run.dataset.targets(), Data::K_ROLE_BOXES) != nullptr;
                 Vision::Detect::AveragePrecision metric;
                 Vision::Detect::GroundTruthBatch truth;
 
@@ -789,7 +791,7 @@ namespace SushiAI
                     print_mean_average_precision(metric);
                 else
                     std::cout << "Mean average precision : not computed, the data carries no "
-                                 "boxes role\n";
+                                 "boxes to score against\n";
                 return Status();
             }
 

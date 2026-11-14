@@ -108,6 +108,11 @@ through the `anchor_detection` inference row (`run_inference_file`).
 [`source/test_training_program.md`](source/test_training_program.md) and
 [`source/test_inference_program.md`](source/test_inference_program.md) describe each case.
 
+## source/test_image_input.cpp
+
+Builds the data block of one image file from a model of an 8 by 6 input and a task of 3 classes, and
+refuses a model whose task states no classes. `is_image_path` is decided by the extension alone.
+
 ## source/test_profile_session.cpp
 
 Suites: `Medium_ProfileSession`, in `sushiai_programs_tests`.

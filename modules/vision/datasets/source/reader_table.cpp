@@ -38,6 +38,7 @@
 #include <SushiAI/vision/datasets/coco_json.hpp>
 #include <SushiAI/vision/datasets/csv.hpp>
 #include <SushiAI/vision/datasets/idx.hpp>
+#include <SushiAI/vision/datasets/image_file.hpp>
 #include <SushiAI/vision/datasets/image_folder.hpp>
 #include <SushiAI/vision/datasets/mask_png.hpp>
 #include <SushiAI/vision/datasets/voc_xml.hpp>
@@ -240,6 +241,27 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_MASK_PNG_KEYS[] = {K_IMAGES_KEY, K_MASKS_KEY,
                                                        K_IMAGE_SUFFIX_KEY, K_MASK_SUFFIX_KEY};
 
+        /** @brief Lists the keys the image_file row reads. */
+        constexpr std::string_view K_IMAGE_FILE_KEYS[] = {K_FILE_KEY};
+
+        /**
+         * @brief Reads the one image file the section names below the root.
+         * @return The list, or InvalidDescription when "file" is no string.
+         */
+        [[nodiscard]] Result<SampleList> read_image_file_request(const ReaderRequest& request)
+        {
+            ImageFileOptions options;
+            options.root = request.root;
+            options.class_count = request.class_count;
+            SA_TRY_ASSIGN(options.file, text_of(request, K_FILE_KEY));
+
+            return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
+            {
+                return request.storage.source != nullptr ? read_image_file(options, *request.storage.source)
+                                                 : read_image_file(options);
+            });
+        }
+
         /** @brief Lists the keys the csv row reads. */
         constexpr std::string_view K_CSV_KEYS[] = {K_FILE_KEY, K_FEATURES_KEY, K_TARGETS_KEY};
 
@@ -351,6 +373,7 @@ namespace SushiAI::Vision::Datasets
         static const ReaderEntry K_READERS[] = {
             ReaderEntry{"yolo_txt", &read_yolo_txt_request, {}},
             ReaderEntry{"image_folder", &read_image_folder_request, {}},
+            ReaderEntry{"image_file", &read_image_file_request, keys_of(K_IMAGE_FILE_KEYS)},
             ReaderEntry{"idx", &read_idx_request, {}},
             ReaderEntry{"cifar", &read_cifar_request, {}},
             ReaderEntry{"coco_json", &read_coco_json_request, keys_of(K_COCO_JSON_KEYS)},

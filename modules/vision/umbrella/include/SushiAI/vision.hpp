@@ -98,6 +98,7 @@
 #include <SushiAI/vision/datasets/idx.hpp>
 #include <SushiAI/vision/datasets/idx_file.hpp>
 #include <SushiAI/vision/datasets/image_extensions.hpp>
+#include <SushiAI/vision/datasets/image_file.hpp>
 #include <SushiAI/vision/datasets/image_folder.hpp>
 #include <SushiAI/vision/datasets/load_sample_image.hpp>
 #include <SushiAI/vision/datasets/load_sample_mask.hpp>

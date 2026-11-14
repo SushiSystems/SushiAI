@@ -31,10 +31,15 @@ split is `test_yolo_txt.cpp`, the binary and multi-label labels are
 `test_binary_collator.cpp` and `test_multi_label_collator.cpp`, and the row of each reader
 pointing at a function is `test_reader_table.cpp`.
 
-## ItListsTheEightReaders
+## ItListsTheNineReaders
 
-`reader_table` lists yolo_txt, image_folder, idx, cifar, coco_json, voc_xml, mask_png and csv
-in that order.
+`reader_table` lists yolo_txt, image_folder, image_file, idx, cifar, coco_json, voc_xml, mask_png
+and csv in that order.
+
+## TheImageFileRowListsTheFileOfTheSection
+
+The image_file row, given `file` "cat.png" under the root `pictures` and a class count of 3, lists one
+sample of the file `pictures/cat.png` with 3 classes.
 
 ## ALookupOfAReaderTheTableLacksFindsNone
 

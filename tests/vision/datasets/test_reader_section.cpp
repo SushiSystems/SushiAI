@@ -328,6 +328,7 @@ namespace
         static const std::vector<KeysRow> rows = {
             {"yolo_txt", {}},
             {"image_folder", {}},
+            {"image_file", {"file"}},
             {"idx", {}},
             {"cifar", {}},
             {"coco_json", {"annotations", "images", "polygons"}},
@@ -587,11 +588,12 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that the reader table holds the eight readers of the module, by name. */
-TEST(Small_DatasetsReaderTable, ItListsTheEightReaders)
+/** @brief Tests that the reader table holds the nine readers of the module, by name. */
+TEST(Small_DatasetsReaderTable, ItListsTheNineReaders)
 {
-    const std::vector<std::string_view> expected = {"yolo_txt", "image_folder", "idx", "cifar",
-                                                    "coco_json", "voc_xml", "mask_png", "csv"};
+    const std::vector<std::string_view> expected = {"yolo_txt", "image_folder", "image_file",
+                                                    "idx", "cifar", "coco_json", "voc_xml",
+                                                    "mask_png", "csv"};
 
     EXPECT_EQ(names_of(reader_table()), expected);
 }
@@ -648,6 +650,26 @@ TEST(Small_DatasetsReaderTable, TheCSVRowReadsItsKeysOfTheSection)
     ASSERT_NE(csv, nullptr);
     SA_ASSERT_OK_AND_ASSIGN(const SampleList list, csv->read(request));
     EXPECT_EQ(list.table.values, (std::vector<float>{3.0f, 1.0f, 2.0f}));
+}
+
+/** @brief Tests that the image_file row lists the one file its section names. */
+TEST(Small_DatasetsReaderTable, TheImageFileRowListsTheFileOfTheSection)
+{
+    MemorySource files;
+    files.add_file("pictures/cat.png", "x");
+
+    ReaderRequest request;
+    request.root = "pictures";
+    request.class_count = 3;
+    request.storage.source = &files;
+    request.section = SaTest::attributes_from(R"({"file": "cat.png"})");
+
+    const ReaderEntry* const row = find_reader("image_file");
+    ASSERT_NE(row, nullptr);
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, row->read(request));
+    ASSERT_EQ(list.samples.size(), 1u);
+    EXPECT_EQ(list.files[0].generic_string(), "pictures/cat.png");
+    EXPECT_EQ(list.class_count, 3);
 }
 
 /** @brief Tests that the mask_png row refuses the class count 0 it is given. */

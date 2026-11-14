@@ -128,7 +128,9 @@ A detector's `objective` names its engine. `{ "type": "anchor" }` trains a model
 trains one whose `task` is `anchor_free_detection`, with the loss evaluated as a graph on the device
 and the label assignment on the host. Both start the biases of a fresh run from the strides the
 trace gives. The loss gains are keys of the objective; the detect and training READMEs list them.
-`sushiai inference` reports the detections of every image and the mAP at IoU 0.5.
+`sushiai inference` reports the detections of every image and the mAP at IoU 0.5. Give it one image
+file (`.jpg`, `.jpeg` or `.png`) in place of the evaluation file and it lists that image's
+detections in the pixels of the file and scores nothing.
 
 The example folders `applications/examples/yolov3_tiny`, `yolov4_tiny`, `yolov5n`, `yolov8n`,
 `yolo11n` and `yolo26` hold a model, a training file and an evaluation file over coco128, and each
@@ -207,8 +209,8 @@ before it reports.
 | `gelu`, `relu`, `tanh`, `sigmoid` | none | any shape | the same shape |
 | `leaky_relu` | `slope` (default `0.01`, inside the open range 0 to 1) | any shape | the same shape |
 | `unflatten` | `height`, `width`, `channels` (all required) | `[height * width * channels]` | `[height, width, channels]` |
-| `conv2d` | `filters`, `kernel` (required); `stride` (default `1`), `padding` (default `0`), `dilation` (default `1`), `use_bias` (default `true`) | `[H, W, C]` | `[out_h, out_w, filters]` |
-| `maxpool2d`, `avgpool2d` | `kernel` (required); `stride` (default: the kernel), `padding` (default `0`) | `[H, W, C]` | `[out_h, out_w, C]` |
+| `conv2d` | `filters`, `kernel` (required); `stride` (default `1`), `padding` (default `0`), `dilation` (default `1`), `trailing_padding` (default `0`), `use_bias` (default `true`) | `[H, W, C]` | `[out_h, out_w, filters]` |
+| `maxpool2d`, `avgpool2d` | `kernel` (required); `stride` (default: the kernel), `padding` (default `0`), `trailing_padding` (default `0`) | `[H, W, C]` | `[out_h, out_w, C]` |
 | `global_avgpool` | none | `[H, W, C]` | `[C]` |
 | `flatten` | none | any shape | `[element count]` |
 | `upsample` | `scale` (default `2`, at least `1`) | `[H, W, C]` | `[H * scale, W * scale, C]` |

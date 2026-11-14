@@ -16,7 +16,7 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | File | Command |
 | --- | --- |
 | `train.cpp` | `sushiai train <train.json> [--profile <profile.json>]` |
-| `inference.cpp` | `sushiai inference <model.json> <model.sushi> <eval.json> [--profile <profile.json>]` |
+| `inference.cpp` | `sushiai inference <model.json> <model.sushi> <eval.json or image> [--profile <profile.json>]` |
 | `import.cpp` | `sushiai import <format> <files...> --output <directory> [--force]` |
 | `sushiai_worker.cpp` | `sushiai_worker <train.json> --master host:port --name <worker> [flags]`, built only when `SA_ENABLE_DISTRIBUTED` is on |
 | `tokenize.cpp` | `sushiai tokenize train <corpus> --vocabulary-size <N> --output <vocab.savb>` and `sushiai tokenize encode <corpus> --vocabulary <vocab.savb> --output <corpus.satk>` |
@@ -49,6 +49,7 @@ the ones SushiRuntime's worker agent defines.
 | `training_cluster_section.hpp`, `training_cluster_section.cpp` | `read_training_cluster`: reads the cluster section of a training file and refuses a replica with `if_absent: "local"` while `deterministic` is true; compiled when `SA_ENABLE_DISTRIBUTED` is on |
 | `cluster_training_none.cpp` | Refuses a cluster section and names `sa build --distributed`; compiled when it is off |
 | `training_program.hpp`, `training_program.cpp` | `run_training_file`, which has two entry points, one over an `ExecutionBackend` (a file with a cluster section is refused) and one over a `RuntimeBackend` (the cluster attaches to its runtime), the second of which `train.cpp` gets from the `RuntimeExecutionBackend` it builds beside its engine, and `TrainingOutcome`: what `sushiai train` does once it holds a parsed training file, from the registries to the checkpoint; `train.cpp` and the anchor test call it |
+| `image_input.hpp`, `image_input.cpp`, `image_input_none.cpp` | `is_image_path` and `image_data_document`: the data block that reads one image file with the `image_file` reader; the second file is compiled when `SA_BUILD_VISION` is off and refuses an image |
 | `inference_program.hpp`, `inference_program.cpp` | `run_inference_file` and the class-count report of a model without a task: what `sushiai inference` does once it holds the parsed files; `inference.cpp` and the anchor test call it |
 
 The sources in the table compile once, into the library `sushiai_program_shared`. The programs
@@ -259,6 +260,11 @@ model and carries no data block, so without the data file there would be nothing
 An optional flag that always errors when omitted would misstate what is optional. The one flag
 is `--profile <profile.json>`, which `train.cpp` takes too; it opens a `ProfileSession` over
 the run and marks one `inference.batch` period per batch.
+
+The third argument may be one image file (`.jpg`, `.jpeg` or `.png`) in place of the data file.
+`image_data_document` then builds a data block with the `image_file` reader, a batch of one and
+the model's input size and class count, and the detection report lists the detections and scores
+nothing (`Comparison::DetectionsOnly`). A model without a task that states `classes` refuses it.
 
 ### Forward pass only
 

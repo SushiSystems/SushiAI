@@ -17,6 +17,7 @@ Each test file has a page beside it that says what its cases pin.
 | `test_fit_sample.cpp` | [`test_fit_sample.md`](test_fit_sample.md) |
 | `test_idx.cpp` | [`test_idx.md`](test_idx.md) |
 | `test_idx_file.cpp` | [`test_idx_file.md`](test_idx_file.md) |
+| `test_image_file.cpp` | [`test_image_file.md`](test_image_file.md) |
 | `test_image_folder.cpp` | [`test_image_folder.md`](test_image_folder.md) |
 | `test_load_sample_image.cpp` | [`test_load_sample_image.md`](test_load_sample_image.md) |
 | `test_mask_png.cpp` | [`test_mask_png.md`](test_mask_png.md) |

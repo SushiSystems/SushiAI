@@ -35,6 +35,7 @@
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/failure/status.hpp>
+#include "inference_run.hpp"
 
 namespace SushiAI
 {
@@ -42,17 +43,17 @@ namespace SushiAI
     {
         /**
          * @brief Evaluates a checkpoint over a dataset and prints its report.
-         * @param model_spec The parsed model file.
-         * @param data_spec The parsed evaluation file.
          * @param backend Runs the forward pass; its engine allocates the tensors.
-         * @param detection The thresholds the file states; an unset one keeps the report's default.
-         * @return Success, or the first failure; InvalidDescription for data the model refuses.
+         * @param detection The thresholds the file states; an unset one keeps the default.
+         * @param comparison DetectionsOnly for one image with no truth.
+         * @return Success, or the first failure.
          */
         [[nodiscard]] Status run_inference_file(const std::filesystem::path& model_path,
                                                 const std::filesystem::path& checkpoint_path,
                                                 const Config::ModelSpec& model_spec,
                                                 const Config::DataSpec& data_spec,
                                                 ExecutionBackend& backend,
-                                                const Config::DetectionSettings& detection = {});
+                                                const Config::DetectionSettings& detection = {},
+                                                Comparison comparison = Comparison::WithTruth);
     } // namespace Apps
 } // namespace SushiAI
