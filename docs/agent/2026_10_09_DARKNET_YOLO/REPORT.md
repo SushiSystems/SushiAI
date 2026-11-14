@@ -1678,8 +1678,16 @@ T7: Darknet's own `detector map` on the same 128 images with the same `.cfg` and
 | Detections above 0.25 | 416 | 419 |
 | Mean average precision at IoU 0.5 | 0.2378 | 0.2695 |
 
-The truth counts are equal and the detections above 0.25 differ by three. The two precisions are not
-yet one quantity: Darknet's map code scores detections above a fixed 0.005 and SushiAI above 0.001,
-and the area rules of the two curves were not compared. Ruled 2026-11-14: the forward pass is taken
-as equal to Darknet's at the level the parity cases check; the precisions are compared again once
-RW-57 gives `eval.json` the same floor.
+The truth counts are equal and the detections above 0.25 differ by three. The two precisions are
+one quantity under one convention, which a re-scoring shows. With `detection.confidence_floor` set
+to 0.005, as Darknet's map code fixes it, `sa inference` printed 9680 detections and a mean of
+0.2668. A script outside the repository scored those same detections the way Darknet does (greedy
+matching by score at IoU 0.5, the area under the precision envelope over every unique recall) and
+read 0.2679, so the area rule is not the difference. Darknet divides the sum of the class
+precisions by its 80 classes; `AveragePrecision` and the script divide by the 71 classes that have
+truth. 0.2679 x 71 / 80 is 0.2378, and Darknet printed 0.237779.
+
+Ruled 2026-11-14: the forward pass is taken as equal to Darknet's at the level the parity cases
+check, and the 0.2695 of SushiAI is a mean over the classes with truth, which is not Darknet's
+convention. Darknet reported 10030 detections above 0.005 against SushiAI's 9680; the cause was not
+looked for, since the precision does not depend on it at this resolution.
