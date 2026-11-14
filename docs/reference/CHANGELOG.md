@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-14 — darknet_era_yolo: Train YOLOv3-tiny from the command line (RW-48, `14c21b8e`).
+- 2026-11-14 — runs_not_yet_made: Run `sa test` around the three programs (RW-10, `14c21b8e`).
 - 2026-11-14 — general: Pin a SushiBLAS release that carries host_task_sink.hpp (RW-170, `fbdc1620`).
 - 2026-11-11 — tests: Moved the `ServedKernelMachine` rows to medium and exempted the one-step cluster run over the medium limit (RW-169).
 - 2026-11-11 — cli: Required sushicore 0.13, whose test command fails a run of a current tree that breaks a time limit, and told it whether the tree is current; the large shards each hold the one accelerator slot.
