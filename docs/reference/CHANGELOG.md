@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-14 — datasets_tasks: Keep the old file when a save is refused (RW-75, `e3e26e48`).
 - 2026-11-14 — config: Read the score threshold, the suppression threshold and the confidence floor of a detection report from a `detection` object of the data file, which `sushiai inference` applies (`train_config.hpp`, RW-57).
 - 2026-11-14 — darknet_era_yolo: Train YOLOv3-tiny from the command line (RW-48, `14c21b8e`).
 - 2026-11-14 — runs_not_yet_made: Run `sa test` around the three programs (RW-10, `14c21b8e`).
