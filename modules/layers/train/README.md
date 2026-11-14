@@ -72,6 +72,12 @@ headers also include `SushiBLAS/engine/engine.hpp`, `SushiBLAS/tensor/tensor.hpp
 dependencies. `profile`, and SushiProfiler with it, is linked privately for the zones of
 `trainer.cpp` and `evaluation_step.cpp`; no header includes it.
 
+`Trainer::fit(dataset, first_epoch)` runs the epochs from `first_epoch` to `options.epochs` and
+tells the dataset the epoch it begins, so a resumed run reads the order that epoch has. A first epoch
+below 0 or above `options.epochs` is `InvalidDescription`, and one equal to `options.epochs` runs
+no step. A run that resumes inside an epoch drives `run_step` itself, as the epoch loop of
+`applications/programs` does.
+
 ## Zones and the step mark
 
 `Trainer::fit` opens the zone `train.fit`, marks one `train.step` period before the read of each

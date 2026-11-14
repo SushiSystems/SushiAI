@@ -196,13 +196,14 @@ namespace SushiAI
                 [[nodiscard]] Result<StepMetrics> run_step(const Data::Batch& batch) noexcept;
 
                 /**
-                 * @brief Runs @c options.epochs passes over @p dataset.
-                 * @param dataset The batches to train on.
-                 * @return The run's summary, or InvalidDescription for an empty dataset, or
-                 *         Incompatible for another batch size, or the failure of match_input(),
-                 *         of match_roles() for the roles the objective reads, or of a step.
+                 * @brief Runs the epochs over @p dataset, from @p first_epoch to options.epochs.
+                 * @param first_epoch In [0, options.epochs]; the dataset begins that epoch.
+                 * @return The run's summary, InvalidDescription for an empty dataset or a first
+                 *         epoch outside the run, Incompatible for another batch size, or the
+                 *         failure of a match or of a step.
                  */
-                [[nodiscard]] Result<RunReport> fit(const Data::Dataset& dataset) noexcept;
+                [[nodiscard]] Result<RunReport> fit(const Data::Dataset& dataset,
+                                                    int64_t first_epoch = 0) noexcept;
 
                 /** @brief Returns how many times the step has been compiled. */
                 [[nodiscard]] std::size_t compile_count() const noexcept

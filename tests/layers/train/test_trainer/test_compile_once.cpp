@@ -169,6 +169,73 @@ namespace
     }
 }
 
+/** @brief Tests that fit() begins at the epoch it is given and runs the epochs after it. */
+TEST_F(Medium_CompileOnce, FitBeginsAtTheEpochItIsGiven)
+{
+    prepare();
+    ASSERT_TRUE(ready);
+    Optim::SGDOptions sgd;
+    sgd.learning_rate = 0.1;
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(backend(), slots, sgd));
+    Train::TrainerOptions options;
+    options.epochs = 3;
+    const auto objective = SaTest::classifier_objective(built);
+    SA_ASSERT_OK_AND_ASSIGN(auto trainer,
+                            Train::Trainer::make(backend(), built, *pool, objective,
+                                                 *optimizer, options));
+    SA_ASSERT_OK_AND_ASSIGN(auto dataset,
+                            Data::SyntheticClassification::make(backend(), make_data_options()));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset, 2));
+
+    EXPECT_EQ(report.steps, static_cast<std::size_t>(K_BATCHES));
+}
+
+/** @brief Tests that fit() from the epoch after the last runs no step. */
+TEST_F(Medium_CompileOnce, FitFromTheEndOfTheRunRunsNoStep)
+{
+    prepare();
+    ASSERT_TRUE(ready);
+    Optim::SGDOptions sgd;
+    sgd.learning_rate = 0.1;
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(backend(), slots, sgd));
+    Train::TrainerOptions options;
+    options.epochs = 3;
+    const auto objective = SaTest::classifier_objective(built);
+    SA_ASSERT_OK_AND_ASSIGN(auto trainer,
+                            Train::Trainer::make(backend(), built, *pool, objective,
+                                                 *optimizer, options));
+    SA_ASSERT_OK_AND_ASSIGN(auto dataset,
+                            Data::SyntheticClassification::make(backend(), make_data_options()));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset, 3));
+
+    EXPECT_EQ(report.steps, 0u);
+}
+
+/** @brief Tests that a first epoch before the run or past its end is refused. */
+TEST_F(Medium_CompileOnce, FitRefusesAFirstEpochOutsideTheRun)
+{
+    prepare();
+    ASSERT_TRUE(ready);
+    Optim::SGDOptions sgd;
+    sgd.learning_rate = 0.1;
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(backend(), slots, sgd));
+    Train::TrainerOptions options;
+    options.epochs = 3;
+    const auto objective = SaTest::classifier_objective(built);
+    SA_ASSERT_OK_AND_ASSIGN(auto trainer,
+                            Train::Trainer::make(backend(), built, *pool, objective,
+                                                 *optimizer, options));
+    SA_ASSERT_OK_AND_ASSIGN(auto dataset,
+                            Data::SyntheticClassification::make(backend(), make_data_options()));
+
+    SA_EXPECT_FAILURE(trainer->fit(*dataset, -1), StatusCode::InvalidDescription,
+                      "first epoch -1", "3 epochs");
+    SA_EXPECT_FAILURE(trainer->fit(*dataset, 4), StatusCode::InvalidDescription,
+                      "first epoch 4", "3 epochs");
+}
+
 /**
  * @brief Tests that repeated fit() calls leave the trainer's compile count at one.
  * @see tests/layers/train/README.md

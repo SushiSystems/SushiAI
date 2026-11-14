@@ -393,8 +393,12 @@ namespace SushiAI
             return result;
         }
 
-        Result<RunReport> Trainer::fit(const Data::Dataset& dataset) noexcept
+        Result<RunReport> Trainer::fit(const Data::Dataset& dataset, int64_t first_epoch) noexcept
         {
+            SA_FAIL_IF(first_epoch < 0 || first_epoch > options_.epochs,
+                       StatusCode::InvalidDescription,
+                       "The first epoch {} is outside the run of {} epochs", first_epoch,
+                       options_.epochs);
             SA_FAIL_IF(dataset.batch_count() == 0, StatusCode::InvalidDescription,
                        "The dataset holds no batches");
             SA_FAIL_IF(dataset.batch_size() != rows_, StatusCode::Incompatible,
@@ -411,7 +415,7 @@ namespace SushiAI
             // One Batch for the run, so a dataset that builds its batches reuses the tensors.
             Data::Batch batch;
             bool first = true;
-            for (int64_t epoch = 0; epoch < options_.epochs; ++epoch)
+            for (int64_t epoch = first_epoch; epoch < options_.epochs; ++epoch)
             {
                 Data::begin_epoch(dataset, epoch);
                 for (std::size_t index = 0; index < dataset.batch_count(); ++index)
