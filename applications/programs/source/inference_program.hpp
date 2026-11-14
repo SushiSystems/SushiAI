@@ -42,16 +42,17 @@ namespace SushiAI
     {
         /**
          * @brief Evaluates a checkpoint over a dataset and prints its report.
-         * @param model_path The model file, as the command line names it.
          * @param model_spec The parsed model file.
          * @param data_spec The parsed evaluation file.
          * @param backend Runs the forward pass; its engine allocates the tensors.
+         * @param detection The thresholds the file states; an unset one keeps the report's default.
          * @return Success, or the first failure; InvalidDescription for data the model refuses.
          */
         [[nodiscard]] Status run_inference_file(const std::filesystem::path& model_path,
                                                 const std::filesystem::path& checkpoint_path,
                                                 const Config::ModelSpec& model_spec,
                                                 const Config::DataSpec& data_spec,
-                                                ExecutionBackend& backend);
+                                                ExecutionBackend& backend,
+                                                const Config::DetectionSettings& detection = {});
     } // namespace Apps
 } // namespace SushiAI

@@ -286,11 +286,24 @@ above 0.25, and a box is suppressed above a measure of 0.45. Both numbers are co
 When the data carries a `boxes` role, the row then prints the mean average precision at IoU 0.5
 over the split: `truth_from_roles` reads the labels of each batch, `add_batch` feeds them with the
 detections to an `AveragePrecision`, and the last line gives `map50`, the box count and the image
-count. The metric reads the detections of the validation confidence, 0.001, and not only those
-above 0.25: the suppression runs once at 0.001 and the printout keeps the rows above 0.25, which
-is the same set because a box is suppressed only by a box of higher score. Truth and detections
-are both in pixels of the network input, so the number does not depend on the size of the file on
-disk. Data without a `boxes` role prints a line saying the mean was not computed.
+count. The metric reads the detections above the confidence floor, 0.001 unless the data file
+states another, and not only those above the score threshold: the suppression runs once at the
+floor and the printout keeps the rows above the score threshold, which is the same set because a
+box is suppressed only by a box of higher score. Truth and detections are both in pixels of the
+network input, so the number does not depend on the size of the file on disk. Data without a
+`boxes` role prints a line saying the mean was not computed.
+
+The data file may carry a `detection` object next to `data`, read by `load_data_document`. Each
+key is optional and an absent one keeps the default of the report; the object is refused in a
+training file.
+
+| Key | Range | Default | Sets |
+| --- | --- | --- | --- |
+| `score_threshold` | [0, 1] | 0.25 | The score a detection must exceed to be printed |
+| `suppression_threshold` | (0, 1] | 0.45 | The measure above which the lower-scoring box goes |
+| `confidence_floor` | [0, 1] | 0.001 | The score a detection must exceed to count for the precision |
+
+A floor above the score threshold, stated or implied by the defaults, is refused.
 
 The `anchor_free_detection` row reads the section with `read_free_task` and takes the levels,
 strides, reg_max, class count and one-to-many port names from `derive_free_model_facts` over

@@ -20,6 +20,10 @@ file's directory as `model` and `checkpoint` are, and empty when the file has no
 `root` or `directory` of the `data` block resolves against the same directory, in `parse_train`
 and in `parse_data`, whose `base` is the data file's directory under `load_data`; an empty `base`
 keeps it as stated.
+`parse_data_document` reads the same document and also its `detection` object into a
+`DetectionSettings`: a score threshold in [0, 1], a suppression threshold in (0, 1] and a
+confidence floor in [0, 1], each an `std::optional` that stays unset when the file omits the key,
+and a floor above a stated score threshold is `InvalidDescription`. `parse_data` refuses the key.
 `TrainSpec::resume` holds the `resume` path the same way: the checkpoint whose model state and
 run state a run goes on from. `check_start` returns `InvalidDescription` for a file that states
 both. `TrainSpec::seed` holds the optional integer `seed` of a training file, 0 when the file
@@ -52,7 +56,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/config/data_fit.hpp` | `fit_data_to_model` |
 | `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
 | `SushiAI/config/model_writer.hpp` | `write_model` |
-| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data` |
+| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `DetectionSettings`, `DataDocument`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data`, `parse_data_document`, `load_data_document` |
 | `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events`, `read_json_stream_events`, `ChunkedTextBuffer`, `read_json_text_events` |
 | `SushiAI/config/registry.hpp` | `find_entry` |
 | `SushiAI/config/section_reader.hpp` | `KeySpan`, `member_of`, `entry_of`, `list_quoted`, `read_real`, `read_whole`, `read_float32`, `read_string`, `read_array`, `SectionReader` |
@@ -108,7 +112,8 @@ a handler that stops and each refusal.
 Every read of a document returns a status. `Value::as_bool`, `as_int`, `as_real`, `as_string`,
 `as_array` and `at` return a `Result`, `reject_unknown_keys` and `require_version` return a
 `Status`, and `parse_json`, `parse_json_file`, `parse_model`, `load_model`, `parse_train`,
-`load_train`, `parse_data`, `load_data` and `find_entry` return a `Result`. A kind that does not fit
+`load_train`, `parse_data`, `load_data`, `parse_data_document`, `load_data_document` and
+`find_entry` return a `Result`. A kind that does not fit
 and a key that is absent are `InvalidDescription`. A text that is no JSON, a version this build
 does not read and a missing version key are `InvalidFile`; a file that cannot be opened is
 `FileNotFound`. `Value::object` holds a precondition: the two vectors have one length, and it

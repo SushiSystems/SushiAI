@@ -430,14 +430,16 @@ namespace SushiAI
             }
 
             /** @brief Prints the mean average precision at IoU 0.5 of the images in @p metric. */
-            void print_mean_average_precision(const Vision::Detect::AveragePrecision& metric)
+            void print_mean_average_precision(
+                const Vision::Detect::AveragePrecision& metric,
+                float confidence_floor = Vision::Detect::K_VALIDATION_CONFIDENCE)
             {
                 const Vision::Detect::MetricsSummary summary = metric.summarize();
                 std::cout << SushiLog::format_text(
                     "Mean average precision at IoU 0.5 : {} over {} boxes of {} images, "
                     "detections scored above {}\n",
                     SushiLog::fixed(summary.map50, 4), summary.instances, summary.images,
-                    Vision::Detect::K_VALIDATION_CONFIDENCE);
+                    confidence_floor);
             }
 
             /**
@@ -458,6 +460,17 @@ namespace SushiAI
                            "[height, width, channels]",
                            run.model_path.string(), input.to_string());
 
+                const float score_threshold =
+                    run.detection.score_threshold.value_or(K_SCORE_THRESHOLD);
+                const float suppression_threshold =
+                    run.detection.suppression_threshold.value_or(K_SUPPRESSION_THRESHOLD);
+                const float confidence_floor = run.detection.confidence_floor.value_or(
+                    Vision::Detect::K_VALIDATION_CONFIDENCE);
+                SA_FAIL_IF(score_threshold < confidence_floor, StatusCode::InvalidDescription,
+                           "the score threshold {} of '{}' is below the confidence floor {}, "
+                           "so a printed detection could already have been dropped",
+                           score_threshold, run.model_path.string(), confidence_floor);
+
                 SA_TRY_ASSIGN(const std::vector<BoundHead> heads, bind_heads(task, run));
                 std::size_t rows = 0;
                 for (const BoundHead& head : heads)
@@ -469,11 +482,12 @@ namespace SushiAI
                 std::cout << SushiLog::format_text(
                     "Detections : score above {}, suppression above {}; boxes are x1 y1 x2 y2 "
                     "in pixels of the {} by {} input\n\n",
-                    K_SCORE_THRESHOLD, K_SUPPRESSION_THRESHOLD, input[1], input[0]);
+                    score_threshold, suppression_threshold, input[1], input[0]);
 
                 // Suppression runs at the validation confidence; the printout cuts at the score.
                 Vision::Detect::NMSConfig config;
-                config.iou_threshold = K_SUPPRESSION_THRESHOLD;
+                config.iou_threshold = suppression_threshold;
+                config.confidence_threshold = confidence_floor;
                 config.criterion = task.criterion;
                 config.distance_exponent = task.distance_exponent;
 
@@ -514,7 +528,8 @@ namespace SushiAI
                     }
                     for (std::size_t image = 0; image < detections.size(); ++image)
                     {
-                        const std::size_t count = count_confident(detections[image], K_SCORE_THRESHOLD);
+                        const std::size_t count =
+                            count_confident(detections[image], score_threshold);
                         print_detections(b * batch_size + image, detections[image], count);
                         found += count;
                     }
@@ -534,7 +549,7 @@ namespace SushiAI
                     "\n{} detections over {} images.\n", found,
                     run.dataset.batch_count() * batch_size);
                 if (labelled)
-                    print_mean_average_precision(metric);
+                    print_mean_average_precision(metric, confidence_floor);
                 else
                     std::cout << "Mean average precision : not computed, the data carries no "
                                  "boxes role\n";

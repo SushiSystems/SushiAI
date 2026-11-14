@@ -37,6 +37,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/model_config.hpp>
+#include <SushiAI/config/train_config.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
@@ -87,6 +88,9 @@ namespace SushiAI
 
             /** @brief The loaded state every form of the model reads; may be null. */
             const NN::ModelState* state = nullptr;
+
+            /** @brief The thresholds the evaluation file states; a report keeps its own default. */
+            Config::DetectionSettings detection = {};
         };
 
         /**

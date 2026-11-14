@@ -65,6 +65,15 @@ namespace SushiAI
             /** @brief Every key a standalone data document may carry. */
             constexpr std::string_view K_DATA_KEYS[] = {"sushiai_data", "data"};
 
+            /** @brief Every key a standalone data document read with its thresholds may carry. */
+            constexpr std::string_view K_DATA_DOCUMENT_KEYS[] = {"sushiai_data", "data",
+                                                                 "detection"};
+
+            /** @brief Every key the "detection" object may carry. */
+            constexpr std::string_view K_DETECTION_KEYS[] = {
+                "score_threshold", "suppression_threshold", "confidence_floor",
+            };
+
             /** @brief Wraps a literal key list as a span, for reject_unknown_keys. */
             template<std::size_t N>
             SushiRuntime::span<const std::string_view> as_span(const std::string_view (&keys)[N])
@@ -323,6 +332,81 @@ namespace SushiAI
             DataSpec data;
             SA_TRY(read_data_block(root, origin, base, data));
             return data;
+        }
+
+        namespace
+        {
+            /**
+             * @brief Reads the real under @p key of @p block, or leaves @p value unset.
+             * @return InvalidDescription when the key holds no number or the number is outside
+             *         [lowest, highest], the lowest excluded when @p exclusive_low is set.
+             */
+            Status read_threshold(const Value& block, std::string_view key, std::string_view origin,
+                                  double lowest, double highest, bool exclusive_low,
+                                  std::optional<float>& value) noexcept
+            {
+                if (!block.has(key))
+                    return Status();
+
+                const Value absent;
+                SA_TRY_ASSIGN(const double stated,
+                              block.at_or(key, absent).as_real(
+                                  "'" + std::string(origin) + "'s 'detection."
+                                  + std::string(key) + "'"));
+                const bool low_ok = exclusive_low ? stated > lowest : stated >= lowest;
+                SA_FAIL_IF(!low_ok || stated > highest, StatusCode::InvalidDescription,
+                           "'{}'s 'detection.{}' must be in {}{}, {}], but it is {}", origin, key,
+                           exclusive_low ? "(" : "[", lowest, highest, stated);
+                value = static_cast<float>(stated);
+                return Status();
+            }
+
+            /** @brief Reads the "detection" object of @p root; an absent object leaves all unset. */
+            Result<DetectionSettings> read_detection(const Value& root,
+                                                     std::string_view origin) noexcept
+            {
+                DetectionSettings settings;
+                if (!root.has("detection"))
+                    return settings;
+
+                const Value absent;
+                const Value& block = root.at_or("detection", absent);
+                SA_TRY(block.reject_unknown_keys(origin, as_span(K_DETECTION_KEYS)));
+                SA_TRY(read_threshold(block, "score_threshold", origin, 0.0, 1.0, false,
+                                      settings.score_threshold));
+                SA_TRY(read_threshold(block, "suppression_threshold", origin, 0.0, 1.0, true,
+                                      settings.suppression_threshold));
+                SA_TRY(read_threshold(block, "confidence_floor", origin, 0.0, 1.0, false,
+                                      settings.confidence_floor));
+                SA_FAIL_IF(settings.confidence_floor && settings.score_threshold
+                               && *settings.confidence_floor > *settings.score_threshold,
+                           StatusCode::InvalidDescription,
+                           "'{}'s 'detection.confidence_floor' {} is above its 'score_threshold' "
+                           "{}, so no printed detection would count for the precision",
+                           origin, *settings.confidence_floor, *settings.score_threshold);
+                return settings;
+            }
+        } // namespace
+
+        Result<DataDocument> parse_data_document(const Value& root, std::string_view origin,
+                                                 const std::filesystem::path& base) noexcept
+        {
+            SA_TRY(require_version(root, "sushiai_data", K_DATA_VERSION, origin));
+            SA_TRY(root.reject_unknown_keys(origin, as_span(K_DATA_DOCUMENT_KEYS)));
+
+            DataDocument document;
+            SA_TRY(read_data_block(root, origin, base, document.data));
+            SA_TRY_ASSIGN(document.detection, read_detection(root, origin));
+            return document;
+        }
+
+        Result<DataDocument> load_data_document(const std::filesystem::path& path) noexcept
+        {
+            std::filesystem::path base = path.parent_path();
+            if (base.empty()) base = ".";
+
+            SA_TRY_ASSIGN(const Value root, parse_json_file(path));
+            return parse_data_document(root, path.string(), base);
         }
 
         Result<DataSpec> load_data(const std::filesystem::path& path) noexcept

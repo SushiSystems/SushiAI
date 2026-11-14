@@ -87,7 +87,8 @@ namespace
         const std::filesystem::path data_path = arguments.positional[2];
 
         SA_TRY_ASSIGN(const sa::Config::ModelSpec model_spec, sa::Config::load_model(model_path));
-        SA_TRY_ASSIGN(const sa::Config::DataSpec data_spec, sa::Config::load_data(data_path));
+        SA_TRY_ASSIGN(const sa::Config::DataDocument data_document,
+                      sa::Config::load_data_document(data_path));
 
         SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
         sb::Engine engine(runtime);
@@ -102,8 +103,8 @@ namespace
 
         return sa::Apps::end_profiled_run(
             profile,
-            sa::Apps::run_inference_file(model_path, checkpoint_path, model_spec, data_spec,
-                                         backend));
+            sa::Apps::run_inference_file(model_path, checkpoint_path, model_spec,
+                                         data_document.data, backend, data_document.detection));
     }
 } // namespace
 

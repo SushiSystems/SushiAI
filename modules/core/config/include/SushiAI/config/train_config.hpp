@@ -31,6 +31,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <SushiAI/config/value.hpp>
@@ -71,6 +72,35 @@ namespace SushiAI
 
             /** @brief Every other key, and "reader" too; the dataset's factory validates them. */
             Value attributes;
+        };
+
+        /**
+         * @struct DetectionSettings
+         * @brief The thresholds of a detection report; a key the file omits stays unset.
+         */
+        struct DetectionSettings
+        {
+            /** @brief The score a detection must exceed to be printed, in [0, 1]. */
+            std::optional<float> score_threshold;
+
+            /** @brief The suppression measure above which the lower-scoring box goes, in (0, 1]. */
+            std::optional<float> suppression_threshold;
+
+            /** @brief The score a detection must exceed to count for the precision, in [0, 1]. */
+            std::optional<float> confidence_floor;
+        };
+
+        /**
+         * @struct DataDocument
+         * @brief A standalone data file: the data of a run and the thresholds of its report.
+         */
+        struct DataDocument
+        {
+            /** @brief Where the batches come from. */
+            DataSpec data;
+
+            /** @brief The thresholds of a detection report. */
+            DetectionSettings detection;
         };
 
         /**
@@ -191,6 +221,27 @@ namespace SushiAI
          *         valid JSON, else what parse_data returns.
          */
         [[nodiscard]] Result<DataSpec> load_data(const std::filesystem::path& path) noexcept;
+
+        /**
+         * @brief Turns a parsed data document into a @ref DataDocument with its "detection" object.
+         * @param root The parsed document.
+         * @param origin What to call it in a diagnostic, usually a path.
+         * @param base Directory a relative data folder resolves against; empty keeps it.
+         * @return The document; InvalidFile for a wrong version, InvalidDescription for an
+         *         unknown key, a threshold out of its range, or a floor above the score.
+         */
+        [[nodiscard]] Result<DataDocument> parse_data_document(
+            const Value& root, std::string_view origin,
+            const std::filesystem::path& base) noexcept;
+
+        /**
+         * @brief Reads, parses and validates the data file at @p path, with its thresholds.
+         * @param path The file to read.
+         * @return The document; FileNotFound or InvalidFile when the file cannot be read or is
+         *         not valid JSON, else what parse_data_document returns.
+         */
+        [[nodiscard]] Result<DataDocument> load_data_document(
+            const std::filesystem::path& path) noexcept;
 
     } // namespace Config
 } // namespace SushiAI

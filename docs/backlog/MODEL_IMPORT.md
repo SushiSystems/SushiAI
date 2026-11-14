@@ -7,7 +7,7 @@
 | RW-51 | P2 | unmeasured | Run the writers and the task section | `write_json`, `write_model`, `AnchorTask` and their tests pass in a recorded run |  | `docs/design/MODEL_IMPORT/README.md` | 2026-10-25 |
 | RW-54 | P2 | open | Let the `idx` reader row name its two files, and a row set the letterbox | both rows exist |  |  | 2026-10-19 |
 | RW-55 | P2 | open | Add subdivisions and options per head | the training file takes `subdivisions`, and each head of the anchor objective takes its own options |  | `docs/design/MODEL_IMPORT/README.md` | 2026-10-25 |
-| RW-57 | P2 | open | Set detection thresholds in `eval.json` and infer on one image file | both work |  |  | 2026-10-19 |
+| RW-57 | P2 | open | Infer on one image file | sushiai inference takes one image file in place of a data file and prints its detections |  |  | 2026-10-19 |
 | RW-58 | P2 | open | Read the imported files in the parity suites | the forward and training parity suites load the `model.json` and `weights.sushi` the import wrote, not the `.cfg` |  |  | 2026-10-25 |
 | RW-133 | P2 | unmeasured | Give YOLOv3-tiny an example directory | `applications/examples/yolov3_tiny/` holds a `train.json` with a filled `yolo_txt` data block and a README a run can follow |  |  | 2026-10-25 |
 | RW-136 | P2 | open | Carry the `.cfg`'s augmentation into the training file | `jitter`, `hue`, `saturation` and `exposure` are training-file keys the import writes |  |  | 2026-10-25 |

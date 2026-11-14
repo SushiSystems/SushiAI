@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -571,6 +572,92 @@ TEST(Small_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
                    "eval.json"));
     SA_EXPECT_FAILURE(SushiAI::Config::parse_data(root, "eval.json", {}),
                       StatusCode::InvalidDescription, "'model'", "'data'");
+}
+
+namespace
+{
+    /** @brief Parses a data document that carries a "detection" object with the given body. */
+    Result<SushiAI::Config::DataDocument> parse_detection(const std::string& body)
+    {
+        SA_TRY_ASSIGN(const Value root,
+                      parse_json(R"({"sushiai_data": 1, "data": {"type": "rings"},
+                                     "detection": )" + body + "}", "eval.json"));
+        return SushiAI::Config::parse_data_document(root, "eval.json", {});
+    }
+} // namespace
+
+TEST(Small_TrainConfig, ADataDocumentCarriesItsDetectionThresholds)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const SushiAI::Config::DataDocument document,
+        parse_detection(R"({"score_threshold": 0.5, "suppression_threshold": 0.75,
+                            "confidence_floor": 0.25})"));
+
+    EXPECT_EQ(document.detection.score_threshold, std::optional<float>(0.5f));
+    EXPECT_EQ(document.detection.suppression_threshold, std::optional<float>(0.75f));
+    EXPECT_EQ(document.detection.confidence_floor, std::optional<float>(0.25f));
+}
+
+TEST(Small_TrainConfig, ADataDocumentWithoutDetectionLeavesEveryThresholdUnset)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value root, parse_json(
+        R"({"sushiai_data": 1, "data": {"type": "rings"}})", "eval.json"));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::DataDocument document,
+                            SushiAI::Config::parse_data_document(root, "eval.json", {}));
+
+    EXPECT_FALSE(document.detection.score_threshold.has_value());
+    EXPECT_FALSE(document.detection.suppression_threshold.has_value());
+    EXPECT_FALSE(document.detection.confidence_floor.has_value());
+}
+
+TEST(Small_TrainConfig, ADetectionObjectKeepsTheKeysItStates)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::DataDocument document,
+                            parse_detection(R"({"confidence_floor": 0.5})"));
+
+    EXPECT_FALSE(document.detection.score_threshold.has_value());
+    EXPECT_FALSE(document.detection.suppression_threshold.has_value());
+    EXPECT_EQ(document.detection.confidence_floor, std::optional<float>(0.5f));
+}
+
+TEST(Small_TrainConfig, TheDataReaderThatReadsNoThresholdsRefusesTheDetectionKey)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value root, parse_json(
+        R"({"sushiai_data": 1, "data": {"type": "rings"}, "detection": {}})", "eval.json"));
+
+    SA_EXPECT_FAILURE(SushiAI::Config::parse_data(root, "eval.json", {}),
+                      StatusCode::InvalidDescription, "'detection'");
+}
+
+TEST(Small_TrainConfig, ADetectionObjectRefusesAKeyItDoesNotKnow)
+{
+    SA_EXPECT_FAILURE(parse_detection(R"({"score": 0.5})"), StatusCode::InvalidDescription,
+                      "'score'");
+}
+
+TEST(Small_TrainConfig, AScoreThresholdAboveOneIsRefused)
+{
+    SA_EXPECT_FAILURE(parse_detection(R"({"score_threshold": 1.5})"),
+                      StatusCode::InvalidDescription, "'detection.score_threshold'", "1.5");
+}
+
+TEST(Small_TrainConfig, ASuppressionThresholdOfZeroIsRefused)
+{
+    SA_EXPECT_FAILURE(parse_detection(R"({"suppression_threshold": 0})"),
+                      StatusCode::InvalidDescription, "'detection.suppression_threshold'");
+}
+
+TEST(Small_TrainConfig, AConfidenceFloorAboveTheScoreThresholdIsRefused)
+{
+    SA_EXPECT_FAILURE(parse_detection(R"({"score_threshold": 0.25, "confidence_floor": 0.5})"),
+                      StatusCode::InvalidDescription, "'detection.confidence_floor'",
+                      "'score_threshold'");
+}
+
+TEST(Small_TrainConfig, ADetectionThresholdThatIsNoNumberIsRefused)
+{
+    SA_EXPECT_FAILURE(parse_detection(R"({"score_threshold": "high"})"),
+                      StatusCode::InvalidDescription, "'detection.score_threshold'");
 }
 
 TEST(Small_TrainConfig, ADataRootResolvesAgainstTheDocumentsDirectory)
