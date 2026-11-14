@@ -148,3 +148,13 @@ converted to NCHW; every extent is 3, so only the layout tag refuses it: "NHWC")
 The layer's result is reduced with `spatial_mean` and passed to `NN::CrossEntropyLoss`.
 `Autograd::differentiate` returns two gradients; the weight's gradient and the bias's gradient
 each exist and have the shape of their parameter. The case computes no number.
+
+## ATrailingPadAddsARowAndAColumnOfWindows
+
+A 2 by 2 window with 2 input and 4 output channels, over [13, 13, 2] with a trailing pad of 1 and 1, traces
+[1, 13, 13, 4], and `output_shape` gives [13, 13, 4], where the window alone gives [12, 12, 4].
+
+## ANegativeTrailingPadIsRefused
+
+A trailing pad of -2 columns fails `output_shape` of a 3 to 8 channel layer with `InvalidDescription`,
+"Conv2d(3, 8)", "non-negative trailing padding" and "0,-2".

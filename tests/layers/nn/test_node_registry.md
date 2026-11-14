@@ -151,10 +151,15 @@ failure.
 Over [13, 13, 2] with `kernel` 2 and `stride` 1, the maxpool2d row gives a port of
 [13, 13, 2] for `trailing_padding` 1, [13, 12, 2] for [1, 0] and [12, 12, 2] without the key.
 
-## AnAvgPoolRowRefusesTrailingPadding
+## AnAvgPoolRowReadsItsTrailingPadding
 
-The avgpool2d row with `trailing_padding` fails with `InvalidDescription`,
-"layer 0 'avgpool2d'" and "'trailing_padding'".
+Over [13, 13, 2] with `kernel` 2 and `stride` 1, the avgpool2d row gives a port of
+[13, 13, 2] for `trailing_padding` 1 and [13, 12, 2] for [1, 0].
+
+## AConvRowReadsItsTrailingPadding
+
+Over [13, 13, 2] with 4 `filters` and `kernel` 2, the conv2d row gives a port of [13, 13, 4]
+for `trailing_padding` 1 and [12, 12, 4] without the key.
 
 ## AMaxPoolRowRefusesANegativeTrailingPadding
 

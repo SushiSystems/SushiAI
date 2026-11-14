@@ -259,6 +259,8 @@ Source: CV section 3.
 [out_channels, kernel_h, kernel_w, in_channels], and `GraphBuilder::conv2d` owns the node
 sequence. `Conv2d::same_padded(in, out, kernel, stride)` builds a bias-free layer padded by
 kernel / 2 on every side. `bias_init` is the value every bias element starts from.
+`trailing_pad_h` and `trailing_pad_w` add zero rows below and zero columns right of the input, beyond
+the symmetric pad, and the layer traces `GraphBuilder::conv2d_with_extents` with the extents they give.
 
 Source: CV section 2, decisions 3 and 4. `same_padded` is MG 2.10 and `bias_init` is MG 2.8;
 both are PLAN unit U9.
@@ -277,14 +279,18 @@ Source: YOLO26 plan, `docs/agent/2026_10_07_YOLO26/PLAN.md`, unit U5.
 ### max_pool2d.hpp
 
 `MaxPool2d` takes the maximum of every window of an NHWC activation. The window is a
-`Graph::ConvGeometry` whose top and left pads apply to both sides of an axis.
+`Graph::ConvGeometry` whose top and left pads apply to both sides of an axis. `trailing_pad_h` and
+`trailing_pad_w` add zero rows below and zero columns right of the input, beyond that pad. The three
+layers that take a trailing pad, `Conv2d`, `MaxPool2d` and `AvgPool2d`, read its window rule from one
+private unit, `source/trailing_window.hpp`.
 
 Source: CV section 3.
 
 ### avg_pool2d.hpp
 
 `AvgPool2d` averages every window of an NHWC image and divides by the full window area. Its
-window is a `Graph::ConvGeometry`, as `MaxPool2d`'s is.
+window is a `Graph::ConvGeometry`, as `MaxPool2d`'s is, and it takes the same trailing pad; it traces
+`GraphBuilder::avgpool2d_with_extents`.
 
 Source: CV section 3.
 

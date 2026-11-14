@@ -292,3 +292,25 @@ TEST(Small_AvgPool2d, ForwardEmitsOneAveragePoolNodeThatCarriesTheWindow)
     EXPECT_EQ(pool.attributes.values[6], 1.0);
     EXPECT_EQ(pool.attributes.values[7], 1.0);
 }
+
+/** @brief Tests that a trailing pad adds a row and a column of windows, as output_shape says. */
+TEST(Small_AvgPool2d, ATrailingPadAddsARowAndAColumnOfWindows)
+{
+    AvgPool2d layer{window(2, 2, 1, 1)};
+    layer.trailing_pad_h = 1;
+    layer.trailing_pad_w = 1;
+
+    EXPECT_EQ(traced_shape(layer, Shape{13, 13, 2}), (Shape{2, 13, 13, 2}));
+    SA_ASSERT_OK_AND_ASSIGN(const Shape sample, layer.output_shape(Shape{13, 13, 2}));
+    EXPECT_EQ(sample, (Shape{13, 13, 2}));
+}
+
+/** @brief Tests that a negative trailing pad is refused and named. */
+TEST(Small_AvgPool2d, ANegativeTrailingPadIsRefused)
+{
+    AvgPool2d layer{window(2, 2, 1, 1)};
+    layer.trailing_pad_h = -1;
+
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
+                      "AvgPool2d", "non-negative trailing padding", "-1,0");
+}

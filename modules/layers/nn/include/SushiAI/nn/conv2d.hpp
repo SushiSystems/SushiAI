@@ -53,6 +53,12 @@ namespace SushiAI
             /** @brief Holds the window; its top and left pads apply to both sides of an axis. */
             Graph::ConvGeometry geometry{};
 
+            /** @brief Holds the zero rows added below the input, beyond the symmetric pad. */
+            int64_t trailing_pad_h = 0;
+
+            /** @brief Holds the zero columns added right of the input, beyond the symmetric pad. */
+            int64_t trailing_pad_w = 0;
+
             /** @brief Tells whether the layer adds a learnable bias per filter. */
             bool use_bias = true;
 

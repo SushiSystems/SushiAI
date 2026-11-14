@@ -29,8 +29,8 @@
 
 #include <SushiAI/nn/max_pool2d.hpp>
 
-#include <limits>
 #include <SushiAI/failure/status.hpp>
+#include "trailing_window.hpp"
 
 namespace SushiAI
 {
@@ -47,44 +47,8 @@ namespace SushiAI
             [[nodiscard]] Result<Graph::SpatialExtents> fit_window(const MaxPool2d& layer,
                                                                    const Shape& sample) noexcept
             {
-                SA_FAIL_IF(sample.rank() != 3, StatusCode::InvalidDescription,
-                           "MaxPool2d needs a per-sample shape of [H, W, C]; got {}",
-                           sample.to_string());
-                SA_FAIL_IF(layer.trailing_pad_h < 0 || layer.trailing_pad_w < 0,
-                           StatusCode::InvalidDescription,
-                           "MaxPool2d needs a non-negative trailing padding; got {},{}",
-                           layer.trailing_pad_h, layer.trailing_pad_w);
-
-                constexpr int64_t K_LARGEST_EXTENT = std::numeric_limits<int64_t>::max();
-                SA_FAIL_IF(layer.trailing_pad_h > K_LARGEST_EXTENT - sample[0] ||
-                               layer.trailing_pad_w > K_LARGEST_EXTENT - sample[1],
-                           StatusCode::InvalidDescription,
-                           "MaxPool2d needs a trailing padding that keeps the input within 64 "
-                           "bits; got {},{} over {}",
-                           layer.trailing_pad_h, layer.trailing_pad_w, sample.to_string());
-
-                // The trailing pad lengthens the input, so the window rule covers it.
-                const Result<Graph::SpatialExtents> fitted =
-                    Graph::window_extents(sample[0] + layer.trailing_pad_h,
-                                          sample[1] + layer.trailing_pad_w, layer.geometry);
-                if (!fitted.has_value())
-                    return SA_ANNOTATE(fitted.status(),
-                                       "MaxPool2d needs a legal window over its per-sample "
-                                       "shape; got {}",
-                                       sample.to_string());
-
-                SA_TRY_ASSIGN(const Graph::SpatialExtents extents, fitted);
-
-                // A window that starts at or past the input's end holds padding alone.
-                const Graph::ConvGeometry& g = layer.geometry;
-                SA_FAIL_IF((extents.height - 1) * g.stride_h - g.pad_top >= sample[0] ||
-                               (extents.width - 1) * g.stride_w - g.pad_left >= sample[1],
-                           StatusCode::InvalidDescription,
-                           "MaxPool2d needs a trailing padding that leaves every window a tap "
-                           "inside the input; got {},{} over {}",
-                           layer.trailing_pad_h, layer.trailing_pad_w, sample.to_string());
-
-                return extents;
+                return Detail::trailing_window_extents("MaxPool2d", sample, layer.geometry,
+                                                       layer.trailing_pad_h, layer.trailing_pad_w);
             }
         } // namespace
 

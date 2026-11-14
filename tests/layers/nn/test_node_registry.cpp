@@ -428,16 +428,45 @@ TEST(Small_NodeRegistry, AMaxPoolRowReadsItsTrailingPadding)
     EXPECT_EQ(absent->ports()[0].shape, (Shape{12, 12, 2}));
 }
 
-/** @brief Tests that the avgpool2d row refuses trailing_padding as a key it does not know. */
-TEST(Small_NodeRegistry, AnAvgPoolRowRefusesTrailingPadding)
+/** @brief Tests that the avgpool2d row reads trailing_padding as an integer or as [h, w]. */
+TEST(Small_NodeRegistry, AnAvgPoolRowReadsItsTrailingPadding)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> image = {Shape{13, 13, 2}};
 
-    SA_EXPECT_FAILURE(NN::make_node(registry, "avgpool2d", span_of(image),
-                                    attributes_from(R"({"kernel": 2, "trailing_padding": 1})"),
-                                    "layer 0 'avgpool2d'"),
-                      StatusCode::InvalidDescription, "layer 0 'avgpool2d'", "'trailing_padding'");
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> both,
+        NN::make_node(registry, "avgpool2d", span_of(image),
+                      attributes_from(R"({"kernel": 2, "stride": 1, "trailing_padding": 1})"),
+                      "layer 0 'avgpool2d'"));
+    EXPECT_EQ(both->ports()[0].shape, (Shape{13, 13, 2}));
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> pair,
+        NN::make_node(registry, "avgpool2d", span_of(image),
+                      attributes_from(R"({"kernel": 2, "stride": 1, "trailing_padding": [1, 0]})"),
+                      "layer 0 'avgpool2d'"));
+    EXPECT_EQ(pair->ports()[0].shape, (Shape{13, 12, 2}));
+}
+
+/** @brief Tests that the conv2d row reads trailing_padding as an integer or as [h, w]. */
+TEST(Small_NodeRegistry, AConvRowReadsItsTrailingPadding)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    const std::vector<Shape> image = {Shape{13, 13, 2}};
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> both,
+        NN::make_node(registry, "conv2d", span_of(image),
+                      attributes_from(R"({"filters": 4, "kernel": 2, "trailing_padding": 1})"),
+                      "layer 0 'conv2d'"));
+    EXPECT_EQ(both->ports()[0].shape, (Shape{13, 13, 4}));
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> absent,
+        NN::make_node(registry, "conv2d", span_of(image),
+                      attributes_from(R"({"filters": 4, "kernel": 2})"), "layer 0 'conv2d'"));
+    EXPECT_EQ(absent->ports()[0].shape, (Shape{12, 12, 4}));
 }
 
 /** @brief Tests that the maxpool2d row refuses a negative trailing_padding and names it. */

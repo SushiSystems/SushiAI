@@ -523,6 +523,18 @@ namespace SushiAI
                                             const Traced& bias, const ConvGeometry& g) const noexcept;
 
                 /**
+                 * @brief Emits a convolution as IM2COL and MATMUL with explicit output extents.
+                 * @param out_h The output rows, which a trailing pad may make differ from the
+                 *        symmetric rule.
+                 * @param out_w The output columns.
+                 * @return The [N,out_h,out_w,C_out] value, or InvalidDescription.
+                 */
+                [[nodiscard]] Traced conv2d_with_extents(const Traced& x, const Traced& weight,
+                                                         const Traced& bias, const ConvGeometry& g,
+                                                         int64_t out_h,
+                                                         int64_t out_w) const noexcept;
+
+                /**
                  * @brief Emits K_DEPTHWISE_CONV2D: each channel filtered by its own taps.
                  * @param weight The [kernel_h,kernel_w,C] taps, of the input's element type.
                  * @return The [N,out_h,out_w,C] value, or InvalidDescription when @p x, the
@@ -572,6 +584,14 @@ namespace SushiAI
                  *         NHWC or the window does not fit.
                  */
                 [[nodiscard]] Traced avgpool2d(const Traced& x, const ConvGeometry& g) const noexcept;
+
+                /**
+                 * @brief Emits @c K_AVGPOOL2D with explicit output extents.
+                 * @return The pooled value, or InvalidDescription.
+                 */
+                [[nodiscard]] Traced avgpool2d_with_extents(const Traced& x, const ConvGeometry& g,
+                                                            int64_t out_h,
+                                                            int64_t out_w) const noexcept;
 
                 /**
                  * @brief Emits UPSAMPLE2D using nearest-neighbour integer scaling.

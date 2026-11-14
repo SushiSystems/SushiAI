@@ -36,6 +36,7 @@ sushiai_add_module(NAME nn TIER layers
         source/node_registry.cpp
         source/silu.cpp
         source/trace.cpp
+        source/trailing_window.cpp
         source/unflatten.cpp
         source/upsample2d.cpp
     PUBLIC_DEPENDS config dtype failure graph seam shape

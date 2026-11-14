@@ -30,6 +30,7 @@
 #include <SushiAI/nn/avg_pool2d.hpp>
 
 #include <SushiAI/failure/status.hpp>
+#include "trailing_window.hpp"
 
 namespace SushiAI
 {
@@ -46,19 +47,8 @@ namespace SushiAI
             [[nodiscard]] Result<Graph::SpatialExtents> fit_window(const AvgPool2d& layer,
                                                                    const Shape& sample) noexcept
             {
-                SA_FAIL_IF(sample.rank() != 3, StatusCode::InvalidDescription,
-                           "AvgPool2d needs a per-sample shape of [H, W, C]; got {}",
-                           sample.to_string());
-
-                Result<Graph::SpatialExtents> extents =
-                    Graph::window_extents(sample[0], sample[1], layer.geometry);
-                if (!extents.has_value())
-                    return SA_ANNOTATE(extents.status(),
-                                       "AvgPool2d needs a legal window over its per-sample "
-                                       "shape; got {}",
-                                       sample.to_string());
-
-                return extents;
+                return Detail::trailing_window_extents("AvgPool2d", sample, layer.geometry,
+                                                       layer.trailing_pad_h, layer.trailing_pad_w);
             }
         } // namespace
 
@@ -73,12 +63,12 @@ namespace SushiAI
                          image.to_string());
 
             // Axes 1 and 2 hold H and W under NHWC only; the emitter refuses any other layout.
-            if (builder.graph().value(x).layout == Graph::TensorLayout::NHWC)
-            {
-                SA_TRY(builder.observe(fit_window(*this, Shape{image[1], image[2], image[3]})));
-            }
+            if (builder.graph().value(x).layout != Graph::TensorLayout::NHWC)
+                return builder.avgpool2d(x, geometry);
 
-            return builder.avgpool2d(x, geometry);
+            SA_TRY_ASSIGN(const Graph::SpatialExtents out,
+                          builder.observe(fit_window(*this, Shape{image[1], image[2], image[3]})));
+            return builder.avgpool2d_with_extents(x, geometry, out.height, out.width);
         }
 
         Result<Shape> AvgPool2d::output_shape(const Shape& input) const noexcept

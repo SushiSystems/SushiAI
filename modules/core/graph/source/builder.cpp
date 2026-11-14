@@ -935,6 +935,21 @@ namespace SushiAI
                                     const Traced& offsets, const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
+
+            const Shape image = graph_->value(x).shape;
+            SA_REFUSE_IF(*this, image.rank() != 4,
+                         "conv2d needs a rank-4 [N,H,W,C_in] input; got {}", image.to_string());
+            SA_TRY_ASSIGN(const SpatialExtents out,
+                          observe(window_extents(image[1], image[2], g)));
+
+            return conv2d_with_extents(operand, filters_in, offsets, g, out.height, out.width);
+        }
+
+        Traced GraphBuilder::conv2d_with_extents(const Traced& operand, const Traced& filters_in,
+                                                 const Traced& offsets, const ConvGeometry& g,
+                                                 int64_t out_h, int64_t out_w) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID x, operand);
             SA_TRY_ASSIGN(const ValueID weight, filters_in);
             SA_TRY_ASSIGN(const ValueID bias, offsets);
 
@@ -964,21 +979,22 @@ namespace SushiAI
                              filter[0], filter[0], biases.to_string());
             }
 
-            SA_TRY_ASSIGN(const SpatialExtents out,
-                          observe(window_extents(image[1], image[2], g)));
+            SA_REFUSE_IF(*this, out_h <= 0 || out_w <= 0,
+                         "conv2d was given non-positive output extents {}x{}", out_h, out_w);
 
             // Row-major [C_out,R,S,C_in] flattens to (r * S + s) * C_in + c, IM2COL's column order.
             const int64_t taps = g.kernel_h * g.kernel_w * image[3];
             const Traced filters = reshape(weight, Shape({filter[0], taps}));
 
-            const Traced cols = is_pointwise(g)
+            const bool keeps_extents = out_h == image[1] && out_w == image[2];
+            const Traced cols = is_pointwise(g) && keeps_extents
                 ? reshape(x, Shape({image[0] * image[1] * image[2], image[3]}))
-                : im2col_with_extents(x, g, out.height, out.width);
+                : im2col_with_extents(x, g, out_h, out_w);
 
             const Traced product = matmul(cols, filters, false, true);
             const Traced rows = bias == K_NO_VALUE ? product : bias_add(product, bias);
 
-            return reshape(rows, Shape({image[0], out.height, out.width, filter[0]}));
+            return reshape(rows, Shape({image[0], out_h, out_w, filter[0]}));
         }
 
         namespace
@@ -1177,9 +1193,25 @@ namespace SushiAI
             SA_TRY_ASSIGN(const SpatialExtents pooled,
                           observe(window_extents(in.shape[1], in.shape[2], g)));
 
-            const ValueID out = declare_like(
-                x, Shape({in.shape[0], pooled.height, pooled.width, in.shape[3]}),
-                in.dtype, Lifetime::Activation, "pooled");
+            return avgpool2d_with_extents(x, g, pooled.height, pooled.width);
+        }
+
+        Traced GraphBuilder::avgpool2d_with_extents(const Traced& operand, const ConvGeometry& g,
+                                                    int64_t out_h, int64_t out_w) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
+            const Value& in = graph_->value(x);
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "avgpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_TRY(observe(require_nhwc(in, "avgpool2d")));
+            SA_REFUSE_IF(*this, out_h <= 0 || out_w <= 0,
+                         "avgpool2d was given non-positive output extents {}x{}", out_h, out_w);
+
+            const Shape pooled({in.shape[0], out_h, out_w, in.shape[3]});
+            const DType dtype = in.dtype;
+            const ValueID out = declare_like(x, pooled, dtype, Lifetime::Activation, "pooled");
             graph_->add_node(Ops::K_AVGPOOL2D.id, {x}, {out}, geometry_attributes(g));
             return out;
         }

@@ -75,10 +75,12 @@ namespace SushiAI
 
             /** @brief Lists every key a "conv2d" layer accepts. */
             constexpr std::string_view K_CONV2D_KEYS[] = {
-                "filters", "kernel", "stride", "padding", "dilation", "use_bias"};
+                "filters", "kernel", "stride", "padding", "dilation", "use_bias",
+                "trailing_padding"};
 
             /** @brief Lists every key an "avgpool2d" layer accepts. */
-            constexpr std::string_view K_AVGPOOL2D_KEYS[] = {"kernel", "stride", "padding"};
+            constexpr std::string_view K_AVGPOOL2D_KEYS[] = {"kernel", "stride", "padding",
+                                                             "trailing_padding"};
 
             /** @brief Lists every key a "maxpool2d" layer accepts, trailing padding included. */
             constexpr std::string_view K_MAXPOOL2D_KEYS[] = {"kernel", "stride", "padding",
@@ -432,6 +434,11 @@ namespace SushiAI
             layer.in_channels = input[2];
             SA_TRY_ASSIGN(layer.out_channels, read_int(attributes, "filters", context));
             layer.geometry = make_geometry(kernel, stride, padding, dilation);
+            SA_TRY_ASSIGN(const AxisPair trailing,
+                          read_axis_pair_or(attributes, "trailing_padding", context,
+                                            AxisPair{0, 0}));
+            layer.trailing_pad_h = trailing.h;
+            layer.trailing_pad_w = trailing.w;
             SA_TRY_ASSIGN(layer.use_bias,
                           read_bool_or(attributes, "use_bias", context, layer.use_bias));
 
@@ -464,7 +471,14 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(const Graph::ConvGeometry window,
                           read_pool_geometry(attributes, context));
-            return adapt(AvgPool2d{window}, input, context);
+            AvgPool2d layer{window};
+            SA_TRY_ASSIGN(const AxisPair trailing,
+                          read_axis_pair_or(attributes, "trailing_padding", context,
+                                            AxisPair{0, 0}));
+            layer.trailing_pad_h = trailing.h;
+            layer.trailing_pad_w = trailing.w;
+
+            return adapt(std::move(layer), input, context);
         }
 
         Result<std::unique_ptr<Layer>> make_global_avgpool(const Shape& input,

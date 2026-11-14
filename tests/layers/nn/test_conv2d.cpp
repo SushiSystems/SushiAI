@@ -543,3 +543,25 @@ TEST(Small_Conv2d, DifferentiatingALossYieldsAGradientForTheWeightAndTheBias)
     expect_gradient_of(graph, grads[0], wrt[0]);
     expect_gradient_of(graph, grads[1], wrt[1]);
 }
+
+/** @brief Tests that a trailing pad adds a row and a column of windows, as output_shape says. */
+TEST(Small_Conv2d, ATrailingPadAddsARowAndAColumnOfWindows)
+{
+    Conv2d layer = make_conv(2, 4, 2);
+    layer.trailing_pad_h = 1;
+    layer.trailing_pad_w = 1;
+
+    EXPECT_EQ(traced_shape(layer, 1, Shape{13, 13, 2}), (Shape{1, 13, 13, 4}));
+    SA_ASSERT_OK_AND_ASSIGN(const Shape sample, layer.output_shape(Shape{13, 13, 2}));
+    EXPECT_EQ(sample, (Shape{13, 13, 4}));
+}
+
+/** @brief Tests that a negative trailing pad is refused and named with the channel counts. */
+TEST(Small_Conv2d, ANegativeTrailingPadIsRefused)
+{
+    Conv2d layer = make_conv(3, 8, 3);
+    layer.trailing_pad_w = -2;
+
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
+                      "Conv2d(3, 8)", "non-negative trailing padding", "0,-2");
+}

@@ -30,8 +30,11 @@
 #include <SushiAI/nn/conv2d.hpp>
 
 #include <cstdint>
+#include <string>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include "trailing_window.hpp"
 
 namespace SushiAI
 {
@@ -59,15 +62,10 @@ namespace SushiAI
                            layer.in_channels, layer.out_channels, layer.in_channels,
                            sample.to_string());
 
-                Result<Graph::SpatialExtents> extents =
-                    Graph::window_extents(sample[0], sample[1], layer.geometry);
-                if (!extents.has_value())
-                    return SA_ANNOTATE(extents.status(),
-                                       "Conv2d({}, {}) needs a legal window over its per-sample "
-                                       "shape; got {}",
-                                       layer.in_channels, layer.out_channels, sample.to_string());
-
-                return extents;
+                const std::string name = SushiLog::format_text(
+                    "Conv2d({}, {})", layer.in_channels, layer.out_channels);
+                return Detail::trailing_window_extents(name, sample, layer.geometry,
+                                                       layer.trailing_pad_h, layer.trailing_pad_w);
             }
         } // namespace
 
@@ -104,7 +102,8 @@ namespace SushiAI
                          "Conv2d needs an NHWC input; got {} tagged NCHW. Cross with "
                          "layout_convert first (CV-3).",
                          image.to_string());
-            SA_TRY(builder.observe(fit_window(*this, Shape{image[1], image[2], image[3]})));
+            SA_TRY_ASSIGN(const Graph::SpatialExtents out,
+                          builder.observe(fit_window(*this, Shape{image[1], image[2], image[3]})));
 
             const int64_t window = geometry.kernel_h * geometry.kernel_w;
             const int64_t fan_in = window * in_channels;
@@ -125,7 +124,7 @@ namespace SushiAI
                                               fan_out, "bias", dtype));
             }
 
-            return builder.conv2d(x, w, b, geometry);
+            return builder.conv2d_with_extents(x, w, b, geometry, out.height, out.width);
         }
 
         Result<Shape> Conv2d::output_shape(const Shape& input) const noexcept

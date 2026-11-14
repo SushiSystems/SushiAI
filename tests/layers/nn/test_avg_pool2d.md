@@ -71,3 +71,13 @@ new node of the operation `Ops::K_AVGPOOL2D` over an NHWC [2, 8, 8, 3] input. Th
 and writes the returned value, and its attribute slots 0 to 7 hold the kernel, stride, dilation and
 padding in that order: 3, 2, 2, 1, 2, 1, 1, 1. The case states a promise of `avg_pool2d.hpp`, that the
 window reaches the node whole, and the node is the only place it can be observed.
+
+## ATrailingPadAddsARowAndAColumnOfWindows
+
+A 2 by 2 window at stride 1 over [13, 13, 2] with a trailing pad of 1 and 1 traces [2, 13, 13, 2] over a
+batch of two, and `output_shape` gives [13, 13, 2], where the window alone gives [12, 12, 2].
+
+## ANegativeTrailingPadIsRefused
+
+A trailing pad of -1 rows fails `output_shape` with `InvalidDescription`, "AvgPool2d",
+"non-negative trailing padding" and "-1,0".
