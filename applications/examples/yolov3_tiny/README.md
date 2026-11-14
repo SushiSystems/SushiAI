@@ -5,8 +5,8 @@ Two JSON files for `sa train` and `sa inference` over a YOLOv3-tiny model that
 file are not committed: they come from the import step into `build/yolov3_tiny`, and both
 files here point at them.
 
-No run has been made with `train.json`; its values are the import's recipe with a data block
-added. `eval.json` was written from the same data block.
+`train.json` holds the import's recipe with a data block added; `eval.json` was written from the
+same data block. The runs made with them are in [Measured](#measured).
 
 ## What has to be on disk
 
@@ -82,4 +82,22 @@ network input) at a score threshold of 0.25, and the mean average precision at I
 the split. To see the detections of the imported weights before any training, pass
 `build/yolov3_tiny/weights.sushi` in place of the checkpoint.
 
-This file quotes no cost, precision or timing, because none has been measured.
+## Measured
+
+Made on 2026-11-14 in a debug tree built against SushiBLAS v0.1.2, SushiRuntime v0.5.2, SushiLog
+v0.3.1 and SushiProfiler v0.4.1, without the distributed layer. The data was `coco128` at batch
+size 4 and 416 by 416, so these are runs of the chain and not of a recipe.
+
+| Step | Result |
+| --- | --- |
+| `sa import darknet yolov3-tiny.cfg yolov3-tiny.weights` | Wrote `model.json` (43 layers, two heads, 80 classes), `weights.sushi` and `train.json` |
+| `sa inference` with the imported weights | 419 detections over 128 images; mean average precision at IoU 0.5 of 0.2695 over 929 boxes, at a score floor of 0.001 |
+| `sa train`, 1 epoch, the import's recipe | 32 updates, all under the warm-up; loss 25.15; the host working set peaked at 227 MB |
+| `sa inference` with that checkpoint | 394 detections; mean average precision of 0.2657 |
+| `sa train`, 5 epochs, rate 1e-3, warm-up of 10 updates | Loss rose from 34.12 to 87.95; the run took 52 s and the host working set peaked at 254 MB |
+| `sa train`, 5 epochs, rate 1e-5, warm-up of 10 updates | Loss fell from 24.31 to 19.57 |
+
+The weights come from Darknet's COCO training, and `coco128` is made of COCO training images, so the
+precision measures fit and has no reference run beside it. The two five-epoch runs show that the
+import's rate of 1e-3 diverges at batch size 4 and that a rate of 1e-5 descends; they do not show
+that the gradients equal Darknet's. The training parity suites, which would, have not been run.
