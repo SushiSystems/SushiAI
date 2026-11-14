@@ -65,7 +65,7 @@ The check is the one [`test_yolov3.md`](test_yolov3.md) describes, run on this m
 ## TheCostOfOneBatchFallsUnderATenth
 
 200 steps on the batch and the truth of `yolov4_tiny_train_step` bring the stored cost of the
-Separate model below 0.1 of the first step's.
+Separate model below 0.1 of the first step's at some step.
 
 ## ThePlansOfTheStepOverlapLiveRanges
 

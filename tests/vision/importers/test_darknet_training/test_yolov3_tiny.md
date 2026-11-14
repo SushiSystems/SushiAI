@@ -82,7 +82,7 @@ The check is the one [`test_yolov3.md`](test_yolov3.md) describes, run on this m
 ## TheCostOfOneBatchFallsUnderATenth
 
 200 steps on the batch and the truth of `yolov3_tiny_train_step` bring the stored cost of the
-Separate model below 0.1 of the first step's.
+Separate model below 0.1 of the first step's at some step.
 
 The stored cost is `HeadCost::stored` summed over the heads: the squared delta entries for a
 squared-error head, and for a CIoU head the box weight times the mean of 1 - IoU plus the weighted

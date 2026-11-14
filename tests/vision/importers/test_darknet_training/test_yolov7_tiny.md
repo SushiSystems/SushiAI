@@ -65,7 +65,7 @@ The check is the one [`test_yolov3.md`](test_yolov3.md) describes, run on this m
 ## TheCostOfOneBatchFallsUnderAQuarter
 
 200 steps on the batch and the truth of `yolov7_tiny_train_step` bring the stored cost of the
-Separate model below 0.25 of the first step's.
+Separate model below 0.25 of the first step's at some step.
 
 The share is 0.25 where the other five models state 0.1. It is derived from CPU Darknet: its
 value below, 0.226, plus a tenth of it is 0.2486, rounded up to 0.25. An earlier bound of 0.33

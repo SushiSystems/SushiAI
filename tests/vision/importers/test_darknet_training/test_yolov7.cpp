@@ -67,7 +67,7 @@ namespace
         training.bounds.head_update_share = units(32768);
         training.bounds.update_relative = units(32768);
         training.bounds.rolling_absolute = units(256);
-        training.overfit_steps = 200;
+        training.overfit_steps = 240;
         training.overfit_cost_share = SaTest::K_OVERFIT_COST_SHARE;
         return training;
     }

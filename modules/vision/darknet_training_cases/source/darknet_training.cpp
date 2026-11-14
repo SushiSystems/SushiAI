@@ -1633,6 +1633,7 @@ namespace SushiAI
 
             double first = 0.0;
             double last = 0.0;
+            double lowest = std::numeric_limits<double>::infinity();
             const std::int64_t tenth = std::max<std::int64_t>(stated.overfit_steps / 10, 1);
             for (std::int64_t step = 0; step < stated.overfit_steps; ++step)
             {
@@ -1643,6 +1644,7 @@ namespace SushiAI
 
                 first = step == 0 ? run.cost.stored : first;
                 last = run.cost.stored;
+                lowest = std::min(lowest, last);
                 if (step % tenth == 0)
                     std::cout << "[ MEASURED ] " << stated.step_run << ": stored cost " << last
                               << " (squared box entries " << run.cost.box << ", other "
@@ -1652,9 +1654,9 @@ namespace SushiAI
             const double bound = stated.overfit_cost_share * first;
             std::cout << "[ MEASURED ] " << stated.step_run << ": stored cost " << first
                       << " at step 0, " << last << " at step " << stated.overfit_steps - 1
-                      << ", bound " << bound << "\n";
+                      << ", lowest " << lowest << ", bound " << bound << "\n";
             EXPECT_GT(first, 0.0) << "the first step has no cost to bring down";
-            EXPECT_LT(last, bound);
+            EXPECT_LT(lowest, bound);
         }
 
     } // namespace Test

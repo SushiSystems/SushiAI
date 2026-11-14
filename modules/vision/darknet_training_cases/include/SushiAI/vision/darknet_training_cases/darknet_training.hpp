@@ -145,7 +145,7 @@ namespace SushiAI
                 Vision::Detect::Anchor::ObjectnessTarget::One; /**< Target of every head. */
             DarknetTrainingBounds bounds;                      /**< The tolerances of the suite. */
             std::int64_t overfit_steps = 0;  /**< Steps the overfit check runs on one batch. */
-            double overfit_cost_share = 0.0; /**< Its last cost, as a share of the first. */
+            double overfit_cost_share = 0.0; /**< Its lowest cost, as a share of the first. */
         };
 
         /**
@@ -254,12 +254,11 @@ namespace SushiAI
                                       const DarknetTrainingCase& stated) noexcept;
 
         /**
-         * @brief Checks that `overfit_steps` steps on the batch and truth of the step run bring
-         *        the summed `HeadCost::stored` below `overfit_cost_share` of the first step's,
-         *        and prints both costs.
+         * @brief Checks that `overfit_steps` steps on one batch bring the summed
+         *        `HeadCost::stored` below `overfit_cost_share` of the first step's at some step.
          *
-         * The solver is the one every step check builds. A cost that is not finite fails at
-         * its step.
+         * A cost that is not finite fails at its step. The lowest cost is judged because a
+         * warm-up rate climbs and a run on one batch swings once it has reached its low.
          */
         void check_one_batch_overfit(ExecutionBackend& backend,
                                      const DarknetTrainingCase& stated) noexcept;

@@ -72,4 +72,4 @@ in double on YOLOv3-tiny, so the two are not compared directly.
 ## TheCostOfOneBatchFallsUnderATenth
 
 200 steps on the batch and the truth of `yolov3_train_step` bring the stored cost of the Separate
-model below 0.1 of the first step's.
+model below 0.1 of the first step's at some step.
