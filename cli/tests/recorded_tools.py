@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -139,6 +140,19 @@ def write_executable(path: Path) -> Path:
     """Writes an empty file that the build-tree discovery takes for a program, and returns it."""
     path.parent.mkdir(parents=True, exist_ok=True)
     program = path.with_suffix(".exe") if path.suffix == "" else path
+    program.write_text("", encoding="utf-8")
+    program.chmod(0o755)
+    return program
+
+
+def write_path_program(path: Path) -> Path:
+    """Writes an empty program named as a lookup on the path finds it on this system, and returns it.
+
+    Windows finds ``sp`` as ``sp.exe``; every other system finds the bare name, which
+    :func:`write_executable` would turn into ``sp.exe`` and a lookup would miss.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    program = path.with_suffix(".exe") if os.name == "nt" and path.suffix == "" else path
     program.write_text("", encoding="utf-8")
     program.chmod(0o755)
     return program

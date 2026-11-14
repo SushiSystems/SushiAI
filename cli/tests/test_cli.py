@@ -19,7 +19,7 @@ import pytest
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from recorded_tools import doxygen_ready, recorded_tools, write_executable
+from recorded_tools import doxygen_ready, recorded_tools, write_executable, write_path_program
 from sushiai import cli
 from sushiai import console as console_module
 from sushiai.services import build_trees
@@ -212,7 +212,7 @@ def test_train_forwards_profile(project_root, command, target, positional):
 def sp_on_path(tmp_path, monkeypatch):
     """Puts a program named `sp` on the path and returns where `which` finds it."""
     folder = tmp_path / "tools"
-    write_executable(folder / "sp")
+    write_path_program(folder / "sp")
     monkeypatch.setenv("PATH", str(folder))
     return shutil.which("sp")
 

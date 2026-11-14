@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from recorded_tools import recorded_tools, write_executable
+from recorded_tools import recorded_tools, write_executable, write_path_program
 from sushiai.cli import app
 from sushiai.services import build_trees
 from sushiai.services.project import K_DEFAULT_TYPE
@@ -115,7 +115,7 @@ def test_a_forwarding_command_hands_help_to_the_program_it_runs(name, target, pr
 def test_profile_hands_help_to_sp(project_root, tmp_path, monkeypatch):
     """With `sp` on the path, `sa profile --help` reaches it as its own argument."""
     folder = tmp_path / "tools"
-    program = write_executable(folder / "sp")
+    program = write_path_program(folder / "sp")
     monkeypatch.setenv("PATH", str(folder))
     recorded = recorded_tools()
 
