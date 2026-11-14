@@ -47,8 +47,18 @@ namespace SushiAI
             constexpr std::string_view K_TRAIN_KEYS[] = {
                 "sushiai_train", "model", "objective", "data", "optimizer",
                 "schedule", "epochs", "seed", "weights", "resume", "checkpoint", "cluster",
+                "deterministic", "checkpoint_every",
+            };
+
+            /** @brief Every key a train document before K_TRAIN_CHECKPOINT_EVERY_VERSION may carry. */
+            constexpr std::string_view K_TRAIN_KEYS_BEFORE_CHECKPOINT_EVERY[] = {
+                "sushiai_train", "model", "objective", "data", "optimizer",
+                "schedule", "epochs", "seed", "weights", "resume", "checkpoint", "cluster",
                 "deterministic",
             };
+
+            /** @brief Every key the "checkpoint_every" object may carry. */
+            constexpr std::string_view K_CHECKPOINT_EVERY_KEYS[] = {"epochs", "batches"};
 
             /** @brief Every key a train document before K_TRAIN_DETERMINISTIC_VERSION may carry. */
             constexpr std::string_view K_TRAIN_KEYS_BEFORE_DETERMINISTIC[] = {
@@ -220,6 +230,46 @@ namespace SushiAI
             }
         }
 
+        namespace
+        {
+            /**
+             * @brief Reads the "checkpoint_every" object of @p root; an absent key means None.
+             * @return InvalidDescription unless the object names exactly one of "epochs" and
+             *         "batches", a positive integer, or when the file has no "checkpoint" path.
+             */
+            Result<CheckpointEvery> read_checkpoint_every(const Value& root,
+                                                          std::string_view origin) noexcept
+            {
+                CheckpointEvery every;
+                if (!root.has("checkpoint_every"))
+                    return every;
+
+                SA_FAIL_IF(!root.has("checkpoint"), StatusCode::InvalidDescription,
+                           "'{}' states 'checkpoint_every' but no 'checkpoint' to write to", origin);
+
+                const Value absent;
+                const Value& block = root.at_or("checkpoint_every", absent);
+                SA_TRY(block.reject_unknown_keys(origin, as_span(K_CHECKPOINT_EVERY_KEYS)));
+                const bool epochs = block.has("epochs");
+                const bool batches = block.has("batches");
+                SA_FAIL_IF(epochs == batches, StatusCode::InvalidDescription,
+                           "'{}'s 'checkpoint_every' must name exactly one of 'epochs' and "
+                           "'batches'",
+                           origin);
+
+                const std::string_view key = epochs ? "epochs" : "batches";
+                SA_TRY_ASSIGN(every.count,
+                              block.at_or(key, absent).as_int(
+                                  "'" + std::string(origin) + "'s 'checkpoint_every."
+                                  + std::string(key) + "'"));
+                SA_FAIL_IF(every.count <= 0, StatusCode::InvalidDescription,
+                           "'{}'s 'checkpoint_every.{}' must be positive, but it is {}", origin,
+                           key, every.count);
+                every.unit = epochs ? CheckpointUnit::Epochs : CheckpointUnit::Batches;
+                return every;
+            }
+        } // namespace
+
         Result<TrainSpec> parse_train(const Value& root, std::string_view origin,
                                       const std::filesystem::path& base) noexcept
         {
@@ -233,6 +283,11 @@ namespace SushiAI
             {
                 SA_TRY(root.reject_unknown_keys(origin,
                                                 as_span(K_TRAIN_KEYS_BEFORE_DETERMINISTIC)));
+            }
+            else if (version < K_TRAIN_CHECKPOINT_EVERY_VERSION)
+            {
+                SA_TRY(root.reject_unknown_keys(origin,
+                                                as_span(K_TRAIN_KEYS_BEFORE_CHECKPOINT_EVERY)));
             }
             else
             {
@@ -276,6 +331,8 @@ namespace SushiAI
             {
                 SA_TRY_ASSIGN(spec.resume, read_path(root, "resume", origin, base));
             }
+
+            SA_TRY_ASSIGN(spec.checkpoint_every, read_checkpoint_every(root, origin));
 
             // Checkpoint path is optional; training can run without writing snapshots.
             if (root.has("checkpoint"))

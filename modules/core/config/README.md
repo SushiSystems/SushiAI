@@ -56,17 +56,21 @@ Each header is named by its include path under `include/`.
 | `SushiAI/config/data_fit.hpp` | `fit_data_to_model` |
 | `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
 | `SushiAI/config/model_writer.hpp` | `write_model` |
-| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `DetectionSettings`, `DataDocument`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data`, `parse_data_document`, `load_data_document` |
+| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_TRAIN_CHECKPOINT_EVERY_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `CheckpointUnit`, `CheckpointEvery`, `DataSpec`, `DetectionSettings`, `DataDocument`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data`, `parse_data_document`, `load_data_document` |
 | `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events`, `read_json_stream_events`, `ChunkedTextBuffer`, `read_json_text_events` |
 | `SushiAI/config/registry.hpp` | `find_entry` |
 | `SushiAI/config/section_reader.hpp` | `KeySpan`, `member_of`, `entry_of`, `list_quoted`, `read_real`, `read_whole`, `read_float32`, `read_string`, `read_array`, `SectionReader` |
 
 ## Training file versions
 
-`parse_train` reads versions 1 to 3 (`K_TRAIN_VERSION`) and writes none itself; the
-importer writes `K_TRAIN_VERSION`, which is 3. The `cluster` key is allowed from
+`parse_train` reads versions 1 to 4 (`K_TRAIN_VERSION`) and writes none itself; the
+importer writes `K_TRAIN_VERSION`, which is 4. The `cluster` key is allowed from
 `K_TRAIN_CLUSTER_VERSION`, 2, and is an error in a version 1 file. The `deterministic` key is
-allowed from `K_TRAIN_DETERMINISTIC_VERSION`, 3, and is an error in an older file.
+allowed from `K_TRAIN_DETERMINISTIC_VERSION`, 3, and is an error in an older file. The
+`checkpoint_every` key is allowed from `K_TRAIN_CHECKPOINT_EVERY_VERSION`, 4. It is an object with
+exactly one member, `epochs` or `batches`, a positive integer, and `TrainSpec::checkpoint_every`
+holds it as a `CheckpointUnit` and a count, `None` and 0 when the file has no key. The key needs
+the file's `checkpoint` path and is `InvalidDescription` without one.
 `TrainSpec::cluster` holds the section as a `Value`, null when the file has none.
 `TrainSpec::deterministic` is `true` when the file does not state the key, and the importer
 writes none. A key that asks for an unordered path is refused while it is `true`, naming the

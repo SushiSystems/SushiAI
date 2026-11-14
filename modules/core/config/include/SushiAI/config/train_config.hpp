@@ -43,13 +43,16 @@ namespace SushiAI
     namespace Config
     {
         /** @brief The train-file version this build writes; it reads this one and every older. */
-        inline constexpr std::int64_t K_TRAIN_VERSION = 3;
+        inline constexpr std::int64_t K_TRAIN_VERSION = 4;
 
         /** @brief The first train-file version that may carry the "cluster" key. */
         inline constexpr std::int64_t K_TRAIN_CLUSTER_VERSION = 2;
 
         /** @brief The first train-file version that may carry the "deterministic" key. */
         inline constexpr std::int64_t K_TRAIN_DETERMINISTIC_VERSION = 3;
+
+        /** @brief The first train-file version that may carry the "checkpoint_every" key. */
+        inline constexpr std::int64_t K_TRAIN_CHECKPOINT_EVERY_VERSION = 4;
 
         /** @brief The standalone data-file version this build reads. */
         inline constexpr std::int64_t K_DATA_VERSION = 1;
@@ -103,6 +106,27 @@ namespace SushiAI
             DetectionSettings detection;
         };
 
+        /** @brief Names what the count of a CheckpointEvery counts. */
+        enum class CheckpointUnit : std::uint8_t
+        {
+            None,    /**< The run writes its checkpoint once, at the end. */
+            Epochs,  /**< The run writes after the last batch of every count-th epoch. */
+            Batches, /**< The run writes after every count-th update. */
+        };
+
+        /**
+         * @struct CheckpointEvery
+         * @brief How often a run writes its checkpoint before the end.
+         */
+        struct CheckpointEvery
+        {
+            /** @brief Names what the count counts. */
+            CheckpointUnit unit = CheckpointUnit::None;
+
+            /** @brief Holds the number of epochs or updates between two writes; 0 with None. */
+            std::int64_t count = 0;
+        };
+
         /**
          * @struct TrainSpec
          * @brief One training run, end to end.
@@ -111,6 +135,9 @@ namespace SushiAI
         {
             /** @brief The architecture file, resolved against this file's directory. */
             std::filesystem::path model_path;
+
+            /** @brief How often the run writes its checkpoint before the end. */
+            CheckpointEvery checkpoint_every;
 
             /** @brief The type a @c Train::ObjectiveRegistry row is found by, e.g. "anchor". */
             std::string objective_type;

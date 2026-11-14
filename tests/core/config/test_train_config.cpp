@@ -453,11 +453,104 @@ TEST(Small_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
 TEST(Small_TrainConfig, AFutureTrainVersionIsAnError)
 {
     SA_EXPECT_FAILURE(train_from(R"({
-        "sushiai_train": 4, "model": "m.json",
+        "sushiai_train": 5, "model": "m.json",
         "objective": {"type": "cross_entropy"},
         "data": {"type": "rings"},
         "optimizer": {"type": "adamw"}
-    })"), StatusCode::InvalidFile, "version 4", "version 3");
+    })"), StatusCode::InvalidFile, "version 5", "version 4");
+}
+
+namespace
+{
+    /** @brief Parses a train file of @p version that states @p members after its checkpoint path. */
+    Result<TrainSpec> checkpoint_every_file(int version, const std::string& members)
+    {
+        return train_from("{\"sushiai_train\": " + std::to_string(version) + R"(, "model": "m.json",
+            "objective": {"type": "cross_entropy"}, "data": {"type": "rings"},
+            "optimizer": {"type": "adamw"}, "checkpoint": "run.sushi")" + members + "}");
+    }
+} // namespace
+
+/** @brief Tests that a train file without checkpoint_every writes its checkpoint at the end only. */
+TEST(Small_TrainConfig, AFileWithoutCheckpointEveryWritesOnlyAtTheEnd)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, checkpoint_every_file(4, ""));
+
+    EXPECT_EQ(spec.checkpoint_every.unit, Config::CheckpointUnit::None);
+    EXPECT_EQ(spec.checkpoint_every.count, 0);
+}
+
+/** @brief Tests that checkpoint_every counts epochs when it names epochs. */
+TEST(Small_TrainConfig, CheckpointEveryNamesEpochs)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec,
+                            checkpoint_every_file(4, R"(, "checkpoint_every": {"epochs": 2})"));
+
+    EXPECT_EQ(spec.checkpoint_every.unit, Config::CheckpointUnit::Epochs);
+    EXPECT_EQ(spec.checkpoint_every.count, 2);
+}
+
+/** @brief Tests that checkpoint_every counts updates when it names batches. */
+TEST(Small_TrainConfig, CheckpointEveryNamesBatches)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec,
+                            checkpoint_every_file(4, R"(, "checkpoint_every": {"batches": 3})"));
+
+    EXPECT_EQ(spec.checkpoint_every.unit, Config::CheckpointUnit::Batches);
+    EXPECT_EQ(spec.checkpoint_every.count, 3);
+}
+
+/** @brief Tests that an object naming neither epochs nor batches is refused. */
+TEST(Small_TrainConfig, CheckpointEveryNamingNothingIsRefused)
+{
+    SA_EXPECT_FAILURE(checkpoint_every_file(4, R"(, "checkpoint_every": {})"),
+                      StatusCode::InvalidDescription, "'checkpoint_every'", "exactly one");
+}
+
+/** @brief Tests that an object naming both epochs and batches is refused. */
+TEST(Small_TrainConfig, CheckpointEveryNamingBothIsRefused)
+{
+    SA_EXPECT_FAILURE(
+        checkpoint_every_file(4, R"(, "checkpoint_every": {"epochs": 1, "batches": 2})"),
+        StatusCode::InvalidDescription, "'checkpoint_every'", "exactly one");
+}
+
+/** @brief Tests that a count of zero is refused. */
+TEST(Small_TrainConfig, ACheckpointEveryOfZeroIsRefused)
+{
+    SA_EXPECT_FAILURE(checkpoint_every_file(4, R"(, "checkpoint_every": {"batches": 0})"),
+                      StatusCode::InvalidDescription, "'checkpoint_every.batches'", "positive");
+}
+
+/** @brief Tests that a count that is no integer is refused. */
+TEST(Small_TrainConfig, ACheckpointEveryThatIsNoIntegerIsRefused)
+{
+    SA_EXPECT_FAILURE(checkpoint_every_file(4, R"(, "checkpoint_every": {"epochs": "two"})"),
+                      StatusCode::InvalidDescription, "'checkpoint_every.epochs'");
+}
+
+/** @brief Tests that a member checkpoint_every does not know is refused. */
+TEST(Small_TrainConfig, CheckpointEveryRefusesAnUnknownMember)
+{
+    SA_EXPECT_FAILURE(checkpoint_every_file(4, R"(, "checkpoint_every": {"seconds": 60})"),
+                      StatusCode::InvalidDescription, "'seconds'");
+}
+
+/** @brief Tests that a version 3 file naming checkpoint_every is refused as an unknown key. */
+TEST(Small_TrainConfig, AVersionThreeFileRefusesCheckpointEvery)
+{
+    SA_EXPECT_FAILURE(checkpoint_every_file(3, R"(, "checkpoint_every": {"epochs": 1})"),
+                      StatusCode::InvalidDescription, "'checkpoint_every'");
+}
+
+/** @brief Tests that checkpoint_every without a checkpoint path is refused. */
+TEST(Small_TrainConfig, CheckpointEveryWithoutACheckpointPathIsRefused)
+{
+    SA_EXPECT_FAILURE(train_from(R"({
+        "sushiai_train": 4, "model": "m.json",
+        "objective": {"type": "cross_entropy"}, "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"}, "checkpoint_every": {"epochs": 1}
+    })"), StatusCode::InvalidDescription, "'checkpoint_every'", "'checkpoint'");
 }
 
 /** @brief Tests that a version 1 file without a cluster section still reads. */
