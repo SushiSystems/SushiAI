@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-14 — darknet_era_yolo: Measured the import's own recipe at batch size 4 and found it descends; the divergence came from a shortened warm-up, so no code changed (RW-171, `40b465e8`).
+
 - 2026-11-14 — datasets_tasks: Checkpoint inside an epoch (RW-71, `ebaa2982`).
 - 2026-11-14 — train: Breaking change: Wrote the checkpoint during a run when a version 4 training file states `checkpoint_every`; `K_TRAIN_VERSION` is 4 and the importer writes it (`train_config.hpp`).
 - 2026-11-14 — darknet_era_yolo: Map boxes back through the letterbox (RW-49, `0366e785`).
