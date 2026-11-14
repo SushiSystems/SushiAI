@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-11-14 — model_import: Let `sushiai inference` take one image file in place of a data file, through a new `image_file` reader, and list its detections without a score (RW-57, `00d22ea2`).
+- 2026-11-14 — convolutional_networks: Let `Conv2d` and `AvgPool2d` take a trailing pad, read as `trailing_padding` in the model file (RW-27, `8225117a`).
+- 2026-11-14 — runs_not_yet_made: Ran the MNIST network from its model file: loss 0.2318 to 0.1099 in three epochs, 94.38 percent of 2048 test labels (RW-8, `eae341a6`).
 - 2026-11-14 — darknet_era_yolo: Measured the import's own recipe at batch size 4 and found it descends; the divergence came from a shortened warm-up, so no code changed (RW-171, `40b465e8`).
 
 - 2026-11-14 — datasets_tasks: Checkpoint inside an epoch (RW-71, `ebaa2982`).
