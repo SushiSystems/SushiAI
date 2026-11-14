@@ -4,8 +4,11 @@ Three JSON files describe a two-stage convolutional classifier for the MNIST dig
 runs that train and evaluate it. There is no C++ in this directory. `applications/programs/source/train.cpp` and
 `applications/programs/source/inference.cpp` read the files, as they do for [`heavy_mlp`](../heavy_mlp/README.md).
 
-No run has been made with these files. The values in them are untuned first guesses, chosen
-small with the aim of a CPU run that ends in minutes, and nobody has timed one.
+The values in them are untuned first guesses, chosen small with the aim of a run that ends in minutes.
+One run was made on 2026-11-14 in a debug tree, with the four IDX files in an absolute `directory`: three
+epochs over 8192 training images, the loss fell from 0.2318 in the first epoch to
+0.1099 in the third, and `sushiai inference` on the first 2048 images of the test split agreed with 1933 of
+their labels, 94.38 percent.
 
 ## The data
 
