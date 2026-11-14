@@ -40,6 +40,7 @@
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 #include <SushiAI/vision/imaging/labels.hpp>
+#include <SushiAI/vision/imaging/fit_transform.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 #include <SushiAI/vision/imaging/mosaic.hpp>
 #include <SushiAI/vision/imaging/partner_source.hpp>

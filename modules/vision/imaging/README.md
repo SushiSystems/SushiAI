@@ -132,6 +132,10 @@ static `make` that returns a `Result`, because a constructor cannot return a sta
 
 [`include/SushiAI/vision/imaging/letterbox.md`](include/SushiAI/vision/imaging/letterbox.md) describes it.
 
+## fit_transform.hpp
+
+[`include/SushiAI/vision/imaging/fit_transform.md`](include/SushiAI/vision/imaging/fit_transform.md) describes it.
+
 ## flip.hpp
 
 [`include/SushiAI/vision/imaging/flip.md`](include/SushiAI/vision/imaging/flip.md) describes it.

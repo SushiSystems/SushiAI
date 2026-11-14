@@ -12,6 +12,7 @@ sushiai_add_test_program(OWNER vision/imaging
         test_affine_nearest.cpp
         test_boxes.cpp
         test_dataset_partners.cpp
+        test_fit_transform.cpp
         test_flip.cpp
         test_gray.cpp
         test_hsv.cpp

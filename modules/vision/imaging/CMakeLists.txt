@@ -15,6 +15,7 @@ sushiai_add_module(NAME imaging TIER vision
         source/flip.cpp
         source/gray.cpp
         source/hsv.cpp
+        source/fit_transform.cpp
         source/image.cpp
         source/label_set.cpp
         source/labels.cpp
