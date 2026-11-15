@@ -13,7 +13,6 @@
 | RW-137 | P2 | open | Write a float32 setting as the shortest decimal that reads back | the import writes the `.cfg`'s `ignore_thresh=.7` as `0.7`, and a written float32 value parses back to the same float32 |  |  | 2026-10-25 |
 | RW-138 | P2 | open | Letterbox an imported `letter_box=1` model as Darknet does | an image fitted to a model imported with `letter_box=1` is padded with 0.5 and may be scaled up, as Darknet's `letterbox_image` does, and a test pins one such… |  |  | 2026-10-25 |
 | RW-139 | P2 | open | Give the tests one scratch directory | the private `ScratchDirectory` classes of `test_imported_model_writer.cpp`, `language/datasets/datasets_test_support.hpp` and… |  |  | 2026-10-25 |
-| RW-183 | P3 | open | Extend the Ultralytics importer to YOLOv5n, YOLOv8n and YOLO11n | sa import ultralytics reads yolov5n.pt, yolov8n.pt and yolo11n.pt, each checked on coco128 against Ultralytics as YOLO26n is |  | `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS` | 2026-11-15 |
 
 ## Known issues
 
