@@ -35,6 +35,9 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/vision/importers/ultralytics_checkpoint.hpp>
+#include <SushiAI/vision/importers/ultralytics_tensors.hpp>
 
 namespace SushiAI
 {
@@ -43,20 +46,32 @@ namespace SushiAI
         /** @brief Holds the input side a model takes when its checkpoint states none. */
         inline constexpr std::int64_t K_ULTRALYTICS_IMAGE_SIDE = 640;
 
+        /** @brief Holds a translated description: the model document and the tensor rules. */
+        struct UltralyticsTranslation
+        {
+            /** @brief Holds the model document: rows, outputs and task section. */
+            Config::Value document;
+
+            /** @brief Holds how the checkpoint's tensor names become the model's record names. */
+            TensorRules tensor_rules;
+        };
+
         /**
-         * @brief Translates @p architecture, the "yaml" dictionary of an Ultralytics model,
-         *        into the model document of SushiAI and parses it.
+         * @brief Translates @p architecture, the "yaml" of an Ultralytics or YOLOv5 model.
          * @param image_side The side of the square input, as the checkpoint trained it.
-         * @return The model with its anchor-free task section; Unsupported listing every
-         *         module of the description no translator reads, with the entries that use it.
+         * @param modules The pickled module classes; a module none names is built as
+         *                Ultralytics' own source builds it.
+         * @return Unsupported listing every module no translator reads, with its entries.
          */
-        [[nodiscard]] Result<Config::Value> describe_ultralytics_model(
+        [[nodiscard]] Result<UltralyticsTranslation> describe_ultralytics_model(
             const Config::Value& architecture, std::int64_t image_side,
+            SushiRuntime::span<const UltralyticsModuleClass> modules,
             std::string_view origin) noexcept;
 
-        /** @brief Returns describe_ultralytics_model parsed by Config::parse_model. */
+        /** @brief Returns the document of describe_ultralytics_model parsed by parse_model. */
         [[nodiscard]] Result<Config::ModelSpec> translate_ultralytics_model(
             const Config::Value& architecture, std::int64_t image_side,
+            SushiRuntime::span<const UltralyticsModuleClass> modules,
             std::string_view origin) noexcept;
     } // namespace Vision::Importers
 } // namespace SushiAI

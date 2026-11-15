@@ -54,15 +54,9 @@ namespace SushiAI
             /** @brief Holds the normalisation momentum of every Ultralytics block. */
             constexpr double K_BN_MOMENTUM = 0.03;
 
-            /** @brief Holds the score threshold of Ultralytics' prediction. */
-            constexpr double K_SCORE_THRESHOLD = 0.25;
-
-            /** @brief Holds the suppression threshold of Ultralytics' prediction. */
-            constexpr double K_SUPPRESSION_THRESHOLD = 0.7;
-
             /** @brief Lists the row types whose blocks hold a normalisation. */
-            constexpr std::string_view K_NORMALISED_TYPES[] = {"conv", "c3k2", "sppf", "c2psa",
-                                                               "detect"};
+            constexpr std::string_view K_NORMALISED_TYPES[] = {"conv", "c3", "c2f", "c3k2", "sppf",
+                                                               "c2psa", "detect"};
 
             /** @brief Returns the integer @p key of @p root, or @p fallback when absent. */
             Result<std::int64_t> read_int_or(const Config::Value& root, std::string_view key,
@@ -80,7 +74,16 @@ namespace SushiAI
             {
                 Detail::ModuleScale scale;
                 if (!root.has("scales"))
+                {
+                    // Files before the scales table state the two factors at the top level.
+                    SA_TRY_ASSIGN(scale.depth,
+                                  root.at_or("depth_multiple", Config::Value::real(1.0))
+                                      .as_real("depth_multiple"));
+                    SA_TRY_ASSIGN(scale.width,
+                                  root.at_or("width_multiple", Config::Value::real(1.0))
+                                      .as_real("width_multiple"));
                     return scale;
+                }
                 SA_TRY_ASSIGN(const Config::Value& scales, root.at("scales", origin));
                 SA_FAIL_IF(scales.kind() != Config::Kind::Object || scales.keys().empty(),
                            StatusCode::InvalidDescription,
@@ -106,13 +109,16 @@ namespace SushiAI
             }
 
             /** @brief Returns @p value with the names Ultralytics evaluates replaced. */
-            Config::Value resolve_argument(const Config::Value& value, std::int64_t classes)
+            Config::Value resolve_argument(const Config::Value& value, std::int64_t classes,
+                                           const Config::Value& anchors)
             {
                 if (value.kind() != Config::Kind::String)
                     return value;
                 const std::string& text = value.as_string("argument").value();
                 if (text == "nc")
                     return Config::Value::integer(classes);
+                if (text == "anchors")
+                    return anchors;
                 if (text == "None")
                     return Config::Value();
                 if (text == "True" || text == "False")
@@ -122,7 +128,8 @@ namespace SushiAI
 
             /** @brief Reads entry @p index of the backbone and the head into a module entry. */
             Result<Detail::ModuleEntry> read_entry(const Config::Value& value, std::int64_t index,
-                                                   std::int64_t classes, std::string_view origin)
+                                                   const Detail::ModuleProgress& progress,
+                                                   std::string_view origin)
             {
                 SA_TRY_ASSIGN(const std::vector<Config::Value>& parts, value.as_array(origin));
                 SA_FAIL_IF(parts.size() != 4, StatusCode::InvalidDescription,
@@ -150,14 +157,15 @@ namespace SushiAI
                 entry.module = module;
                 SA_TRY_ASSIGN(const std::vector<Config::Value>& args, parts[3].as_array("args"));
                 for (const Config::Value& argument : args)
-                    entry.args.push_back(resolve_argument(argument, classes));
+                    entry.args.push_back(
+                        resolve_argument(argument, progress.classes, progress.anchors));
                 return entry;
             }
 
             /** @brief Reads the backbone and the head of @p root, in row order. */
-            Result<std::vector<Detail::ModuleEntry>> read_entries(const Config::Value& root,
-                                                                  std::int64_t classes,
-                                                                  std::string_view origin)
+            Result<std::vector<Detail::ModuleEntry>> read_entries(
+                const Config::Value& root, const Detail::ModuleProgress& progress,
+                std::string_view origin)
             {
                 std::vector<Detail::ModuleEntry> entries;
                 for (const std::string_view part : {std::string_view("backbone"),
@@ -169,7 +177,7 @@ namespace SushiAI
                     {
                         SA_TRY_ASSIGN(Detail::ModuleEntry entry,
                                       read_entry(row, static_cast<std::int64_t>(entries.size()),
-                                                 classes, origin));
+                                                 progress, origin));
                         entries.push_back(std::move(entry));
                     }
                 }
@@ -213,48 +221,46 @@ namespace SushiAI
                 return Config::Value::object(std::move(keys), std::move(values));
             }
 
-            /** @brief Returns the anchor-free task section with Ultralytics' thresholds. */
-            Config::Value write_task()
-            {
-                return Config::Value::object(
-                    {"type", "score_threshold", "suppression"},
-                    {Config::Value::string("anchor_free_detection"),
-                     Config::Value::real(K_SCORE_THRESHOLD),
-                     Config::Value::object({"criterion", "threshold"},
-                                           {Config::Value::string("iou"),
-                                            Config::Value::real(K_SUPPRESSION_THRESHOLD)})});
-            }
         } // namespace
 
-        Result<Config::Value> describe_ultralytics_model(const Config::Value& architecture,
-                                                         std::int64_t image_side,
-                                                         std::string_view origin) noexcept
+        Result<UltralyticsTranslation> describe_ultralytics_model(
+            const Config::Value& architecture, std::int64_t image_side,
+            SushiRuntime::span<const UltralyticsModuleClass> modules,
+            std::string_view origin) noexcept
         {
             SA_FAIL_IF(architecture.kind() != Config::Kind::Object, StatusCode::InvalidDescription,
                        "{}: the model description is not a table", origin);
             SA_FAIL_IF(image_side < 1, StatusCode::InvalidDescription,
                        "{}: the input side {} is not positive", origin, image_side);
             Detail::ModuleProgress progress;
+            progress.image_side = image_side;
+            progress.modules = modules;
             SA_TRY_ASSIGN(progress.classes, read_int_or(architecture, "nc", 0, origin));
             SA_FAIL_IF(progress.classes < 1, StatusCode::InvalidDescription,
                        "{}: the model states no class count 'nc'", origin);
             SA_TRY_ASSIGN(progress.reg_max, read_int_or(architecture, "reg_max", 16, origin));
             const Config::Value& end2end = architecture.at_or("end2end", Config::Value());
-            progress.end2end = end2end.kind() == Config::Kind::Bool && end2end.as_bool("end2end").value();
+            progress.end2end =
+                end2end.kind() == Config::Kind::Bool && end2end.as_bool("end2end").value();
+            SA_TRY_ASSIGN(const std::int64_t ch, read_int_or(architecture, "ch", 3, origin));
             SA_TRY_ASSIGN(progress.input_channels,
-                          read_int_or(architecture, "channels", 3, origin));
+                          read_int_or(architecture, "channels", ch, origin));
+            progress.anchors = architecture.at_or("anchors", Config::Value());
             SA_TRY_ASSIGN(progress.scale, read_scale(architecture, origin));
             SA_TRY_ASSIGN(const std::vector<Detail::ModuleEntry> entries,
-                          read_entries(architecture, progress.classes, origin));
+                          read_entries(architecture, progress, origin));
             SA_TRY(reject_unknown_modules(entries, origin));
 
             for (const Detail::ModuleEntry& entry : entries)
             {
+                SA_FAIL_IF(!progress.outputs.empty(), StatusCode::Unsupported,
+                           "{}: entry {} ({}) follows the Detect head, and the head must be last",
+                           origin, entry.index, entry.module);
                 const Status translated =
                     Detail::find_module_translator(entry.module)->translate(entry, progress);
                 SA_TRY(SA_ANNOTATE(translated, "{}", origin));
             }
-            SA_FAIL_IF(progress.head < 0, StatusCode::Unsupported,
+            SA_FAIL_IF(progress.outputs.empty(), StatusCode::Unsupported,
                        "{}: the model has no Detect entry, and only detectors are translated",
                        origin);
 
@@ -262,22 +268,24 @@ namespace SushiAI
                 {"shape"}, {Config::Value::array({Config::Value::integer(image_side),
                                                   Config::Value::integer(image_side),
                                                   Config::Value::integer(progress.input_channels)})});
-            const Config::Value outputs = Config::Value::array(
-                {Config::Value::object({"node"}, {Config::Value::integer(progress.head)})});
-            return Config::Value::object(
+            UltralyticsTranslation out;
+            out.document = Config::Value::object(
                 {"format_version", "input", "defaults", "layers", "outputs", "task"},
                 {Config::Value::integer(Config::K_MODEL_VERSION), input,
                  write_defaults(progress.types), Config::Value::array(std::move(progress.layers)),
-                 outputs, write_task()});
+                 Config::Value::array(std::move(progress.outputs)), std::move(progress.task)});
+            out.tensor_rules = std::move(progress.tensor_rules);
+            return out;
         }
 
-        Result<Config::ModelSpec> translate_ultralytics_model(const Config::Value& architecture,
-                                                              std::int64_t image_side,
-                                                              std::string_view origin) noexcept
+        Result<Config::ModelSpec> translate_ultralytics_model(
+            const Config::Value& architecture, std::int64_t image_side,
+            SushiRuntime::span<const UltralyticsModuleClass> modules,
+            std::string_view origin) noexcept
         {
-            SA_TRY_ASSIGN(const Config::Value document,
-                          describe_ultralytics_model(architecture, image_side, origin));
-            return Config::parse_model(document, origin);
+            SA_TRY_ASSIGN(const UltralyticsTranslation translation,
+                          describe_ultralytics_model(architecture, image_side, modules, origin));
+            return Config::parse_model(translation.document, origin);
         }
     } // namespace Vision::Importers
 } // namespace SushiAI

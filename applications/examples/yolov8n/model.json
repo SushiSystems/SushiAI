@@ -17,7 +17,7 @@
         { "type": "c2f", "filters": 128, "hidden": 64, "repeats": 2, "shortcut": true },
         { "type": "conv", "filters": 256, "kernel": 3, "stride": 2 },
         { "type": "c2f", "filters": 256, "hidden": 128, "repeats": 1, "shortcut": true },
-        { "type": "sppf", "filters": 256, "kernel": 5, "pools": 3, "shortcut": false },
+        { "type": "sppf", "filters": 256, "kernel": 5, "pools": 3, "shortcut": false, "activate_narrowing": true },
         { "type": "upsample", "scale": 2 },
         { "type": "concat", "from": [-1, 6] },
         { "type": "c2f", "filters": 128, "hidden": 64, "repeats": 1, "shortcut": false },

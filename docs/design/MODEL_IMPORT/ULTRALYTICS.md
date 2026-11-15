@@ -3,7 +3,8 @@
 `sushiai import ultralytics` reads an Ultralytics checkpoint (`yolo26n.pt` first, then
 `yolov5n.pt`, `yolov8n.pt` and `yolo11n.pt`) and writes the same three files
 `sushiai import darknet` writes. It carries out the `.pt` part of phase 9 and pulls forward the
-two readers of phase 5 that it needs. RW-182 built YOLO26n; RW-183 adds the other three.
+two readers of phase 5 that it needs. RW-182 built YOLO26n; RW-183 added YOLOv5n (and Ultralytics'
+YOLOv5nu), YOLOv8n and YOLO11n.
 
 ## Rulings
 
@@ -46,13 +47,14 @@ PyTorch rebuilder.
 | `TorchArchive` | `io` | A PyTorch zip: the pickle tree, and each tensor read at its stride into row-major float32, from half, float32 or float64 |
 | `copy_kernel_last`, `copy_depthwise_kernel_last` | `io` | A weight `[out, in, kh, kw]` to `[out, kh, kw, in]`, and `[C, 1, kh, kw]` to `[kh, kw, C]`. Both importers call them |
 | `read_ultralytics_checkpoint` | `vision/importers` | The walk of the module tree: the `yaml` description and every floating tensor by path |
-| Module table | `vision/importers` | One row per Ultralytics module type, each in its own unit: Conv, C3k2, SPPF, C2PSA, nn.Upsample, Concat and Detect |
-| `describe_ultralytics_model` | `vision/importers` | The backbone and the head, through the table, into a model document with the `anchor_free_detection` task |
-| `list_ultralytics_tensors` | `vision/importers` | The tensors as float32 weight records in SushiAI's layouts |
+| Module table | `vision/importers` | One row per Ultralytics module type, each in its own unit: Conv, C3, C2f, C3k2, SPPF, C2PSA, nn.Upsample, Concat and Detect |
+| `describe_ultralytics_model` | `vision/importers` | The backbone and the head, through the table, into a model document and its task, with the `TensorRules` that rename and drop tensors |
+| `list_ultralytics_tensors` | `vision/importers` | The tensors as float32 weight records in SushiAI's layouts, named by the rules |
 | `import_ultralytics_files` | `vision/importers` | The `ImportedModel`, and the `ultralytics` row of the importer registry |
 
 `TorchArchive` admits PyTorch's own rebuilders and storages. The importer adds the module prefixes
-`ultralytics.` and `torch.nn.modules.`, whose classes become plain objects holding their BUILD
+`ultralytics.`, `models.common.`, `models.yolo.` (the YOLOv5 repository) and `torch.nn.modules.`,
+whose classes become plain objects holding their BUILD
 dictionary. Any other name is refused, and the message names it.
 
 Neither importer includes a header of the other. Both share `ImportedModel`, its writer, the
@@ -67,29 +69,41 @@ from the entry's arguments. The function follows Ultralytics' own model builder:
   a multiple of eight.
 - A repeat count above 1 is multiplied by the depth factor and rounded half to even.
 - A C3k2 takes C3k as its inner block at the scales m, l and x.
-- `nc` and `None` in the arguments are resolved.
+- `nc`, `anchors` and `None` in the arguments are resolved. A file without `scales` states its
+  factors as `depth_multiple` and `width_multiple`.
+- A Conv that states its padding keeps it.
+- The checkpoint's module classes are read beside the `yaml`. The one class the translation
+  reads is the activation after SPPF's first convolution: Ultralytics' current source builds it
+  linear, and YOLO26n pickles it so, while `yolov5nu.pt`, `yolov8n.pt` and `yolo11n.pt` pickle a
+  SiLU. The `sppf` row says so with `activate_narrowing`. With no checkpoint the translation
+  builds what the source builds.
 
 A module with no row is refused, and the message lists every such module of the description with
-the entries that use it. YOLO26n needs the seven rows. YOLOv8n and YOLO11n add `C2f` and the
-distribution head: the Detect row already writes `reg_max`, `end2end` and the plain class branch
-when they differ from the row's defaults. YOLOv5n needs `C3` and an anchor-based Detect, which
-turns into the `anchor_detection` task section.
+the entries that use it. The Detect row writes `reg_max`, `end2end` and the class branch, plain
+before C3k2 and depthwise after it, and drops the fixed `dfl` ramp. A Detect with anchors, as
+YOLOv5 writes it, becomes one 1x1 `conv2d` per level published as `head_<level>` and the
+`anchor_detection` task, its anchors as fractions of the input side; the level's tensors
+`<detect>.m.<level>.` are renamed to that convolution's row and the `anchors` buffer is dropped.
 
 ## Verification
 
-1. **The model file.** The YOLO26n description translates to the text of
-   `applications/examples/yolo26/model.json`
+1. **The model file.** The descriptions of `yolo26n.pt`, `yolov8n.pt` and `yolo11n.pt` translate
+   to the text of `model.json` in `applications/examples/yolo26`, `yolov8n` and `yolo11n`
    (`tests/vision/importers/test_ultralytics_model.cpp`).
 2. **The weights.** The exporter also writes `model.pt`, the same seeded model that `torch.save`
    wrote. Every tensor the import reads from it equals, bit for bit and in its layout, the record
-   of `weights.sushi` (`tests/vision/importers/test_ultralytics_import.cpp`). The forward pass on
+   of `weights.sushi` (`tests/vision/importers/test_ultralytics_import/test_import.cpp`). The forward pass on
    those weights is already compared with Ultralytics' `forward.sacp` by the registration suite,
    so no parity helper moved out of `darknet_forward_cases`.
-3. **The detections.** `sushiai inference` with the imported `yolo26n.pt` is compared with
-   Ultralytics' own predictions on the same images and thresholds. On 2026-11-15, over 16 coco128
-   images resized to 640 by 640, it matched all 39 of Ultralytics' boxes and found no other, with a
-   worst IoU of 0.9882 and score differences under 0.00005. The owner runs this on their
-   machine, and RW-184 makes it a `large` test.
+3. **The detections.** `tests/vision/importers/test_ultralytics_import/test_detections.cpp`, a `large` test,
+   imports `yolo26n.pt`, `yolov8n.pt`, `yolo11n.pt` and `yolov5nu.pt` and runs them as
+   `sushiai inference` does over the 16 coco128 images, resized to 640 by 640, that
+   `tools/reference/export_ultralytics_detections.py` gave Ultralytics. On 2026-11-15 every image
+   gave Ultralytics' count and classes, each score within 2048 u and each corner within 2048 u of
+   the side, once our corners are clipped to the image as Ultralytics clips them (KI-22): 39, 45,
+   47 and 40 detections. The test found that SPPF's first activation differs between checkpoints.
+4. **The original YOLOv5n.** `yolov5n.pt` of YOLOv5 v7.0 imports into the anchor model; its
+   detections have not been compared with the YOLOv5 repository's own.
 
 The released `.pt` files are downloaded on the owner's machine and are never committed.
 

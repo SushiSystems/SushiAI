@@ -26,7 +26,9 @@ sushiai_add_module(NAME importers TIER vision
         source/ultralytics_checkpoint.cpp
         source/ultralytics_import.cpp
         source/ultralytics_model.cpp
+        source/ultralytics_module_c2f.cpp
         source/ultralytics_module_c2psa.cpp
+        source/ultralytics_module_c3.cpp
         source/ultralytics_module_c3k2.cpp
         source/ultralytics_module_concat.cpp
         source/ultralytics_module_conv.cpp

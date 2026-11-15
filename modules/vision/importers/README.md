@@ -148,7 +148,8 @@ whether `weight_decay` under `sgd` equals Darknet's `decay` at a given batch siz
 `docs/design/MODEL_IMPORT/ULTRALYTICS.md`.
 
 `read_ultralytics_checkpoint` opens the file with `IO::TorchArchive`, admitting the classes of the
-modules `ultralytics.` and `torch.nn.modules.` as plain objects, and takes the `ema` entry when it
+modules `ultralytics.`, `models.common.`, `models.yolo.` (the YOLOv5 repository) and
+`torch.nn.modules.` as plain objects, and takes the `ema` entry when it
 is not None, else `model`. From that object it keeps the `yaml` description and walks the
 `_modules` of its layer list `model`: each parameter and persistent buffer becomes an
 `UltralyticsTensor` named by its path below the list, such as `0.conv.weight`, with the `groups`
@@ -157,18 +158,22 @@ SushiAI model of the same rows, since the vision blocks name their children as U
 The step counters `num_batches_tracked` are left out and counted.
 
 `describe_ultralytics_model` follows Ultralytics' own model builder over the backbone and the
-head: a width is capped at the scale's channel cap, multiplied by its width and rounded up to a
+head, with the scale from its `scales` table or, in older files, from `depth_multiple` and
+`width_multiple`: a width is capped at the scale's channel cap, multiplied by its width and rounded up to a
 multiple of eight; a repeat count above 1 is multiplied by the depth and rounded half to even; a
 C3k2 takes the inner block C3k at the scales m, l and x. Each module is a row of the table in
-`source/ultralytics_module_table.cpp`, one unit each: Conv, C3k2, SPPF, C2PSA, nn.Upsample,
-Concat and Detect. A module without a row is refused, and the message lists every such module of
+`source/ultralytics_module_table.cpp`, one unit each: Conv, C3, C2f, C3k2, SPPF, C2PSA, nn.Upsample,
+Concat and Detect. A Conv that states its padding keeps it. A Detect without anchors becomes a
+`detect` row; one with anchors, as YOLOv5 writes it, becomes a 1x1 `conv2d` per level published
+as `head_<level>` and an `anchor_detection` task with the anchors as fractions of the input side. A module without a row is refused, and the message lists every such module of
 the description with its entry. The written file states the normalisation of the Ultralytics
-blocks, epsilon 0.001 and momentum 0.03, as the defaults of each row type that holds one, and
-an `anchor_free_detection` task with Ultralytics' prediction thresholds, 0.25 for the score and
-0.7 for the suppression. The input side is `imgsz` of `train_args`, 640 when absent.
+blocks, epsilon 0.001 and momentum 0.03, as the defaults of each row type that holds one. The anchor-free
+task carries Ultralytics' prediction thresholds, 0.25 for the score and 0.7 for the suppression.
+The translation also returns `TensorRules`: the tensors of an anchored level are renamed to the
+row of its convolution, and the fixed `dfl` ramp and the `anchors` buffer give no record. The input side is `imgsz` of `train_args`, 640 when absent.
 
 `list_ultralytics_tensors` moves a convolution weight `[out, in, kh, kw]` to `[out, kh, kw, in]`
-and a depthwise one `[C, 1, kh, kw]` to `[kh, kw, C]` through `IO::copy_kernel_last` and
+and a depthwise one `[C, 1, kh, kw]` to `[kh, kw, C]`, names each record by the rules through `IO::copy_kernel_last` and
 `IO::copy_depthwise_kernel_last`, keeps every other tensor as it is, and refuses a grouped
 convolution that is not depthwise.
 

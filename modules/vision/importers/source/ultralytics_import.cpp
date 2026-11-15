@@ -79,11 +79,19 @@ namespace SushiAI
                                                            std::string_view origin) noexcept
         {
             SA_TRY_ASSIGN(const std::int64_t side, read_image_side(checkpoint));
+            SA_TRY_ASSIGN(const UltralyticsTranslation translation,
+                          describe_ultralytics_model(
+                              checkpoint.architecture, side,
+                              SushiRuntime::span<const UltralyticsModuleClass>(
+                                  checkpoint.modules.data(), checkpoint.modules.size()),
+                              origin));
             SA_TRY_ASSIGN(Config::ModelSpec model,
-                          translate_ultralytics_model(checkpoint.architecture, side, origin));
+                          Config::parse_model(translation.document, origin));
             SA_TRY_ASSIGN(std::vector<IO::ImportedTensor> weights,
                           list_ultralytics_tensors(SushiRuntime::span<const UltralyticsTensor>(
-                              checkpoint.tensors.data(), checkpoint.tensors.size())));
+                                                       checkpoint.tensors.data(),
+                                                       checkpoint.tensors.size()),
+                                                   translation.tensor_rules));
 
             IO::ImportedModel imported;
             imported.model = std::move(model);

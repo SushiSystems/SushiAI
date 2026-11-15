@@ -55,6 +55,8 @@ namespace SushiAI
                 /** @brief Lists every module the translation reads, one translator each. */
                 constexpr ModuleTableRow K_MODULE_TABLE[] = {
                     {"Conv", &translate_conv},
+                    {"C3", &translate_c3},
+                    {"C2f", &translate_c2f},
                     {"C3k2", &translate_c3k2},
                     {"SPPF", &translate_sppf},
                     {"C2PSA", &translate_c2psa},
@@ -63,6 +65,17 @@ namespace SushiAI
                     {"Detect", &translate_detect},
                 };
             } // namespace
+
+            std::string_view find_module_class(const ModuleProgress& progress,
+                                               std::string_view path) noexcept
+            {
+                for (const UltralyticsModuleClass& module : progress.modules)
+                {
+                    if (module.path == path)
+                        return module.name;
+                }
+                return std::string_view();
+            }
 
             const ModuleTableRow* find_module_translator(std::string_view module) noexcept
             {

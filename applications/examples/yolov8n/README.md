@@ -14,7 +14,7 @@ No run has been made with this model.
 | --- | --- | --- |
 | 0, 1, 3, 5, 7 | `conv` | 3x3, stride 2, 16, 32, 64, 128 and 256 filters |
 | 2, 4, 6, 8 | `c2f` | 1, 2, 2 and 1 repeats, `shortcut` true |
-| 9 | `sppf` | 5x5, three pools |
+| 9 | `sppf` | 5x5, three pools, a SiLU after `cv1` (`activate_narrowing`) |
 | 10, 13 | `upsample` | scale 2 |
 | 11, 14, 17, 20 | `concat` | rows 6, 4, 12 and 9 |
 | 12, 15, 18, 21 | `c2f` | one repeat, `shortcut` false |

@@ -19,7 +19,7 @@
         { "type": "c3", "filters": 128, "hidden": 64, "repeats": 3, "shortcut": true },
         { "type": "conv", "filters": 256, "kernel": 3, "stride": 2 },
         { "type": "c3", "filters": 256, "hidden": 128, "repeats": 1, "shortcut": true },
-        { "type": "sppf", "filters": 256, "kernel": 5, "pools": 3 },
+        { "type": "sppf", "filters": 256, "kernel": 5, "pools": 3, "activate_narrowing": true },
         { "type": "conv", "filters": 128, "kernel": 1, "stride": 1 },
         { "type": "upsample", "scale": 2 },
         { "type": "concat", "from": [-1, 8] },

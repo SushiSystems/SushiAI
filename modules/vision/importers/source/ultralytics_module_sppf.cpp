@@ -30,6 +30,10 @@
 #include "ultralytics_module_table.hpp"
 
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -48,10 +52,27 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const std::int64_t pools, argument_int(entry, 2, 3));
                 SA_TRY_ASSIGN(const bool shortcut, argument_bool(entry, 3, false));
 
+                // Ultralytics' source builds cv1 linear; checkpoints before it pickled a SiLU.
+                const std::string path = std::to_string(entry.index) + ".cv1.act";
+                const std::string_view activation = find_module_class(progress, path);
+                SA_FAIL_IF(!activation.empty() && activation != "SiLU" &&
+                               activation != "Identity",
+                           StatusCode::Unsupported,
+                           "entry {} (SPPF) pickles the activation {} at '{}', and only SiLU and "
+                           "Identity are translated",
+                           entry.index, activation, path);
+
                 const std::int64_t filters = scaled_channels(progress, stated);
-                append_row(progress, entry, "sppf", {"filters", "kernel", "pools", "shortcut"},
-                           {Config::Value::integer(filters), Config::Value::integer(kernel),
-                            Config::Value::integer(pools), Config::Value::boolean(shortcut)});
+                std::vector<std::string> keys = {"filters", "kernel", "pools", "shortcut"};
+                std::vector<Config::Value> values = {
+                    Config::Value::integer(filters), Config::Value::integer(kernel),
+                    Config::Value::integer(pools), Config::Value::boolean(shortcut)};
+                if (activation == "SiLU")
+                {
+                    keys.emplace_back("activate_narrowing");
+                    values.push_back(Config::Value::boolean(true));
+                }
+                append_row(progress, entry, "sppf", std::move(keys), std::move(values));
                 progress.channels.push_back(filters);
                 return Status();
             }

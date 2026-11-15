@@ -45,7 +45,7 @@ arithmetic of the running-variance candidates) are tested by
 | File | Contents |
 | --- | --- |
 | `weights.sushi` | Every floating state-dict entry under its Ultralytics name, as the model stood before either pass |
-| `model.pt` | The same model as `weights.sushi`, saved by `torch.save` as an Ultralytics checkpoint holds it: `model` in float32, `ema` None and `train_args` with `imgsz`; `tests/vision/importers/test_ultralytics_import.cpp` imports it |
+| `model.pt` | The same model as `weights.sushi`, saved by `torch.save` as an Ultralytics checkpoint holds it: `model` in float32, `ema` None and `train_args` with `imgsz`; `tests/vision/importers/test_ultralytics_import/test_import.cpp` imports it |
 | `input.sacp` | `image`, `[1, 640, 640, 3]` NHWC, uniform draws in [0, 1); torch receives `image.permute(0, 3, 1, 2)` |
 | `forward.sacp` | Eval mode, BatchNorm on the running statistics in `weights.sushi`: six feature maps, twelve raw head outputs, both decodes, the top-k detections, the rows suppression keeps at a lowered confidence |
 | `loss.sacp` | Train mode, BatchNorm on batch statistics: ground truth, loss items per branch, the inputs and the outputs of label assignment per branch, total loss, three gradients, one BatchNorm's running statistics after the pass |
@@ -164,6 +164,29 @@ The seed 0 run names `unbiased` in both cases. The differences it recorded:
 | --- | --- | --- | --- |
 | `unit` | 8.2741e-3 | 0, equal in float32 | 5.2864e-7 |
 | `model.9.cv1.bn` | 1.3888e-5 | 1.1921e-7 | 6.9510e-7 |
+
+## Detections of released checkpoints
+
+`export_ultralytics_detections.py` runs the installed Ultralytics on released checkpoints and
+writes what it detects outside the repository, into the folder that `SA_ULTRALYTICS_DATA_DIR`
+names for `tests/vision/importers/test_ultralytics_import/test_detections.cpp`. Nothing it writes is tracked.
+
+```
+conda run -n sushiai-yolo26-ref python tools/reference/export_ultralytics_detections.py DATA_DIR COCO_IMAGES
+```
+
+| Argument | Meaning |
+| --- | --- |
+| `DATA_DIR` | The folder holding `<stem>.pt`; `references/` is written below it |
+| `COCO_IMAGES` | The `images/train2017` folder of coco128 |
+| `--count N` | Images taken in name order; default 16 |
+| `--models` | Checkpoint stems; default `yolo26n yolov8n yolo11n yolov5nu` |
+
+Each image is resized to 640x640 with OpenCV's bilinear rule and written as PNG to
+`references/images/`, so neither side letterboxes it. Each checkpoint gives
+`references/<stem>.json`: the Ultralytics version, the thresholds 0.25 and 0.7, and per image
+its detections as class, score, x1, y1, x2, y2, highest score first. Prediction runs on the CPU
+in float32. The exporter exits 1 with one line on stderr when a file cannot be read or written.
 
 ## SACP layout as written
 

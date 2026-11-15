@@ -31,7 +31,8 @@ sushiai_add_test_program(OWNER vision/importers
         test_darknet_training/test_yolov7_tiny.cpp
         test_darknet_weights.cpp
         test_ultralytics_checkpoint.cpp
-        test_ultralytics_import.cpp
+        test_ultralytics_import/test_detections.cpp
+        test_ultralytics_import/test_import.cpp
         test_ultralytics_model.cpp
         test_ultralytics_tensors.cpp
     DEPENDS

@@ -61,6 +61,13 @@ namespace SushiAI
             std::vector<float> values;
         };
 
+        /** @brief Holds the class of one module of the tree, such as "SiLU" at "9.cv1.act". */
+        struct UltralyticsModuleClass
+        {
+            std::string path; /**< Its path below the layer list. */
+            std::string name; /**< Its class name, without the module that defines it. */
+        };
+
         /** @brief Holds what an Ultralytics checkpoint states that an import reads. */
         struct UltralyticsCheckpoint
         {
@@ -75,6 +82,9 @@ namespace SushiAI
 
             /** @brief Lists the paths of the buffers left out: the step counters of each norm. */
             std::vector<std::string> skipped;
+
+            /** @brief Holds the class of every module below the layer list, in module order. */
+            std::vector<UltralyticsModuleClass> modules;
         };
 
         /**

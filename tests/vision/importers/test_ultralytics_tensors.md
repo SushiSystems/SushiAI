@@ -22,3 +22,11 @@ A [3] tensor keeps its name, its shape and its values.
 ## AGroupedWeightThatIsNotDepthwiseIsRefused
 
 A [4, 2, 1, 1] weight of two groups fails with `Unsupported`, naming the tensor and the groups.
+
+## ARenamedPrefixIsReplacedAndTheRestKept
+
+Under the rule `24.m.1.` to `27.`, the tensor `24.m.1.bias` becomes the record `27.bias`.
+
+## ADroppedPrefixGivesNoRecord
+
+Under the dropped prefix `22.dfl.`, the tensor `22.dfl.conv.weight` gives no record.

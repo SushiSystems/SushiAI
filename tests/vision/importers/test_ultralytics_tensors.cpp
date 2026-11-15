@@ -58,6 +58,14 @@ namespace
         return tensor;
     }
 
+    /** @brief Returns a one-element bias tensor named @p name. */
+    UltralyticsTensor bias_tensor(const std::string& name)
+    {
+        UltralyticsTensor tensor = counting_tensor(Shape({1}), 1);
+        tensor.name = name;
+        return tensor;
+    }
+
     /** @brief Returns the float32 elements of the payload of @p tensor. */
     std::vector<float> floats_of(const IO::ImportedTensor& tensor)
     {
@@ -70,7 +78,8 @@ namespace
     Result<std::vector<IO::ImportedTensor>> list_one(const UltralyticsTensor& tensor)
     {
         return Vision::Importers::list_ultralytics_tensors(
-            SushiRuntime::span<const UltralyticsTensor>(&tensor, 1));
+            SushiRuntime::span<const UltralyticsTensor>(&tensor, 1),
+            Vision::Importers::TensorRules{});
     }
 } // namespace
 
@@ -118,4 +127,33 @@ TEST(Small_UltralyticsTensors, AGroupedWeightThatIsNotDepthwiseIsRefused)
 {
     SA_EXPECT_FAILURE(list_one(counting_tensor(Shape{4, 2, 1, 1}, 2)), StatusCode::Unsupported,
                       "'w'", "2 groups");
+}
+
+/** @brief Tests that a tensor under a renamed prefix takes the new prefix and keeps the rest. */
+TEST(Small_UltralyticsTensors, ARenamedPrefixIsReplacedAndTheRestKept)
+{
+    const UltralyticsTensor tensor = bias_tensor("24.m.1.bias");
+    Vision::Importers::TensorRules rules;
+    rules.renames.emplace_back("24.m.1.", "27.");
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<IO::ImportedTensor> records,
+                            Vision::Importers::list_ultralytics_tensors(
+                                SushiRuntime::span<const UltralyticsTensor>(&tensor, 1), rules));
+
+    ASSERT_EQ(records.size(), 1u);
+    EXPECT_EQ(records[0].record.name, "27.bias");
+}
+
+/** @brief Tests that a tensor under a dropped prefix gives no record. */
+TEST(Small_UltralyticsTensors, ADroppedPrefixGivesNoRecord)
+{
+    const UltralyticsTensor tensor = bias_tensor("22.dfl.conv.weight");
+    Vision::Importers::TensorRules rules;
+    rules.dropped.emplace_back("22.dfl.");
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<IO::ImportedTensor> records,
+                            Vision::Importers::list_ultralytics_tensors(
+                                SushiRuntime::span<const UltralyticsTensor>(&tensor, 1), rules));
+
+    EXPECT_TRUE(records.empty());
 }

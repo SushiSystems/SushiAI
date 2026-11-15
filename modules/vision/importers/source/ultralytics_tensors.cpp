@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
@@ -51,6 +52,34 @@ namespace SushiAI
         {
             /** @brief Holds the rank of a convolution weight. */
             constexpr std::int32_t K_FILTER_RANK = 4;
+
+            /** @brief Returns whether @p name begins with @p prefix. */
+            bool starts_with(const std::string& name, const std::string& prefix) noexcept
+            {
+                return name.compare(0, prefix.size(), prefix) == 0;
+            }
+
+            /** @brief Returns whether a dropped prefix of @p rules begins @p name. */
+            bool is_dropped(const std::string& name, const TensorRules& rules) noexcept
+            {
+                for (const std::string& prefix : rules.dropped)
+                {
+                    if (starts_with(name, prefix))
+                        return true;
+                }
+                return false;
+            }
+
+            /** @brief Returns @p name under the first rename of @p rules that matches it. */
+            std::string renamed(const std::string& name, const TensorRules& rules)
+            {
+                for (const auto& rule : rules.renames)
+                {
+                    if (starts_with(name, rule.first))
+                        return rule.second + name.substr(rule.first.size());
+                }
+                return name;
+            }
 
             /** @brief Returns @p tensor as a record and its bytes in SushiAI's layout. */
             Result<IO::ImportedTensor> to_record(const UltralyticsTensor& tensor)
@@ -92,13 +121,16 @@ namespace SushiAI
         } // namespace
 
         Result<std::vector<IO::ImportedTensor>> list_ultralytics_tensors(
-            SushiRuntime::span<const UltralyticsTensor> tensors) noexcept
+            SushiRuntime::span<const UltralyticsTensor> tensors, const TensorRules& rules) noexcept
         {
             std::vector<IO::ImportedTensor> out;
             out.reserve(tensors.size());
             for (const UltralyticsTensor& tensor : tensors)
             {
+                if (is_dropped(tensor.name, rules))
+                    continue;
                 SA_TRY_ASSIGN(IO::ImportedTensor record, to_record(tensor));
+                record.record.name = renamed(tensor.name, rules);
                 out.push_back(std::move(record));
             }
             return out;

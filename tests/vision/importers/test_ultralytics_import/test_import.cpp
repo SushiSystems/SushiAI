@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_ultralytics_import.cpp                                            */
+/* test_import.cpp                                                        */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,7 +22,7 @@
 /**************************************************************************/
 
 /**
- * @file test_ultralytics_import.cpp
+ * @file test_import.cpp
  * @brief Tests the Ultralytics importer on the YOLO26n checkpoint the reference exporter writes.
  * @author Mustafa Garip
  */

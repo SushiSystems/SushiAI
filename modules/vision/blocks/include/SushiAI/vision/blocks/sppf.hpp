@@ -40,6 +40,7 @@
 #include <SushiAI/nn/max_pool2d.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/node.hpp>
+#include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/conv_norm.hpp>
 
@@ -47,11 +48,24 @@ namespace SushiAI
 {
     namespace Vision::Blocks
     {
+        /** @brief Names what follows the first convolution of an SPPF block. */
+        enum class SPPFNarrowing : std::uint8_t
+        {
+            Linear,   /**< Nothing: the narrowed value is pooled as it is, as in YOLO26. */
+            Activated /**< A SiLU, as in YOLOv5u, YOLOv8 and YOLO11. */
+        };
+
         /** @brief Pools a narrowed activation repeatedly and joins every stage. */
         struct SPPF
         {
             /** @brief Holds the 1x1 convolution to half the input width, with no activation. */
             ConvLinear cv1;
+
+            /** @brief Holds the SiLU applied after cv1 when narrowing is Activated. */
+            NN::SiLU narrowing_activation{};
+
+            /** @brief Holds what follows cv1. */
+            SPPFNarrowing narrowing = SPPFNarrowing::Linear;
 
             /** @brief Holds the 1x1 convolution over the narrowed value and every pooled one. */
             Conv cv2;
@@ -73,7 +87,7 @@ namespace SushiAI
              *                 out_channels.
              */
             SPPF(int64_t in_channels, int64_t out_channels, int64_t kernel, int64_t pool_count,
-                 bool shortcut, NN::NormOptions norm);
+                 bool shortcut, SPPFNarrowing narrowing, NN::NormOptions norm);
 
             /** @brief Returns the side of the pool's window, the kernel the constructor took. */
             [[nodiscard]] int64_t kernel_size() const noexcept;

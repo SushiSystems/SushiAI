@@ -38,6 +38,9 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/vision/importers/ultralytics_checkpoint.hpp>
+#include <SushiAI/vision/importers/ultralytics_tensors.hpp>
 
 namespace SushiAI
 {
@@ -78,12 +81,21 @@ namespace SushiAI
                 std::vector<std::int64_t> channels; /**< The output channels of each row. */
                 std::vector<Config::Value> layers;  /**< The rows of the model file. */
                 std::vector<std::string> types;     /**< The row types, in order of first use. */
-                std::int64_t head = -1;             /**< The row of the detect head, or -1. */
+                std::int64_t image_side = 640;      /**< The side of the square input. */
+                Config::Value anchors;              /**< The "anchors" of the file, in pixels. */
+                std::vector<Config::Value> outputs; /**< What the model publishes. */
+                Config::Value task;                 /**< The task section the head wrote. */
+                TensorRules tensor_rules;           /**< How the checkpoint's names map. */
+                SushiRuntime::span<const UltralyticsModuleClass> modules; /**< Pickled classes. */
             };
 
+            /** @brief Returns the class pickled at @p path, or an empty view when none is. */
+            [[nodiscard]] std::string_view find_module_class(const ModuleProgress& progress,
+                                                             std::string_view path) noexcept;
+
             /**
-             * @brief Translates one entry, appends its row and pushes its channels.
-             * @return Success after exactly one row and one channel count were appended.
+             * @brief Translates one entry, appends its rows and pushes its channels.
+             * @return Success after one channel count was pushed and at least one row appended.
              */
             using ModuleTranslator = Status (*)(const ModuleEntry& entry, ModuleProgress& progress);
 
@@ -118,7 +130,16 @@ namespace SushiAI
             [[nodiscard]] Status translate_concat(const ModuleEntry& entry,
                                                   ModuleProgress& progress);
 
-            /** @brief Translates a Detect entry into a detect row and marks it the head. */
+            /** @brief Translates a C3 entry into a c3 row. */
+            [[nodiscard]] Status translate_c3(const ModuleEntry& entry, ModuleProgress& progress);
+
+            /** @brief Translates a C2f entry into a c2f row. */
+            [[nodiscard]] Status translate_c2f(const ModuleEntry& entry, ModuleProgress& progress);
+
+            /**
+             * @brief Translates a Detect entry: an anchor-free detect row, or with "anchors" the
+             *        three convolutions and the anchor task of the anchor-based head.
+             */
             [[nodiscard]] Status translate_detect(const ModuleEntry& entry,
                                                   ModuleProgress& progress);
 

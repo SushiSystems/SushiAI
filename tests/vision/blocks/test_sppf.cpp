@@ -55,6 +55,7 @@ using namespace SushiAI;
 using NN::BufferUpdateList;
 using NN::NormOptions;
 using Vision::Blocks::SPPF;
+using Vision::Blocks::SPPFNarrowing;
 using NN::Trace;
 
 namespace SaTest = SushiAI::Test;
@@ -227,8 +228,8 @@ namespace
 /** @brief Tests that the block keeps H and W and yields the output width. */
 TEST(Small_BlockSppf, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
-    const SPPF row9(256, 256, 5, 3, true, K_YOLO_NORM);
-    const SPPF widening(64, 96, 5, 3, true, K_YOLO_NORM);
+    const SPPF row9(256, 256, 5, 3, true, SPPFNarrowing::Linear, K_YOLO_NORM);
+    const SPPF widening(64, 96, 5, 3, true, SPPFNarrowing::Linear, K_YOLO_NORM);
 
     EXPECT_EQ(row9.output_shape(Shape{20, 20, 256}).value(), (Shape{20, 20, 256}));
     EXPECT_EQ(widening.output_shape(Shape{5, 7, 64}).value(), (Shape{5, 7, 96}));
@@ -237,8 +238,8 @@ TEST(Small_BlockSppf, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 /** @brief Tests that the block reports the kernel it was built with: 5 for row 9, 3 for a narrow pool. */
 TEST(Small_BlockSppf, TheKernelSizeIsTheOneTheConstructorTook)
 {
-    const SPPF row9(256, 256, 5, 3, true, K_YOLO_NORM);
-    const SPPF narrow(64, 64, 3, 1, false, K_YOLO_NORM);
+    const SPPF row9(256, 256, 5, 3, true, SPPFNarrowing::Linear, K_YOLO_NORM);
+    const SPPF narrow(64, 64, 3, 1, false, SPPFNarrowing::Linear, K_YOLO_NORM);
 
     EXPECT_EQ(row9.kernel_size(), 5);
     EXPECT_EQ(narrow.kernel_size(), 3);
@@ -247,7 +248,7 @@ TEST(Small_BlockSppf, TheKernelSizeIsTheOneTheConstructorTook)
 /** @brief Tests that the pool keeps the extents of its input. */
 TEST(Small_BlockSppf, ThePoolKeepsTheExtents)
 {
-    const SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
+    const SPPF block(256, 256, 5, 3, true, SPPFNarrowing::Linear, K_YOLO_NORM);
 
     EXPECT_EQ(block.pool.output_shape(Shape{20, 20, 128}).value(), (Shape{20, 20, 128}));
 }
@@ -261,7 +262,7 @@ TEST(Small_BlockSppf, Row9KeepsTheShapeAndUpdatesEveryNorm)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
-    SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
+    SPPF block(256, 256, 5, 3, true, SPPFNarrowing::Linear, K_YOLO_NORM);
     BufferUpdateList list;
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
@@ -276,7 +277,7 @@ TEST(Small_BlockSppf, TheJoinTakesTheNarrowedValueAndEachPool)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
-    SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
+    SPPF block(256, 256, 5, 3, true, SPPFNarrowing::Linear, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
@@ -293,7 +294,7 @@ TEST(Small_BlockSppf, AShortcutOverEqualWidthsAddsTheInputOnce)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
-    SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
+    SPPF block(256, 256, 5, 3, true, SPPFNarrowing::Linear, K_YOLO_NORM);
     BufferUpdateList list;
 
     const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
@@ -309,7 +310,7 @@ TEST_P(Small_BlockSppfNoAdd, NoAddIsTracedWithoutAShortcutOrOverUnequalWidths)
     const NoAddRow& row = GetParam();
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    SPPF block(64, row.out, 5, 3, row.shortcut, K_YOLO_NORM);
+    SPPF block(64, row.out, 5, 3, row.shortcut, SPPFNarrowing::Linear, K_YOLO_NORM);
 
     static_cast<void>(block.forward(Trace::evaluation(builder),
                                     builder.input(Shape{2, 4, 4, 64}, "x")));
@@ -329,7 +330,7 @@ TEST(Small_BlockSppf, ThePoolCountSetsTheJoinedWidthCv2Reads)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
-    SPPF block(64, 64, 3, 1, false, K_YOLO_NORM);
+    SPPF block(64, 64, 3, 1, false, SPPFNarrowing::Linear, K_YOLO_NORM);
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
     // One pool joins two parts of 32 channels, so cv2 reads 64.
@@ -349,7 +350,7 @@ TEST(Small_BlockSppf, StateMatchesManifestRow9)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
-    SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
+    SPPF block(256, 256, 5, 3, true, SPPFNarrowing::Linear, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
@@ -515,7 +516,7 @@ TEST(Small_BlockSppf, AShortcutReturnsTheInputWhenTheBranchIsZero)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{1, 2, 2, 4}, "x");
-    SPPF block(4, 4, 3, 1, true, K_YOLO_NORM);
+    SPPF block(4, 4, 3, 1, true, SPPFNarrowing::Linear, K_YOLO_NORM);
     const Trace trace = Trace::evaluation(builder);
     const Graph::ValueID y = block.forward(trace, x);
     ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
@@ -537,7 +538,7 @@ TEST(Small_BlockSppf, WithoutAShortcutTheZeroBranchGivesZeros)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{1, 2, 2, 4}, "x");
-    SPPF block(4, 4, 3, 1, false, K_YOLO_NORM);
+    SPPF block(4, 4, 3, 1, false, SPPFNarrowing::Linear, K_YOLO_NORM);
     const Trace trace = Trace::evaluation(builder);
     const Graph::ValueID y = block.forward(trace, x);
     ASSERT_TRUE(trace.status().is_ok()) << trace.status().message();
@@ -551,4 +552,54 @@ TEST(Small_BlockSppf, WithoutAShortcutTheZeroBranchGivesZeros)
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
     EXPECT_EQ(result, std::vector<double>(16, 0.0));
+}
+
+/** @brief Tests that an activated narrowing hands the join a SiLU of cv1, a linear one does not. */
+TEST(Small_BlockSppf, AnActivatedNarrowingJoinsTheSiluOfCv1)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    SPPF block(64, 64, 5, 3, false, SPPFNarrowing::Activated, K_YOLO_NORM);
+    static_cast<void>(block.forward(Trace::evaluation(builder),
+                                    builder.input(Shape{2, 4, 4, 64}, "x")));
+
+    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
+    const Graph::ValueID narrowed = join.inputs[0];
+
+    EXPECT_EQ(graph.node(graph.value(narrowed).producer).op, Ops::K_SILU.id);
+}
+
+/** @brief Tests that a linear narrowing hands the join cv1's normalised value with no SiLU. */
+TEST(Small_BlockSppf, ALinearNarrowingJoinsCv1AsItIs)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    SPPF block(64, 64, 5, 3, false, SPPFNarrowing::Linear, K_YOLO_NORM);
+    static_cast<void>(block.forward(Trace::evaluation(builder),
+                                    builder.input(Shape{2, 4, 4, 64}, "x")));
+
+    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
+    const Graph::ValueID narrowed = join.inputs[0];
+
+    EXPECT_NE(graph.node(graph.value(narrowed).producer).op, Ops::K_SILU.id);
+}
+
+/** @brief Tests that the factory reads "activate_narrowing" into the block's narrowing. */
+TEST(Small_BlockSppf, TheFactoryReadsTheNarrowingActivation)
+{
+    const Shape input{4, 4, 64};
+    const Config::Value attributes =
+        attributes_of(R"({"filters": 64, "activate_narrowing": true})");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_sppf_node(one_input(input), attributes,
+                                                           K_CONTEXT));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
+    std::vector<Graph::ValueID> outputs;
+    SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
+
+    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
+    EXPECT_EQ(graph.node(graph.value(join.inputs[0]).producer).op, Ops::K_SILU.id);
 }

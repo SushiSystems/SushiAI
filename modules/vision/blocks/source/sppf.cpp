@@ -45,7 +45,8 @@ namespace SushiAI
         {
             /** @brief Lists every key an "sppf" row accepts. */
             constexpr std::string_view K_SPPF_KEYS[] = {
-                "filters", "kernel", "pools", "shortcut", Detail::K_NORM_EPSILON_KEY,
+                "filters", "kernel", "pools", "shortcut", "activate_narrowing",
+                Detail::K_NORM_EPSILON_KEY,
                 Detail::K_NORM_MOMENTUM_KEY};
 
             /** @brief Holds the pool's window side in a row that states none. */
@@ -74,8 +75,9 @@ namespace SushiAI
         } // namespace
 
         SPPF::SPPF(int64_t in_channels, int64_t out_channels, int64_t kernel, int64_t pool_count,
-                   bool shortcut, NN::NormOptions norm)
+                   bool shortcut, SPPFNarrowing narrowing, NN::NormOptions norm)
             : cv1(in_channels, in_channels / 2, Detail::K_POINTWISE, Detail::K_POINTWISE, norm),
+              narrowing(narrowing),
               cv2((in_channels / 2) * (pool_count + 1), out_channels, Detail::K_POINTWISE,
                   Detail::K_POINTWISE, norm),
               pool{pool_geometry(kernel)},
@@ -96,7 +98,10 @@ namespace SushiAI
 
             std::vector<Graph::ValueID> parts;
             parts.reserve(static_cast<std::size_t>(pools) + 1);
-            parts.push_back(NN::trace_layer(cv1, trace, x));
+            const Graph::ValueID narrowed = NN::trace_layer(cv1, trace, x);
+            parts.push_back(narrowing == SPPFNarrowing::Activated
+                                ? NN::trace_layer(narrowing_activation, trace, narrowed)
+                                : narrowed);
             for (int64_t index = 0; index < pools; ++index)
                 parts.push_back(NN::trace_layer(pool, trace, parts.back()));
 
@@ -136,6 +141,8 @@ namespace SushiAI
             SA_TRY_ASSIGN(const bool shortcut,
                           Detail::read_bool_or(attributes, "shortcut", context,
                                                K_SPPF_DEFAULT_SHORTCUT));
+            SA_TRY_ASSIGN(const bool activated,
+                          Detail::read_bool_or(attributes, "activate_narrowing", context, false));
             SA_TRY_ASSIGN(const NN::NormOptions norm,
                           Detail::read_norm_options(attributes, context));
 
@@ -147,8 +154,10 @@ namespace SushiAI
                        "channels, because the hidden width is half of them",
                        context, input.to_string(), K_SMALLEST_INPUT_WIDTH);
 
-            return Detail::wrap_block(SPPF(input[2], filters, kernel, pool_count, shortcut, norm),
-                                      input);
+            const SPPFNarrowing narrowing =
+                activated ? SPPFNarrowing::Activated : SPPFNarrowing::Linear;
+            return Detail::wrap_block(
+                SPPF(input[2], filters, kernel, pool_count, shortcut, narrowing, norm), input);
         }
 
     } // namespace Vision::Blocks

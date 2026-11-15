@@ -54,8 +54,12 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Lists the module prefixes whose classes a checkpoint pickles. */
-            constexpr std::string_view K_MODULE_GLOBALS[] = {"ultralytics.", "torch.nn.modules."};
+            /**
+             * @brief Lists the module prefixes whose classes a checkpoint pickles: Ultralytics',
+             *        the YOLOv5 repository's and PyTorch's layers.
+             */
+            constexpr std::string_view K_MODULE_GLOBALS[] = {"ultralytics.", "models.common.",
+                                                             "models.yolo.", "torch.nn.modules."};
 
             /** @brief Holds the deepest module nesting the walk follows. */
             constexpr std::size_t K_MAX_DEPTH = 32;
@@ -118,6 +122,8 @@ namespace SushiAI
                                    StatusCode::InvalidFile,
                                    "the module '{}' is not a pickled module object", path);
                         const IO::PickleValue& state = *module.state;
+                        if (!path.empty())
+                            out_.modules.push_back(UltralyticsModuleClass{path, class_name(module)});
                         const IO::PickleValue* groups = IO::find_entry(state, "groups");
                         const std::int64_t group_count =
                             groups != nullptr && groups->kind == IO::PickleKind::Int ? groups->integer
@@ -143,6 +149,16 @@ namespace SushiAI
                     }
 
                 private:
+                    /** @brief Returns the class name of @p module, the last word of its Global. */
+                    static std::string class_name(const IO::PickleValue& module)
+                    {
+                        if (module.callable == nullptr)
+                            return std::string();
+                        const std::string& text = module.callable->text;
+                        const std::size_t space = text.rfind(' ');
+                        return space == std::string::npos ? text : text.substr(space + 1);
+                    }
+
                     /** @brief Returns @p path and @p name joined by a dot. */
                     static std::string join(const std::string& path, const std::string& name)
                     {

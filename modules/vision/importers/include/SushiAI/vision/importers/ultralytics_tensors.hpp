@@ -30,6 +30,8 @@
 
 #pragma once
 
+#include <string>
+#include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -40,14 +42,24 @@ namespace SushiAI
 {
     namespace Vision::Importers
     {
+        /** @brief Holds how the names of a checkpoint's tensors become record names. */
+        struct TensorRules
+        {
+            /** @brief Holds prefix pairs: a name starting with the first takes the second. */
+            std::vector<std::pair<std::string, std::string>> renames;
+
+            /** @brief Holds prefixes whose tensors the model holds as no record. */
+            std::vector<std::string> dropped;
+        };
+
         /**
-         * @brief Returns each tensor of @p tensors as a float32 weight record of the same name.
+         * @brief Returns each tensor of @p tensors as a float32 weight record, named by @p rules.
          *
          * A convolution weight [O, I, kh, kw] becomes [O, kh, kw, I]; a depthwise one
          * [C, 1, kh, kw] becomes [kh, kw, C]. Every other tensor keeps its layout.
          * @return Unsupported naming a grouped convolution that is not depthwise.
          */
         [[nodiscard]] Result<std::vector<IO::ImportedTensor>> list_ultralytics_tensors(
-            SushiRuntime::span<const UltralyticsTensor> tensors) noexcept;
+            SushiRuntime::span<const UltralyticsTensor> tensors, const TensorRules& rules) noexcept;
     } // namespace Vision::Importers
 } // namespace SushiAI

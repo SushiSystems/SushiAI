@@ -15,7 +15,7 @@ No run has been made with this model.
 | 0, 1, 3, 5, 7 | `conv` | 3x3, stride 2, 16, 32, 64, 128 and 256 filters |
 | 2, 4 | `c3k2` over `bottleneck` | `hidden` is a quarter of `filters`, the `0.25` of the yaml |
 | 6, 8 | `c3k2` over `c3k` | `hidden` is half of `filters` |
-| 9 | `sppf` | 5x5, three pools, no shortcut |
+| 9 | `sppf` | 5x5, three pools, no shortcut, a SiLU after `cv1` (`activate_narrowing`) |
 | 10 | `c2psa` | 256 filters, 2 heads |
 | 11, 14 | `upsample` | scale 2 |
 | 12, 15, 18, 21 | `concat` | rows 6, 4, 13 and 10 |

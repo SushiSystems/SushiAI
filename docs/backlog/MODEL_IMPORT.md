@@ -20,3 +20,4 @@
 
 | ID | Origin | Symptom | Workaround | Fix | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- |
+| KI-22 | own | sa inference prints detection boxes past the image edge; Ultralytics clips them | clip x1 y1 x2 y2 to the input width and height | none, a printing convention to rule on with the detection report | `applications/programs/source/domains_vision.cpp` | 2026-11-15 |

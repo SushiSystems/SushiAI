@@ -19,7 +19,7 @@ head shapes and the task section.
 | Rows | Type | Meaning |
 | --- | --- | --- |
 | 0 to 2 | `conv2d`, `batchnorm2d`, `silu` | The 6x6 stride-2 stem with padding 2 |
-| 3 to 11 | `conv`, `c3`, `sppf` | The backbone; rows 6 and 8 are the P3 and P4 outputs |
+| 3 to 11 | `conv`, `c3`, `sppf` | The backbone; rows 6 and 8 are the P3 and P4 outputs; `sppf` has a SiLU after `cv1` |
 | 12 to 25 | `conv`, `upsample`, `concat`, `c3` | The neck, `c3` with `shortcut` false |
 | 26 to 28 | `conv2d` | Three 1x1 convolutions of 255 channels with biases |
 

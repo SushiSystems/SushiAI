@@ -149,8 +149,20 @@ With `kernel` 3 and `pools` 1 the walk yields ten records and the `cv2` weight i
 
 ## AShortcutReturnsTheInputWhenTheBranchIsZero
 
-Runs on `Graph::HostEvaluator` with every weight and buffer written as zero, so each norm yields zero and the branch is zero. `SPPF(4, 4, 3, 1, true)` over x = 1..16 as [1, 2, 2, 4] returns 1..16: the closing add carries the input once.
+Runs on `Graph::HostEvaluator` with every weight and buffer written as zero, so each norm yields zero and the branch is zero. `SPPF(4, 4, 3, 1, true, Linear)` over x = 1..16 as [1, 2, 2, 4] returns 1..16: the closing add carries the input once.
 
 ## WithoutAShortcutTheZeroBranchGivesZeros
 
-`SPPF(4, 4, 3, 1, false)` over the same input and state returns sixteen zeros.
+`SPPF(4, 4, 3, 1, false, Linear)` over the same input and state returns sixteen zeros.
+
+## AnActivatedNarrowingJoinsTheSiluOfCv1
+
+`SPPF(64, 64, 5, 3, false, Activated)`: the first part of the join is the output of a SiLU.
+
+## ALinearNarrowingJoinsCv1AsItIs
+
+The same block with `Linear`: the first part of the join comes from no SiLU.
+
+## TheFactoryReadsTheNarrowingActivation
+
+A row with `"activate_narrowing": true` builds a block whose join reads a SiLU of `cv1`.

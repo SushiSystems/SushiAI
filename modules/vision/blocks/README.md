@@ -32,7 +32,7 @@ Consumers include each header by the path in the first column.
 | `<SushiAI/vision/blocks/c3.hpp>` | `C3`, `make_c3_node` |
 | `<SushiAI/vision/blocks/c3k2.hpp>` | `C3k2`, `C3k2InnerEntry`, `K_C3K2_INNER`, `make_c3k2_of_bottleneck`, `make_c3k2_of_c3k`, `make_c3k2_of_bottleneck_psa`, `make_c3k2_node` |
 | `<SushiAI/vision/blocks/c2f.hpp>` | `C2f`, `make_c2f_node` |
-| `<SushiAI/vision/blocks/sppf.hpp>` | `SPPF`, `make_sppf_node` |
+| `<SushiAI/vision/blocks/sppf.hpp>` | `SPPF`, `SPPFNarrowing`, `make_sppf_node` |
 | `<SushiAI/vision/blocks/attention.hpp>` | `Attention`, `check_attention_heads`, `default_attention_heads`, `K_CHANNELS_PER_DEFAULT_HEAD` |
 | `<SushiAI/vision/blocks/psa_block.hpp>` | `PSABlock` |
 | `<SushiAI/vision/blocks/c2psa.hpp>` | `C2PSA`, `make_c2psa_node` |
@@ -56,7 +56,7 @@ that comment.
 | `make_c3k2_node` | `filters`, `hidden` | `inner`, `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_c3_node` | `filters`, `hidden` | `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_c2f_node` | `filters`, `hidden` | `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
-| `make_sppf_node` | `filters` | `kernel`, `pools`, `shortcut`, `bn_epsilon`, `bn_momentum` |
+| `make_sppf_node` | `filters` | `kernel`, `pools`, `shortcut`, `activate_narrowing`, `bn_epsilon`, `bn_momentum` |
 | `make_c2psa_node` | `filters`, `hidden` | `repeats`, `heads`, `bn_epsilon`, `bn_momentum` |
 | `make_detect_node` | `classes` | `reg_max`, `end2end`, `class_branch`, `bn_epsilon`, `bn_momentum` |
 | `make_segment_head_node` | `classes` | `hidden`, `scale`, `bn_epsilon`, `bn_momentum` |
@@ -126,10 +126,13 @@ of the "bottleneck" inner block of `c3k2` has a hidden width of `hidden / 2`; he
 
 ### sppf.hpp
 
-`SPPF` traces `cv1`, a `ConvLinear` to half the input width, then a stride-1 max pool applied
+`SPPF` traces `cv1`, a `ConvLinear` to half the input width, then a SiLU when `narrowing` is
+`SPPFNarrowing::Activated` (YOLOv5u, YOLOv8, YOLO11) and nothing when it is `Linear` (YOLO26),
+then a stride-1 max pool applied
 `pools` times in a chain, then `cv2` over `cv1`'s result and every pooled value joined, then
 an add of its input when `adds_input` holds. `make_sppf_node` reads `filters` and the optional
-`kernel`, 5 when absent, `pools`, 3 when absent, and `shortcut`, false when absent. The kernel
+`kernel`, 5 when absent, `pools`, 3 when absent, `shortcut`, false when absent, and
+`activate_narrowing`, false when absent. The kernel
 must be odd. `kernel_size()` returns the side of the pool window.
 
 ### attention.hpp

@@ -1,4 +1,4 @@
-# tests/vision/importers/test_ultralytics_import.cpp
+# tests/vision/importers/test_ultralytics_import/test_import.cpp
 
 Suites: `Medium_UltralyticsImport`, `Small_UltralyticsImport`.
 
