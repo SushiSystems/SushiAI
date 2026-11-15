@@ -244,6 +244,9 @@ a parity suite compares them, as the Darknet suites do. No YOLOX source enters t
 | 8 | `ProtobufText`, the Caffe importer. Proven by: A Caffe model's outputs against a dump of a Caffe run | planned |
 | 9 | `NpyReader` and `.npz`; Ultralytics `.pt`, which pickles module objects and widens the accepted names. Proven by: The YOLO26 fixture read from its `.pt` | planned |
 
+[ULTRALYTICS.md](ULTRALYTICS.md) plans the `.pt` part of phase 9 and the readers of phase 5 it
+pulls forward.
+
 The code of every phase can be written before SushiBLAS follows SushiRuntime v0.4.0; none can be
 verified before it.
 
