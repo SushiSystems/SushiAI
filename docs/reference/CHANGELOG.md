@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-15 — model_import: Plan the Ultralytics importer as SOLID bricks beside the Darknet importer (RW-181, `b0ebf95a`).
 - 2026-11-14 — test_tree: Found the abort of the four core medium shards on Linux, a normal distribution with a zero spread in the rings data, and drew the jitter from a unit normal (RW-176, `c6f49287`).
 - 2026-11-14 — yolo26: Judged the lowest cost of the one-batch overfit, since a climbing warm-up rate makes the last step swing, and ran YOLOv7 240 steps; its low is 6.8 percent of the first cost (RW-174, `b8539986`).
 - 2026-11-14 — model_import: Let `sushiai inference` take one image file in place of a data file, through a new `image_file` reader, and list its detections without a score (RW-57, `00d22ea2`).
