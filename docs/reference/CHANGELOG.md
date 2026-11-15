@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-15 — model_import: Added a large test matching the detections of four imported Ultralytics checkpoints on 16 coco128 images (RW-184, `0af99bee`).
 - 2026-11-15 — model_import: Added `sa import ultralytics`, reading a `.pt` with SushiAI's own zip, pickle and PyTorch readers; on 16 coco128 images `sa inference` matches all 39 of Ultralytics' boxes (RW-182, `35c2829f`).
 - 2026-11-15 — model_import: Plan the Ultralytics importer as SOLID bricks beside the Darknet importer (RW-181, `b0ebf95a`).
 - 2026-11-14 — test_tree: Found the abort of the four core medium shards on Linux, a normal distribution with a zero spread in the rings data, and drew the jitter from a unit normal (RW-176, `c6f49287`).
