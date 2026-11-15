@@ -102,8 +102,11 @@ YOLOv5 writes it, becomes one 1x1 `conv2d` per level published as `head_<level>`
    gave Ultralytics' count and classes, each score within 2048 u and each corner within 2048 u of
    the side, once our corners are clipped to the image as Ultralytics clips them (KI-22): 39, 45,
    47 and 40 detections. The test found that SPPF's first activation differs between checkpoints.
-4. **The original YOLOv5n.** `yolov5n.pt` of YOLOv5 v7.0 imports into the anchor model; its
-   detections have not been compared with the YOLOv5 repository's own.
+4. **The original YOLOv5n.** `yolov5n.pt` of YOLOv5 v7.0 imports into the anchor model. On 2026-11-15 the
+   YOLOv5 repository's own predictions on the same 16 square images, at a score of 0.25 and an
+   overlap of 0.45, matched ours: 43 of 43 boxes at an IoU of 0.98 or more, no extra box, each
+   score within 0.0001. The comparison runs outside the repository, as `large` tests cannot
+   load YOLOv5's own code.
 
 The released `.pt` files are downloaded on the owner's machine and are never committed.
 
