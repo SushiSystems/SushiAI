@@ -6,18 +6,21 @@ The reading of a Darknet model: the `.cfg` text, the `.weights` binary, the fold
 normalisation into a convolution, the copy of the weights into a `ModelState`, the translation of
 a parsed `.cfg` into a `Config::ModelSpec`, the solver settings and per-head training options
 a `.cfg` holds, and the Darknet importer, which returns all of it as an `IO::ImportedModel`.
+The reading of an Ultralytics checkpoint: the walk of its module tree, the translation of its
+`yaml` description into a model file, the layout of its tensors, and the Ultralytics importer.
 Everything is in namespace
 `SushiAI::Vision::Importers`. The formats and the behaviour are in sections 4.1 to 4.5 of
 `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`.
 
-Nothing here is taken from Darknet's source. A content failure is a `Status` or a `Result`;
+Nothing here is taken from Darknet's or Ultralytics' source. A content failure is a `Status` or a `Result`;
 nothing throws across the module's surface.
 
 ## Depends on
 
-- `failure`, `dtype`, `shape`, `seam`, `config`, `nn` and `vision/detect` (`PUBLIC_DEPENDS`). Of the
-  core modules, `dtype`, `shape` and `seam` are private (`PRIVATE_DEPENDS`).
-- `io` (`PUBLIC_DEPENDS`), for `IO::ImportedModel` and `IO::ImportedTensor`.
+- `failure`, `shape`, `config`, `nn` and `vision/detect` (`PUBLIC_DEPENDS`); `shape` because
+  `UltralyticsTensor` holds a `Shape`. `dtype` and `seam` are private (`PRIVATE_DEPENDS`).
+- `io` (`PUBLIC_DEPENDS`), for `IO::ImportedModel` and `IO::ImportedTensor`, and privately for
+  `IO::TorchArchive`, the pickle tree and `IO::copy_kernel_last`.
 - `optim` (`PRIVATE_DEPENDS`), for `write_step_schedule_section`.
 
 ## Public entry points
@@ -33,6 +36,10 @@ nothing throws across the module's surface.
 | `<SushiAI/vision/importers/darknet_tensors.hpp>` | `list_darknet_tensors` |
 | `<SushiAI/vision/importers/darknet_recipe.hpp>` | `DarknetRecipe`, `write_darknet_recipe` |
 | `<SushiAI/vision/importers/darknet_import.hpp>` | `K_DARKNET_FORMAT`, `import_darknet_model`, `import_darknet_files` |
+| `<SushiAI/vision/importers/ultralytics_checkpoint.hpp>` | `UltralyticsTensor`, `UltralyticsCheckpoint`, `read_ultralytics_checkpoint`, `load_ultralytics_checkpoint` |
+| `<SushiAI/vision/importers/ultralytics_model.hpp>` | `K_ULTRALYTICS_IMAGE_SIDE`, `describe_ultralytics_model`, `translate_ultralytics_model` |
+| `<SushiAI/vision/importers/ultralytics_tensors.hpp>` | `list_ultralytics_tensors` |
+| `<SushiAI/vision/importers/ultralytics_import.hpp>` | `K_ULTRALYTICS_FORMAT`, `import_ultralytics_model`, `import_ultralytics_files` |
 
 ## The translation
 
@@ -110,7 +117,7 @@ weights already in memory, and reads no file.
 `list_darknet_tensors` is `store_darknet_weights` without a state. It returns one float32
 tensor per target name: the weights moved from `[out, in, kh, kw]` to `[out, kh, kw, in]`,
 every other vector as `[out]`. Both functions move the weights through `copy_kernel_last` of
-`source/darknet_weight_layout.hpp`, and both refuse a vector of another length and a name
+`source/darknet_weight_layout.hpp`, which hands them to `IO::copy_kernel_last`, and both refuse a vector of another length and a name
 stated twice.
 
 `write_darknet_recipe` returns an object with three keys.
@@ -133,3 +140,36 @@ value: `batch`, `subdivisions`, `max_batches`, `angle`, `saturation`, `exposure`
 No run has trained a model with the written `optimizer`. The parity suites of
 `modules/vision/darknet_training_cases/source/darknet_training.cpp` keep momentum and decay at 0, so
 whether `weight_decay` under `sgd` equals Darknet's `decay` at a given batch size is not measured.
+
+## The Ultralytics importer
+
+`import_ultralytics_files` is the row `Vision::register_importers` adds under the format name
+`ultralytics`. It takes one `.pt` and refuses any other count. The design is
+`docs/design/MODEL_IMPORT/ULTRALYTICS.md`.
+
+`read_ultralytics_checkpoint` opens the file with `IO::TorchArchive`, admitting the classes of the
+modules `ultralytics.` and `torch.nn.modules.` as plain objects, and takes the `ema` entry when it
+is not None, else `model`. From that object it keeps the `yaml` description and walks the
+`_modules` of its layer list `model`: each parameter and persistent buffer becomes an
+`UltralyticsTensor` named by its path below the list, such as `0.conv.weight`, with the `groups`
+of the convolution that owns it, widened to float32. Those names are the record names of a
+SushiAI model of the same rows, since the vision blocks name their children as Ultralytics does.
+The step counters `num_batches_tracked` are left out and counted.
+
+`describe_ultralytics_model` follows Ultralytics' own model builder over the backbone and the
+head: a width is capped at the scale's channel cap, multiplied by its width and rounded up to a
+multiple of eight; a repeat count above 1 is multiplied by the depth and rounded half to even; a
+C3k2 takes the inner block C3k at the scales m, l and x. Each module is a row of the table in
+`source/ultralytics_module_table.cpp`, one unit each: Conv, C3k2, SPPF, C2PSA, nn.Upsample,
+Concat and Detect. A module without a row is refused, and the message lists every such module of
+the description with its entry. The written file states the normalisation of the Ultralytics
+blocks, epsilon 0.001 and momentum 0.03, as the defaults of each row type that holds one, and
+an `anchor_free_detection` task with Ultralytics' prediction thresholds, 0.25 for the score and
+0.7 for the suppression. The input side is `imgsz` of `train_args`, 640 when absent.
+
+`list_ultralytics_tensors` moves a convolution weight `[out, in, kh, kw]` to `[out, kh, kw, in]`
+and a depthwise one `[C, 1, kh, kw]` to `[kh, kw, C]` through `IO::copy_kernel_last` and
+`IO::copy_depthwise_kernel_last`, keeps every other tensor as it is, and refuses a grouped
+convolution that is not depthwise.
+
+`train_args` is not translated, so `train.json` states no recipe; the import notes it.

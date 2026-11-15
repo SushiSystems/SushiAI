@@ -11,10 +11,12 @@ Usage: python tools/reference/export_yolo26_reference.py TESTS_DIR [--seed N]
 from __future__ import annotations
 
 import argparse
+import copy
 import functools
 import hashlib
 import importlib.metadata
 import inspect
+import io
 import json
 import os
 import platform
@@ -40,12 +42,14 @@ K_FIXTURE_CEILING_BYTES = 64 * 1024 * 1024
 K_MANIFEST_NAME = "MANIFEST.json"
 K_MANIFEST_FORMAT_VERSION = 1
 K_WEIGHTS_FILE = "weights.sushi"
+K_CHECKPOINT_FILE = "model.pt"
 K_REGISTRATION_FIXTURES = "vision/registration/fixtures/yolo26"
 K_DETECT_FIXTURES = "vision/detect/fixtures/yolo26"
 K_BATCHNORM_FIXTURES = "layers/nn/fixtures/batch_norm2d"
 K_DESTINATIONS = {
     K_MANIFEST_NAME: (K_REGISTRATION_FIXTURES,),
     K_WEIGHTS_FILE: (K_REGISTRATION_FIXTURES,),
+    K_CHECKPOINT_FILE: (K_REGISTRATION_FIXTURES,),
     "input.sacp": (K_REGISTRATION_FIXTURES,),
     "forward.sacp": (K_DETECT_FIXTURES, K_REGISTRATION_FIXTURES),
     "loss.sacp": (K_DETECT_FIXTURES,),
@@ -1108,8 +1112,23 @@ def collect_run_facts(seed: int, commit: str) -> dict[str, Any]:
     }
 
 
-def produce_references(seed: int, bn_state: str) -> tuple[dict[str, Any], list[ReferenceFile]]:
-    """Returns the run facts and the five reference files of one seeded run."""
+def export_checkpoint(model: torch.nn.Module) -> bytes:
+    """Returns the model saved as an Ultralytics checkpoint holds it, in float32.
+
+    The keys are the ones the importer reads: "model", an empty "ema" and "train_args".
+    """
+    import torch
+
+    buffer = io.BytesIO()
+    checkpoint = {"model": copy.deepcopy(model), "ema": None, "train_args": {"imgsz": K_IMAGE_SIDE}}
+    torch.save(checkpoint, buffer)
+    return buffer.getvalue()
+
+
+def produce_references(
+    seed: int, bn_state: str
+) -> tuple[dict[str, Any], list[ReferenceFile], bytes]:
+    """Returns the run facts, the five reference files and the checkpoint of one seeded run."""
     import torch
 
     commit = read_installed_commit()
@@ -1124,11 +1143,12 @@ def produce_references(seed: int, bn_state: str) -> tuple[dict[str, Any], list[R
         export_input(image_nhwc),
         export_forward(model, image_nchw),
     ]
+    checkpoint = export_checkpoint(model)
     # The watch is set after the eval-mode pass, so the train-mode pass is the one it records.
     observed = watch_batchnorm(model.get_submodule(K_BATCHNORM_MODEL_MODULE))
     files.append(export_loss(model, image_nchw, make_training_batch()))
     files.append(export_batchnorm(seed, model, observed))
-    return collect_run_facts(seed, commit), files
+    return collect_run_facts(seed, commit), files, checkpoint
 
 
 def run(tests_dir: Path, seed: int, bn_state: str, external_weights: Path | None) -> None:
@@ -1141,13 +1161,13 @@ def run(tests_dir: Path, seed: int, bn_state: str, external_weights: Path | None
     configure_environment()
     try:
         load_torch(seed)
-        facts, files = produce_references(seed, bn_state)
+        facts, files, checkpoint = produce_references(seed, bn_state)
     except K_FOREIGN_ERRORS as error:
         detail = str(error).strip().splitlines()[0] if str(error).strip() else ""
         raise ExportError(f"{type(error).__name__}: {detail}") from error
     if attempts:
         raise NetworkAccessError(f"the reference code tried the network: {'; '.join(attempts)}")
-    payloads = encode_files(files)
+    payloads = {**encode_files(files), K_CHECKPOINT_FILE: checkpoint}
     manifest = build_manifest(facts, files, payloads, external_weights is not None)
     try:
         sizes = write_reference_files(payloads, manifest, tests_dir, external_weights)

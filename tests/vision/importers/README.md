@@ -31,3 +31,7 @@ Each test file has a page beside it that says what its cases pin.
 | `test_darknet_training/test_yolov7.cpp` | [`test_darknet_training/test_yolov7.md`](test_darknet_training/test_yolov7.md) |
 | `test_darknet_training/test_yolov7_tiny.cpp` | [`test_darknet_training/test_yolov7_tiny.md`](test_darknet_training/test_yolov7_tiny.md) |
 | `test_darknet_store.cpp` | [`test_darknet_store.md`](test_darknet_store.md) |
+| `test_ultralytics_checkpoint.cpp` | [`test_ultralytics_checkpoint.md`](test_ultralytics_checkpoint.md) |
+| `test_ultralytics_import.cpp` | [`test_ultralytics_import.md`](test_ultralytics_import.md) |
+| `test_ultralytics_model.cpp` | [`test_ultralytics_model.md`](test_ultralytics_model.md) |
+| `test_ultralytics_tensors.cpp` | [`test_ultralytics_tensors.md`](test_ultralytics_tensors.md) |

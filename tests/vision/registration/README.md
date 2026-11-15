@@ -142,9 +142,10 @@ the message holds "the objective block" and "'task'".
 Rows over "pixel_cross_entropy" and "dice": each builds an objective over one [2, 4, 4, 3] output
 with an `ignore_index` of 255, and the objective's name is the row's type.
 
-### RegisterImportersAddsTheDarknetRow
+### RegisterImportersAddsTheDarknetAndUltralyticsRows
 
-`Vision::register_importers` adds one row of the format "darknet".
+`Vision::register_importers` adds two rows, of the formats "darknet" and "ultralytics", in that
+order.
 
 ### RegisterImportersTwiceRefusesDarknetAsRegistered
 
@@ -155,6 +156,11 @@ registered".
 
 `IO::import_model` of "darknet" with no file fails with `InvalidDescription`, and the message
 holds "'darknet'", ".cfg" and "0 files".
+
+### TheUltralyticsRowRefusesACallWithoutFiles
+
+`IO::import_model` of "ultralytics" with no file fails with `InvalidDescription`, and the message
+holds "'ultralytics'", ".pt" and "0 files".
 
 ### TheReaderRowRefusesAnUnknownReaderNamingTheKnownOnes
 

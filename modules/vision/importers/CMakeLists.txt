@@ -23,7 +23,19 @@ sushiai_add_module(NAME importers TIER vision
         source/darknet_tensors.cpp
         source/darknet_training.cpp
         source/darknet_weights.cpp
-    PUBLIC_DEPENDS config failure io nn vision/detect
-    PRIVATE_DEPENDS dtype optim seam shape
+        source/ultralytics_checkpoint.cpp
+        source/ultralytics_import.cpp
+        source/ultralytics_model.cpp
+        source/ultralytics_module_c2psa.cpp
+        source/ultralytics_module_c3k2.cpp
+        source/ultralytics_module_concat.cpp
+        source/ultralytics_module_conv.cpp
+        source/ultralytics_module_detect.cpp
+        source/ultralytics_module_sppf.cpp
+        source/ultralytics_module_table.cpp
+        source/ultralytics_module_upsample.cpp
+        source/ultralytics_tensors.cpp
+    PUBLIC_DEPENDS config failure io nn shape vision/detect
+    PRIVATE_DEPENDS dtype optim seam
     EXTERNAL_PUBLIC SushiRuntime::core
     EXTERNAL_PRIVATE_LINKS SushiLog::text)

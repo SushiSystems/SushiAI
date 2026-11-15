@@ -148,6 +148,10 @@
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_fold.hpp>
 #include <SushiAI/vision/importers/darknet_import.hpp>
+#include <SushiAI/vision/importers/ultralytics_checkpoint.hpp>
+#include <SushiAI/vision/importers/ultralytics_model.hpp>
+#include <SushiAI/vision/importers/ultralytics_tensors.hpp>
+#include <SushiAI/vision/importers/ultralytics_import.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_recipe.hpp>
 #include <SushiAI/vision/importers/darknet_store.hpp>

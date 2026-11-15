@@ -890,14 +890,15 @@ TEST_P(Small_VisionRegistrationPixelRow, BuildsOverOneLogitMapAndIsNamedByItsTyp
 INSTANTIATE_TEST_SUITE_P(PixelRows, Small_VisionRegistrationPixelRow,
                          ::testing::Values("pixel_cross_entropy", "dice"), type_name);
 
-/** @brief Tests that the vision domain adds one importer row, "darknet". */
-TEST(Small_VisionRegistration, RegisterImportersAddsTheDarknetRow)
+/** @brief Tests that the vision domain adds two importer rows, "darknet" and "ultralytics". */
+TEST(Small_VisionRegistration, RegisterImportersAddsTheDarknetAndUltralyticsRows)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(Vision::register_importers(registry));
 
-    ASSERT_EQ(registry.rows().size(), 1u);
+    ASSERT_EQ(registry.rows().size(), 2u);
     EXPECT_EQ(registry.rows()[0].format, "darknet");
+    EXPECT_EQ(registry.rows()[1].format, "ultralytics");
 }
 
 /** @brief Tests that a second register_importers refuses "darknet" as already registered. */
@@ -918,6 +919,16 @@ TEST(Small_VisionRegistration, TheDarknetRowRefusesACallWithoutFiles)
 
     SA_EXPECT_FAILURE(IO::import_model(registry, "darknet", {}),
                       StatusCode::InvalidDescription, "'darknet'", ".cfg", "0 files");
+}
+
+/** @brief Tests that the registered row reaches the Ultralytics importer, which counts its files. */
+TEST(Small_VisionRegistration, TheUltralyticsRowRefusesACallWithoutFiles)
+{
+    IO::ImporterRegistry registry;
+    SA_EXPECT_OK(Vision::register_importers(registry));
+
+    SA_EXPECT_FAILURE(IO::import_model(registry, "ultralytics", {}),
+                      StatusCode::InvalidDescription, "'ultralytics'", ".pt", "0 files");
 }
 
 namespace

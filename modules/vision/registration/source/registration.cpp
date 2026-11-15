@@ -49,6 +49,7 @@
 #include <SushiAI/vision/datasets/reader_section.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_section.hpp>
 #include <SushiAI/vision/importers/darknet_import.hpp>
+#include <SushiAI/vision/importers/ultralytics_import.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
 #include <SushiAI/vision/training/dice_objective.hpp>
 #include <SushiAI/vision/training/free_objective_factory.hpp>
@@ -98,8 +99,10 @@ namespace SushiAI::Vision
 
     Status register_importers(IO::ImporterRegistry& registry) noexcept
     {
-        return registry.add(IO::ImporterEntry{Importers::K_DARKNET_FORMAT,
-                                              &Importers::import_darknet_files});
+        SA_TRY(registry.add(IO::ImporterEntry{Importers::K_DARKNET_FORMAT,
+                                              &Importers::import_darknet_files}));
+        return registry.add(IO::ImporterEntry{Importers::K_ULTRALYTICS_FORMAT,
+                                              &Importers::import_ultralytics_files});
     }
 
 } // namespace SushiAI::Vision

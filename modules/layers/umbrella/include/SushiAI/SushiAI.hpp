@@ -256,6 +256,11 @@
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
 #include <SushiAI/io/memory_input.hpp>
+#include <SushiAI/io/zip_archive.hpp>
+#include <SushiAI/io/pickle_reader.hpp>
+#include <SushiAI/io/pickle_data.hpp>
+#include <SushiAI/io/torch_archive.hpp>
+#include <SushiAI/io/filter_layout.hpp>
 #include <SushiAI/optim/run_state.hpp>
 
 #include <SushiAI/failure/failure_block_counter.hpp>

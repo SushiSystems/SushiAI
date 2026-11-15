@@ -40,6 +40,7 @@ cli/.pytest_cache/
 # tools/reference/export_yolo26_reference.py into the fixture folders of their tests;
 # tests/vision/registration/fixtures/yolo26/MANIFEST.json pins their hashes.
 tests/**/fixtures/**/*.sacp
+tests/**/fixtures/**/*.pt
 
 # Checkpoints a training run writes.
 *.ckpt

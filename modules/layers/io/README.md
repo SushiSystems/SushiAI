@@ -160,6 +160,20 @@ both reach the module through them.
 `origin`, which a failure message uses where the path form uses the path. `MemoryInput` is the
 forward-only stream they read through; it copies nothing.
 
+The module also reads PyTorch files, with no dependency outside the repository. `ZipArchive` lists
+the entries of a zip archive held in memory, plain or zip64, and hands out views of their bytes;
+it reads stored entries and refuses a compressed one by name. `read_pickle` turns a pickle stream
+of protocol 2 to 5 into a tree of `PickleValue` nodes and calls nothing the stream names: a global
+is admitted only when the caller's list names it, whole or by a module prefix ending in `.`, and a
+call becomes a `Call` node that holds its arguments and what the stream builds onto it.
+`pickle_to_value` converts the plain data of such a tree into a `Config::Value`. `TorchArchive`
+joins the two for a file `torch.save` wrote: it finds the `data.pkl` entry of its folder, refuses a byte
+order other than little-endian, admits PyTorch's own rebuilders and storages beside the caller's
+globals, and reads a tensor of half, float32 or float64 elements, at any stride, as row-major
+float32. `copy_kernel_last` and `copy_depthwise_kernel_last` move a convolution weight from
+`[out, in, kh, kw]` to `[out, kh, kw, in]` and a depthwise one from `[C, 1, kh, kw]` to
+`[kh, kw, C]`, for every importer. The design is `docs/design/MODEL_IMPORT/ULTRALYTICS.md`.
+
 ## Public entry points
 
 The headers sit in `modules/layers/io/include/SushiAI/io/`.
@@ -172,6 +186,11 @@ The headers sit in `modules/layers/io/include/SushiAI/io/`.
 | `run_progress.hpp` | `K_RUN_SEED_STATE`, `K_RUN_STEP_RUNS_STATE`, `K_RUN_EPOCH_STATE`, `K_RUN_BATCH_STATE`, `RunProgress`, `check_run_seed` |
 | `import_weights.hpp` | `RenameRule`, `renamed`, `import_weights` (a path, or bytes in memory) |
 | `memory_input.hpp` | `MemoryInput` |
+| `zip_archive.hpp` | `ZipEntry`, `ZipArchive` |
+| `pickle_reader.hpp` | `PickleKind`, `PickleValue`, `PickleRef`, `is_call_of`, `find_entry`, `read_pickle` |
+| `pickle_data.hpp` | `pickle_to_value` |
+| `torch_archive.hpp` | `TorchTensor`, `TorchArchive` |
+| `filter_layout.hpp` | `FilterExtents`, `copy_kernel_last`, `copy_depthwise_kernel_last` |
 | `imported_model.hpp` | `ImportedTensor`, `ImportedModel` |
 | `importer_registry.hpp` | `ImporterFunction`, `ImporterEntry`, `ImporterRegistry`, `import_model` |
 | `in_memory_importer.hpp` | `count_files_importer`, `refuse_no_file_importer`, `K_COUNTING_IMPORTER_ROW`, `K_REFUSING_IMPORTER_ROW` |

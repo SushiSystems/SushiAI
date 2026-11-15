@@ -10,12 +10,17 @@ sushiai_add_module(NAME io TIER layers
         source/checkpoint.cpp
         source/checkpoint_format.cpp
         source/committed_file.cpp
+        source/filter_layout.cpp
         source/import_weights.cpp
         source/imported_model_writer.cpp
         source/importer_registry.cpp
         source/model_records.cpp
+        source/pickle_data.cpp
+        source/pickle_reader.cpp
         source/run_checkpoint.cpp
         source/run_progress.cpp
+        source/torch_archive.cpp
+        source/zip_archive.cpp
     PUBLIC_DEPENDS config dtype failure nn optim shape
     PRIVATE_DEPENDS seam
     EXTERNAL_PUBLIC SushiRuntime::core

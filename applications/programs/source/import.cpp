@@ -51,7 +51,7 @@ namespace
         "Usage: sushiai import <format> <files...> --output <directory> [--force]\n"
         "\n"
         "  format      the importer to read with; `darknet` takes a .cfg and\n"
-        "              optionally a .weights\n"
+        "              optionally a .weights; `ultralytics` takes one .pt\n"
         "  files       the files of the other framework, in the order the format states\n"
         "  --output    the directory that receives model.json, weights.sushi and\n"
         "              train.json; it is created when absent\n"

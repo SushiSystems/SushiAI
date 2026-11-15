@@ -14,7 +14,8 @@ with `reader` and no `type` is given. `register_objectives` adds four rows to a
 `Training::make_pixel_cross_entropy_objective`; and `dice`, whose factory is
 `Training::make_dice_objective`.
 `register_importers` adds the `darknet` row, whose function is
-`Importers::import_darknet_files`, to an `IO::ImporterRegistry`. Each returns a `Status`:
+`Importers::import_darknet_files`, and the `ultralytics` row, whose function is
+`Importers::import_ultralytics_files`, to an `IO::ImporterRegistry`. Each returns a `Status`:
 success, or the first failure of the registry's `add()`. The header forward-declares the four
 registries; their declarations live in `node_registry.hpp`, `dataset_registry.hpp`,
 `objective_registry.hpp` and `importer_registry.hpp`.

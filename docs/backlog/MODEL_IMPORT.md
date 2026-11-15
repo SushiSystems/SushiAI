@@ -15,6 +15,7 @@
 | RW-139 | P2 | open | Give the tests one scratch directory | the private `ScratchDirectory` classes of `test_imported_model_writer.cpp`, `language/datasets/datasets_test_support.hpp` and… |  |  | 2026-10-25 |
 | RW-182 | P2 | open | Import YOLO26n weights with sa import ultralytics, parallel to sa import darknet | sa import ultralytics yolo26n.pt writes model.json and weights.sushi; sa inference on coco128 agrees with Ultralytics within a measured bound |  | `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS` | 2026-11-15 |
 | RW-183 | P3 | blocked | Extend the Ultralytics importer to YOLOv5n, YOLOv8n and YOLO11n | sa import ultralytics reads yolov5n.pt, yolov8n.pt and yolo11n.pt, each checked on coco128 against Ultralytics as YOLO26n is | RW-182 | `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS` | 2026-11-15 |
+| RW-184 | P2 | open | Make the YOLO26n detection comparison with Ultralytics a large test | A Large_ test runs sa inference of the imported yolo26n.pt on coco128 images and bounds matched share, IoU and score difference against Ultralytics |  | `docs/design/MODEL_IMPORT/ULTRALYTICS.md` | 2026-11-15 |
 
 ## Known issues
 

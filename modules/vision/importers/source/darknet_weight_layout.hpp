@@ -29,8 +29,8 @@
 
 #pragma once
 
-#include <cstddef>
 #include <vector>
+#include <SushiAI/io/filter_layout.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
 
 namespace SushiAI
@@ -49,26 +49,10 @@ namespace SushiAI
                                          const DarknetConvolutionShape& shape,
                                          float* destination) noexcept
             {
-                const auto filters = static_cast<std::size_t>(shape.filters);
-                const auto channels = static_cast<std::size_t>(shape.channels);
-                const auto size = static_cast<std::size_t>(shape.size);
-                for (std::size_t o = 0; o < filters; ++o)
-                {
-                    for (std::size_t i = 0; i < channels; ++i)
-                    {
-                        for (std::size_t y = 0; y < size; ++y)
-                        {
-                            for (std::size_t x = 0; x < size; ++x)
-                            {
-                                const std::size_t from = ((o * channels + i) * size + y) * size + x;
-                                const std::size_t to = ((o * size + y) * size + x) * channels + i;
-                                destination[to] = source[from];
-                            }
-                        }
-                    }
-                }
+                const IO::FilterExtents extents{shape.filters, shape.channels, shape.size,
+                                                shape.size};
+                IO::copy_kernel_last(source.data(), extents, destination);
             }
-
         } // namespace Detail
     } // namespace Vision::Importers
 } // namespace SushiAI

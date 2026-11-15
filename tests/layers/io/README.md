@@ -560,3 +560,124 @@ epoch and the batch equal `run.seed`, `run.step_runs`, `run.epoch` and `run.batc
 Run once for each row of `Small_RunProgressSeed`: another seed, and a default progress that holds
 seed 0. Each is refused as `Incompatible`, naming the file and both seeds.
 
+## archive_bytes.hpp
+
+`zip_of` writes a zip archive in memory: each entry stored with its method and no extra field, then
+the central directory and an end record. `bytes_of` and `view_of` turn text into the bytes a reader
+takes. The pickle streams of the tests below are written by hand from the opcodes of the pickle
+format, each beside a comment that spells the value it encodes.
+
+## test_zip_archive.cpp
+
+Suites: `Small_ZipArchive`.
+
+### ReadListsTheStoredEntriesWithTheirBytes
+
+An archive of three stored entries, one of them empty, lists the three in order with their bytes.
+
+### FindReturnsTheEntryOfAStoredNameOnly
+
+`find` returns the entry `x/byteorder` with its bytes and null for a name the archive does not hold.
+
+### ReadRefusesACompressedEntryByName
+
+An entry of method 8 fails with `Unsupported`, naming the entry and the method.
+
+### ReadRefusesBytesWithoutAnEndRecord
+
+Forty bytes with no end record fail with `InvalidFile`, "not a zip archive".
+
+### ReadRefusesAnEntryThatRunsPastTheFile
+
+An entry whose central header states 64 + 32512 bytes fails with `InvalidFile`, naming the entry.
+
+## test_pickle_reader.cpp
+
+Suites: `Small_PickleReaderInteger`, `Small_PickleReader`.
+
+### PushesTheNumberItEncodes
+
+Rows over BININT1, BININT2, a negative BININT, LONG1 of one negative byte, of two bytes and of none:
+each pushes the number the pickle format defines for its bytes.
+
+### ReadsADictOfANumberAFloatAndAText
+
+A protocol 2 stream of `{'a': 7, 'b': 1.5, 'c': 'hi'}` reads to a dict whose entries hold 7, 1.5
+and "hi".
+
+### AMemoFetchHandsOutTheStoredNode
+
+A list built of one dict stored in the memo and fetched back holds the same node twice.
+
+### ReduceBuildsACallWithTheArgumentsOfItsTuple
+
+`torch.Size((2, 3))` reads to a call of "torch Size" whose one argument is the tuple (2, 3).
+
+### BuildGivesANewObjectOfAnAcceptedModuleItsState
+
+A NEWOBJ of `ultralytics.nn.tasks.DetectionModel`, accepted by the prefix `ultralytics.`, then a
+BUILD of `{'a': 1}`, reads to a call of that class whose state holds 1 under "a".
+
+### RefusesAGlobalNoRuleAccepts
+
+The global `os system` fails with `Unsupported`, naming it.
+
+### APrefixRefusesAModuleThatOnlySharesItsText
+
+The prefix `ultralytics.` does not admit the module `ultralyticsx`.
+
+### RefusesAStreamThatEndsBeforeStop
+
+A stream with no STOP fails with `InvalidFile`, "before its STOP".
+
+### RefusesAnOpcodeItDoesNotRun
+
+PERSID, opcode 80, fails with `Unsupported`, naming the number.
+
+## test_pickle_data.cpp
+
+Suites: `Small_PickleData`.
+
+### ConvertsADictOfAListATupleAndAWholeNumberKey
+
+`{'n': [1, None, True], 0: (2.5,)}` converts to an object whose second key is "0", whose "n" is the
+array 1, null, true and whose "0" is the array 2.5.
+
+### RefusesACallNamingItsPath
+
+A `torch.Size(())` under the key "shape" fails with `InvalidDescription`, naming ".shape".
+
+## test_torch_archive.cpp
+
+Suites: `Small_TorchArchive`.
+
+### ReadsAStridedHalfTensorRowMajorAsFloat32
+
+A half tensor of size (2, 2) and stride (1, 2) over the storage 1.0, -2.0, 0.5, 2^-24 reads as
+1.0, 0.5, -2.0, 2^-24: element [i][j] is storage element i + 2j, and 2^-24 is the smallest half
+subnormal, widened exactly.
+
+### RefusesAFileInBigEndianOrder
+
+A `byteorder` entry of "big" fails with `Unsupported`, naming the order.
+
+### RefusesAnArchiveWithoutAPickle
+
+An archive with no `data.pkl` fails with `InvalidFile`.
+
+### RefusesATensorWhoseStorageIsMissing
+
+A tensor whose storage entry `a/data/0` is absent fails with `InvalidFile`, naming the storage.
+
+## test_filter_layout.cpp
+
+Suites: `Small_FilterLayout`.
+
+### ADenseWeightRunsOutputTapInput
+
+A [2, 3, 1, 2] weight holding 0 to 11 copies as 0, 2, 4, 1, 3, 5, 6, 8, 10, 7, 9, 11: output, tap,
+input.
+
+### ADepthwiseWeightRunsTapChannel
+
+A [3, 1, 2, 1] depthwise weight holding 0 to 5 copies as 0, 2, 4, 1, 3, 5: tap, channel.

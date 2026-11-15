@@ -354,7 +354,8 @@ def import_model(ctx: typer.Context) -> None:
     """Write a model of another framework as a model, a weight and a training file.
 
     Usage: sa import <format> <files...> --output <directory> [--force]. The
-    format names an importer; darknet takes a .cfg and optionally a .weights.
+    format names an importer; darknet takes a .cfg and optionally a .weights,
+    ultralytics takes one .pt.
     Arguments are forwarded verbatim to the program, --help included once it
     is built.
     """

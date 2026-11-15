@@ -45,6 +45,7 @@ arithmetic of the running-variance candidates) are tested by
 | File | Contents |
 | --- | --- |
 | `weights.sushi` | Every floating state-dict entry under its Ultralytics name, as the model stood before either pass |
+| `model.pt` | The same model as `weights.sushi`, saved by `torch.save` as an Ultralytics checkpoint holds it: `model` in float32, `ema` None and `train_args` with `imgsz`; `tests/vision/importers/test_ultralytics_import.cpp` imports it |
 | `input.sacp` | `image`, `[1, 640, 640, 3]` NHWC, uniform draws in [0, 1); torch receives `image.permute(0, 3, 1, 2)` |
 | `forward.sacp` | Eval mode, BatchNorm on the running statistics in `weights.sushi`: six feature maps, twelve raw head outputs, both decodes, the top-k detections, the rows suppression keeps at a lowered confidence |
 | `loss.sacp` | Train mode, BatchNorm on batch statistics: ground truth, loss items per branch, the inputs and the outputs of label assignment per branch, total loss, three gradients, one BatchNorm's running statistics after the pass |
