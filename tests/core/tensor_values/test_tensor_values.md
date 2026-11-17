@@ -23,6 +23,11 @@ Four doubles written to a float64 [4] tensor read back equal, 1e-300 included.
 0.1, -2.5 and one third written to a float32 [3] tensor read back as the same three literals
 widened to double, compared exactly.
 
+## AnInt64TensorRoundTripsExactly
+
+-1, 0 and 2^40 + 1 (1099511627777) written to an int64 [3] tensor read back equal. The last value
+needs more bits than a float holds, so a path through float32 would fail.
+
 ## TheBytesOfATensorAreItsElementStorage
 
 `read_tensor_bytes` of a float32 [2, 3] tensor written with 1 to 6 equals the 24 bytes of the

@@ -61,5 +61,12 @@ namespace SushiAI
          */
         inline constexpr std::string_view K_ROLE_FIT = "fit";
 
+        /**
+         * @brief Names the role that holds 1 for a sample a loss keeps and 0 for one it drops.
+         *
+         * One float32 per sample, or k of them when a sample carries k types.
+         */
+        inline constexpr std::string_view K_ROLE_TYPE_MASK = "type_mask";
+
     } // namespace Data
 } // namespace SushiAI

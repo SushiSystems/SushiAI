@@ -39,7 +39,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/data/epoch_permutation.hpp` | `EpochPermutation` |
 | `SushiAI/data/input.hpp` | `InputDescription` |
 | `SushiAI/data/materialised_dataset.hpp` | `MaterialisedDataset`, `allocate_batch`, `share_batch`, `share_rows`, `prepare_batch` |
-| `SushiAI/data/roles.hpp` | `K_ROLE_LABELS` |
+| `SushiAI/data/roles.hpp` | `K_ROLE_LABELS`, `K_ROLE_BOXES`, `K_ROLE_CLASSES`, `K_ROLE_VALID`, `K_ROLE_MASK`, `K_ROLE_VALUES`, `K_ROLE_FIT`, `K_ROLE_TYPE_MASK` |
 | `SushiAI/data/target.hpp` | `BatchTarget`, `TargetDescription`, `find_target` |
 | `SushiAI/data/threaded_loader.hpp` | `ReadExecutor`, `LoaderOptions`, `ThreadedLoader` |
 

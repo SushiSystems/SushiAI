@@ -50,7 +50,7 @@ namespace SushiAI
             return rounded;
         }
 
-        /** @brief Writes host doubles into a FLOAT32, FLOAT64 or INT32 tensor's shared USM. */
+        /** @brief Writes host doubles into a FLOAT32, FLOAT64, INT32 or INT64 tensor's USM. */
         inline void write_tensor(SushiBLAS::Tensor& tensor,
                                  SushiRuntime::span<const double> values) noexcept
         {
@@ -71,12 +71,20 @@ namespace SushiAI
                 return;
             }
 
+            if (tensor.dtype == DType::Int64)
+            {
+                std::int64_t* data = tensor.data_as<std::int64_t>();
+                for (std::size_t i = 0; i < values.size(); ++i)
+                    data[i] = static_cast<std::int64_t>(values[i]);
+                return;
+            }
+
             const std::vector<float> rounded = round_to_float32(values);
             float* data = tensor.data_as<float>();
             for (std::size_t i = 0; i < rounded.size(); ++i) data[i] = rounded[i];
         }
 
-        /** @brief Reads a FLOAT32, FLOAT64 or INT32 tensor's shared USM back as host doubles. */
+        /** @brief Reads a FLOAT32, FLOAT64, INT32 or INT64 tensor's USM back as host doubles. */
         inline std::vector<double> read_tensor(const SushiBLAS::Tensor& tensor) noexcept
         {
             const std::size_t count = static_cast<std::size_t>(tensor.num_elements);
@@ -92,6 +100,13 @@ namespace SushiAI
             if (tensor.dtype == DType::Int32)
             {
                 const std::int32_t* data = tensor.data_as<std::int32_t>();
+                for (std::size_t i = 0; i < count; ++i) values[i] = static_cast<double>(data[i]);
+                return values;
+            }
+
+            if (tensor.dtype == DType::Int64)
+            {
+                const std::int64_t* data = tensor.data_as<std::int64_t>();
                 for (std::size_t i = 0; i < count; ++i) values[i] = static_cast<double>(data[i]);
                 return values;
             }

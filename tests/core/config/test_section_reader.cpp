@@ -204,6 +204,43 @@ TEST(Small_SectionReader, ReadFloat32RefusesWhatFloat32CannotHold)
                       "scale must be a number, but it is a string");
 }
 
+/** @brief Holds a float32 and the decimal literal its shortest spelling states. */
+struct Float32Row
+{
+    float value;     /**< The float32 a document is asked to state. */
+    double spelled;  /**< The double of the shortest decimal that reads back as @p value. */
+};
+
+/** @brief Runs one test body over each Float32Row. */
+class Small_Float32Value : public ::testing::TestWithParam<Float32Row>
+{
+};
+
+/** @brief Tests that a float32 is stated as its shortest decimal, not as its exact widening. */
+TEST_P(Small_Float32Value, StatesTheShortestDecimalOfTheFloat)
+{
+    const Value stated = Config::float32_value(GetParam().value);
+
+    SA_ASSERT_OK_AND_ASSIGN(const double wide, stated.as_real("scale"));
+    EXPECT_EQ(wide, GetParam().spelled);
+}
+
+/** @brief Tests that the statement of a float32 reads back as the same float32. */
+TEST_P(Small_Float32Value, ReadsBackAsTheSameFloat)
+{
+    const Value stated = Config::float32_value(GetParam().value);
+
+    SA_ASSERT_OK_AND_ASSIGN(const float back, Config::read_float32(stated, "scale"));
+    EXPECT_EQ(back, GetParam().value);
+}
+
+// Each spelled value is the shortest decimal literal that reads back as the float.
+INSTANTIATE_TEST_SUITE_P(Rows, Small_Float32Value,
+                         ::testing::Values(Float32Row{0.7f, 0.7}, Float32Row{0.1f, 0.1},
+                                           Float32Row{-0.5f, -0.5}, Float32Row{0.0f, 0.0},
+                                           Float32Row{1.0e-7f, 1.0e-7},
+                                           Float32Row{3.4028235e38f, 3.4028235e38}));
+
 /** @brief Tests the string and the array readers and the kind each refuses. */
 TEST(Small_SectionReader, TheStringAndArrayReadersCheckTheKind)
 {

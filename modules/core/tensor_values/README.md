@@ -8,7 +8,8 @@ The host reads and writes of the elements of a tensor. `round_to_float32` is the
 the float32 write applies, callable with no tensor. `write_tensor` and `read_tensor` go
 through the shared-USM pointer and not through a queue copy: every tensor a pool hands out is
 `Residency::Shared`, and a test waits before it reads. Reading this way also keeps a test from
-queueing work into the graph it is inspecting.
+queueing work into the graph it is inspecting. Both hold FLOAT32, FLOAT64, INT32 and INT64
+tensors, widening an integer element to double (exact up to 2^53).
 
 `read_tensor_bytes` exists because `read_tensor` widens everything to double, which cannot tell
 -0.0 from 0.0 or two NaN payloads apart. A determinism claim is about bits, so the check that

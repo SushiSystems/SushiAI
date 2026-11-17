@@ -50,6 +50,7 @@ namespace SushiAI
         Unsupported,        /**< This build, device or execution mode lacks the capability. */
         OutOfMemory,        /**< A device, arena or failure-message allocation was refused. */
         DeviceFailed,       /**< A kernel faulted, the device was lost or a task threw. */
+        Busy,               /**< The runtime is serving another run; retry when it ends. */
     };
 
     /**
@@ -68,6 +69,7 @@ namespace SushiAI
             case StatusCode::Unsupported:        return "unsupported";
             case StatusCode::OutOfMemory:        return "out_of_memory";
             case StatusCode::DeviceFailed:       return "device_failed";
+            case StatusCode::Busy:               return "busy";
         }
         return "unknown";
     }

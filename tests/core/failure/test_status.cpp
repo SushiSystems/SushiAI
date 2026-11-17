@@ -137,10 +137,10 @@ namespace
 #endif
 
     /** @brief Lists every enumerator of StatusCode. */
-    constexpr std::array<StatusCode, 8> K_STATUS_CODES = {
+    constexpr std::array<StatusCode, 9> K_STATUS_CODES = {
         StatusCode::Ok, StatusCode::InvalidDescription, StatusCode::FileNotFound,
         StatusCode::InvalidFile, StatusCode::Incompatible, StatusCode::Unsupported,
-        StatusCode::OutOfMemory, StatusCode::DeviceFailed};
+        StatusCode::OutOfMemory, StatusCode::DeviceFailed, StatusCode::Busy};
 
     /** @brief Runs one case per enumerator of StatusCode. */
     class Small_StatusCodeName : public ::testing::TestWithParam<StatusCode>

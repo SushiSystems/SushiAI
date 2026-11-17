@@ -12,7 +12,10 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 sushiai_add_module(NAME config TIER core
     SOURCES
+        source/data_adapt.cpp
         source/data_fit.cpp
+        source/data_normalise.cpp
+        source/input_normalise.cpp
         source/json_events.cpp
         source/json_writer.cpp
         source/model_config.cpp

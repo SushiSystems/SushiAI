@@ -74,6 +74,14 @@ namespace SushiAI
         [[nodiscard]] Result<float> read_float32(const Value& member, std::string_view where) noexcept;
 
         /**
+         * @brief Builds the real that a document states for the float32 @p value.
+         * @return The real whose shortest decimal is the shortest decimal of @p value as a
+         *         float32, so 0.7f is written as 0.7 and read_float32 returns the same float.
+         * @pre @p value is finite.
+         */
+        [[nodiscard]] Value float32_value(float value) noexcept;
+
+        /**
          * @brief Reads @p member, named @p where, as a string.
          * @return The string, which @p member owns, or InvalidDescription naming @p where.
          */

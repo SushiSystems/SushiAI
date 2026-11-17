@@ -107,6 +107,20 @@ namespace
         ]
     })";
 
+    /** @brief Holds a model with two extra inputs, which two rows read in several forms. */
+    constexpr std::string_view K_INPUTS_MODEL = R"({
+        "format_version": 2,
+        "input": {"shape": [8], "dtype": "int32"},
+        "inputs": {
+            "lengths": {"shape": [1]},
+            "options": {"shape": [4, 8], "dtype": "int32"}
+        },
+        "layers": [
+            {"type": "pass", "from": ["input", "inputs.lengths", "inputs.options"]},
+            {"type": "pass", "from": ["inputs.options", 0]}
+        ]
+    })";
+
     /** @brief Holds a chain whose "task" carries a value of every JSON kind. */
     constexpr std::string_view K_TASK_MODEL = R"({
         "format_version": 2,
@@ -202,6 +216,19 @@ namespace
         EXPECT_EQ(found.input_dtype, wanted.input_dtype) << "the input element types differ";
         EXPECT_EQ(found.input_fit, wanted.input_fit) << "the input fits differ";
 
+        ASSERT_EQ(found.inputs.size(), wanted.inputs.size());
+        for (std::size_t i = 0; i < wanted.inputs.size(); ++i)
+        {
+            EXPECT_EQ(found.inputs[i].name, wanted.inputs[i].name) << "extra input " << i;
+            EXPECT_TRUE(found.inputs[i].shape == wanted.inputs[i].shape) << "extra input " << i;
+            EXPECT_EQ(found.inputs[i].dtype, wanted.inputs[i].dtype) << "extra input " << i;
+        }
+        EXPECT_EQ(found.input_normalise.has_value(), wanted.input_normalise.has_value())
+            << "one input states a normalisation and the other does not";
+        if (found.input_normalise.has_value() && wanted.input_normalise.has_value())
+            EXPECT_TRUE(*found.input_normalise == *wanted.input_normalise)
+                << "the input normalisations differ";
+
         ASSERT_EQ(found.layers.size(), wanted.layers.size());
         for (std::size_t i = 0; i < wanted.layers.size(); ++i)
         {
@@ -219,6 +246,8 @@ namespace
                 EXPECT_EQ(found_layer.from[k].node, wanted_layer.from[k].node)
                     << where << " source " << k;
                 EXPECT_EQ(found_layer.from[k].port, wanted_layer.from[k].port)
+                    << where << " source " << k;
+                EXPECT_EQ(found_layer.from[k].input, wanted_layer.from[k].input)
                     << where << " source " << k;
             }
         }
@@ -283,6 +312,78 @@ TEST(Small_ModelWriter, WritesTheInputFitOnlyWhenOneIsStated)
     SA_ASSERT_OK_AND_ASSIGN(const std::string stated, write_model(model));
     EXPECT_NE(stated.find("\"fit\": \"resize\""), std::string::npos) << stated;
     EXPECT_EQ(model_from(stated).input_fit, "resize");
+}
+
+/** @brief Tests that a stated normalisation is written as "normalise" and read back equal. */
+TEST(Small_ModelWriter, WritesTheInputNormaliseOnlyWhenOneIsStated)
+{
+    ModelSpec model = model_from(K_CHAIN_MODEL);
+    SA_ASSERT_OK_AND_ASSIGN(const std::string unstated, write_model(model));
+    EXPECT_EQ(unstated.find("\"normalise\""), std::string::npos);
+
+    Config::InputNormalise normalise;
+    normalise.channels = Config::ChannelOrder::Bgr;
+    normalise.scale = 0.5;
+    normalise.mean = {0.25, 0.5, 0.75};
+    normalise.deviation = {2.0, 4.0, 8.0};
+    model.input_normalise = normalise;
+    SA_ASSERT_OK_AND_ASSIGN(const std::string stated, write_model(model));
+    EXPECT_NE(stated.find("\"normalise\""), std::string::npos) << stated;
+    expect_same_model(model_from(stated), model);
+}
+
+/** @brief Tests that the extra inputs and the rows that read them survive a write and a read. */
+TEST(Small_ModelWriter, RoundTripsTheNamedInputsAndTheRowsThatReadThem)
+{
+    const ModelSpec model = model_from(K_INPUTS_MODEL);
+
+    ASSERT_EQ(model.inputs.size(), 2u);
+    SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_model(model));
+    EXPECT_NE(text.find("\"inputs.lengths\""), std::string::npos) << text;
+    EXPECT_NE(text.find("\"inputs.options\""), std::string::npos) << text;
+    expect_same_model(model_from(text), model);
+}
+
+/** @brief Tests that a model with no extra input is written with no "inputs" key. */
+TEST(Small_ModelWriter, WritesNoInputsKeyForAModelWithNoNamedInput)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_model(model_from(K_CHAIN_MODEL)));
+
+    EXPECT_EQ(text.find("\"inputs\""), std::string::npos) << text;
+}
+
+/** @brief Tests that an extra input a model file cannot state, or a named source misused, fails. */
+TEST(Small_ModelWriter, RefusesANamedInputAModelFileCannotState)
+{
+    ModelSpec dotted = model_from(K_INPUTS_MODEL);
+    dotted.inputs[0].name = "a.b";
+    SA_EXPECT_FAILURE(write_model(dotted), StatusCode::InvalidDescription, "'a.b'", "'.'");
+
+    ModelSpec empty = model_from(K_INPUTS_MODEL);
+    empty.inputs[0].name.clear();
+    SA_EXPECT_FAILURE(write_model(empty), StatusCode::InvalidDescription, "empty");
+
+    ModelSpec wide = model_from(K_INPUTS_MODEL);
+    wide.inputs[1].dtype = DType::Float64;
+    SA_EXPECT_FAILURE(write_model(wide), StatusCode::InvalidDescription, "'options'", "float64");
+
+    ModelSpec ported = model_from(K_INPUTS_MODEL);
+    ported.layers[0].from[1].port = "values";
+    SA_EXPECT_FAILURE(write_model(ported), StatusCode::InvalidDescription, "layer 0",
+                      "no port");
+
+    ModelSpec unnamed = model_from(K_INPUTS_MODEL);
+    unnamed.layers[0].from[1].input.clear();
+    SA_EXPECT_FAILURE(write_model(unnamed), StatusCode::InvalidDescription, "layer 0");
+}
+
+/** @brief Tests that the decision model example survives a write and a read. */
+TEST(Medium_ModelWriter, RoundTripsTheDecisionModelExample)
+{
+    const std::filesystem::path root = repository_root();
+
+    expect_round_trip(require_value(Config::load_model(example_model_path(root,
+                                                                          "decision_model"))));
 }
 
 /** @brief Tests that the MNIST example file survives a write and a read. */
@@ -463,9 +564,9 @@ TEST(Small_ModelWriter, RefusesARowThatReadsNothingOrARowNotAboveIt)
                       "layer 0", "row 2", "not above");
 
     ModelSpec negative = model_from(K_CHAIN_MODEL);
-    negative.layers[2].from = {SourceSpec{0, ""}, SourceSpec{-2, ""}};
+    negative.layers[2].from = {SourceSpec{0, ""}, SourceSpec{-3, ""}};
     SA_EXPECT_FAILURE(write_model(negative), StatusCode::InvalidDescription,
-                      "layer 2", "row -2", "not above");
+                      "layer 2", "row -3", "not above");
 }
 
 TEST(Small_ModelWriter, RefusesAPortOfTheModelInputBelowRowZero)

@@ -66,7 +66,7 @@ namespace
     }
 
     /** @brief Holds what the threads that read a dataset left behind, for the test that owns it. */
-    struct Probe
+    struct ThreadRecord
     {
         /** @brief Guards threads. */
         std::mutex mutex;
@@ -90,7 +90,7 @@ namespace
     }
 
     /** @brief Returns a dataset of K_BATCHES batches, each named by its epoch and index. */
-    std::unique_ptr<Data::InMemoryEpochDataset> named_dataset(Probe* probe = nullptr)
+    std::unique_ptr<Data::InMemoryEpochDataset> named_dataset(ThreadRecord* probe = nullptr)
     {
         return std::make_unique<Data::InMemoryEpochDataset>(
             K_BATCHES, 1, Data::InputDescription{Shape{1}, DType::Float32},
@@ -214,7 +214,7 @@ TEST(Small_ThreadedLoader, TheBatchOfEachIndexIsHandedOverAsThatIndex)
 /** @brief Tests that a loader that reads on the calling thread starts no thread. */
 TEST(Small_ThreadedLoader, ACallingThreadLoaderStartsNoThread)
 {
-    Probe probe;
+    ThreadRecord probe;
     probe.pause = std::chrono::milliseconds{0};
     Data::LoaderOptions options;
     options.executor = Data::ReadExecutor::CallingThread;
@@ -366,7 +366,7 @@ TEST(Medium_ThreadedLoader, TheBatchesAreReadOnWorkerThreadsOnly)
 {
     constexpr std::int32_t K_WORKERS = 3;
 
-    Probe probe;
+    ThreadRecord probe;
     Data::LoaderOptions options;
     options.workers = K_WORKERS;
     options.prefetch = 4;
@@ -403,7 +403,7 @@ TEST(Medium_ThreadedLoader, TwoLoadersOfDifferentWidthDeliverTheSameEpochsInTheS
 /** @brief Tests that the destructor waits for the reads that run before it returns. */
 TEST(Medium_ThreadedLoader, TheDestructorJoinsWithBatchesReadAhead)
 {
-    Probe probe;
+    ThreadRecord probe;
     Data::LoaderOptions options;
     options.workers = 3;
     options.prefetch = 4;

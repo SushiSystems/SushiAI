@@ -31,9 +31,11 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -52,17 +54,48 @@ namespace SushiAI
         /** @brief Names the fit that scales both axes by one ratio and pads the rest. */
         inline constexpr std::string_view K_FIT_LETTERBOX = "letterbox";
 
+        /**
+         * @brief Names the fit of Darknet's letterbox_image: one scale for both axes, the
+         *        scaled sides truncated, the padding grey and the image scaled up as well as down.
+         */
+        inline constexpr std::string_view K_FIT_DARKNET_LETTERBOX = "darknet_letterbox";
+
         /** @brief Marks a resolved @ref SourceSpec that reads the model input, not a row. */
         inline constexpr std::int64_t K_MODEL_INPUT = -1;
 
-        /** @brief Names one value a layer reads: a port of a row above it, or the model input. */
+        /** @brief Marks a resolved @ref SourceSpec that reads a named extra model input. */
+        inline constexpr std::int64_t K_NAMED_INPUT = -2;
+
+        /** @brief Holds the prefix of the "from" entry that reads a named extra model input. */
+        inline constexpr std::string_view K_NAMED_INPUT_PREFIX = "inputs.";
+
+        /**
+         * @brief Names one value a layer reads: a port of a row above it, the model input, or a
+         *        named extra input.
+         */
         struct SourceSpec
         {
-            /** @brief Holds the absolute row index, or @ref K_MODEL_INPUT. */
+            /** @brief Holds the absolute row index, @ref K_MODEL_INPUT or @ref K_NAMED_INPUT. */
             std::int64_t node = K_MODEL_INPUT;
 
             /** @brief Holds the port name; empty selects the row's first port. */
             std::string port;
+
+            /** @brief Holds the name of the extra input when @c node is @ref K_NAMED_INPUT. */
+            std::string input{};
+        };
+
+        /** @brief Names one extra input of a model, fed from the batch role of the same name. */
+        struct NamedInputSpec
+        {
+            /** @brief Holds the name a row reads it by and the batch role that feeds it. */
+            std::string name;
+
+            /** @brief Holds the shape of one sample of the input, batch axis left out. */
+            Shape shape;
+
+            /** @brief Names the element type of the input: float32, or int32. */
+            DType dtype = DType::Float32;
         };
 
         /** @brief Names what a model publishes: every port of a row, or one of them. */
@@ -108,9 +141,24 @@ namespace SushiAI
 
             /**
              * @brief Names how an image is fitted to the input: @ref K_FIT_RESIZE,
-             *        @ref K_FIT_LETTERBOX, or empty when the file states none.
+             *        @ref K_FIT_LETTERBOX, @ref K_FIT_DARKNET_LETTERBOX, or empty when the file
+             *        states none.
              */
             std::string input_fit;
+
+            /**
+             * @brief Holds how an image's byte levels become input values, or nothing when the
+             *        file states no "normalise"; the image then converts by its default.
+             */
+            std::optional<InputNormalise> input_normalise;
+
+            /**
+             * @brief Lists the extra inputs the file's "inputs" object names, in file order.
+             *
+             * A row reads one as "inputs.<name>" in its "from"; the trainer and the evaluator
+             * feed it from the batch role of the same name.
+             */
+            std::vector<NamedInputSpec> inputs;
 
             /** @brief The layers, in application order. */
             std::vector<LayerSpec> layers;

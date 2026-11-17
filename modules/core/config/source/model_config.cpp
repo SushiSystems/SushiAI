@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/registry.hpp>
@@ -60,11 +61,14 @@ namespace SushiAI
             constexpr std::string_view K_INPUT_SOURCE = "input";
 
             /** @brief Every key a model document may carry at the top level. */
-            constexpr std::string_view K_MODEL_KEYS[] = {"format_version", "input", "defaults",
-                                                       "layers", "outputs", "task"};
+            constexpr std::string_view K_MODEL_KEYS[] = {"format_version", "input", "inputs",
+                                                       "defaults", "layers", "outputs", "task"};
 
             /** @brief Every key the "input" object may carry. */
-            constexpr std::string_view K_INPUT_KEYS[] = {"shape", "dtype", "fit"};
+            constexpr std::string_view K_INPUT_KEYS[] = {"shape", "dtype", "fit", "normalise"};
+
+            /** @brief Every key an entry of the "inputs" object may carry. */
+            constexpr std::string_view K_NAMED_INPUT_KEYS[] = {"shape", "dtype"};
 
             /** @brief Holds one element type the "input" object may name. */
             struct InputTypeEntry
@@ -90,9 +94,10 @@ namespace SushiAI
             };
 
             /** @brief Lists every fit the "input" object may name. */
-            constexpr std::array<InputFitEntry, 2> K_INPUT_FITS = {{
+            constexpr std::array<InputFitEntry, 3> K_INPUT_FITS = {{
                 {K_FIT_RESIZE},
                 {K_FIT_LETTERBOX},
+                {K_FIT_DARKNET_LETTERBOX},
             }};
 
             /** @brief Lists every key a version 1 document may carry at the top level. */
@@ -223,8 +228,6 @@ namespace SushiAI
             /** @brief Reads the "input" object of a version 2 document into the sample shape. */
             Result<Shape> parse_input_shape(const Value& input, const std::string& context)
             {
-                SA_TRY(input.reject_unknown_keys(context, as_span(K_INPUT_KEYS)));
-
                 const std::string shape_context = context + " 'shape'";
                 SA_TRY_ASSIGN(const Value& stated_shape, input.at("shape", context));
                 SA_TRY_ASSIGN(const std::vector<Value>& entries,
@@ -273,6 +276,49 @@ namespace SushiAI
                 return entry.dtype;
             }
 
+            /**
+             * @brief Reads the "inputs" object of @p root; an absent key gives no input.
+             * @return One entry per key, in file order; InvalidDescription naming the key of an
+             *         entry whose name, keys, shape or dtype the file gets wrong.
+             */
+            Result<std::vector<NamedInputSpec>> parse_named_inputs(const Value& root,
+                                                                   std::string_view origin)
+            {
+                std::vector<NamedInputSpec> inputs;
+                if (!root.has("inputs"))
+                    return inputs;
+
+                const std::string context = "'" + std::string(origin) + "'s 'inputs'";
+                SA_TRY_ASSIGN(const Value& stated, root.at("inputs", origin));
+                SA_FAIL_IF(stated.kind() != Kind::Object, StatusCode::InvalidDescription,
+                           "{} must be an object that maps a name to its shape and dtype, but "
+                           "it is {}", context, kind_name(stated.kind()));
+
+                for (std::size_t i = 0; i < stated.keys().size(); ++i)
+                {
+                    const std::string& name = stated.keys()[i];
+                    const std::string entry_context = context + " entry '" + name + "'";
+                    SA_FAIL_IF(name.empty() || name.find('.') != std::string::npos,
+                               StatusCode::InvalidDescription,
+                               "{} has a name that is empty or holds '.'; a row reads it as "
+                               "'{}<name>'", entry_context, K_NAMED_INPUT_PREFIX);
+
+                    const Value& entry = stated.values()[i];
+                    SA_FAIL_IF(entry.kind() != Kind::Object, StatusCode::InvalidDescription,
+                               "{} must be an object carrying 'shape', but it is {}",
+                               entry_context, kind_name(entry.kind()));
+                    SA_TRY(entry.reject_unknown_keys(entry_context, as_span(K_NAMED_INPUT_KEYS)));
+
+                    NamedInputSpec input;
+                    input.name = name;
+                    SA_TRY_ASSIGN(input.shape, parse_input_shape(entry, entry_context));
+                    SA_TRY_ASSIGN(input.dtype, parse_input_dtype(entry, entry_context));
+                    inputs.push_back(std::move(input));
+                }
+
+                return inputs;
+            }
+
             /** @brief Reads "fit" of the "input" object; an absent key gives the empty name. */
             Result<std::string> parse_input_fit(const Value& input, const std::string& context)
             {
@@ -285,6 +331,20 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const InputFitEntry& entry,
                               find_entry(K_INPUT_FITS, stated, fit_context));
                 return std::string(entry.type);
+            }
+
+            /** @brief Reads "normalise" of the "input" object; an absent key gives nothing. */
+            Result<std::optional<InputNormalise>> parse_input_normalise_key(
+                const Value& input, const std::string& context)
+            {
+                if (!input.has("normalise"))
+                    return std::optional<InputNormalise>();
+
+                const std::string normalise_context = context + " 'normalise'";
+                SA_TRY_ASSIGN(const Value& stated, input.at("normalise", context));
+                SA_TRY_ASSIGN(const InputNormalise normalise,
+                              parse_input_normalise(stated, normalise_context));
+                return std::optional<InputNormalise>(normalise);
             }
 
             /** @brief Returns the text that names the "defaults" block of @p origin. */
@@ -423,8 +483,42 @@ namespace SushiAI
                 return text;
             }
 
+            /** @brief Lists the names of @p inputs in quotes, or "(none)", for a diagnostic. */
+            std::string list_input_names(const std::vector<NamedInputSpec>& inputs)
+            {
+                std::string listed;
+                for (const NamedInputSpec& input : inputs)
+                {
+                    listed += (listed.empty() ? "'" : ", '") + input.name + "'";
+                }
+
+                return listed.empty() ? std::string("(none)") : listed;
+            }
+
+            /** @brief Reads the "from" string @p stated of the form "inputs.<name>". */
+            Result<SourceSpec> parse_named_source(const std::string& stated,
+                                                  const std::vector<NamedInputSpec>& inputs,
+                                                  const std::string& context)
+            {
+                const std::string name = stated.substr(K_NAMED_INPUT_PREFIX.size());
+                const bool is_declared = std::any_of(inputs.begin(), inputs.end(),
+                                                     [&name](const NamedInputSpec& input)
+                                                     {
+                                                         return input.name == name;
+                                                     });
+                SA_FAIL_IF(!is_declared, StatusCode::InvalidDescription,
+                           "{} reads '{}', but the model's 'inputs' names no input '{}'; it "
+                           "names {}", context, stated, name, list_input_names(inputs));
+
+                SourceSpec source;
+                source.node = K_NAMED_INPUT;
+                source.input = name;
+                return source;
+            }
+
             /** @brief Reads one "from" entry of row @p index, in any of its four forms. */
             Result<SourceSpec> parse_source(const Value& entry, std::size_t index,
+                                            const std::vector<NamedInputSpec>& inputs,
                                             const std::string& context)
             {
                 SourceSpec source;
@@ -439,9 +533,13 @@ namespace SushiAI
                 if (entry.kind() == Kind::String)
                 {
                     SA_TRY_ASSIGN(const std::string& stated, entry.as_string(context));
+                    if (stated.compare(0, K_NAMED_INPUT_PREFIX.size(), K_NAMED_INPUT_PREFIX) == 0)
+                        return parse_named_source(stated, inputs, context);
+
                     SA_FAIL_IF(stated != K_INPUT_SOURCE, StatusCode::InvalidDescription,
-                               "{} is the string '{}'; the only string it accepts is '{}'",
-                               context, stated, K_INPUT_SOURCE);
+                               "{} is the string '{}'; the strings it accepts are '{}' and "
+                               "'{}<name>'", context, stated, K_INPUT_SOURCE,
+                               K_NAMED_INPUT_PREFIX);
                     source.node = K_MODEL_INPUT;
                     return source;
                 }
@@ -463,8 +561,9 @@ namespace SushiAI
             }
 
             /** @brief Reads the "from" of row @p index; an absent key reads the row before. */
-            Result<std::vector<SourceSpec>> parse_sources(const Value& row, std::size_t index,
-                                                          const std::string& layer)
+            Result<std::vector<SourceSpec>> parse_sources(
+                const Value& row, std::size_t index, const std::vector<NamedInputSpec>& inputs,
+                const std::string& layer)
             {
                 const std::string context = layer + " 'from'";
                 std::vector<SourceSpec> sources;
@@ -480,7 +579,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const Value& from, row.at("from", layer));
                 if (from.kind() != Kind::Array)
                 {
-                    SA_TRY_ASSIGN(SourceSpec source, parse_source(from, index, context));
+                    SA_TRY_ASSIGN(SourceSpec source, parse_source(from, index, inputs, context));
                     sources.push_back(std::move(source));
                     return sources;
                 }
@@ -492,7 +591,7 @@ namespace SushiAI
                 sources.reserve(entries.size());
                 for (const Value& entry : entries)
                 {
-                    SA_TRY_ASSIGN(SourceSpec source, parse_source(entry, index, context));
+                    SA_TRY_ASSIGN(SourceSpec source, parse_source(entry, index, inputs, context));
                     sources.push_back(std::move(source));
                 }
                 return sources;
@@ -589,9 +688,13 @@ namespace SushiAI
                 ModelSpec model;
                 const std::string input_context = "'" + std::string(origin) + "'s 'input'";
                 SA_TRY_ASSIGN(const Value& input, root.at("input", origin));
+                SA_TRY(input.reject_unknown_keys(input_context, as_span(K_INPUT_KEYS)));
                 SA_TRY_ASSIGN(model.input_shape, parse_input_shape(input, input_context));
                 SA_TRY_ASSIGN(model.input_dtype, parse_input_dtype(input, input_context));
                 SA_TRY_ASSIGN(model.input_fit, parse_input_fit(input, input_context));
+                SA_TRY_ASSIGN(model.input_normalise,
+                              parse_input_normalise_key(input, input_context));
+                SA_TRY_ASSIGN(model.inputs, parse_named_inputs(root, origin));
 
                 const Value no_defaults = Value::object({}, {});
                 const Value& defaults = root.at_or("defaults", no_defaults);
@@ -618,7 +721,7 @@ namespace SushiAI
                     SA_TRY_ASSIGN(const std::string& type,
                                   stated_type.as_string(context + " 'type'"));
                     layer.type = type;
-                    SA_TRY_ASSIGN(layer.from, parse_sources(layers[i], i, context));
+                    SA_TRY_ASSIGN(layer.from, parse_sources(layers[i], i, model.inputs, context));
                     layer.attributes =
                         layer_attributes(layers[i], defaults.at_or(layer.type, no_defaults));
 

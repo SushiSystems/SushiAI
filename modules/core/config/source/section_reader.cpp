@@ -29,6 +29,7 @@
 
 #include <SushiAI/config/section_reader.hpp>
 
+#include <charconv>
 #include <cmath>
 #include <limits>
 
@@ -76,11 +77,25 @@ namespace SushiAI
         {
             SA_TRY_ASSIGN(const double wide, read_real(member, where));
 
-            const double limit = static_cast<double>(std::numeric_limits<float>::max());
-            SA_FAIL_IF(!std::isfinite(wide) || std::fabs(wide) > limit,
+            // From half a step past the largest float32 on, rounding to nearest gives infinity.
+            using Limits = std::numeric_limits<float>;
+            const double overflow = static_cast<double>(Limits::max()) +
+                                    std::ldexp(1.0, Limits::max_exponent - Limits::digits - 1);
+            SA_FAIL_IF(!std::isfinite(wide) || std::fabs(wide) >= overflow,
                        StatusCode::InvalidDescription,
                        "{} is {}, which float32 does not hold as a finite value", where, wide);
             return static_cast<float>(wide);
+        }
+
+        Value float32_value(float value) noexcept
+        {
+            // The shortest float32 decimal is at most 9 digits plus sign, point and exponent.
+            char digits[32];
+            const std::to_chars_result end = std::to_chars(digits, digits + sizeof(digits), value);
+
+            double wide = static_cast<double>(value);
+            static_cast<void>(std::from_chars(digits, end.ptr, wide));
+            return Value::real(wide);
         }
 
         Result<const std::string*> read_string(const Value& member, std::string_view where) noexcept

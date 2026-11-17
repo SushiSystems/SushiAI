@@ -164,6 +164,12 @@ namespace SushiAI
         inline constexpr OpName K_ABS = differentiable_op("sushiai.abs");
         /** @brief Takes the elementwise arctangent, out of place. */
         inline constexpr OpName K_ATAN = differentiable_op("sushiai.atan");
+        /** @brief Takes the elementwise square root, out of place. */
+        inline constexpr OpName K_SQRT = differentiable_op("sushiai.sqrt");
+        /** @brief Takes the elementwise natural logarithm, out of place. */
+        inline constexpr OpName K_LOG = differentiable_op("sushiai.log");
+        /** @brief Raises every element to the exponent in attribute slot 0, out of place. */
+        inline constexpr OpName K_POW = differentiable_op("sushiai.pow");
 
         /** @brief Compares elementwise: 1 where a <= b and 0 elsewhere, in the operands' dtype. */
         inline constexpr OpName K_LESS_EQUAL = gradient_barrier_op("sushiai.less_equal");
@@ -199,6 +205,8 @@ namespace SushiAI
 
         /** @brief Reinterprets extents without moving data. */
         inline constexpr OpName K_RESHAPE = differentiable_op("sushiai.reshape");
+        /** @brief Permutes the non-batch axes of a value, in attribute slots 0 to 4, and copies it. */
+        inline constexpr OpName K_TRANSPOSE = differentiable_op("sushiai.transpose");
         /** @brief The only node permitted to change a value's TensorLayout (CV-4). */
         inline constexpr OpName K_LAYOUT_CONVERT = differentiable_op("sushiai.layout_convert");
         /** @brief Passes a value through unchanged and lets no gradient reach its operand. */
@@ -236,6 +244,12 @@ namespace SushiAI
         inline constexpr OpName K_UPSAMPLE2D = differentiable_op("sushiai.upsample2d");
         /** @brief Sums each source pixel's replicas back together. */
         inline constexpr OpName K_UPSAMPLE2D_BACKWARD = op("sushiai.upsample2d_backward");
+        /** @brief Bilinear upsample by an integer scale, with half-pixel centres. */
+        inline constexpr OpName K_UPSAMPLE2D_BILINEAR =
+            differentiable_op("sushiai.upsample2d_bilinear");
+        /** @brief Sums each output gradient onto the input pixels it was interpolated from. */
+        inline constexpr OpName K_UPSAMPLE2D_BILINEAR_BACKWARD =
+            op("sushiai.upsample2d_bilinear_backward");
 
         /** @brief Joins several values along the channel axis. */
         inline constexpr OpName K_CONCAT_CHANNELS = differentiable_op("sushiai.concat_channels");
@@ -270,11 +284,29 @@ namespace SushiAI
         /** @brief Sums a matrix along its rows, yielding one value per column. */
         inline constexpr OpName K_SUM_ROWS = differentiable_op("sushiai.sum_rows");
 
-        /** @brief Copies the rows of a [V, D] table that an INT32 index names: [...] -> [..., D]. */
+        /** @brief Copies the rows of a [V, D] table that an integer index names. */
         inline constexpr OpName K_GATHER_ROWS = differentiable_op("sushiai.gather_rows");
-        /** @brief Sums [..., D] rows into the rows of a zero [V, D] that an INT32 index names. */
+        /** @brief Sums [..., D] rows into the rows of a zero [V, D] that an integer index names. */
         inline constexpr OpName K_SCATTER_ADD_ROWS =
             differentiable_op("sushiai.scatter_add_rows");
+
+        /** @brief Picks values[r, index[r]] from a [R, C] value: [R, C] -> [R]. */
+        inline constexpr OpName K_TAKE_ALONG = differentiable_op("sushiai.take_along");
+        /** @brief Writes picked[r] at column index[r] of a zeroed [R, C] result: [R] -> [R, C]. */
+        inline constexpr OpName K_PUT_ALONG = differentiable_op("sushiai.put_along");
+        /** @brief Gives the column of each row's largest element; a tie gives the lowest. */
+        inline constexpr OpName K_ARGMAX_ROWS = gradient_barrier_op("sushiai.argmax_rows");
+
+        /** @brief Adds a vector that is a prefix or suffix of the tensor's shape. */
+        inline constexpr OpName K_BROADCAST_ADD = differentiable_op("sushiai.broadcast_add");
+        /** @brief Subtracts a vector that is a prefix or a suffix of the tensor's shape. */
+        inline constexpr OpName K_BROADCAST_SUB = differentiable_op("sushiai.broadcast_sub");
+        /** @brief Multiplies by a vector that is a prefix or a suffix of the tensor's shape. */
+        inline constexpr OpName K_BROADCAST_MUL = differentiable_op("sushiai.broadcast_mul");
+        /** @brief Divides by a vector that is a prefix or a suffix of the tensor's shape. */
+        inline constexpr OpName K_BROADCAST_DIV = differentiable_op("sushiai.broadcast_div");
+        /** @brief Sums a tensor down to a prefix or a suffix of its shape. */
+        inline constexpr OpName K_SUM_ALONG = differentiable_op("sushiai.sum_along");
 
         /** @brief Replaces the entries above the diagonal of [..., T, T] by attribute slot 0. */
         inline constexpr OpName K_CAUSAL_MASK = differentiable_op("sushiai.causal_mask");
@@ -283,6 +315,10 @@ namespace SushiAI
         inline constexpr OpName K_LAYER_NORM = differentiable_op("sushiai.layer_norm");
         /** @brief Layer normalisation's gradient, for input, gamma and beta. */
         inline constexpr OpName K_LAYER_NORM_BACKWARD = op("sushiai.layer_norm_backward");
+        /** @brief Task of LAYER_NORM that writes the squared deviations plus epsilon. */
+        inline constexpr OpName K_LAYER_NORM_DEVIATION = op("sushiai.layer_norm.deviation");
+        /** @brief Task of LAYER_NORM that applies the row statistics, the gain and the offset. */
+        inline constexpr OpName K_LAYER_NORM_APPLY = op("sushiai.layer_norm.apply");
 
         /** @brief Multiplies by a mask of 0 or 1/(1 - rate) that is drawn anew at each replay. */
         inline constexpr OpName K_DROPOUT = differentiable_op("sushiai.dropout");
@@ -329,23 +365,27 @@ namespace SushiAI
             K_LEAF, K_ACCUMULATE, K_CAST,
             K_MATMUL, K_BIAS_ADD,
             K_ADD, K_SUB, K_MUL, K_SCALE, K_DYNAMIC_SCALE, K_EXP, K_ZERO, K_CONSTANT,
-            K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN,
+            K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN, K_SQRT, K_LOG, K_POW,
             K_LESS_EQUAL, K_SELECT,
             K_RELU, K_GELU, K_SIGMOID, K_TANH, K_LEAKY_RELU, K_SILU, K_SOFTPLUS,
             K_RELU_BACKWARD, K_GELU_BACKWARD, K_SIGMOID_BACKWARD, K_TANH_BACKWARD,
             K_LEAKY_RELU_BACKWARD, K_SILU_BACKWARD, K_SOFTPLUS_BACKWARD,
             K_LOG_SOFTMAX, K_LOG_SOFTMAX_BACKWARD, K_NLL_LOSS,
             K_SUM_ROWS, K_GATHER_ROWS, K_SCATTER_ADD_ROWS,
-            K_CAUSAL_MASK, K_LAYER_NORM, K_LAYER_NORM_BACKWARD, K_DROPOUT,
+            K_TAKE_ALONG, K_PUT_ALONG, K_ARGMAX_ROWS,
+            K_BROADCAST_ADD, K_BROADCAST_SUB, K_BROADCAST_MUL, K_BROADCAST_DIV, K_SUM_ALONG,
+            K_CAUSAL_MASK, K_LAYER_NORM, K_LAYER_NORM_BACKWARD, K_LAYER_NORM_DEVIATION,
+            K_LAYER_NORM_APPLY, K_DROPOUT,
             K_ADAMW_UPDATE, K_SGD_UPDATE, K_CLIP_SCALE,
             K_GEMM_BIAS, K_GEMM_BIAS_RELU, K_GEMM_BIAS_SIGMOID, K_GEMM_BIAS_TANH, K_GEMM_BIAS_GELU,
             K_EXP_SUB_SCALE,
-            K_RESHAPE, K_LAYOUT_CONVERT, K_STOP_GRADIENT,
+            K_RESHAPE, K_TRANSPOSE, K_LAYOUT_CONVERT, K_STOP_GRADIENT,
             K_IM2COL, K_COL2IM,
             K_DEPTHWISE_CONV2D, K_DEPTHWISE_CONV2D_BACKWARD_INPUT,
             K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT,
             K_MAXPOOL2D, K_MAXPOOL2D_BACKWARD, K_AVGPOOL2D, K_AVGPOOL2D_BACKWARD,
             K_SPATIAL_MEAN, K_SPATIAL_MEAN_BACKWARD, K_UPSAMPLE2D, K_UPSAMPLE2D_BACKWARD,
+            K_UPSAMPLE2D_BILINEAR, K_UPSAMPLE2D_BILINEAR_BACKWARD,
             K_CONCAT_CHANNELS, K_SLICE_CHANNELS,
             K_BATCHNORM2D, K_BATCHNORM2D_BACKWARD, K_CHANNEL_AFFINE, K_BATCHNORM_UPDATE_STATS,
             K_BATCHNORM_FOLD,

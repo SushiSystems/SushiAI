@@ -100,6 +100,23 @@ TEST_F(Medium_TensorValues, AFloat32TensorHoldsEachValueRoundedToFloat)
     EXPECT_EQ(SaTest::read_tensor(tensor), expected);
 }
 
+/**
+ * @brief Tests that an int64 tensor reads back exactly what was written.
+ *
+ * 2^40 + 1 is 1099511627777; it needs more than the 24 mantissa bits of a float and fits the 53
+ * bits of a double, so a path through float32 would return 2^40.
+ */
+TEST_F(Medium_TensorValues, AnInt64TensorRoundTripsExactly)
+{
+    const std::vector<double> values = {-1.0, 0.0, 1099511627777.0};
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor tensor,
+                            allocate_tensor(*engine, Shape{3}, DType::Int64));
+
+    SaTest::write_tensor(tensor, span_of(values));
+
+    EXPECT_EQ(SaTest::read_tensor(tensor), values);
+}
+
 /** @brief Tests that the bytes of a tensor count its elements times the element size. */
 TEST_F(Medium_TensorValues, TheBytesOfATensorAreItsElementStorage)
 {

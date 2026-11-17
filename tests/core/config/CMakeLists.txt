@@ -7,7 +7,10 @@
 
 sushiai_add_test_program(OWNER config
     SOURCES
+        test_data_adapt.cpp
         test_data_fit.cpp
+        test_data_normalise.cpp
+        test_input_normalise.cpp
         test_json_events.cpp
         test_json_writer.cpp
         test_model_config.cpp

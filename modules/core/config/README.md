@@ -8,10 +8,22 @@ into, and `parse_json` and `parse_json_file` build it. The model document parses
 and `DataSpec`. `ModelSpec::input_dtype` holds the optional `dtype` of the `input` object:
 `float32` when the key is absent, or `int32` for a model whose first row reads indices; any
 other text is refused with the two names. `ModelSpec::input_fit` holds the optional `fit` of the
-`input` object: `K_FIT_RESIZE` or `K_FIT_LETTERBOX`, empty when the key is absent, and any other
-text is refused with the two names. `fit_data_to_model` hands that fit to a data block that
+`input` object: `K_FIT_RESIZE`, `K_FIT_LETTERBOX` or `K_FIT_DARKNET_LETTERBOX`, empty when the key
+is absent, and any other text is refused with the three names. `fit_data_to_model` hands that fit to a data block that
 states none, keeps a block that states the same, and returns `InvalidDescription` naming both
-for a block that states another. `ModelSpec::task` holds the `task` object of a model file as a `Value`: the
+for a block that states another. `ModelSpec::input_normalise` holds the optional `normalise` object of the
+`input`: `InputNormalise`, with a channel order (`rgb` or `bgr`), a `scale` above 0 that defaults to
+1/255, and a `mean` and a `std` of three numbers each, `std` entries above 0. `parse_input_normalise`
+reads and validates it and refuses an unknown key by name; `input_normalise_value` builds the object
+back, and `write_model` writes it when the model states one. `normalise_data_to_model` hands it to a
+data block the way `fit_data_to_model` hands the fit; `adapt_data_to_model` does both, fit first. `ModelSpec::inputs` holds the optional `inputs`
+object of a model file: one `NamedInputSpec` for each key, in file order, with a `shape` of one
+sample and a `dtype` that is `float32` when absent or `int32`. The primary `input` stays the input
+of the model; a named input is one more value a row may read, by the `from` entry `"inputs.<name>"`,
+which resolves to a `SourceSpec` of node `K_NAMED_INPUT` and the name in `SourceSpec::input`. The
+parser refuses a name that is empty or holds `.`, an entry that is no object or has no `shape`, a key
+of an entry other than `shape` and `dtype`, and a `from` that names an input the object does not;
+each refusal names the entry or the string. `ModelSpec::task` holds the `task` object of a model file as a `Value`: the
 module checks that it is an object with a string `type` and reads nothing else in it, so it
 names no task type. `TrainSpec::schedule` holds the `schedule` object of a training file the same
 way, null when the file has none; this module checks nothing in it, and `Optim::read_rate_schedule`
@@ -53,13 +65,16 @@ Each header is named by its include path under `include/`.
 | --- | --- |
 | `SushiAI/config/value.hpp` | `Kind`, `kind_name`, `Value` with its static factories `boolean`, `integer`, `real`, `string`, `array` and `object`, and its accessors `as_bool`, `as_int`, `as_real`, `as_string`, `as_array`, `has`, `at`, `at_or`, `keys`, `values`, `reject_unknown_keys`, `without`, `require_version`, `parse_json`, `parse_json_file` |
 | `SushiAI/config/json_writer.hpp` | `K_JSON_EXPANDED_DEPTH`, `write_json` |
+| `SushiAI/config/data_adapt.hpp` | `adapt_data_to_model` |
 | `SushiAI/config/data_fit.hpp` | `fit_data_to_model` |
-| `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
+| `SushiAI/config/data_normalise.hpp` | `normalise_data_to_model` |
+| `SushiAI/config/input_normalise.hpp` | `K_CHANNELS_RGB`, `K_CHANNELS_BGR`, `K_NORMALISE_CHANNELS`, `K_DEFAULT_NORMALISE_SCALE`, `ChannelOrder`, `InputNormalise`, `parse_input_normalise`, `input_normalise_value` |
+| `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_FIT_DARKNET_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
 | `SushiAI/config/model_writer.hpp` | `write_model` |
 | `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_TRAIN_CHECKPOINT_EVERY_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `CheckpointUnit`, `CheckpointEvery`, `DataSpec`, `DetectionSettings`, `DataDocument`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data`, `parse_data_document`, `load_data_document` |
 | `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events`, `read_json_stream_events`, `ChunkedTextBuffer`, `read_json_text_events` |
 | `SushiAI/config/registry.hpp` | `find_entry` |
-| `SushiAI/config/section_reader.hpp` | `KeySpan`, `member_of`, `entry_of`, `list_quoted`, `read_real`, `read_whole`, `read_float32`, `read_string`, `read_array`, `SectionReader` |
+| `SushiAI/config/section_reader.hpp` | `KeySpan`, `member_of`, `entry_of`, `list_quoted`, `read_real`, `read_whole`, `read_float32`, `float32_value`, `read_string`, `read_array`, `SectionReader` |
 
 ## Training file versions
 
@@ -137,6 +152,10 @@ a key and of a list entry from it.
 | `read_real`, `read_whole`, `read_string`, `read_array` | `<where> must be a number`, `a whole number`, `a string`, `an array`, `but it is <kind>` |
 | `read_float32` | As `read_real`, or `<where> is <value>, which float32 does not hold as a finite value` |
 
+`float32_value(x)` is the writing half of `read_float32`: it builds the real whose JSON text is
+the shortest decimal that reads back as the float32 `x`, so a `0.7f` is written `0.7` and not
+`0.699999988079071`.
+
 The schedule sections of `core/optim`, the anchor task and the head training section of
 `vision/detect`, the `sum` objective of `layers/train` and the sections of
 `language/generation` and `language/datasets` read through it.
@@ -151,8 +170,9 @@ double, with `.0` added when that form has neither a point nor an exponent. Text
 line feed line ends. It refuses a number that is not finite, a string or key that is not UTF-8, and an
 object that states a key twice.
 
-`write_model` writes `format_version`, `input`, `layers`, `outputs` and `task`, in that order,
-and each row as `type`, `from`, then its attributes. `input` carries `dtype` only for an
+`write_model` writes `format_version`, `input`, `inputs`, `layers`, `outputs` and `task`, in that
+order, leaving out `inputs` for a model with no named input, and each row as `type`, `from`, then its
+attributes; a named source is written as `"inputs.<name>"`. `input` carries `dtype` only for an
 `int32` input, and a specification of another element type is refused. It writes `task` as the specification holds
 it and leaves it out when it is null. It writes no `defaults` block: every attribute is in
 its row, because a `ModelSpec` does not record which keys a default supplied. It leaves out a

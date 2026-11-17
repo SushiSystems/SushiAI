@@ -197,7 +197,7 @@ batch maker builds one target named "<epoch>:<index>" that holds no tensor. The 
 build the loader with `ReadExecutor::CallingThread`, so no thread starts and the order of the
 reads is fixed: the dataset's journal then shows which index was read, and how far ahead. The
 `Medium_` cases use the default executor, which starts worker threads, and need no engine except
-`Medium_ThreadedLoaderRows`. A `Probe` records the threads that built a batch and the batches
+`Medium_ThreadedLoaderRows`. A `ThreadRecord` records the threads that built a batch and the batches
 being built. Reads through other datasets are pinned by the contract suites in `test_dataset.cpp`.
 
 ### TheBatchOfEachIndexIsHandedOverAsThatIndex

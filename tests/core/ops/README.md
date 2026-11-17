@@ -61,8 +61,8 @@ uniqueness static_assert entirely, so the test checks membership by name.
 
 ### EveryDeclaredIdentityIsListedInAll
 
-Runs once per identity of the spatial, batch-norm, leaky ReLU, elementwise, selection and SiLU or
-Softplus groups. K_ALL is what `all_ids_unique()` proves over and what `name_of()` searches. An
+Runs once per identity of the spatial, batch-norm, leaky ReLU, elementwise, selection, SiLU or
+Softplus, root, logarithm and power, bilinear upsample, along-row and broadcast groups. K_ALL is what `all_ids_unique()` proves over and what `name_of()` searches. An
 identity declared but left out of K_ALL is not covered by the collision proof and prints as
 "sushiai.unknown" in every profile. Both failures are silent.
 
@@ -82,17 +82,18 @@ it with no activation-specific knowledge in the fusion pass.
 ### AnIdentityCarriesItsDifferentiableFlag
 
 Runs once per identity. `differentiable` is true for K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN,
-K_SOFTPLUS, K_SELECT and K_SILU, and false for K_LESS_EQUAL, K_SILU_BACKWARD and
-K_SOFTPLUS_BACKWARD.
+K_SOFTPLUS, K_SELECT, K_SILU, K_SQRT, K_LOG, K_POW, K_UPSAMPLE2D_BILINEAR, K_TAKE_ALONG,
+K_PUT_ALONG, the four K_BROADCAST_* identities, K_TRANSPOSE and K_SUM_ALONG, and false for K_LESS_EQUAL,
+K_SILU_BACKWARD, K_SOFTPLUS_BACKWARD, K_UPSAMPLE2D_BILINEAR_BACKWARD and K_ARGMAX_ROWS.
 
 ### ABarrierIdentityIsAGradientBarrier
 
-Runs once for each of K_ZERO, K_CONSTANT, K_LESS_EQUAL and K_STOP_GRADIENT.
+Runs once for each of K_ZERO, K_CONSTANT, K_LESS_EQUAL, K_STOP_GRADIENT and K_ARGMAX_ROWS.
 `Ops::is_gradient_barrier` is true.
 
-### ExactlyFourIdentitiesBlockTheGradient
+### ExactlyFiveIdentitiesBlockTheGradient
 
-Exactly four rows of `Ops::K_ALL` carry the `blocks_gradient` flag. A fifth barrier fails the count
+Exactly five rows of `Ops::K_ALL` carry the `blocks_gradient` flag. A sixth barrier fails the count
 until the test's list of barriers names it.
 
 ### AGradientPasserIsNotAGradientBarrier

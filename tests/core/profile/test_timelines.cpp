@@ -32,6 +32,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -71,8 +72,34 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that a mark with no session leaves a running session's timelines alone. */
-TEST(Small_Timelines, MarkWithNoSessionDoesNothing)
+/** @brief Tests that the timelines carry the names a session's configuration follows. */
+TEST(Small_Timelines, NamesAreTrainStepAndInferenceBatch)
+{
+    EXPECT_EQ(SushiAI::Profile::timeline_name(Timeline::TrainStep), std::string_view("train.step"));
+    EXPECT_EQ(SushiAI::Profile::timeline_name(Timeline::InferenceBatch),
+              std::string_view("inference.batch"));
+}
+
+/** @brief Tests that a mark with no binding in force leaves a running session's timelines alone. */
+TEST(Medium_Timelines, MarkWithNoBindingDoesNothing)
+{
+    const SushiProfiler::Registry registry;
+    SushiProfiler::SessionStart started =
+        SushiProfiler::Session::start(train_step_window(), registry);
+    ASSERT_TRUE(started.ok()) << started.error;
+    SushiProfiler::PeriodTimeline& step = started.session->timeline("train.step");
+    SushiProfiler::PeriodTimeline& batch = started.session->timeline("inference.batch");
+
+    mark_period(Timeline::TrainStep);
+    mark_period(Timeline::InferenceBatch);
+
+    EXPECT_EQ(step.current(), SushiProfiler::PeriodTimeline::K_NO_PERIOD);
+    EXPECT_EQ(batch.current(), SushiProfiler::PeriodTimeline::K_NO_PERIOD);
+    static_cast<void>(started.session->stop());
+}
+
+/** @brief Tests that a mark on a null session leaves a running session's timelines alone. */
+TEST(Medium_Timelines, MarkOnANullSessionDoesNothing)
 {
     const SushiProfiler::Registry registry;
     SushiProfiler::SessionStart started =
@@ -88,7 +115,7 @@ TEST(Small_Timelines, MarkWithNoSessionDoesNothing)
 }
 
 /** @brief Tests that a mark on a session opens a period of the timeline with the name given. */
-TEST(Small_Timelines, AMarkOnASessionOpensAPeriodOfItsTimelineOfThatName)
+TEST(Medium_Timelines, AMarkOnASessionOpensAPeriodOfItsTimelineOfThatName)
 {
     const SushiProfiler::Registry registry;
     SushiProfiler::SessionStart started =

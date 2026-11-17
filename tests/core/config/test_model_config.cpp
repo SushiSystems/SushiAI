@@ -45,6 +45,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 using SushiAI::Result;
 using SushiAI::StatusCode;
@@ -287,13 +288,24 @@ TEST(Small_ModelConfig, TheInputFitIsKeptAsTheFileStatesIt)
     EXPECT_EQ(stated.input_fit, "resize");
 }
 
-/** @brief Tests that a "fit" outside the two names, or no string, is refused. */
+/** @brief Tests that the Darknet letterbox is a fit a model file may state. */
+TEST(Small_ModelConfig, TheInputFitMayBeTheDarknetLetterbox)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::ModelSpec stated, model_from(R"({
+        "format_version": 2, "input": {"shape": [4, 4, 3], "fit": "darknet_letterbox"},
+        "layers": [{"type": "relu"}]
+    })"));
+
+    EXPECT_EQ(stated.input_fit, SushiAI::Config::K_FIT_DARKNET_LETTERBOX);
+}
+
+/** @brief Tests that a "fit" outside the three names, or no string, is refused. */
 TEST(Small_ModelConfig, AnInputFitOutsideTheListIsAnError)
 {
     SA_EXPECT_FAILURE(model_from(R"({
         "format_version": 2, "input": {"shape": [8], "fit": "crop"},
         "layers": [{"type": "relu"}]
-    })"), StatusCode::InvalidDescription, "'input' 'fit'", "'crop'", "'resize', 'letterbox'");
+    })"), StatusCode::InvalidDescription, "'input' 'fit'", "'crop'", "'resize', 'letterbox', 'darknet_letterbox'");
 
     SA_EXPECT_FAILURE(model_from(R"({
         "format_version": 2, "input": {"shape": [8], "fit": 1},
@@ -585,6 +597,82 @@ TEST(Small_ModelConfig, AMalformedOutputIsAnError)
     SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])",
                                          R"(, "outputs": [{"node": 0, "port": "p", "name": ""}])"),
                       StatusCode::InvalidDescription, "'outputs' entry 0 'name'", "empty string");
+}
+
+/** @brief Tests that "inputs" lists each extra input with its shape and element type. */
+TEST(Small_ModelConfig, TheInputsObjectListsEachNamedInputInFileOrder)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ModelSpec model, current_model_from(
+        R"([{"type": "relu"}])",
+        R"(, "inputs": {"lengths": {"shape": [1]},
+                        "options": {"shape": [4, 8], "dtype": "int32"}})"));
+    SA_ASSERT_OK_AND_ASSIGN(const ModelSpec without, current_model_from(R"([{"type": "relu"}])"));
+
+    ASSERT_EQ(model.inputs.size(), 2u);
+    EXPECT_EQ(model.inputs[0].name, "lengths");
+    EXPECT_EQ(model.inputs[0].shape, (SushiAI::Shape{1}));
+    EXPECT_EQ(model.inputs[0].dtype, SushiAI::DType::Float32);
+    EXPECT_EQ(model.inputs[1].name, "options");
+    EXPECT_EQ(model.inputs[1].shape, (SushiAI::Shape{4, 8}));
+    EXPECT_EQ(model.inputs[1].dtype, SushiAI::DType::Int32);
+    EXPECT_TRUE(without.inputs.empty());
+}
+
+/** @brief Tests that a from entry "inputs.<name>" resolves to the extra input of that name. */
+TEST(Small_ModelConfig, ARowReadsANamedInputByItsFromString)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ModelSpec model, current_model_from(
+        R"([{"type": "relu", "from": ["input", "inputs.lengths"]}, {"type": "relu"}])",
+        R"(, "inputs": {"lengths": {"shape": [1]}})"));
+
+    ASSERT_EQ(model.layers[0].from.size(), 2u);
+    EXPECT_EQ(model.layers[0].from[0].node, K_MODEL_INPUT);
+    EXPECT_EQ(model.layers[0].from[1].node, SushiAI::Config::K_NAMED_INPUT);
+    EXPECT_EQ(model.layers[0].from[1].input, "lengths");
+    EXPECT_TRUE(model.layers[0].from[1].port.empty());
+    EXPECT_EQ(model.layers[1].from[0].node, 0);
+}
+
+/** @brief Tests that an "inputs" object or a row that reads one wrongly fails naming the key. */
+TEST(Small_ModelConfig, TheInputsObjectAndItsReadersRefuseWhatNoInputCanBe)
+{
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu", "from": "inputs.mask"}])",
+                                         R"(, "inputs": {"lengths": {"shape": [1]}})"),
+                      StatusCode::InvalidDescription, "layer 0 of 'model.json'", "'inputs.mask'",
+                      "'lengths'");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu", "from": "inputs.mask"}])"),
+                      StatusCode::InvalidDescription, "'inputs.mask'", "(none)");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])", R"(, "inputs": [])"),
+                      StatusCode::InvalidDescription, "'inputs'", "an array");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])", R"(, "inputs": {"a.b":
+                                         {"shape": [1]}})"),
+                      StatusCode::InvalidDescription, "entry 'a.b'", "'.'");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])", R"(, "inputs": {"": {"shape":
+                                         [1]}})"),
+                      StatusCode::InvalidDescription, "'inputs'", "empty");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])", R"(, "inputs": {"x": 3})"),
+                      StatusCode::InvalidDescription, "entry 'x'", "'shape'");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])",
+                                         R"(, "inputs": {"x": {"dtype": "int32"}})"),
+                      StatusCode::InvalidDescription, "entry 'x'", "shape");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])",
+                                         R"(, "inputs": {"x": {"shape": []}})"),
+                      StatusCode::InvalidDescription, "entry 'x' 'shape'", "empty");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])",
+                                         R"(, "inputs": {"x": {"shape": [2], "dtype": "int64"}})"),
+                      StatusCode::InvalidDescription, "entry 'x' 'dtype'", "'int64'");
+
+    SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])",
+                                         R"(, "inputs": {"x": {"shape": [2], "fit": "resize"}})"),
+                      StatusCode::InvalidDescription, "entry 'x'", "'fit'", "'shape'", "'dtype'");
 }
 
 /** @brief Tests that a file without a task parses to a null task. */

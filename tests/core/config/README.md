@@ -131,6 +131,31 @@ An object with the keys `rate`, `units`, `rate` fails with `InvalidDescription`,
 A NaN under `rate` in entry 1 of the array under `layers` fails with a message containing
 "key 'layers'", "entry 1", "key 'rate'" and "not a number".
 
+## test_model_config.cpp, the extra inputs
+
+Suite: `Small_ModelConfig`. The three cases below test the `inputs` object of a version 2 model
+file and the `from` entry `"inputs.<name>"`; `modules/core/config/README.md` describes both.
+
+### TheInputsObjectListsEachNamedInputInFileOrder
+
+`"inputs": {"lengths": {"shape": [1]}, "options": {"shape": [4, 8], "dtype": "int32"}}` reads as two
+`NamedInputSpec`: `lengths`, shape [1], float32 by default, and `options`, shape [4, 8], int32. A
+file with no `inputs` key gives an empty list.
+
+### ARowReadsANamedInputByItsFromString
+
+A row with `"from": ["input", "inputs.lengths"]` resolves its first source to `K_MODEL_INPUT` and its
+second to `K_NAMED_INPUT` with the name `lengths` and no port. The row after it, which states no
+`from`, reads row 0.
+
+### TheInputsObjectAndItsReadersRefuseWhatNoInputCanBe
+
+Each failure is `InvalidDescription` and names the key. A `from` of `inputs.mask` over a model that
+names only `lengths` names the row, the string and `'lengths'`; over a model with no `inputs` it names
+`(none)`. `inputs` as an array, a name that holds `.` or is empty, an entry that is a number, an entry
+with no `shape`, an empty `shape`, a `dtype` of `int64` and a key `fit` of an entry are each refused
+with the entry's name; the last lists `'shape'` and `'dtype'` as the keys an entry takes.
+
 ## test_model_writer.cpp
 
 Suites: `Small_ModelWriter`, `Medium_ModelWriter`.
@@ -153,6 +178,11 @@ contains `"dtype": "int32"` and reads back as int32. With float64 the write fail
 
 The text of a model with no fit does not contain `"fit"`. With `input_fit` set to "resize" the
 text contains `"fit": "resize"` and reads back as "resize".
+
+### WritesTheInputNormaliseOnlyWhenOneIsStated
+
+The text of a model with no normalisation does not contain `"normalise"`. With a `bgr` one of scale
+0.5, mean (0.25, 0.5, 0.75) and std (2, 4, 8) the text contains it and reads back to an equal model.
 
 ### RoundTripsTheMNISTExample
 
@@ -185,6 +215,26 @@ A model whose rows state `type` after their attributes is written with `type` fi
 The text of the full model has no `defaults` key. Its first `conv` row carries `bn_epsilon`
 0.001 and `bn_momentum` 0.03 after its own keys, and the `leaky_relu` row carries `slope`
 0.001.
+
+### RoundTripsTheDecisionModelExample
+
+The model loaded from `applications/examples/decision_model/model.json`, which has four extra
+inputs, round-trips.
+
+### RoundTripsTheNamedInputsAndTheRowsThatReadThem
+
+A model with `lengths` and `options` as extra inputs and two rows that read `inputs.lengths` and
+`inputs.options` writes both strings, and reads back with equal inputs and equal sources.
+
+### WritesNoInputsKeyForAModelWithNoNamedInput
+
+The text of the chain model holds no `"inputs"`.
+
+### RefusesANamedInputAModelFileCannotState
+
+Each write fails with `InvalidDescription`: an input named `a.b` ("'a.b'" and "'.'"), an input with no
+name ("empty"), an input of float64 ("'options'" and "float64"), a named source that states a port
+("layer 0" and "no port") and a named source with no name ("layer 0").
 
 ### RoundTripsAPortOfTheModelInputAtRowZero
 
@@ -318,6 +368,16 @@ string", and `read_whole` of 0.25 with "count must be a whole number, but it is 
 and "which float32 does not hold as a finite value", and for a string with "scale must be a
 number, but it is a string".
 
+### Small_Float32Value, StatesTheShortestDecimalOfTheFloat
+
+For each of 0.7f, 0.1f, -0.5f, 0.0f, 1e-7f and the largest float32, `float32_value` builds a
+real equal to the double of the shortest decimal that reads back as the float (0.7f gives 0.7,
+not 0.699999988079071).
+
+### Small_Float32Value, ReadsBackAsTheSameFloat
+
+For the same six floats, `read_float32` of `float32_value(x)` returns `x`.
+
 ### TheStringAndArrayReadersCheckTheKind
 
 `read_string` returns "step" for a string and `read_array` returns three entries for
@@ -444,3 +504,8 @@ A reader block whose `root` is `datasets/coco128`, parsed with the base `example
 ### AnEmptyBaseKeepsARelativeDataRoot
 
 `parse_data` with an empty base keeps the relative `root` `datasets/coco128`.
+
+## test_input_normalise.cpp and test_data_normalise.cpp
+
+The `normalise` object of a model's input and its hand-over to a data block, in
+[`test_input_normalise.md`](test_input_normalise.md) and [`test_data_normalise.md`](test_data_normalise.md); the fit and the normalisation together are in [`test_data_adapt.md`](test_data_adapt.md).

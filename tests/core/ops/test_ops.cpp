@@ -167,8 +167,24 @@ namespace
             std::string_view("sushiai.causal_mask"),
             std::string_view("sushiai.layer_norm"),
             std::string_view("sushiai.layer_norm_backward"),
+            std::string_view("sushiai.layer_norm.deviation"),
+            std::string_view("sushiai.layer_norm.apply"),
             std::string_view("sushiai.dropout"),
             std::string_view("sushiai.log_softmax_backward"),
+            std::string_view("sushiai.sqrt"),
+            std::string_view("sushiai.log"),
+            std::string_view("sushiai.pow"),
+            std::string_view("sushiai.upsample2d_bilinear"),
+            std::string_view("sushiai.upsample2d_bilinear_backward"),
+            std::string_view("sushiai.take_along"),
+            std::string_view("sushiai.put_along"),
+            std::string_view("sushiai.argmax_rows"),
+            std::string_view("sushiai.broadcast_add"),
+            std::string_view("sushiai.broadcast_sub"),
+            std::string_view("sushiai.broadcast_mul"),
+            std::string_view("sushiai.broadcast_div"),
+            std::string_view("sushiai.sum_along"),
+            std::string_view("sushiai.transpose"),
         };
         return names;
     }
@@ -177,7 +193,7 @@ namespace
     std::vector<Ops::OpName> declared_identities()
     {
         return {
-            Ops::K_RESHAPE, Ops::K_LAYOUT_CONVERT,
+            Ops::K_RESHAPE, Ops::K_TRANSPOSE, Ops::K_LAYOUT_CONVERT,
             Ops::K_IM2COL, Ops::K_COL2IM,
             Ops::K_DEPTHWISE_CONV2D, Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT,
             Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT,
@@ -195,13 +211,20 @@ namespace
             Ops::K_LESS_EQUAL, Ops::K_SELECT,
             Ops::K_SILU, Ops::K_SILU_BACKWARD,
             Ops::K_SOFTPLUS, Ops::K_SOFTPLUS_BACKWARD,
+            Ops::K_SQRT, Ops::K_LOG, Ops::K_POW,
+            Ops::K_UPSAMPLE2D_BILINEAR, Ops::K_UPSAMPLE2D_BILINEAR_BACKWARD,
+            Ops::K_TAKE_ALONG, Ops::K_PUT_ALONG, Ops::K_ARGMAX_ROWS,
+            Ops::K_BROADCAST_ADD, Ops::K_BROADCAST_SUB, Ops::K_BROADCAST_MUL,
+            Ops::K_BROADCAST_DIV, Ops::K_SUM_ALONG,
+            Ops::K_LAYER_NORM_DEVIATION, Ops::K_LAYER_NORM_APPLY,
         };
     }
 
     /** @brief Lists the identities that block the gradient. */
     std::vector<Ops::OpName> gradient_barriers()
     {
-        return {Ops::K_ZERO, Ops::K_CONSTANT, Ops::K_LESS_EQUAL, Ops::K_STOP_GRADIENT};
+        return {Ops::K_ZERO, Ops::K_CONSTANT, Ops::K_LESS_EQUAL, Ops::K_STOP_GRADIENT,
+                Ops::K_ARGMAX_ROWS};
     }
 
     /** @brief Lists the identities that pass a gradient or throw on one, so are no barrier. */
@@ -387,6 +410,19 @@ INSTANTIATE_TEST_SUITE_P(
                       DifferentiableCase{Ops::K_ATAN, true},
                       DifferentiableCase{Ops::K_SOFTPLUS, true},
                       DifferentiableCase{Ops::K_SELECT, true}, DifferentiableCase{Ops::K_SILU, true},
+                      DifferentiableCase{Ops::K_SQRT, true}, DifferentiableCase{Ops::K_LOG, true},
+                      DifferentiableCase{Ops::K_POW, true},
+                      DifferentiableCase{Ops::K_UPSAMPLE2D_BILINEAR, true},
+                      DifferentiableCase{Ops::K_UPSAMPLE2D_BILINEAR_BACKWARD, false},
+                      DifferentiableCase{Ops::K_TAKE_ALONG, true},
+                      DifferentiableCase{Ops::K_PUT_ALONG, true},
+                      DifferentiableCase{Ops::K_ARGMAX_ROWS, false},
+                      DifferentiableCase{Ops::K_BROADCAST_ADD, true},
+                      DifferentiableCase{Ops::K_BROADCAST_SUB, true},
+                      DifferentiableCase{Ops::K_BROADCAST_MUL, true},
+                      DifferentiableCase{Ops::K_BROADCAST_DIV, true},
+                      DifferentiableCase{Ops::K_TRANSPOSE, true},
+                      DifferentiableCase{Ops::K_SUM_ALONG, true},
                       DifferentiableCase{Ops::K_LESS_EQUAL, false},
                       DifferentiableCase{Ops::K_SILU_BACKWARD, false},
                       DifferentiableCase{Ops::K_SOFTPLUS_BACKWARD, false}),
@@ -404,10 +440,10 @@ TEST_P(Small_OpsGradientBarrier, ABarrierIdentityIsAGradientBarrier)
 INSTANTIATE_TEST_SUITE_P(Rows, Small_OpsGradientBarrier, ::testing::ValuesIn(gradient_barriers()),
                          operation_row_name);
 
-/** @brief Tests that exactly four rows of Ops::K_ALL carry the blocks_gradient flag. */
-TEST(Small_Ops, ExactlyFourIdentitiesBlockTheGradient)
+/** @brief Tests that exactly five rows of Ops::K_ALL carry the blocks_gradient flag. */
+TEST(Small_Ops, ExactlyFiveIdentitiesBlockTheGradient)
 {
-    // A fifth barrier fails this count until gradient_barriers() names it.
+    // A sixth barrier fails this count until gradient_barriers() names it.
     EXPECT_EQ(count_flagged_gradient_barriers(), gradient_barriers().size());
 }
 

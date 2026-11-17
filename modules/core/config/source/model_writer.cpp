@@ -33,10 +33,12 @@
 #include <cstdint>
 #include <limits>
 #include <new>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -61,20 +63,25 @@ namespace SushiAI
             constexpr std::string_view K_WRITTEN_TASK = "the task being written";
 
             /**
-             * @brief Builds the "input" object from the sample shape @p shape.
+             * @brief Builds the "input" object, or one entry of "inputs", from the sample
+             *        shape @p shape.
+             * @param what Names the input in a refusal, e.g. "the model's input".
              * @param dtype Float32, which is left out, or Int32, written as "dtype".
              * @param fit The fit's name, written as "fit"; left out when empty.
+             * @param normalise The normalisation, written as "normalise"; left out when empty.
              */
-            Result<Value> input_value(const Shape& shape, DType dtype, const std::string& fit)
+            Result<Value> input_value(const std::string& what, const Shape& shape, DType dtype,
+                                      const std::string& fit,
+                                      const std::optional<InputNormalise>& normalise)
             {
                 SA_FAIL_IF(dtype != DType::Float32 && dtype != DType::Int32,
                            StatusCode::InvalidDescription,
-                           "the model's input is {}, and a model file states float32 or int32",
+                           "{} is {}, and a model file states float32 or int32", what,
                            dtype_name(dtype));
 
                 SA_FAIL_IF(shape.rank() == 0, StatusCode::InvalidDescription,
-                           "the model's input shape lists no extents, and a model file states "
-                           "at least one");
+                           "{}: the input shape lists no extents, and a model file states "
+                           "at least one", what);
 
                 std::vector<Value> extents;
                 extents.reserve(static_cast<std::size_t>(shape.rank()));
@@ -85,8 +92,8 @@ namespace SushiAI
                     const std::int64_t extent = shape[i];
                     SA_FAIL_IF(extent > std::numeric_limits<std::int64_t>::max() / count,
                                StatusCode::InvalidDescription,
-                               "the model's input shape describes more elements than a sample "
-                               "can hold; extent {} is {}", i, extent);
+                               "{}: the input shape describes more elements than a sample "
+                               "can hold; extent {} is {}", what, i, extent);
                     count *= extent;
                     extents.push_back(Value::integer(extent));
                 }
@@ -107,6 +114,39 @@ namespace SushiAI
                     values.push_back(Value::string(fit));
                 }
 
+                if (normalise.has_value())
+                {
+                    keys.emplace_back("normalise");
+                    values.push_back(input_normalise_value(*normalise));
+                }
+
+                return Value::object(std::move(keys), std::move(values));
+            }
+
+            /** @brief Builds the "inputs" object from @p inputs, one entry per named input. */
+            Result<Value> named_inputs_value(const std::vector<NamedInputSpec>& inputs)
+            {
+                std::vector<std::string> keys;
+                std::vector<Value> values;
+                keys.reserve(inputs.size());
+                values.reserve(inputs.size());
+
+                for (const NamedInputSpec& input : inputs)
+                {
+                    SA_FAIL_IF(input.name.empty() || input.name.find('.') != std::string::npos,
+                               StatusCode::InvalidDescription,
+                               "the model's extra input '{}' has a name that is empty or holds "
+                               "'.'; a row reads it as '{}<name>'", input.name,
+                               K_NAMED_INPUT_PREFIX);
+
+                    SA_TRY_ASSIGN(Value entry,
+                                  input_value("the model's extra input '" + input.name + "'",
+                                              input.shape, input.dtype, std::string(),
+                                              std::nullopt));
+                    keys.push_back(input.name);
+                    values.push_back(std::move(entry));
+                }
+
                 return Value::object(std::move(keys), std::move(values));
             }
 
@@ -124,6 +164,16 @@ namespace SushiAI
             /** @brief Builds the "from" entry that names @p source, read by row @p row. */
             Result<Value> source_value(const SourceSpec& source, std::size_t row)
             {
+                if (source.node == K_NAMED_INPUT)
+                {
+                    SA_FAIL_IF(source.input.empty() || !source.port.empty(),
+                               StatusCode::InvalidDescription,
+                               "layer {} reads a named input with the name '{}' and the port "
+                               "'{}'; a named input has a name and no port", row, source.input,
+                               source.port);
+                    return Value::string(std::string(K_NAMED_INPUT_PREFIX) + source.input);
+                }
+
                 if (source.node == K_MODEL_INPUT)
                 {
                     if (source.port.empty())
@@ -312,10 +362,19 @@ namespace SushiAI
                 keys.emplace_back("format_version");
                 values.push_back(Value::integer(K_MODEL_VERSION));
 
-                SA_TRY_ASSIGN(Value input, input_value(model.input_shape, model.input_dtype,
-                                                       model.input_fit));
+                SA_TRY_ASSIGN(Value input,
+                              input_value("the model's input", model.input_shape,
+                                          model.input_dtype, model.input_fit,
+                                          model.input_normalise));
                 keys.emplace_back("input");
                 values.push_back(std::move(input));
+
+                if (!model.inputs.empty())
+                {
+                    SA_TRY_ASSIGN(Value inputs, named_inputs_value(model.inputs));
+                    keys.emplace_back("inputs");
+                    values.push_back(std::move(inputs));
+                }
 
                 SA_TRY_ASSIGN(Value layers, layers_value(model.layers));
                 keys.emplace_back("layers");
