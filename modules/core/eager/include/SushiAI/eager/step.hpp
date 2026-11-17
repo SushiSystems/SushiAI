@@ -123,6 +123,17 @@ namespace SushiAI
                 [[nodiscard]] Status backward(const Graph::Traced& loss) noexcept;
 
                 /**
+                 * @brief Blends @p source into @p target behind the regions, after the update:
+                 *        target = (1 - momentum) * target + momentum * source_scale * source.
+                 * @param source A value of this step with the buffer's extents and element type.
+                 * @return The failure @p source holds; InvalidDescription for an unknown value or
+                 *         an unbound state; Incompatible for another shape or element type;
+                 *         Unsupported once the step ran.
+                 */
+                [[nodiscard]] Status blend_buffer(Graph::StateID target, const Graph::Traced& source,
+                                                  double momentum, double source_scale = 1.0) noexcept;
+
+                /**
                  * @brief Runs the step with @p update recorded behind every region.
                  * @param update Records work that reads Session::gradient(); it must outlive the
                  *        session's executor and replay unchanged.

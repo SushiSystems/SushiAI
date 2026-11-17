@@ -192,6 +192,37 @@ namespace SushiAI
             return Status();
         }
 
+        Status Step::blend_buffer(Graph::StateID target, const Graph::Traced& source,
+                                  double momentum, double source_scale) noexcept
+        {
+            SA_TRY(source);
+            const Graph::ValueID id = source.value();
+            SA_FAIL_IF(stage_ == Stage::Ran, StatusCode::Unsupported,
+                       "The step has run; a buffer is blended by the run, not after it");
+            SA_FAIL_IF(id >= trace_.graph.value_count(), StatusCode::InvalidDescription,
+                       "Value {} does not exist in this step, which holds {} values", id,
+                       trace_.graph.value_count());
+
+            const Session::BoundState* const bound = session_->find_state(target);
+            SA_FAIL_IF(bound == nullptr, StatusCode::InvalidDescription,
+                       "State {} is not bound to the session; call Session::bind_state() first",
+                       static_cast<std::uint64_t>(target));
+
+            const Graph::Value& value = trace_.graph.value(id);
+            SA_FAIL_IF(value.shape != bound->shape || value.dtype != bound->dtype,
+                       StatusCode::Incompatible,
+                       "The buffer of state {} is {} {}, but its source, value {}, is {} {}",
+                       static_cast<std::uint64_t>(target), dtype_name(bound->dtype),
+                       bound->shape.to_string(), id, dtype_name(value.dtype),
+                       value.shape.to_string());
+
+            return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                trace_.blends.push_back(BufferBlend{target, id, momentum, source_scale});
+                return Status();
+            });
+        }
+
         Status Step::apply(Graph::StepRecorder& update) noexcept
         {
             SA_FAIL_IF(stage_ == Stage::Ran, StatusCode::Unsupported,

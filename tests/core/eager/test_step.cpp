@@ -32,10 +32,12 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "eager_run_support.hpp"
+#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/step.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/traced.hpp>
 
 using namespace SushiAI;
@@ -72,6 +74,23 @@ namespace
 
     /** @brief Holds the widths of the two-layer model: 6 inputs, 4 hidden, 3 results. */
     const std::vector<int64_t> K_TWO_LAYERS{6, 4, 3};
+
+    /** @brief Holds the weight a blend gives the buffer's current content. */
+    constexpr double K_MOMENTUM = 0.1;
+
+    /** @brief Holds the width of the states that share one gradient value. */
+    constexpr int64_t K_SHARED_WIDTH = 3;
+
+    /** @brief Binds a buffer shaped like one row of the model input to @p loop and returns its id. */
+    [[nodiscard]] Result<Graph::StateID> bind_row_buffer(Support::SmallLoop& loop,
+                                                         Graph::StateIdentity& identity)
+    {
+        SA_TRY_ASSIGN(const SushiBLAS::Tensor buffer,
+                      allocate_tensor(loop.backend.engine(), Shape{K_TWO_LAYERS.front()}));
+        const Graph::StateID state = identity.get();
+        SA_TRY(loop.session.bind_state(state, buffer, false));
+        return state;
+    }
 } // namespace
 
 /** @brief Tests that asking a step for one state twice returns the one leaf it declared. */
@@ -186,6 +205,103 @@ TEST(Small_EagerStep, BackwardRefusesAGraphHoldingARefusal)
 
     SA_EXPECT_FAILURE(step.backward(loss), StatusCode::InvalidDescription,
                       "refused description");
+}
+
+/** @brief Tests that blending into a state the session does not hold is refused. */
+TEST(Small_EagerStep, ABlendIntoAnUnboundStateIsRefused)
+{
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
+    Graph::StateIdentity stranger;
+
+    Eager::Step step = loop.session.begin_step();
+    const Graph::Traced x = step.input(loop.inputs, "inputs");
+
+    SA_EXPECT_FAILURE(step.blend_buffer(stranger.get(), step.builder().sum_rows(x), K_MOMENTUM),
+                      StatusCode::InvalidDescription, "not bound");
+}
+
+/** @brief Tests that a source with other extents than the buffer is refused. */
+TEST(Small_EagerStep, ABlendOfASourceOfOtherExtentsIsRefused)
+{
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
+    Graph::StateIdentity identity;
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::StateID buffer, bind_row_buffer(loop, identity));
+
+    Eager::Step step = loop.session.begin_step();
+    const Graph::Traced x = step.input(loop.inputs, "inputs");
+
+    SA_EXPECT_FAILURE(step.blend_buffer(buffer, x, K_MOMENTUM), StatusCode::Incompatible,
+                      "source");
+}
+
+/** @brief Tests that a step that blends a buffer hands the executor trailing work. */
+TEST(Small_EagerStep, ABlendGivesTheStepTrailingWork)
+{
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
+    Graph::StateIdentity identity;
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::StateID buffer, bind_row_buffer(loop, identity));
+
+    Eager::Step step = loop.session.begin_step();
+    const Graph::Traced x = step.input(loop.inputs, "inputs");
+    SA_EXPECT_OK(step.blend_buffer(buffer, step.builder().sum_rows(x), K_MOMENTUM));
+    SA_EXPECT_OK(step.finish());
+
+    ASSERT_EQ(loop.executor.seen().size(), 1u);
+    EXPECT_TRUE(loop.executor.seen().front().has_trailing);
+}
+
+/** @brief Tests that a step with no update and no blend hands the executor no trailing work. */
+TEST(Small_EagerStep, AStepWithNoUpdateAndNoBlendHasNoTrailingWork)
+{
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
+
+    Eager::Step step = loop.session.begin_step();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            Support::trace_model(step, loop.model, loop.inputs, loop.targets));
+    SA_EXPECT_OK(step.keep(loss));
+    SA_EXPECT_OK(step.finish());
+
+    ASSERT_EQ(loop.executor.seen().size(), 1u);
+    EXPECT_FALSE(loop.executor.seen().front().has_trailing);
+}
+
+/**
+ * @brief Tests that two states whose gradient is one value run, and the second gets a copy of
+ *        the first one's gradient behind the regions.
+ */
+TEST(Small_EagerStep, TwoStatesSharingOneGradientValueRunWithoutARefusal)
+{
+    Support::SmallLoop loop(K_RATE);
+    const Shape shape{Support::K_ROWS, K_SHARED_WIDTH};
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor first_tensor,
+                            allocate_tensor(loop.backend.engine(), shape));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor second_tensor,
+                            allocate_tensor(loop.backend.engine(), shape));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor targets,
+                            Support::make_batch(loop.backend.engine(), K_SHARED_WIDTH, 1.75));
+    Graph::StateIdentity first_identity;
+    Graph::StateIdentity second_identity;
+    const Graph::StateID first = first_identity.get();
+    const Graph::StateID second = second_identity.get();
+    SA_EXPECT_OK(loop.session.bind_state(first, first_tensor, true));
+    SA_EXPECT_OK(loop.session.bind_state(second, second_tensor, true));
+
+    Eager::Step step = loop.session.begin_step();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, step.state(first));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, step.state(second));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            step.builder().nll_loss(step.builder().add(a, b),
+                                                    step.input(targets, "targets")));
+    SA_EXPECT_OK(step.backward(loss));
+    SA_EXPECT_OK(step.finish());
+
+    // No update was applied, so the only trailing work is the copy one gradient needs.
+    ASSERT_EQ(loop.executor.seen().size(), 1u);
+    EXPECT_TRUE(loop.executor.seen().front().has_trailing);
 }
 
 /** @brief Tests that finish() runs the step once and a second call changes nothing. */

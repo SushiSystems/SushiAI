@@ -52,3 +52,29 @@ After a refused K_MATMUL whose result the test drops, `backward()` of the valid 
 
 `has_run()` is false before `finish()` and true after it. A second `finish()` succeeds without
 running again, and the session counts one step.
+
+## ABlendIntoAnUnboundStateIsRefused
+
+`blend_buffer()` into a state the session never bound fails with `InvalidDescription` and "not
+bound".
+
+## ABlendOfASourceOfOtherExtentsIsRefused
+
+The buffer is bound with the extents `[6]`. A source of the [8, 6] input fails with `Incompatible`
+and "source".
+
+## ABlendGivesTheStepTrailingWork
+
+One buffer blended from the row sums of the input, then `finish()`. The in-memory executor
+journals one step with trailing work, although no update was applied.
+
+## AStepWithNoUpdateAndNoBlendHasNoTrailingWork
+
+A step that only traces the model and keeps its loss journals no trailing work. A step with no
+blend and no copy passes the caller's recorder through, which here is none.
+
+## TwoStatesSharingOneGradientValueRunWithoutARefusal
+
+Two trainable states of extents `[8, 3]` meet in one K_ADD, so the K_ADD rule gives both one
+gradient value. Backward and `finish()` succeed, and the executor journals trailing work although
+no update was applied: the copy of the first state's gradient into the second's is the only work.

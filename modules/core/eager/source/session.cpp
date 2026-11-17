@@ -30,6 +30,7 @@
 
 #include <SushiAI/eager/session.hpp>
 
+#include <algorithm>
 #include <utility>
 
 #include <SushiBLAS/blas/blas.hpp>
@@ -67,6 +68,29 @@ namespace SushiAI
                 }
 
                 cost.dropped = plan.dropped.size();
+            }
+
+            /**
+             * @brief Returns the entry before @p index that holds the same gradient value, or null.
+             * @param gradients The gradient of each traced state, in trace order.
+             */
+            const StateGradient* earlier_holder(const std::vector<StateGradient>& gradients,
+                                                std::size_t index) noexcept
+            {
+                for (std::size_t i = 0; i < index; ++i)
+                {
+                    if (gradients[i].value == gradients[index].value)
+                        return &gradients[i];
+                }
+
+                return nullptr;
+            }
+
+            /** @brief Appends @p value to @p values unless it is already there. */
+            void append_unique(std::vector<Graph::ValueID>& values, Graph::ValueID value)
+            {
+                if (std::find(values.begin(), values.end(), value) == values.end())
+                    values.push_back(value);
             }
 
         } // namespace
@@ -174,7 +198,8 @@ namespace SushiAI
             return fresh;
         }
 
-        Status Session::place_leaves(const StepTrace& trace, std::vector<StorageID>& preset)
+        Status Session::place_leaves(const StepTrace& trace, std::vector<StorageID>& preset,
+                                     std::vector<TrailingCopy>& copies)
         {
             const Graph::Graph& graph = trace.graph;
             SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
@@ -223,8 +248,9 @@ namespace SushiAI
                 preset[feed.leaf] = buffer;
             }
 
-            for (const StateGradient& gradient : trace.gradients)
+            for (std::size_t i = 0; i < trace.gradients.size(); ++i)
             {
+                const StateGradient& gradient = trace.gradients[i];
                 if (gradient.value == Graph::K_NO_VALUE)
                     continue;
 
@@ -234,11 +260,34 @@ namespace SushiAI
                            "The step differentiated with respect to state {}, which is not "
                            "bound as trainable",
                            static_cast<std::uint64_t>(gradient.state));
+
+                const StateGradient* const holder = earlier_holder(trace.gradients, i);
+                if (holder != nullptr)
+                {
+                    // The regions write the first state tensor; this state gets a copy of it.
+                    const BoundState* const owner = find_state(holder->state);
+                    SA_FAIL_IF(owner->shape != bound->shape || owner->dtype != bound->dtype,
+                               StatusCode::Incompatible,
+                               "States {} and {} share the gradient value {}, but are bound as "
+                               "{} {} and {} {}",
+                               static_cast<std::uint64_t>(holder->state),
+                               static_cast<std::uint64_t>(gradient.state), gradient.value,
+                               dtype_name(owner->dtype), owner->shape.to_string(),
+                               dtype_name(bound->dtype), bound->shape.to_string());
+                    SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
+                    {
+                        copies.push_back(TrailingCopy{owner->gradient, bound->gradient});
+                        return Status();
+                    }));
+                    continue;
+                }
+
                 SA_FAIL_IF(preset[gradient.value] != K_NO_STORAGE
                                && preset[gradient.value] != bound->gradient,
                            StatusCode::Unsupported,
-                           "Value {} is the gradient of state {} and of another state or "
-                           "leaf; the session keeps one gradient tensor per state",
+                           "Value {} is the gradient of state {} and also stands for a feed or "
+                           "a state leaf; the session writes a gradient into the tensor of one "
+                           "state only",
                            gradient.value, static_cast<std::uint64_t>(gradient.state));
                 preset[gradient.value] = bound->gradient;
             }
@@ -295,11 +344,60 @@ namespace SushiAI
             });
         }
 
+        Result<Graph::StepRecorder*> Session::trailing_for(const StepTrace& trace,
+                                                           const StepPlan& plan,
+                                                           const std::vector<TrailingCopy>& copies)
+        {
+            TrailingSpec spec;
+            spec.inner = trace.trailing;
+            SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
+            {
+                spec.copies = copies;
+                for (const BufferBlend& blend : trace.blends)
+                {
+                    const BoundState* const bound = find_state(blend.target);
+                    SA_FAIL_IF(bound == nullptr, StatusCode::InvalidDescription,
+                               "The step blends into state {}, which is not bound to the session",
+                               static_cast<std::uint64_t>(blend.target));
+
+                    const StorageID source = blend.source < plan.storage_of_value.size()
+                                                 ? plan.storage_of_value[blend.source]
+                                                 : K_NO_STORAGE;
+                    SA_FAIL_IF(source == K_NO_STORAGE || !bank_.holds(source),
+                               StatusCode::InvalidDescription,
+                               "Value {} feeds the blend into state {}, and the step kept no "
+                               "tensor for it",
+                               blend.source, static_cast<std::uint64_t>(blend.target));
+
+                    spec.blends.push_back(TrailingBlend{bound->storage, source, blend.momentum,
+                                                        blend.source_scale});
+                }
+                return Status();
+            }));
+
+            if (spec.is_plain())
+                return trace.trailing;
+
+            const LiveChain& live = chains_[live_chain_];
+            if (live.chain != nullptr && live.spec == spec)
+                return live.chain.get();
+
+            // The executor keeps the chain of the last step, so a new one goes in the other slot.
+            const std::size_t next = 1 - live_chain_;
+            SA_TRY_ASSIGN(chains_[next].chain, TrailingChain::make(spec, bank_));
+            chains_[next].spec = std::move(spec);
+            live_chain_ = next;
+            return chains_[next].chain.get();
+        }
+
         Status Session::recover(const Status& failure)
         {
             for (StorageID id : table_.forget())
                 bank_.release(id);
             plan_ = StepPlan{};
+            chains_[0] = LiveChain{};
+            chains_[1] = LiveChain{};
+            live_chain_ = 0;
 
             // A fill the failed step asked for may not have run.
             for (auto& entry : states_)
@@ -336,14 +434,24 @@ namespace SushiAI
                     trace.provenance);
             }));
             std::vector<StorageID> preset;
-            SA_TRY(place_leaves(trace, preset));
+            std::vector<TrailingCopy> copies;
+            SA_TRY(place_leaves(trace, preset, copies));
 
-            std::vector<Graph::ValueID> observed = trace.observed;
-            for (const StateGradient& gradient : trace.gradients)
+            std::vector<Graph::ValueID> observed;
+            SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                if (gradient.value != Graph::K_NO_VALUE)
-                    observed.push_back(gradient.value);
-            }
+                observed = trace.observed;
+                for (const StateGradient& gradient : trace.gradients)
+                {
+                    if (gradient.value != Graph::K_NO_VALUE)
+                        append_unique(observed, gradient.value);
+                }
+
+                for (const BufferBlend& blend : trace.blends)
+                    append_unique(observed, blend.source);
+
+                return Status();
+            }));
 
             SA_TRY_ASSIGN(const BoundaryMap boundaries,
                           find_boundaries(graph, partition,
@@ -396,10 +504,14 @@ namespace SushiAI
                 if (!ran.is_ok())
                     return recover(ran);
 
+                const Result<Graph::StepRecorder*> trailing = trailing_for(trace, plan, copies);
+                if (!trailing.has_value())
+                    return recover(trailing.status());
+
+                work.trailing = trailing.value();
                 work.dropped = plan.dropped;
                 work.storage_of_value = SushiRuntime::span<const StorageID>(
                     plan.storage_of_value.data(), plan.storage_of_value.size());
-                work.trailing = trace.trailing;
                 work.trailing_key = partition.optimizer_key;
                 work.run_index = steps_;
 

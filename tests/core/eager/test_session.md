@@ -88,6 +88,41 @@ A node emitted after `finish` makes the next read return `Unsupported`.
 `Step::state` and `Session::gradient` refuse an identity that was never bound, and
 `Session::bind_state` refuses one that already is.
 
+## BlendCompiled
+
+`make_blend_compiled` traces the row sums of the `[8, 3]` batch, plans the memory with the sums
+pinned, binds the batch, and compiles the graph through `Graph::CompiledStep` with a
+`Graph::BufferUpdateRecorder` behind it. The recorder blends the sums into the running statistic
+with momentum 0.1 and a source scale of 2. It is the compiled trainer's blend, since
+`Train::BufferUpdateRecorder` names the same class.
+
+## SharedCompiled
+
+`make_shared_compiled` traces `nll_loss(first + second, targets)` over two `[8, 3]` parameters,
+differentiates it, runs the cast and fusion passes, plans the memory with the loss and the
+gradients pinned, and compiles the graph with a `Graph::InMemoryDescentRecorder` behind it. The K_ADD
+rule gives both parameters one gradient value, so the pool holds one gradient tensor and the update
+reads it for both.
+
+## ARunningStatisticIsBlendedAcrossStepsAsTheCompiledStepBlendsIt
+
+Three eager steps feed the batch, sum its rows and blend the sums into a bound buffer; three
+compiled steps do the same into a copy of it. The two buffers hold the same bytes afterwards, and
+those bytes differ from the buffer's first content, so the blend ran.
+
+## ABlendOfASettledLoopIsRecordedOnce
+
+After three eager blend steps the executor has recorded its trailing work once: the chain of the
+first step served the two after it.
+
+## TwoStatesThatShareOneGradientValueGetTheCompiledUpdate
+
+Two trainable states meet in one K_ADD, so one gradient value belongs to both. Three eager steps
+run without a refusal, with a `Graph::InMemoryDescentRecorder` over the gradient tensor of each
+state, and three compiled steps run on copies. Both parameters hold the same bytes as their
+compiled copies. The case asserts first that the compiled graph gives both parameters one gradient
+value.
+
 ## ASecondLiveStepStopsTheProcess
 
 A session traces one step at a time.

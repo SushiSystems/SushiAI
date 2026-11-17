@@ -52,6 +52,7 @@
 #include <SushiAI/eager/step.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/buffer_update_recorder.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
@@ -299,6 +300,210 @@ namespace
         SA_EXPECT_OK(step.backward(loss));
         SA_EXPECT_OK(step.apply(loop.update));
     }
+
+    /** @brief Holds the weight every blend of this file gives the buffer's current content. */
+    constexpr double K_MOMENTUM = 0.1;
+
+    /** @brief Holds the factor every blend of this file scales its source by. */
+    constexpr double K_SOURCE_SCALE = 2.0;
+
+    /** @brief Holds the width of the running statistic and of the states that share a gradient. */
+    constexpr int64_t K_STAT_WIDTH = 3;
+
+    /** @brief Holds how many steps the buffer and shared-gradient cases run. */
+    constexpr int K_BUFFER_STEPS = 3;
+
+    /** @brief Holds the [K_ROWS, width] batch statistic's graph, compiled with its blend. */
+    struct BlendCompiled
+    {
+        /** @brief Builds the pool on @p engine; make_blend_compiled() fills the rest. */
+        explicit BlendCompiled(SushiBLAS::Engine& engine) : pool(engine)
+        {
+
+        }
+
+        Graph::Graph graph;                                 /**< Row sums of the batch. */
+        Graph::TensorPool pool;                             /**< Holds the tensor of each value. */
+        std::unique_ptr<Graph::BufferUpdateRecorder> blend; /**< Blends the row sums. */
+        std::unique_ptr<Graph::CompiledStep> step;          /**< The compiled step. */
+    };
+
+    /**
+     * @brief Compiles the row sums of @p batch with a blend of them into @p running behind it.
+     * @return The compiled step, which reads @p batch in place on every run.
+     */
+    [[nodiscard]] Result<std::unique_ptr<BlendCompiled>> make_blend_compiled(
+        RuntimeExecutionBackend& backend, const SushiBLAS::Tensor& batch,
+        const SushiBLAS::Tensor& running)
+    {
+        std::unique_ptr<BlendCompiled> made = std::make_unique<BlendCompiled>(backend.engine());
+        const Graph::GraphBuilder builder(made->graph);
+        const ValueID x = builder.input(Shape{Support::K_ROWS, K_STAT_WIDTH}, "batch");
+        SA_TRY_ASSIGN(const ValueID statistic, builder.sum_rows(x));
+
+        Graph::PlanOptions plan;
+        plan.pinned = SushiRuntime::span<const ValueID>(&statistic, 1);
+        SA_TRY_ASSIGN(Graph::MemoryPlan memory, Graph::MemoryPlan::build(made->graph, plan));
+        SA_TRY(made->pool.adopt(std::move(memory)));
+        SA_TRY(made->pool.bind(x, batch));
+        SA_TRY_ASSIGN(SushiBLAS::Tensor& source,
+                      made->pool.materialise(statistic, made->graph.value(statistic)));
+
+        std::vector<Graph::BufferUpdateSlot> slots;
+        slots.push_back(Graph::BufferUpdateSlot{running, source, K_MOMENTUM, K_SOURCE_SCALE});
+        made->blend = std::make_unique<Graph::BufferUpdateRecorder>(std::move(slots));
+        SA_TRY_ASSIGN(made->step, Graph::CompiledStep::compile(backend, made->graph, made->pool,
+                                                              made->blend.get()));
+        return std::move(made);
+    }
+
+    /** @brief Runs @p steps eager steps that blend the row sums of @p batch into @p buffer. */
+    [[nodiscard]] Status run_eager_blends(Eager::Session& session, Graph::StateID buffer,
+                                          const SushiBLAS::Tensor& batch, int steps)
+    {
+        for (int i = 0; i < steps; ++i)
+        {
+            Eager::Step step = session.begin_step();
+            const Graph::Traced x = step.input(batch, "batch");
+            SA_TRY(step.blend_buffer(buffer, step.builder().sum_rows(x), K_MOMENTUM,
+                                     K_SOURCE_SCALE));
+            SA_TRY(step.finish());
+        }
+
+        return Status();
+    }
+
+    /** @brief Runs @p compiled @p steps times. */
+    [[nodiscard]] Status run_compiled_steps(Graph::CompiledStep& compiled, int steps)
+    {
+        for (int i = 0; i < steps; ++i)
+            SA_TRY(compiled.run());
+
+        return Status();
+    }
+
+    /** @brief Holds the two parameters whose gradients are one value. */
+    struct SharedPair
+    {
+        SushiBLAS::Tensor first;  /**< The first parameter, [K_ROWS, K_STAT_WIDTH]. */
+        SushiBLAS::Tensor second; /**< The second parameter, [K_ROWS, K_STAT_WIDTH]. */
+    };
+
+    /** @brief Allocates a pair filled the same way on every call. */
+    [[nodiscard]] Result<SharedPair> make_shared_pair(SushiBLAS::Engine& engine)
+    {
+        SharedPair pair;
+        SA_TRY_ASSIGN(pair.first, allocate_tensor(engine, Shape{Support::K_ROWS, K_STAT_WIDTH}));
+        SA_TRY_ASSIGN(pair.second, allocate_tensor(engine, Shape{Support::K_ROWS, K_STAT_WIDTH}));
+        Support::fill_wave(pair.first, 0.2, 0.4);
+        Support::fill_wave(pair.second, 0.9, 0.4);
+        return pair;
+    }
+
+    /** @brief Holds the graph of loss = nll(first + second, targets) compiled with its update. */
+    struct SharedCompiled
+    {
+        /** @brief Builds the pool on @p engine and the update with @p rate. */
+        SharedCompiled(SushiBLAS::Engine& engine, float rate) : pool(engine), update(rate)
+        {
+
+        }
+
+        Graph::Graph graph;                    /**< The differentiated graph. */
+        Graph::TensorPool pool;                /**< Holds the tensor of each value. */
+        Graph::InMemoryDescentRecorder update; /**< The update recorded behind the graph. */
+        ValueID first_gradient = Graph::K_NO_VALUE;  /**< The gradient of the first parameter. */
+        ValueID second_gradient = Graph::K_NO_VALUE; /**< The gradient of the second parameter. */
+        std::unique_ptr<Graph::CompiledStep> step;   /**< The compiled step. */
+    };
+
+    /**
+     * @brief Compiles loss = nll(first + second, targets) over the tensors of @p pair.
+     * @return The compiled step; both parameters read one gradient tensor behind it.
+     */
+    [[nodiscard]] Result<std::unique_ptr<SharedCompiled>> make_shared_compiled(
+        RuntimeExecutionBackend& backend, const SharedPair& pair, const SushiBLAS::Tensor& targets)
+    {
+        std::unique_ptr<SharedCompiled> made =
+            std::make_unique<SharedCompiled>(backend.engine(), K_RATE);
+        const Graph::GraphBuilder builder(made->graph);
+        const Shape shape{Support::K_ROWS, K_STAT_WIDTH};
+        const ValueID first = builder.parameter(shape, "state");
+        const ValueID second = builder.parameter(shape, "state");
+        const ValueID labels = builder.input(shape, "targets");
+        SA_TRY_ASSIGN(const ValueID total, builder.add(first, second));
+        SA_TRY_ASSIGN(const ValueID loss, builder.nll_loss(total, labels));
+
+        const std::vector<ValueID> parameters{first, second};
+        SA_TRY_ASSIGN(const std::vector<ValueID> gradients,
+                      Autograd::differentiate(
+                          made->graph, loss,
+                          SushiRuntime::span<const ValueID>(parameters.data(), parameters.size())));
+        made->first_gradient = gradients[0];
+        made->second_gradient = gradients[1];
+
+        std::vector<ValueID> observed{labels, loss, first, second};
+        observed.insert(observed.end(), gradients.begin(), gradients.end());
+        std::vector<ValueID> pinned{loss};
+        pinned.insert(pinned.end(), gradients.begin(), gradients.end());
+
+        Graph::CastOptions casts;
+        casts.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
+        SA_TRY(Graph::insert_casts(made->graph, casts));
+        Graph::FusionOptions fusion;
+        fusion.observed = casts.observed;
+        (void)Graph::fuse(made->graph, fusion);
+        Graph::PlanOptions plan;
+        plan.pinned = SushiRuntime::span<const ValueID>(pinned.data(), pinned.size());
+        SA_TRY_ASSIGN(Graph::MemoryPlan memory, Graph::MemoryPlan::build(made->graph, plan));
+        SA_TRY(made->pool.adopt(std::move(memory)));
+
+        SA_TRY(made->pool.bind(labels, targets));
+        SA_TRY(made->pool.bind(first, pair.first));
+        SA_TRY(made->pool.bind(second, pair.second));
+        SA_TRY_ASSIGN(SushiBLAS::Tensor& shared,
+                      made->pool.materialise(gradients[0], made->graph.value(gradients[0])));
+        made->update.add(pair.first, shared);
+        made->update.add(pair.second, made->pool.tensor(gradients[1]));
+
+        SA_TRY_ASSIGN(made->step, Graph::CompiledStep::compile(backend, made->graph, made->pool,
+                                                              &made->update));
+        return std::move(made);
+    }
+
+    /** @brief Binds @p pair as trainable states @p first and @p second and pairs each with its gradient. */
+    [[nodiscard]] Status bind_shared_pair(Eager::Session& session, const SharedPair& pair,
+                                          Graph::StateID first, Graph::StateID second,
+                                          Graph::InMemoryDescentRecorder& update)
+    {
+        SA_TRY(session.bind_state(first, pair.first, true));
+        SA_TRY(session.bind_state(second, pair.second, true));
+        SA_TRY_ASSIGN(const SushiBLAS::Tensor first_gradient, session.gradient(first));
+        SA_TRY_ASSIGN(const SushiBLAS::Tensor second_gradient, session.gradient(second));
+        update.add(pair.first, first_gradient);
+        update.add(pair.second, second_gradient);
+        return Status();
+    }
+
+    /** @brief Runs @p steps eager steps of loss = nll(first + second, targets) with @p update. */
+    [[nodiscard]] Status run_shared_steps(Eager::Session& session, Graph::StateID first,
+                                          Graph::StateID second, const SushiBLAS::Tensor& targets,
+                                          Graph::InMemoryDescentRecorder& update, int steps)
+    {
+        for (int i = 0; i < steps; ++i)
+        {
+            Eager::Step step = session.begin_step();
+            SA_TRY_ASSIGN(const ValueID a, step.state(first));
+            SA_TRY_ASSIGN(const ValueID b, step.state(second));
+            SA_TRY_ASSIGN(const ValueID loss,
+                          step.builder().nll_loss(step.builder().add(a, b),
+                                                  step.input(targets, "targets")));
+            SA_TRY(step.backward(loss));
+            SA_TRY(step.apply(update));
+        }
+
+        return Status();
+    }
 } // namespace
 
 /** @brief Tests that an unscoped step gives the loss bytes the compiled step gives. */
@@ -498,6 +703,88 @@ TEST_F(Medium_EagerSession, BindingAStateTwiceIsRefused)
     SA_EXPECT_FAILURE(
         loop.session.bind_state(loop.model[0].weight_state, loop.model[0].weight, true),
         StatusCode::InvalidDescription, "already bound");
+}
+
+/** @brief Tests that a running statistic ends where the compiled step's blend leaves it. */
+TEST_F(Medium_EagerSession, ARunningStatisticIsBlendedAcrossStepsAsTheCompiledStepBlendsIt)
+{
+    Eager::ScopePartitioner partitioner;
+    Eager::RegionExecutor executor(backend());
+    Eager::Session session(backend(), executor, partitioner);
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor batch,
+                            Support::make_batch(*engine, K_STAT_WIDTH, 0.25));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor eager_running,
+                            allocate_tensor(*engine, Shape{K_STAT_WIDTH}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor compiled_running,
+                            allocate_tensor(*engine, Shape{K_STAT_WIDTH}));
+    Support::fill_wave(eager_running, 0.5, 0.3);
+    Support::fill_wave(compiled_running, 0.5, 0.3);
+    const std::vector<unsigned char> initial = SaTest::read_tensor_bytes(eager_running);
+    Graph::StateIdentity identity;
+    const Graph::StateID buffer = identity.get();
+    SA_EXPECT_OK(session.bind_state(buffer, eager_running, false));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BlendCompiled> compiled,
+                            make_blend_compiled(backend(), batch, compiled_running));
+
+    SA_EXPECT_OK(run_eager_blends(session, buffer, batch, K_BUFFER_STEPS));
+    SA_EXPECT_OK(run_compiled_steps(*compiled->step, K_BUFFER_STEPS));
+
+    const std::vector<unsigned char> expected = SaTest::read_tensor_bytes(compiled_running);
+    const std::vector<unsigned char> bytes = SaTest::read_tensor_bytes(eager_running);
+    EXPECT_EQ(SaTest::first_difference(bytes, expected), expected.size());
+    EXPECT_EQ(bytes.size(), expected.size());
+    EXPECT_NE(bytes, initial);
+}
+
+/** @brief Tests that the blend a settled loop records is recorded once and replayed every step. */
+TEST_F(Medium_EagerSession, ABlendOfASettledLoopIsRecordedOnce)
+{
+    Eager::ScopePartitioner partitioner;
+    Eager::RegionExecutor executor(backend());
+    Eager::Session session(backend(), executor, partitioner);
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor batch,
+                            Support::make_batch(*engine, K_STAT_WIDTH, 0.25));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor running,
+                            allocate_tensor(*engine, Shape{K_STAT_WIDTH}));
+    Graph::StateIdentity identity;
+    const Graph::StateID buffer = identity.get();
+    SA_EXPECT_OK(session.bind_state(buffer, running, false));
+
+    SA_EXPECT_OK(run_eager_blends(session, buffer, batch, K_BUFFER_STEPS));
+
+    EXPECT_EQ(executor.trailing_record_count(), 1u);
+}
+
+/** @brief Tests that two states with one gradient value run and update as the compiled step does. */
+TEST_F(Medium_EagerSession, TwoStatesThatShareOneGradientValueGetTheCompiledUpdate)
+{
+    Eager::ScopePartitioner partitioner;
+    Eager::RegionExecutor executor(backend());
+    Eager::Session session(backend(), executor, partitioner);
+    SA_ASSERT_OK_AND_ASSIGN(const SharedPair eager, make_shared_pair(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const SharedPair mirrored, make_shared_pair(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor targets,
+                            Support::make_batch(*engine, K_STAT_WIDTH, 1.75));
+    Graph::StateIdentity first_identity;
+    Graph::StateIdentity second_identity;
+    const Graph::StateID first = first_identity.get();
+    const Graph::StateID second = second_identity.get();
+    Graph::InMemoryDescentRecorder update(K_RATE);
+    SA_EXPECT_OK(bind_shared_pair(session, eager, first, second, update));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SharedCompiled> compiled,
+                            make_shared_compiled(backend(), mirrored, targets));
+    // The graph gives both parameters one gradient value, which is what the case needs.
+    ASSERT_EQ(compiled->first_gradient, compiled->second_gradient);
+
+    SA_EXPECT_OK(run_shared_steps(session, first, second, targets, update, K_BUFFER_STEPS));
+    SA_EXPECT_OK(run_compiled_steps(*compiled->step, K_BUFFER_STEPS));
+
+    const std::vector<unsigned char> first_expected = SaTest::read_tensor_bytes(mirrored.first);
+    const std::vector<unsigned char> second_expected = SaTest::read_tensor_bytes(mirrored.second);
+    EXPECT_EQ(SaTest::first_difference(SaTest::read_tensor_bytes(eager.first), first_expected),
+              first_expected.size());
+    EXPECT_EQ(SaTest::first_difference(SaTest::read_tensor_bytes(eager.second), second_expected),
+              second_expected.size());
 }
 
 /** @brief Tests that a second live step stops the process. */

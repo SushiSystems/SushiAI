@@ -32,6 +32,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -50,6 +51,8 @@
 #include <SushiAI/eager/step_executor.hpp>
 #include <SushiAI/eager/storage_bank.hpp>
 #include <SushiAI/eager/storage_id.hpp>
+#include <SushiAI/eager/trailing_chain.hpp>
+#include <SushiAI/eager/trailing_spec.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
@@ -80,6 +83,15 @@ namespace SushiAI
             Graph::ValueID value = Graph::K_NO_VALUE;    /**< Its gradient, or none. */
         };
 
+        /** @brief Names a running statistic and the step value blended into it on every run. */
+        struct BufferBlend
+        {
+            Graph::StateID target = Graph::K_NO_STATE; /**< The bound state the blend writes. */
+            Graph::ValueID source = Graph::K_NO_VALUE; /**< The value of the step it reads. */
+            double momentum = 0.0;                     /**< The weight of the source. */
+            double source_scale = 1.0;                 /**< The factor the source is scaled by. */
+        };
+
         /**
          * @brief Holds what one step traced, as the session reads it.
          * @see modules/core/eager/README.md
@@ -92,6 +104,7 @@ namespace SushiAI
             std::vector<Feed> feeds;              /**< The leaves filled from the host. */
             std::vector<Graph::ValueID> observed; /**< The values the caller reads. */
             std::vector<StateGradient> gradients; /**< The gradient of each traced parameter. */
+            std::vector<BufferBlend> blends;      /**< The running statistics the step updates. */
             Graph::StepRecorder* trailing = nullptr; /**< The update behind the step, or null. */
         };
 
@@ -202,6 +215,13 @@ namespace SushiAI
                     DType dtype = DType::Float32;     /**< Its element type. */
                 };
 
+                /** @brief Holds a chain and the work it records. */
+                struct LiveChain
+                {
+                    TrailingSpec spec;                    /**< The work the chain records. */
+                    std::unique_ptr<TrailingChain> chain; /**< The chain, or null. */
+                };
+
                 /** @brief Returns the entry of @p state, or null when it is not bound. */
                 [[nodiscard]] const BoundState* find_state(Graph::StateID state) const;
 
@@ -228,9 +248,23 @@ namespace SushiAI
                 /**
                  * @brief Writes the storage of each state leaf, feed and gradient of @p trace.
                  * @param preset Receives one storage id per value id of the trace's graph.
+                 * @param copies Receives one copy for each state whose gradient value another
+                 *        state of the trace already holds; the first state's tensor is the source.
                  */
                 [[nodiscard]] Status place_leaves(const StepTrace& trace,
-                                                  std::vector<StorageID>& preset);
+                                                  std::vector<StorageID>& preset,
+                                                  std::vector<TrailingCopy>& copies);
+
+                /**
+                 * @brief Returns the recorder that runs behind the regions of @p trace.
+                 * @param plan The plan of the step; it names the tensor of each blend source.
+                 * @param copies The gradient copies place_leaves() asked for.
+                 * @return The caller's recorder when the step needs nothing else, a chain that
+                 *         the session keeps while the step's work is unchanged, or null.
+                 */
+                [[nodiscard]] Result<Graph::StepRecorder*> trailing_for(
+                    const StepTrace& trace, const StepPlan& plan,
+                    const std::vector<TrailingCopy>& copies);
 
                 /** @brief Returns the buffer of feed @p ordinal, allocating one that fits. */
                 [[nodiscard]] Result<StorageID> input_buffer(std::size_t ordinal,
@@ -269,6 +303,12 @@ namespace SushiAI
 
                 /// @brief The feed buffers, by the feed's position in its step.
                 std::vector<InputBuffer> inputs_;
+
+                /// @brief The chain of the last step and the one before it.
+                LiveChain chains_[2];
+
+                /// @brief The index of the chain the last step used.
+                std::size_t live_chain_ = 0;
 
                 /// @brief The decisions of the last step that ran.
                 StepPlan plan_;

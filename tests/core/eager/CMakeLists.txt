@@ -29,7 +29,9 @@ sushiai_add_test_program(OWNER eager
         test_step_executor.cpp
         test_storage_bank.cpp
         test_storage_id.cpp
+        test_trailing_chain.cpp
         test_trailing_ledger.cpp
+        test_trailing_spec.cpp
     DEVICE_SOURCES
         test_region_executor.cpp
     DEPENDS

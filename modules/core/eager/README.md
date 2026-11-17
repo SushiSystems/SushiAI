@@ -49,14 +49,16 @@ Each header is named by its include path under `include/`.
 | `SushiAI/eager/scope_partitioner.hpp` | `ScopePartitioner`, with its `assign` |
 | `SushiAI/eager/scope_trace.hpp` | `ScopeTrace`, with its `open`, `close`, `seal`, `depth`, `end_segment` and `current_path` |
 | `SushiAI/eager/segment.hpp` | `Segment` |
-| `SushiAI/eager/session.hpp` | `SessionOptions`, `Feed`, `StateGradient`, `StepTrace`, `StepCost`, `Session` |
+| `SushiAI/eager/session.hpp` | `SessionOptions`, `Feed`, `StateGradient`, `BufferBlend`, `StepTrace`, `StepCost`, `Session` |
 | `SushiAI/eager/slot_ledger.hpp` | `ReaderSlot`, `SlotRecord`, `SlotLedger`, with its `keep`, `match_readers` and `place` |
 | `SushiAI/eager/step.hpp` | `Step` |
 | `SushiAI/eager/step_executor.hpp` | `RegionWork`, `StepWork`, `StepExecutor`, with its `execute` and `discard` |
 | `SushiAI/eager/in_memory_step_executor.hpp` | `InMemoryStepExecutor` |
 | `SushiAI/eager/storage_bank.hpp` | `StorageBank` |
 | `SushiAI/eager/storage_id.hpp` | `StorageID`, `K_NO_STORAGE`, `StorageIDSource` |
+| `SushiAI/eager/trailing_chain.hpp` | `TrailingChain`, with its `make` |
 | `SushiAI/eager/trailing_ledger.hpp` | `TrailingPlan`, `TrailingLedger` |
+| `SushiAI/eager/trailing_spec.hpp` | `TrailingCopy`, `TrailingBlend`, `TrailingSpec` |
 
 ## What the caller writes
 
@@ -430,8 +432,26 @@ gradient into it. The tensor has to exist before the first step, because an opti
 gradient tensors when it is constructed. The session places the gradient value of each step in
 that tensor directly, so no copy runs.
 
-Two states whose gradient is one value in the graph would need two tensors for one buffer, and
-`Session::run` returns `Unsupported` for that step.
+Two states whose gradient is one value in the graph, as the two operands of an `add` have, get
+one write and one copy. The regions write the value into the tensor of the state the step traced
+first; the session records a copy of that tensor into the other state's tensor behind the regions
+and ahead of the update, so an update that reads both tensors sees the same bytes the compiled
+step's one gradient tensor gives it. A gradient value that also stands for a feed or a state leaf
+is still refused with `Unsupported`.
+
+A running statistic is blended by the step: `Step::blend_buffer` names a bound state and a value of
+the step, with a momentum and a scale, and the buffer becomes
+`(1 - momentum) * buffer + momentum * source_scale * source` after the update has run, as the
+compiled trainer's `Graph::BufferUpdateRecorder` blends it. The session keeps the source value
+across the run, resolves it to the tensor the step left it in, and runs the blend behind the
+regions every step.
+
+`TrailingSpec` names that work in storage ids: the copies, the caller's recorder and the blends.
+`TrailingChain` records a spec against the tensors of the `StorageBank`, the copies first, then the
+caller's recorder, then the blends, and the session hands it to the executor in place of the
+caller's recorder. A step that needs neither a copy nor a blend hands the caller's recorder over
+unchanged. The session keeps the chain of the last step and one more, and builds a new one only
+when the spec differs, so a settled loop records its trailing work once.
 
 A trainable state that a step does not trace, or that no gradient reaches, has its gradient
 tensor filled with zeros before an update runs. Without the fill the update would apply the
