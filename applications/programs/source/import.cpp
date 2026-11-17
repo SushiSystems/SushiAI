@@ -34,6 +34,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/io/imported_model.hpp>
@@ -41,6 +42,7 @@
 #include <SushiAI/io/importer_registry.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include "registries.hpp"
+#include "weights_import.hpp"
 
 namespace
 {
@@ -48,24 +50,53 @@ namespace
     constexpr std::string_view K_USAGE =
         "sushiai import - write a model of another framework as SushiAI's files.\n"
         "\n"
-        "Usage: sushiai import <format> <files...> --output <directory> [--force]\n"
+        "Usage: sushiai import <format> <files...> --output <directory> [--task <task.json>]\n"
+        "                      [--force]\n"
         "\n"
         "  format      the importer to read with; `darknet` takes a .cfg and\n"
-        "              optionally a .weights; `ultralytics` takes one .pt\n"
+        "              optionally a .weights; `ultralytics` takes one .pt; `onnx` takes\n"
+        "              one .onnx; `caffe` takes a .prototxt and optionally a .caffemodel\n"
         "  files       the files of the other framework, in the order the format states\n"
         "  --output    the directory that receives model.json, weights.sushi and\n"
         "              train.json; it is created when absent\n"
-        "  --force     replace a file that is already there\n";
+        "  --task      a JSON object with a string \"type\", which becomes the task section\n"
+        "              of model.json; refused when the importer wrote one\n"
+        "  --force     replace a file that is already there\n"
+        "\n"
+        "Usage: sushiai import weights <model.json> <weights-file> --map <map.json>\n"
+        "                              --output <file.sushi> [--force]\n"
+        "\n"
+        "  model.json     the model file whose state records the weights fill\n"
+        "  weights-file   a PyTorch file (.pth, .pt, .pth.tar) or a .safetensors file; the\n"
+        "                 container is read from its first bytes\n"
+        "  --map          the name map: renames, tensors to drop and the key of the state\n"
+        "                 dictionary\n"
+        "  --output       the .sushi file to write\n";
 
     /** @brief Holds the usage line a refused command line quotes. */
     constexpr std::string_view K_USAGE_LINE =
-        "usage: sushiai import <format> <files...> --output <directory> [--force]";
+        "usage: sushiai import <format> <files...> --output <directory> [--task <task.json>] "
+        "[--force]";
+
+    /** @brief Holds the usage line a refused weights command line quotes. */
+    constexpr std::string_view K_WEIGHTS_USAGE_LINE =
+        "usage: sushiai import weights <model.json> <weights-file> --map <map.json> "
+        "--output <file.sushi> [--force]";
+
+    /** @brief Holds the first argument that selects the weights import. */
+    constexpr std::string_view K_WEIGHTS_COMMAND = "weights";
+
+    /** @brief Holds the flag that names the name map. */
+    constexpr std::string_view K_MAP_FLAG = "--map";
 
     /** @brief Holds the flag that names the output directory, and its short form. */
     constexpr std::string_view K_OUTPUT_FLAGS[] = {"--output", "-o"};
 
     /** @brief Holds the flag that lets the import replace existing files. */
     constexpr std::string_view K_FORCE_FLAG = "--force";
+
+    /** @brief Holds the flag that names the task file. */
+    constexpr std::string_view K_TASK_FLAG = "--task";
 
     /** @brief Holds what the command line of one import states. */
     struct ImportRequest
@@ -78,6 +109,9 @@ namespace
 
         /** @brief The directory the three files are written into. */
         std::filesystem::path output;
+
+        /** @brief The task file to attach to the model; empty states none. */
+        std::filesystem::path task;
 
         /** @brief Whether a file that exists is refused or replaced. */
         sa::IO::ExistingFiles existing = sa::IO::ExistingFiles::Refuse;
@@ -98,7 +132,8 @@ namespace
     /**
      * @brief Reads the command line into a request.
      * @return The request; InvalidDescription quoting the usage line for no format, no file,
-     *         no output directory, an output flag without a value or a directory given twice.
+     *         no output directory, a flag without a value or a directory or task file given
+     *         twice.
      */
     [[nodiscard]] sa::Result<ImportRequest> read_request(int argc, char** argv)
     {
@@ -112,6 +147,16 @@ namespace
             if (argument == K_FORCE_FLAG)
             {
                 request.existing = sa::IO::ExistingFiles::Replace;
+                continue;
+            }
+
+            if (argument == K_TASK_FLAG)
+            {
+                SA_FAIL_IF(at + 1 >= argc, sa::StatusCode::InvalidDescription,
+                           "'{}' names no file; {}", argument, K_USAGE_LINE);
+                SA_FAIL_IF(!request.task.empty(), sa::StatusCode::InvalidDescription,
+                           "the task file is given twice; {}", K_USAGE_LINE);
+                request.task = argv[++at];
                 continue;
             }
 
@@ -133,6 +178,26 @@ namespace
         SA_FAIL_IF(request.output.empty(), sa::StatusCode::InvalidDescription,
                    "no output directory was given; {}", K_USAGE_LINE);
         return request;
+    }
+
+    /**
+     * @brief Sets the task section of @p imported to the object in the file @p path.
+     * @return InvalidDescription when the importer already wrote a task section or the file
+     *         holds no object with a string "type"; what parse_json_file returns otherwise.
+     */
+    [[nodiscard]] sa::Status attach_task(const std::filesystem::path& path,
+                                         std::string_view format, sa::IO::ImportedModel& imported)
+    {
+        SA_FAIL_IF(!imported.model.task.is_null(), sa::StatusCode::InvalidDescription,
+                   "the '{}' importer wrote a task section, and '{}' would replace it", format,
+                   path.string());
+        SA_TRY_ASSIGN(sa::Config::Value task, sa::Config::parse_json_file(path));
+        SA_FAIL_IF(task.kind() != sa::Config::Kind::Object, sa::StatusCode::InvalidDescription,
+                   "the task file '{}' is not a JSON object", path.string());
+        SA_TRY_ASSIGN(const sa::Config::Value& type, task.at("type", path.string()));
+        SA_TRY(type.as_string("the task type"));
+        imported.model.task = std::move(task);
+        return sa::Status();
     }
 
     /**
@@ -182,6 +247,72 @@ namespace
     }
 
     /**
+     * @brief Reads the command line of `import weights` into a request.
+     * @return The request; InvalidDescription quoting the usage line for a missing or repeated
+     *         model file, weight file, map or output, or a flag without a value.
+     */
+    [[nodiscard]] sa::Result<sa::Apps::WeightsImportRequest> read_weights_request(int argc,
+                                                                                  char** argv)
+    {
+        sa::Apps::WeightsImportRequest request;
+        std::vector<std::filesystem::path> files;
+        for (int at = 2; at < argc; ++at)
+        {
+            const std::string_view argument = argv[at];
+            if (argument == K_FORCE_FLAG)
+            {
+                request.existing = sa::IO::ExistingFiles::Replace;
+                continue;
+            }
+
+            const bool is_map = argument == K_MAP_FLAG;
+            if (!is_map && !is_output_flag(argument))
+            {
+                files.emplace_back(argument);
+                continue;
+            }
+
+            std::filesystem::path& target = is_map ? request.map : request.output;
+            SA_FAIL_IF(at + 1 >= argc, sa::StatusCode::InvalidDescription, "'{}' names no file; {}",
+                       argument, K_WEIGHTS_USAGE_LINE);
+            SA_FAIL_IF(!target.empty(), sa::StatusCode::InvalidDescription,
+                       "'{}' is given twice; {}", argument, K_WEIGHTS_USAGE_LINE);
+            target = argv[++at];
+        }
+
+        SA_FAIL_IF(files.size() != 2, sa::StatusCode::InvalidDescription,
+                   "expected a model file and a weight file, got {} files; {}", files.size(),
+                   K_WEIGHTS_USAGE_LINE);
+        SA_FAIL_IF(request.map.empty(), sa::StatusCode::InvalidDescription,
+                   "no name map was given; {}", K_WEIGHTS_USAGE_LINE);
+        SA_FAIL_IF(request.output.empty(), sa::StatusCode::InvalidDescription,
+                   "no output file was given; {}", K_WEIGHTS_USAGE_LINE);
+        request.model = files[0];
+        request.weights = files[1];
+        return request;
+    }
+
+    /** @brief Imports one weight file into a `.sushi` file and prints what was written. */
+    [[nodiscard]] sa::Status run_weights(int argc, char** argv)
+    {
+        SA_TRY_ASSIGN(const sa::Apps::WeightsImportRequest request,
+                      read_weights_request(argc, argv));
+        SA_TRY_ASSIGN(const sa::Apps::Registries registries, sa::Apps::compose_registries());
+        SA_TRY_ASSIGN(const sa::Apps::WeightsImportReport report,
+                      sa::Apps::import_weights_file(request, registries));
+
+        std::cout << "sushiai import weights\n"
+                  << "----------------------------------------------------------------\n"
+                  << SushiLog::format_text("Model      : {}\n", request.model.string())
+                  << SushiLog::format_text("Weights    : {}\n", request.weights.string())
+                  << SushiLog::format_text("Map        : {}\n", request.map.string())
+                  << SushiLog::format_text("Tensors    : {} written, {} dropped\n\n",
+                                             report.written, report.dropped)
+                  << SushiLog::format_text("wrote {}\n", request.output.string());
+        return sa::Status();
+    }
+
+    /**
      * @brief Imports the files the arguments name and writes the three files.
      * @return Success, or the first failure of the command line, the importer or the writer.
      */
@@ -193,13 +324,18 @@ namespace
             return sa::Status();
         }
 
+        if (argc >= 2 && K_WEIGHTS_COMMAND == argv[1])
+            return run_weights(argc, argv);
+
         SA_TRY_ASSIGN(const ImportRequest request, read_request(argc, argv));
         SA_TRY_ASSIGN(const sa::Apps::Registries registries, sa::Apps::compose_registries());
 
         // The importer is picked by string, not by type; see applications/programs/README.md.
-        SA_TRY_ASSIGN(const sa::IO::ImportedModel imported,
+        SA_TRY_ASSIGN(sa::IO::ImportedModel imported,
                       sa::IO::import_model(registries.importers, request.format,
                                            request.files));
+        if (!request.task.empty())
+            SA_TRY(attach_task(request.task, request.format, imported));
         SA_TRY_ASSIGN(const sa::IO::WrittenImport written,
                       sa::IO::write_imported_model(imported, request.output,
                                                    request.existing));

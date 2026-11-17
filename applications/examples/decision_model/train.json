@@ -1,0 +1,20 @@
+{
+  "sushiai_train": 1,
+  "model": "model.json",
+  "objective": {
+    "type": "sum",
+    "terms": [
+      { "type": "cross_entropy", "weight": 1.0, "output": "choice", "target": "choice",
+        "type_mask": { "columns": 3, "column": 0 } },
+      { "type": "binary_cross_entropy", "weight": 1.0, "output": "yes_no", "target": "yes_no",
+        "type_mask": { "columns": 3, "column": 1 } },
+      { "type": "mean_squared_error", "weight": 1.0, "output": "number", "target": "number",
+        "type_mask": { "columns": 3, "column": 2 } }
+    ]
+  },
+  "data": { "type": "decisions", "file": "data/decision_model/train.sadc",
+            "window": 8, "options": 4, "batch_size": 16 },
+  "optimizer": { "type": "adamw", "learning_rate": 2e-3, "weight_decay": 0.01 },
+  "epochs": 12,
+  "checkpoint": "decision_model.sushi"
+}

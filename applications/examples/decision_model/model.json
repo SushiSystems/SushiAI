@@ -1,0 +1,17 @@
+{
+  "format_version": 2,
+  "input": { "shape": [8], "dtype": "int32" },
+  "inputs": {
+    "lengths": { "shape": [1] },
+    "options": { "shape": [4, 8], "dtype": "int32" },
+    "option_lengths": { "shape": [4] },
+    "option_valid": { "shape": [4] }
+  },
+  "layers": [
+    { "type": "decision_heads", "vocabulary": 32, "dim": 16, "heads": 2, "blocks": 1,
+      "hidden": 32, "options": 4,
+      "from": ["input", "inputs.lengths", "inputs.options", "inputs.option_lengths",
+               "inputs.option_valid"] }
+  ],
+  "task": { "type": "decision" }
+}

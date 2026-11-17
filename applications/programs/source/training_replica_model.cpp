@@ -36,6 +36,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiAI/config/json_writer.hpp>
@@ -48,6 +49,9 @@
 #include <SushiAI/hash/fnv1a.hpp>
 #include <SushiAI/profile/profile.hpp>
 #include <SushiAI/seam/seam.hpp>
+#include <SushiAI/train/extra_input_copy.hpp>
+#include <SushiAI/train/extra_inputs.hpp>
+#include <SushiAI/train/leaf_writes.hpp>
 
 #include "training_cluster_section.hpp"
 
@@ -269,17 +273,23 @@ namespace SushiAI
             const Train::TrainingGraph& built = setup_->built();
             {
                 SA_ZONE("host", "feed");
+                Train::mark_leaves_unwritten(built.leaves, setup_->pool());
                 SA_TRY(setup_->objective().feed(part_, built.leaves, setup_->pool()));
+                SA_TRY(Train::require_leaves_written(built.leaves, setup_->pool()));
             }
 
             SushiBLAS::Tensor& inputs = setup_->pool().tensor(built.spec.inputs);
+            std::vector<Train::NamedFeed> extra_feeds;
             SA_ZONE("copy", "input");
             return SushiAI::Detail::record_and_run(*backend_,
                                                    [&](SushiBLAS::TaskRecorder& recorder)
             {
                 SushiBLAS::BLASOps blas(recorder);
                 blas.copy(part_.inputs, inputs);
-                return Status();
+
+                // The extra inputs of the model are read from the part as the trainer reads them.
+                return Train::copy_extra_inputs(built.extra_inputs.leaves(), part_, setup_->pool(),
+                                                blas, extra_feeds);
             });
         }
 

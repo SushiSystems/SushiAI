@@ -12,9 +12,12 @@ set(SUSHIAI_PROGRAM_TEST_SOURCES)
 set(SUSHIAI_PROGRAM_TEST_LINKS sushiai_program_shared)
 if(SA_BUILD_VISION)
     list(APPEND SUSHIAI_PROGRAM_TEST_SOURCES
+        source/test_detection_report.cpp
+        source/test_detection_reports.cpp
         source/test_image_input.cpp
         source/test_inference_program.cpp
-        source/test_training_program.cpp)
+        source/test_training_program.cpp
+        source/test_vision_training_runs.cpp)
     list(APPEND SUSHIAI_PROGRAM_TEST_LINKS sushiai_vision)
 endif()
 if(SA_BUILD_LANGUAGE)
@@ -54,10 +57,12 @@ sushiai_add_test_program(APPLICATION programs
         source/compile_programs_log_category.cpp
         source/test_epoch_loop.cpp
         source/test_inference_run.cpp
+        source/test_model_state_entries.cpp
         source/test_registries.cpp
         source/test_run_start.cpp
         source/test_trainer_run.cpp
         source/test_training_run.cpp
+        source/test_weights_import.cpp
         source/test_profile_arguments.cpp
         ${SUSHIAI_PROGRAM_TEST_PROFILED}
         ${SUSHIAI_PROGRAM_TEST_CLUSTER}

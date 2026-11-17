@@ -29,15 +29,17 @@
 
 #include "training_setup.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>
-#include <SushiAI/config/data_fit.hpp>
+#include <SushiAI/config/data_adapt.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/nn/embedding.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/train/objective_registry.hpp>
 #include <SushiAI/train/role_match.hpp>
@@ -63,6 +65,24 @@ namespace SushiAI
                         Data::find_target(dataset.targets(), role);
                     if (described != nullptr)
                         return described->classes;
+                }
+
+                return 0;
+            }
+
+            /**
+             * @brief Returns the rows of the first embedding of @p model, else 0.
+             *
+             * The nodes are in topological order, so the first embedding is the one a token id
+             * reaches before any other; a model with no embedding has no ids to bound.
+             */
+            [[nodiscard]] std::int64_t input_rows_of(const NN::ModelGraph& model) noexcept
+            {
+                for (std::size_t index = 0; index < model.size(); ++index)
+                {
+                    const NN::Embedding* const embedding = NN::find_embedding(model.node(index));
+                    if (embedding != nullptr)
+                        return embedding->num_embeddings;
                 }
 
                 return 0;
@@ -102,8 +122,8 @@ namespace SushiAI
             SushiBLAS::Engine& engine = backend.engine();
 
             SA_TRY_ASSIGN(const Config::Value data_block,
-                          Config::fit_data_to_model(spec.data.attributes, model_spec,
-                                                    spec.model_path.string()));
+                          Config::adapt_data_to_model(spec.data.attributes, model_spec,
+                                                      spec.model_path.string()));
             SA_TRY_ASSIGN(std::unique_ptr<Data::Dataset> dataset,
                           Data::make_dataset(registries.datasets, engine, spec.data.type,
                                              data_block, "the data block"));
@@ -127,6 +147,7 @@ namespace SushiAI
             Train::ObjectiveContext given;
             given.batch = batch_rows;
             given.classes = class_count_of(*dataset);
+            given.input_classes = input_rows_of(model);
             given.input_sample = sample_shape;
             given.task = model_spec.task;
             SA_TRY_ASSIGN(given.outputs, Train::list_output_shapes(probe.graph, probe.outputs));

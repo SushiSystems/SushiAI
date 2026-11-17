@@ -10,7 +10,9 @@ Two programs and two configuration folders.
 | [`yolov7_tiny/`](yolov7_tiny/README.md) | A training file for a detector over a YOLO-layout folder; it waits on `sushiai import darknet` for its model and weights |
 | [`yolov4_tiny/`](yolov4_tiny/README.md) | A training and an evaluation file for a YOLOv4-tiny model that `sa import darknet` writes |
 | [`yolov3_tiny/`](yolov3_tiny/README.md) | A training file and an evaluation file for YOLOv3-tiny over coco128; the model and weights come from `sa import darknet` into `build/yolov3_tiny` |
+| [`yolox_x/`](yolox_x/README.md) | YOLOX-X with one class, ByteTrack's MOT17 detector: a model file and a name map for `sa import weights`, and inference on one frame |
 | [`tiny_decoder/`](tiny_decoder/README.md) | A decoder of 10.5 million parameters over a tokenised corpus, with its model, training and generation files |
+| [`decision_model/`](decision_model/README.md) | An encoder with a choice head, a yes-or-no head and a number head, with its model and training files at the test extents |
 | [`mnist_cnn/`](mnist_cnn/README.md) | Three JSON files for the same two commands: a convolutional network on MNIST |
 
 The sections below hold the reasoning that the source files cite.

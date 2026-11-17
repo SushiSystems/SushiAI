@@ -51,6 +51,7 @@
 #include <SushiLog/text/value_text.hpp>
 #include "cluster_training.hpp"
 #include "registries.hpp"
+#include "run_preparation.hpp"
 #include "run_start.hpp"
 #include "training_setup.hpp"
 
@@ -146,28 +147,20 @@ namespace SushiAI
 
                 SA_TRY_ASSIGN(const Registries registries, compose_registries());
 
-                SA_TRY_ASSIGN(const std::uint64_t seed, Config::read_run_seed(spec, origin));
                 // A cluster's master runs no graph, so its pool holds the results the exchange writes.
                 const SetupScope scope =
                     spec.cluster.is_null() ? SetupScope::Step : SetupScope::Results;
-                SA_TRY_ASSIGN(const std::unique_ptr<TrainingSetup> setup,
-                              TrainingSetup::make(registries, spec, model_spec, backend, seed,
-                                                  std::nullopt, scope));
-                const Data::Dataset& dataset = setup->dataset();
-                const NN::ModelGraph& model = setup->model();
-                const Train::TrainingGraph& built = setup->built();
-
-                SA_TRY_ASSIGN(const std::optional<Optim::RateSchedule> read_schedule,
-                              Optim::read_rate_schedule(spec.schedule, spec.optimizer_attributes));
-                const Optim::RateSchedule* const schedule =
-                    read_schedule ? &*read_schedule : nullptr;
-
-                SA_TRY_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
-                              Optim::make_optimizer(backend, spec.optimizer_type, setup->parameters(),
-                                                    spec.optimizer_attributes, "the optimizer block"));
-
-                IO::RunProgress start;
-                SA_TRY(start_state(spec, backend, setup->state(), *optimizer, &start));
+                SA_TRY_ASSIGN(const std::unique_ptr<RunBuild> build,
+                              prepare_run(registries, origin, spec, model_spec, backend, scope));
+                TrainingSetup& setup = build->setup();
+                Optim::Optimizer& optimizer = build->optimizer();
+                const Optim::RateSchedule* const schedule = build->schedule();
+                // The run is a row or the fallback run; see applications/programs/README.md.
+                PreparedRun& prepared = build->prepared();
+                const Data::Dataset& dataset = setup.dataset();
+                const NN::ModelGraph& model = setup.model();
+                const Train::TrainingGraph& built = setup.built();
+                const IO::RunProgress& start = prepared.start;
 
                 std::cout << "sushiai train\n"
                           << "----------------------------------------------------------------\n"
@@ -177,9 +170,9 @@ namespace SushiAI
                           << SushiLog::format_text(
                                  "Model      : {} ({} layers, {} learnable scalars)\n",
                                  spec.model_path.string(), model.size(),
-                                 learnable_scalars(setup->state()))
+                                 learnable_scalars(setup.state()))
                           << SushiLog::format_text("Weights    : {}\n", describe_start(spec))
-                          << SushiLog::format_text("Objective  : {}\n", setup->objective().name())
+                          << SushiLog::format_text("Objective  : {}\n", setup.objective().name())
                           << SushiLog::format_text("Data       : {} ({} x {})\n",
                                                      dataset.name(), dataset.batch_count(),
                                                      dataset.batch_size())
@@ -191,11 +184,6 @@ namespace SushiAI
                           << SushiLog::format_text("Seed       : {}\n", start.seed)
                           << SushiLog::format_text("Schedule   : {} epochs\n\n", spec.epochs);
 
-                // The run is a row or the fallback run; see applications/programs/README.md.
-                PreparedRun prepared{
-                    spec, dataset, setup->given(), setup->objective(), built, setup->state(),
-                    setup->pool(), *optimizer, setup->take_updates(), schedule, start,
-                };
                 SA_FAIL_IF(!spec.cluster.is_null()
                                && spec.checkpoint_every.unit != Config::CheckpointUnit::None,
                            StatusCode::Unsupported,
@@ -205,7 +193,7 @@ namespace SushiAI
 
                 // A file with a cluster section trains over its replicas; see cluster_training.hpp.
                 const SushiRuntime::span<const Optim::ParameterSlot> slots(
-                    setup->parameters().data(), setup->parameters().size());
+                    setup.parameters().data(), setup.parameters().size());
                 SA_TRY_ASSIGN(const RunSummary summary,
                               spec.cluster.is_null()
                                   ? run_training(registries.runs, spec.objective_type, backend, prepared)
@@ -223,15 +211,15 @@ namespace SushiAI
                 {
                     {
                         SA_ZONE("io", "checkpoint");
-                        SA_TRY(IO::save_run_checkpoint(spec.checkpoint, setup->state(), *optimizer,
+                        SA_TRY(IO::save_run_checkpoint(spec.checkpoint, setup.state(), optimizer,
                                                        summary.progress));
                     }
                     std::cout << SushiLog::format_text("wrote {} ({} scalars)\n",
                                                          spec.checkpoint.string(),
-                                                         learnable_scalars(setup->state()));
+                                                         learnable_scalars(setup.state()));
                 }
 
-                return TrainingOutcome{summary, optimizer->step_count()};
+                return TrainingOutcome{summary, optimizer.step_count()};
             }
         } // namespace
 

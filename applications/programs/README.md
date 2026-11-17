@@ -17,7 +17,7 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | --- | --- |
 | `train.cpp` | `sushiai train <train.json> [--profile <profile.json>]` |
 | `inference.cpp` | `sushiai inference <model.json> <model.sushi> <eval.json or image> [--profile <profile.json>]` |
-| `import.cpp` | `sushiai import <format> <files...> --output <directory> [--force]` |
+| `import.cpp` | `sushiai import <format> <files...> --output <directory> [--task <task.json>] [--force]` and `sushiai import weights <model.json> <weights-file> --map <map.json> --output <file.sushi> [--force]` |
 | `sushiai_worker.cpp` | `sushiai_worker <train.json> --master host:port --name <worker> [flags]`, built only when `SA_ENABLE_DISTRIBUTED` is on |
 | `tokenize.cpp` | `sushiai tokenize train <corpus> --vocabulary-size <N> --output <vocab.savb>` and `sushiai tokenize encode <corpus> --vocabulary <vocab.savb> --output <corpus.satk>` |
 
@@ -31,6 +31,8 @@ the ones SushiRuntime's worker agent defines.
 | File | Holds |
 | --- | --- |
 | `registries.hpp`, `registries.cpp` | `Registries`: the node, dataset, objective, run, report and importer rows a program looks up, and `compose_registries`, which fills them |
+| `model_state_entries.hpp`, `model_state_entries.cpp` | `model_state_entries`: builds a model file's graph, traces it once over one sample and lists its parameters and buffers as `NN::StateEntry` through `NN::list_state_entries`, with no engine and no tensor allocated |
+| `weights_import.hpp`, `weights_import.cpp` | `WeightsImportRequest`, `WeightsImportReport`, `compose_weight_sources`, which adds one row per weight container, and `import_weights_file`, the logic of `sushiai import weights` |
 | `inference_run.hpp`, `inference_run.cpp` | `PreparedInference`, `InferenceRegistry`, `report_inference` and `print_inference_header`: the report table |
 | `training_run.hpp`, `training_run.cpp` | `PreparedRun`, `RunSummary`, `RunRegistry` and `run_training`: the run table; `finished_progress` and `check_start_batch`, which both runs call |
 | `epoch_loop.hpp`, `epoch_loop.cpp` | `run_epoch_loop`, the epoch and report loop over an `EpochPlan` and a rate setter, and `run_epochs`, which fills the plan and the setter from a `PreparedRun`; the trainer run and the cluster run share them, and `is_reported_epoch`, the cadence the vision run prints at |
@@ -40,7 +42,10 @@ the ones SushiRuntime's worker agent defines.
 | `profile_session.hpp`, `profile_session.cpp` | `check_profile_config`, which checks configuration text without a session, `ProfileSession` and `end_profiled_run`: reads a SushiProfiler configuration, starts a session over the runtime, binds the `train.step` and `inference.batch` timelines and, on `close()`, stops the session and hands the record to its writers; compiled when `SA_ENABLE_PROFILER` is on |
 | `profile_session_none.cpp` | `ProfileSession::open` and `check_profile_config` refuse and name `SA_ENABLE_PROFILER`; compiled when it is off |
 | `domains.hpp` | `register_vision_domain` and `register_language_domain`, one per domain a build may link |
-| `domains_vision.cpp` | The vision rows, the `anchor` and `anchor_free` runs and the `anchor_detection` and `anchor_free_detection` reports; compiled when `SA_BUILD_VISION` is on |
+| `domains_vision.cpp` | `register_vision_domain`: adds the vision rows to the registries and holds nothing else; compiled when `SA_BUILD_VISION` is on |
+| `vision_training_runs.hpp`, `anchor_training_run.cpp`, `free_training_run.cpp` | The `anchor` run (`run_anchor`) and the `anchor_free` run (`run_anchor_free`), one file each |
+| `detection_reports.hpp`, `detection_report_anchor.cpp`, `detection_report_free.cpp`, `detection_report_yolox.cpp` | The `anchor_detection`, `anchor_free_detection` and `yolox_detection` reports, one file each: each reads its task section, binds the outputs and supplies the decode step |
+| `detection_report.hpp`, `detection_report.cpp` | `run_detection_report`, the batch loop the three reports share (read, step, decode, print, mean average precision), and the checks and printing lines they share |
 | `domains_vision_none.cpp` | No row; compiled when it is off |
 | `domains_language.cpp` | The language rows and the `next_token_generation` report; compiled when `SA_BUILD_LANGUAGE` is on |
 | `domains_language_none.cpp` | No row; compiled when it is off |
@@ -50,6 +55,8 @@ the ones SushiRuntime's worker agent defines.
 | `cluster_training_none.cpp` | Refuses a cluster section and names `sa build --distributed`; compiled when it is off |
 | `training_program.hpp`, `training_program.cpp` | `run_training_file`, which has two entry points, one over an `ExecutionBackend` (a file with a cluster section is refused) and one over a `RuntimeBackend` (the cluster attaches to its runtime), the second of which `train.cpp` gets from the `RuntimeExecutionBackend` it builds beside its engine, and `TrainingOutcome`: what `sushiai train` does once it holds a parsed training file, from the registries to the checkpoint; `train.cpp` and the anchor test call it |
 | `image_input.hpp`, `image_input.cpp`, `image_input_none.cpp` | `is_image_path` and `image_data_document`: the data block that reads one image file with the `image_file` reader; the second file is compiled when `SA_BUILD_VISION` is off and refuses an image |
+| `inference_preparation.hpp`, `inference_preparation.cpp` | `prepare_inference`, `InferenceRequest`, `InferenceHooks` and `InferenceBuild`: build the data, the model, the evaluation graph, the state and the compiled forward pass of `sushiai inference` and the `PreparedInference` over them; `run_inference_file` calls it, and the detection tests call it with a fill hook that initialises the weights and a wrap hook that hides a role |
+| `run_preparation.hpp`, `run_preparation.cpp` | `prepare_run` and `RunBuild`: build the setup, the rate schedule and the optimizer of a training file, start the state as the file says and build the `PreparedRun` over them; `run_training_file` calls it, and the vision run tests call it |
 | `inference_program.hpp`, `inference_program.cpp` | `run_inference_file` and the class-count report of a model without a task: what `sushiai inference` does once it holds the parsed files; `inference.cpp` and the anchor test call it |
 
 The sources in the table compile once, into the library `sushiai_program_shared`. The programs
@@ -136,8 +143,8 @@ the trainer can feed, and a domain adds one by registering the objective alone.
 
 | Objective type | Run | Added by |
 | --- | --- | --- |
-| `anchor` | `Vision::Training::AnchorTrainingStep` under `run_anchor_training` | `register_vision_domain`, `domains_vision.cpp` |
-| `anchor_free` | `Vision::Training::FreeTrainingStep` under `run_free_training` | `register_vision_domain`, `domains_vision.cpp` |
+| `anchor` | `Vision::Training::AnchorTrainingStep` under `run_anchor_training` | `register_vision_domain`, `anchor_training_run.cpp` |
+| `anchor_free` | `Vision::Training::FreeTrainingStep` under `run_free_training` | `register_vision_domain`, `free_training_run.cpp` |
 | Any other: `cross_entropy`, `binary_cross_entropy`, `multi_label`, `mean_squared_error`, `next_token` | `Train::Trainer::run_step` per batch | `register_runs`, `trainer_run.cpp` |
 
 An objective that keeps the default `Train::Objective::feed` and has no row fails its first
@@ -261,6 +268,11 @@ An optional flag that always errors when omitted would misstate what is optional
 is `--profile <profile.json>`, which `train.cpp` takes too; it opens a `ProfileSession` over
 the run and marks one `inference.batch` period per batch.
 
+Each batch runs through `EvaluationStep::run_batch`, which feeds the model input from the batch and
+each extra input of the model from the batch role of its name. A model with extra inputs runs when
+the data supplies those roles; a data block that omits one fails with `InvalidDescription` naming
+the input.
+
 The third argument may be one image file (`.jpg`, `.jpeg` or `.png`) in place of the data file.
 `image_data_document` then builds a data block with the `image_file` reader, a batch of one and
 the model's input size and class count, and the detection report lists the detections and scores
@@ -286,8 +298,9 @@ existed. A model file with a `task` section is reported by the row of `task.type
 | `task.type` | Report | Added by |
 | --- | --- | --- |
 | none | Predicted-class counts and top-1 agreement | `inference.cpp` |
-| `anchor_detection` | The detections of every image | `register_vision_domain`, `domains_vision.cpp` |
-| `anchor_free_detection` | The detections of every image | `register_vision_domain`, `domains_vision.cpp` |
+| `anchor_detection` | The detections of every image | `register_vision_domain`, `detection_report_anchor.cpp` |
+| `anchor_free_detection` | The detections of every image | `register_vision_domain`, `detection_report_free.cpp` |
+| `yolox_detection` | The detections of every image | `register_vision_domain`, `detection_report_yolox.cpp` |
 | `next_token_generation` | A prompt and its continuation | `register_language_domain`, `domains_language.cpp` |
 
 The `anchor_detection` row reads the section with `read_anchor_task`, binds each head to the
@@ -332,8 +345,25 @@ ports of a batch into centre-size boxes in input pixels and the sigmoid of each 
 printing and the mean average precision are those of the `anchor_detection` row. The one-to-one
 ports are not read.
 
-The command still takes a data file, so it reports a dataset split. It does not take one
-image file.
+One image file as the third argument works as for the other detection rows; the class count
+then comes from the `classes` of the `detect` row. The anchor-free row prints boxes in pixels of
+the network input, because it does not read the `fit` role.
+
+The `yolox_detection` row reads the section with `read_yolox_task` and finds the head by the port
+names of `yolox_head_contract.hpp`: the model publishes `level<l>.classes`, `level<l>.boxes` and
+`level<l>.objectness` for every level, as outputs of the same names, and a count that is not three
+per level is refused. The stride of a level is the input height over the height of its grid, which
+must divide both sides alike; the class count is the channel count of `level0.classes`. The row
+passes the levels to `select_yolox_detections`, which decodes the centre as `(cell + offset) *
+stride` and the size as `exp(raw) * stride`, scores each class as the sigmoid of the objectness
+times the sigmoid of the class logit, and suppresses class by class at the `suppression` object of
+the section, 0.65 IoU by default. The `detection` object of the data file overrides the score
+threshold and the suppression threshold, and the confidence floor works as in the rows above: the
+suppression runs at the floor and the printout cuts at the score threshold. The printing, the fit
+back to source pixels and the mean average precision are those of the `anchor_detection` row. One
+image file as the third argument works as for the other detection rows, so a MOT17 frame is one
+image and the command takes no further argument; the class count then comes from the `classes` of
+the `decoupled_head` row, because the section states none.
 
 The `next_token_generation` row reads the section with `read_generation_task`. The prompt
 reaches it as the data: `eval.json` holds a `prompt` data block, whose `text` the dataset
@@ -437,6 +467,14 @@ format states them. `darknet` takes a `.cfg` and optionally a `.weights`. Withou
 no weight file is written and `train.json` has no `weights` key, so a run initialises the
 model.
 
+`onnx` takes one `.onnx` file. `caffe` takes a `.prototxt` and optionally a `.caffemodel`.
+
+`--task <task.json>` names a JSON object with a string `type`. The driver parses it with
+`Config::parse_json_file` and stores it as the task section of the imported model, after the
+importer returns and before the files are written. An importer that already wrote a task section
+(`darknet`, `ultralytics`) makes the flag an `InvalidDescription` failure: the flag attaches a
+section and never replaces one.
+
 A file that already exists in the directory stops the import before anything is written.
 `--force` replaces it.
 
@@ -446,6 +484,29 @@ After the files, the driver prints a list of notes. An importer adds one for eac
 foreign files that none of the three files holds; the Darknet importer does so for `batch`,
 `subdivisions`, `max_batches` and the augmentation keys. The driver adds one of its own: the
 written `train.json` states `"data": null`.
+
+### `import weights`
+
+`sushiai import weights <model.json> <weights-file> --map <map.json> --output <file.sushi>
+[--force]` is chosen by `weights` as the first argument; no importer row may take that name. It
+fills the state records of a model file you wrote from a weight file and writes the one `.sushi`
+file, which the three-file import above does not. `import.cpp` reads the command line and prints
+the report, and `import_weights_file` in `weights_import.cpp` does the work:
+
+1. `Config::load_model` reads the model file, and `model_state_entries` builds its graph, traces it
+   once and lists the parameters and buffers it declares. The trace takes the shapes from the model
+   file; no engine exists and no tensor is allocated.
+2. `IO::NameMap::read` reads the map. `compose_weight_sources` builds the container rows, torch and
+   safetensors, and `IO::open_weight_file` reads the file and picks the row from its first bytes: a
+   zip magic is a PyTorch file, an 8-byte length that fits the file followed by `{` is safetensors.
+   A new container adds its row in `compose_weight_sources` and edits no other source.
+3. `IO::import_state_weights` matches the two strictly and returns one `IO::ImportedTensor` per
+   record, in the model's order. A missing, extra or misshapen tensor fails the command with one
+   message naming all of them.
+4. `IO::write_imported_weights` writes the file, refusing an existing one unless `--force` is given.
+
+The driver prints the model, weight and map paths, the count of tensors written and dropped, and
+the file written. It creates no engine.
 
 ### The data block is null
 

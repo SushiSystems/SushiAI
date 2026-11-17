@@ -8,7 +8,10 @@
 # chosen here, at link time; no source holds an #if.
 
 if(SA_BUILD_VISION)
-    set(SUSHIAI_PROGRAM_DOMAINS source/domains_vision.cpp source/image_input.cpp)
+    set(SUSHIAI_PROGRAM_DOMAINS source/domains_vision.cpp source/image_input.cpp
+        source/detection_report.cpp source/detection_report_anchor.cpp
+        source/detection_report_free.cpp source/detection_report_yolox.cpp
+        source/anchor_training_run.cpp source/free_training_run.cpp)
 else()
     set(SUSHIAI_PROGRAM_DOMAINS source/domains_vision_none.cpp source/image_input_none.cpp)
 endif()
@@ -44,7 +47,9 @@ set(SUSHIAI_PROGRAM_SHARED
     source/registries.cpp source/epoch_loop.cpp source/trainer_run.cpp source/training_run.cpp
     source/inference_run.cpp source/run_start.cpp source/training_setup.cpp
     source/training_program.cpp source/inference_program.cpp
-    source/profile_arguments.cpp ${SUSHIAI_PROGRAM_PROFILE}
+    source/run_preparation.cpp source/inference_preparation.cpp
+    source/profile_arguments.cpp source/model_state_entries.cpp source/weights_import.cpp
+    ${SUSHIAI_PROGRAM_PROFILE}
     ${SUSHIAI_PROGRAM_CLUSTER} ${SUSHIAI_PROGRAM_DOMAINS})
 
 # The shared sources are compiled once, into a library the programs and the program tests link.

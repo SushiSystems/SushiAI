@@ -1,0 +1,58 @@
+{
+    "format_version": 2,
+    "input": {
+        "shape": [800, 1440, 3],
+        "fit": "letterbox",
+        "normalise": { "channels": "rgb", "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225] }
+    },
+    "defaults": {
+        "conv": { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "c3": { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "sppf": { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "focus": { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "decoupled_head": { "bn_epsilon": 0.001, "bn_momentum": 0.03 }
+    },
+    "layers": [
+        { "type": "focus", "filters": 80, "kernel": 3 },
+        { "type": "conv", "filters": 160, "kernel": 3, "stride": 2 },
+        { "type": "c3", "filters": 160, "hidden": 80, "repeats": 4, "shortcut": true },
+        { "type": "conv", "filters": 320, "kernel": 3, "stride": 2 },
+        { "type": "c3", "filters": 320, "hidden": 160, "repeats": 12, "shortcut": true },
+        { "type": "conv", "filters": 640, "kernel": 3, "stride": 2 },
+        { "type": "c3", "filters": 640, "hidden": 320, "repeats": 12, "shortcut": true },
+        { "type": "conv", "filters": 1280, "kernel": 3, "stride": 2 },
+        { "type": "sppf", "filters": 1280, "kernel": 5, "pools": 3, "activate_narrowing": true },
+        { "type": "c3", "filters": 1280, "hidden": 640, "repeats": 4, "shortcut": false },
+        { "type": "conv", "filters": 640, "kernel": 1, "stride": 1 },
+        { "type": "upsample", "scale": 2 },
+        { "type": "concat", "from": [-1, 6] },
+        { "type": "c3", "filters": 640, "hidden": 320, "repeats": 4, "shortcut": false },
+        { "type": "conv", "filters": 320, "kernel": 1, "stride": 1 },
+        { "type": "upsample", "scale": 2 },
+        { "type": "concat", "from": [-1, 4] },
+        { "type": "c3", "filters": 320, "hidden": 160, "repeats": 4, "shortcut": false },
+        { "type": "conv", "filters": 320, "kernel": 3, "stride": 2 },
+        { "type": "concat", "from": [-1, 14] },
+        { "type": "c3", "filters": 640, "hidden": 320, "repeats": 4, "shortcut": false },
+        { "type": "conv", "filters": 640, "kernel": 3, "stride": 2 },
+        { "type": "concat", "from": [-1, 10] },
+        { "type": "c3", "filters": 1280, "hidden": 640, "repeats": 4, "shortcut": false },
+        { "type": "decoupled_head", "from": [17, 20, 23], "classes": 1, "hidden": 320 }
+    ],
+    "outputs": [
+        { "node": 24, "port": "level0.classes", "name": "level0.classes" },
+        { "node": 24, "port": "level0.boxes", "name": "level0.boxes" },
+        { "node": 24, "port": "level0.objectness", "name": "level0.objectness" },
+        { "node": 24, "port": "level1.classes", "name": "level1.classes" },
+        { "node": 24, "port": "level1.boxes", "name": "level1.boxes" },
+        { "node": 24, "port": "level1.objectness", "name": "level1.objectness" },
+        { "node": 24, "port": "level2.classes", "name": "level2.classes" },
+        { "node": 24, "port": "level2.boxes", "name": "level2.boxes" },
+        { "node": 24, "port": "level2.objectness", "name": "level2.objectness" }
+    ],
+    "task": {
+        "type": "yolox_detection",
+        "score_threshold": 0.1,
+        "suppression": { "criterion": "iou", "threshold": 0.7 }
+    }
+}

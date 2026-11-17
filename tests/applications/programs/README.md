@@ -108,6 +108,27 @@ through the `anchor_detection` inference row (`run_inference_file`).
 [`source/test_training_program.md`](source/test_training_program.md) and
 [`source/test_inference_program.md`](source/test_inference_program.md) describe each case.
 
+## source/test_detection_report.cpp, source/test_detection_reports.cpp, source/test_vision_training_runs.cpp
+
+Test the headers `detection_report.hpp`, `detection_reports.hpp` and `vision_training_runs.hpp`
+directly, without the program assembly. `source/prepared_inference_harness.hpp` calls
+`prepare_inference` over the `tiny_yolo` fixture with initialised weights, and
+`source/prepared_run_harness.hpp` calls `prepare_run` over its training file; the programs call the
+same two functions, so no build sequence exists twice. A test changes the
+member of the harness a promise reads: the task section, the input shape, the thresholds, the start.
+`source/role_hidden_dataset.hpp` serves the fixture's batches without one role, for the cases that
+need data with no `fit` or no `boxes`. The cases are described in
+[`source/test_detection_report.md`](source/test_detection_report.md),
+[`source/test_detection_reports.md`](source/test_detection_reports.md) and
+[`source/test_vision_training_runs.md`](source/test_vision_training_runs.md).
+
+## source/test_inference_preparation.cpp, source/test_run_preparation.cpp
+
+Suites: `Medium_InferencePreparation` and `Medium_RunPreparation`, in `sushiai_programs_tests`.
+They test `prepare_inference` and `prepare_run` over the `tiny_yolo` fixture. The cases are described in
+[`source/test_inference_preparation.md`](source/test_inference_preparation.md) and
+[`source/test_run_preparation.md`](source/test_run_preparation.md).
+
 ## source/test_image_input.cpp
 
 Builds the data block of one image file from a model of an 8 by 6 input and a task of 3 classes, and
@@ -171,3 +192,15 @@ three in order and reads `p.json`.
 A trailing `--profile`, a `--profile` followed by another flag and two `--profile` pairs, one row
 each, fail with `InvalidDescription`, the first two with "needs the path" and the last with "given
 twice".
+
+## source/test_model_state_entries.cpp
+
+Suite: `Small_ModelStateEntries`. Its cases are described in
+[source/test_model_state_entries.md](source/test_model_state_entries.md). They list the state records
+of the tiny run's model file without an engine.
+
+## source/test_weights_import.cpp
+
+Suite: `Small_WeightsImport`. Its cases are described in
+[source/test_weights_import.md](source/test_weights_import.md). They check the composed weight
+sources and that a failed import writes no file.

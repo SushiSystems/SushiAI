@@ -38,7 +38,6 @@
 #include <string_view>
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/config/data_fit.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/profile/profile.hpp>
@@ -47,6 +46,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
+#include "inference_preparation.hpp"
 #include "inference_run.hpp"
 #include "registries.hpp"
 
@@ -103,7 +103,7 @@ namespace SushiAI
                     SA_ZONE("data", "read");
                     SA_TRY(dataset.read(b, batch));
                 }
-                SA_TRY(run.step.run(batch.inputs));
+                SA_TRY(run.step.run_batch(batch));
 
                 const Data::BatchTarget* const target =
                     labelled ? Data::find_target(batch.targets, Data::K_ROLE_LABELS)
@@ -160,58 +160,17 @@ namespace SushiAI
                                   const Config::DetectionSettings& detection,
                                   Comparison comparison)
         {
-            SushiBLAS::Engine& engine = backend.engine();
-
             SA_TRY_ASSIGN(const Registries registries, compose_registries());
 
-            SA_TRY_ASSIGN(const Config::Value data_block,
-                          Config::fit_data_to_model(data_spec.attributes, model_spec,
-                                                        model_path.string()));
-            SA_TRY_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
-                          Data::make_dataset(registries.datasets, engine, data_spec.type,
-                                                 data_block, "the data block"));
-
-            const Shape sample_shape = dataset->sample_shape();
-            SA_FAIL_IF(sample_shape != model_spec.input_shape,
-                       StatusCode::InvalidDescription,
-                       "'{}' declares the input shape {}, but the '{}' data supplies {}",
-                       model_path.string(), model_spec.input_shape.to_string(),
-                       dataset->name(), sample_shape.to_string());
-
-            // Forward pass only: no loss, backward or optimizer; see the programs README.
-            SA_TRY_ASSIGN(NN::ModelGraph model, NN::build_model(registries.nodes, model_spec));
-            const int64_t rows = dataset->batch_size();
-
-            SA_TRY_ASSIGN(const Shape batch_shape, Train::batch_shape(rows, sample_shape));
-            // The model file states the element type of the input leaf; int32 reads indices.
-            Train::GraphOptions graph_options;
-            graph_options.dtype = model_spec.input_dtype;
-            SA_TRY_ASSIGN(const Train::TracedStep traced,
-                          Train::build_evaluation_graph(model, batch_shape, graph_options));
-
-            // A model without a task is a classifier with one output; a task names its own.
-            const bool tasked = !model_spec.task.is_null();
-            const std::vector<NN::ModelOutputs::Entry>& published = traced.outputs.all();
-            SA_FAIL_IF(!tasked && published.size() != 1, StatusCode::InvalidDescription,
-                       "'{}' publishes {} outputs, but the report counts classes and reads one",
-                       model_path.string(), published.size());
-
-            SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-            {
-                SA_ZONE("io", "checkpoint");
-                SA_TRY(IO::load_checkpoint(checkpoint_path, state));
-            }
-
-            Graph::TensorPool pool(engine);
-            SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                          Train::EvaluationStep::make(backend, traced, state, pool));
-
-            // The report is the row of the task type; see applications/programs/README.md.
-            PreparedInference prepared{
-                model_path, checkpoint_path, model_spec, model.size(),
-                *dataset, *step, published, backend, &model, &state, detection, comparison,
+            const InferenceRequest request{
+                model_path, checkpoint_path, model_spec, data_spec, detection, comparison, {},
             };
-            if (tasked)
+            SA_TRY_ASSIGN(const std::unique_ptr<InferenceBuild> build,
+                          prepare_inference(registries, backend, request));
+            PreparedInference& prepared = build->prepared();
+            Train::EvaluationStep& step = prepared.step;
+
+            if (!model_spec.task.is_null())
             {
                 SA_TRY_ASSIGN(const Config::Value& stated,
                               model_spec.task.at("type", "the task section"));
@@ -220,15 +179,15 @@ namespace SushiAI
             }
             else
             {
-                SA_TRY(report_classes(prepared, published.front().first));
+                SA_TRY(report_classes(prepared, prepared.outputs.front().first));
             }
 
-            std::cout << SushiLog::format_text("\ncompiles: {}\n", step->step().compile_count());
-            if (step->step().compile_count() != 1)
+            std::cout << SushiLog::format_text("\ncompiles: {}\n", step.step().compile_count());
+            if (step.step().compile_count() != 1)
                 std::cerr << "The step must be compiled exactly once.\n";
 
-            SA_FAIL_IF(step->step().compile_count() != 1, StatusCode::InvalidDescription,
-                       "the step was compiled {} times", step->step().compile_count());
+            SA_FAIL_IF(step.step().compile_count() != 1, StatusCode::InvalidDescription,
+                       "the step was compiled {} times", step.step().compile_count());
 
             return Status();
         }
