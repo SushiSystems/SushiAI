@@ -318,8 +318,8 @@ doubled, so the compiler lists what is left.
    Source: not compiled
 
    `graph/lowering/all.hpp` fails the build when an identity has no row, two rows, or a row
-   and a place in `K_UNLOWERED`. `K_UNLOWERED` lists the three operations recorded beside
-   the graph (the two optimizer updates and the batch-statistics update), so a graph
+   and a place in `K_UNLOWERED`. `K_UNLOWERED` lists the six operations no node carries (the two optimizer updates, the
+   clip scale, the batch-statistics update and the two layer-norm sub-task ids), so a graph
    operation takes a row there, never a place.
 
 5. **Test.** Add a unit test of the shape rule to the test file of the header the rule lives

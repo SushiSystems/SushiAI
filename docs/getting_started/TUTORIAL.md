@@ -204,8 +204,8 @@ The pipeline, in order. Each stage is a separate header you can read on its own:
 
 **How a node becomes SushiBLAS calls.** `Lowering::record` walks the nodes in
 order and looks each operation up in `K_LOWERINGS` (`graph/lowering/all.hpp`),
-the concatenation of eight tables: elementwise, linalg, activation, loss,
-shape, spatial, norm and fused, each in its own header under `modules/core/graph/include/SushiAI/graph/lowering/`
+the concatenation of twelve tables: elementwise, activation, matmul, row index, mask, loss,
+shape, spatial, norm, fused, random and broadcast, each in its own header under `modules/core/graph/include/SushiAI/graph/lowering/`
 and its own file under `modules/core/graph/source/lowering/`. The row receives a
 `LoweringContext` for that one node, which holds the step's
 `SushiBLAS::TaskRecorder` and the `TensorPool` (`graph/tensor_pool.hpp`); every

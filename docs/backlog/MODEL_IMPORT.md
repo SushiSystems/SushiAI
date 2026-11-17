@@ -13,6 +13,7 @@
 | RW-137 | P2 | open | Write a float32 setting as the shortest decimal that reads back | the import writes the `.cfg`'s `ignore_thresh=.7` as `0.7`, and a written float32 value parses back to the same float32 |  |  | 2026-10-25 |
 | RW-138 | P2 | open | Letterbox an imported `letter_box=1` model as Darknet does | an image fitted to a model imported with `letter_box=1` is padded with 0.5 and may be scaled up, as Darknet's `letterbox_image` does, and a test pins one such… |  |  | 2026-10-25 |
 | RW-139 | P2 | open | Give the tests one scratch directory | the private `ScratchDirectory` classes of `test_imported_model_writer.cpp`, `language/datasets/datasets_test_support.hpp` and… |  |  | 2026-10-25 |
+| RW-186 | P2 | open | Give the importers' row helpers one home and each importer its own namespace | make_attributes, pair_value and append_row are defined once, and Darknet, ONNX and Ultralytics internals sit in their own Detail namespace like Caffe |  | `modules/vision/importers/source/caffe_operator_table.cpp` | 2026-11-17 |
 
 ## Known issues
 

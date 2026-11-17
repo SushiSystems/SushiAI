@@ -25,7 +25,7 @@ queue or writes a `parallel_for`. Every compute call is recorded through a
 SushiBLAS operation view (`BLASOps`, `ElementwiseOps`, `RandomOps`, `SpatialOps`
 and their siblings) built from a `SushiBLAS::TaskRecorder`. The lowering is the
 one place that turns *IR* into those calls: the driver in
-`modules/core/graph/source/lowering.cpp` and the eight domain files under
+`modules/core/graph/source/lowering.cpp` and the twelve domain files under
 `modules/core/graph/source/lowering/`
 (§5.0). That keeps the differentiation, fusion and memory-planning passes
 device-free and testable without hardware.
@@ -283,7 +283,7 @@ There is no `backward.cpp`. The implementation is three kinds of file:
 | `modules/core/autograd/source/rules/<domain>.cpp` | The rules themselves, one file per domain |
 
 The domains are `elementwise`, `activation`, `linalg`, `loss`, `shape`,
-`spatial` and `norm`, each with a header beside it in
+`spatial`, `norm`, `random` and `broadcast`, each with a header beside it in
 `modules/core/autograd/include/SushiAI/autograd/rules/`. `rules/all.hpp` is the one place that joins
 them.
 
@@ -364,8 +364,9 @@ flag stays where the operation is declared; the check lives where the evidence
 is. `K_BATCHNORM_UPDATE_STATS` claims nothing and has no rule, because CV-7 keeps
 a BatchNorm's running statistics out of the differentiated graph entirely: it
 is recorded into the training step beside the graph, the way `K_SGD_UPDATE` and
-`K_ADAMW_UPDATE` are. Those three identities are the whole of `K_UNLOWERED`
-(`graph/lowering/unlowered.hpp`), the list of operations with no lowering row.
+`K_ADAMW_UPDATE` are. Those three identities, `K_CLIP_SCALE` and the two layer-norm sub-task
+ids `K_LAYER_NORM_DEVIATION` and `K_LAYER_NORM_APPLY` are the six of `K_UNLOWERED`
+(`graph/lowering/unlowered.hpp`), the list of operations no node carries.
 A node that carried one would stop the process in `Lowering::record` with "No
 lowering for operation".
 

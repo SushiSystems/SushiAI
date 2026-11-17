@@ -15,10 +15,9 @@ slots.
 
 ## G1. A random mask, and host work before each replay (after B1)
 
-**State.** Written without B1, not yet built: `ReplayPrelude` takes the run index,
-`K_DROPOUT` is one node with outputs `[y, saved_mask]`, and the mask is drawn on the host
-by `record_keep_draw` (`modules/core/graph/source/lowering/random.cpp`), which is the one
-function B1 replaces. A11 is written on it.
+**State.** `ReplayPrelude` takes the run index. `K_DROPOUT` is one node, and it stays one
+node (ruling A11): its lowering (`modules/core/graph/source/lowering/random.cpp`) records a
+positioned draw, a scale and a multiplication, and no `K_DROPOUT_MASK` operation is added.
 
 **Limit.** B1 in [BLAS_RANDOM_AND_INDEX.md](BLAS_RANDOM_AND_INDEX.md). On the SushiAI side: `CompiledStep::run` calls `before_replay` on
 the trailing recorder only (`modules/core/graph/source/compiled_step.cpp:116-117`), and a

@@ -95,7 +95,6 @@ namespace SushiBLAS
     {
         public:
             explicit PositionedRandomOps(TaskRecorder& recorder) noexcept;
-            explicit PositionedRandomOps(Engine& engine) noexcept;
 
             /**
              * @brief Fills @p t from a Bernoulli distribution at the position @p position holds.
@@ -125,7 +124,7 @@ namespace SushiBLAS
   and agree bit for bit.
 - Determinism: the fill is counter-based and accumulates nothing.
 - Cost, estimated: two 8-byte loads per Philox block, which is 4 FLOAT32 or 2 FLOAT64
-  elements. A `benchmark_random_fill` case of 2^24 elements against `RandomOps::bernoulli`
+  elements. A `benchmark_random` case of 2^24 elements against `RandomOps::bernoulli`
   replaces the estimate.
 
 `execute_random_at` is general; `bernoulli` is the one public fill, because dropout is the one
@@ -135,7 +134,8 @@ evidenced use. A further distribution is one method and one source file.
 `include/SushiBLAS/random/rng_position_tensor.hpp`,
 `include/SushiBLAS/random/positioned_dispatch.hpp`,
 `include/SushiBLAS/random/positioned_random.hpp`, `source/rng_position_tensor.cpp`,
-`source/positioned_bernoulli.cpp`, `tests/test_positioned_bernoulli.cpp`. Operation identity
+`source/positioned_bernoulli.cpp`, and under `sushiblas/tests/operations/random/`
+`test_positioned_random.cpp` and `test_rng_position_tensor.cpp`. Operation identity
 `"random.bernoulli_at"_op`.
 
 **Must not change.** `RandomOps`, `RNGStream`, `execute_random` and the eight metadata slots.
@@ -174,8 +174,8 @@ CSR matrix with a single one per row
 - The matrix needs `R + 1` row offsets, which the host fills because no task writes them
   (`modules/core/graph/source/lowering/linalg.cpp:94-99`), and `R` ones for its values.
 
-**Design.** A family `IndexOps` in a new module `operations/indexing`, with its kernels in a
-new internal module `kernels/index_kernels`. Four operations: rows by index and their sum back
+**Design.** A family `RowIndexOps` in the module `operations/gather`, with its kernels in the
+internal module `kernels/index_kernels`. Four operations: rows by index and their sum back
 into a table, one element per row and its write back. The index is the label itself, so no
 product is built and no width limit follows from the table's size.
 
@@ -196,20 +196,19 @@ Rejected:
 **Signature.**
 
 ```cpp
-// <SushiBLAS/indexing/indexing.hpp>
+// <SushiBLAS/gather/gather.hpp>
 namespace SushiBLAS
 {
     /**
-     * @class IndexOps
+     * @class RowIndexOps
      * @brief Records gathers and their transposes by an integer index.
      * @note An index outside its range selects nothing: a gather reads it as zero and a
      *       transpose skips it, on both paths and in every build type.
      */
-    class IndexOps final
+    class RowIndexOps final
     {
         public:
-            explicit IndexOps(TaskRecorder& recorder) noexcept;
-            explicit IndexOps(Engine& engine) noexcept;
+            explicit RowIndexOps(TaskRecorder& recorder) noexcept;
 
             /** @brief Copies table rows: `rows[r, d] = table[index[r], d]`. */
             TaskHandle take_rows(const Tensor& table, const Tensor& index, Tensor& rows);
@@ -268,13 +267,14 @@ and the class sums of Dice, where `D` is 1. A shape that is parallel over `r` (a
 counting sort of the index, then one fixed-order sum per table row) is a later change, taken
 only if `benchmark_index_rows` shows the column walk in a profile of a training step.
 
-**Adds.** `sushiblas/modules/operations/indexing/` with `CMakeLists.txt`, `README.md`,
-`include/SushiBLAS/indexing/indexing.hpp`, `source/take_rows.cpp`, `source/add_rows.cpp`,
-`source/take_along.cpp`, `source/put_along.cpp` and `tests/test_index_rows.cpp`,
-`tests/test_index_along.cpp`. `sushiblas/modules/kernels/index_kernels/` with `CMakeLists.txt`,
+**Adds.** `sushiblas/modules/operations/gather/` with `CMakeLists.txt`, `README.md`,
+`include/SushiBLAS/gather/gather.hpp`, `include/SushiBLAS/gather/index_operands.hpp`,
+`source/take_rows.cpp`, `source/add_rows.cpp`, `source/take_along.cpp`,
+`source/put_along.cpp` and, under `sushiblas/tests/operations/gather/test_gather/`,
+`test_index_rows.cpp` and `test_index_along.cpp`. `sushiblas/modules/kernels/index_kernels/` with `CMakeLists.txt`,
 `README.md` and, under `include/SushiBLAS/index_kernels/`, `index.hpp`, `reference/rows.hpp`,
 `reference/along.hpp`, `sycl/rows.hpp`, `sycl/along.hpp`.
-`sushiblas/tests/benchmark/benchmark_index_rows.cpp`. Operation identities `"index.take_rows"_op`,
+`sushiblas/tests/operations/gather/benchmark_index_rows.cpp`. Operation identities `"index.take_rows"_op`,
 `"index.add_rows"_op`, `"index.take_along"_op`, `"index.put_along"_op`.
 
 **Must not change.** `SparseOps`, `SparseMatrix`, `CsrPattern` and every sparse kernel.

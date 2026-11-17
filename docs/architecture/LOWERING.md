@@ -72,11 +72,11 @@ using LoweringRule = Status (*)(const LoweringContext&);
 ```
 Source: `modules/core/graph/include/SushiAI/graph/lowering/rule.hpp`
 
-The rows live in eight domain tables, each a header under
+The rows live in twelve domain tables, each a header under
 `modules/core/graph/include/SushiAI/graph/lowering/` with its functions in the `.cpp` of the
-same name under `modules/core/graph/source/lowering/`: `elementwise`, `activation`, `linalg`,
-`loss`, `shape`, `spatial`, `norm` and `fused`. `all.hpp` joins them with
-`concat_lowerings` into the 62 rows of `K_LOWERINGS`, and `find_lowering`
+same name under `modules/core/graph/source/lowering/`: `elementwise`, `activation`, `matmul`,
+`row_index`, `mask`, `loss`, `shape`, `spatial`, `norm`, `fused`, `random` and `broadcast`.
+`all.hpp` joins them with `concat_lowerings` into the 86 rows of `K_LOWERINGS`, and `find_lowering`
 searches that array. No rule calls the next one.
 
 A rule sees one `LoweringContext` (`graph/lowering/context.hpp`), built for

@@ -41,7 +41,8 @@ by that layer's factory.
 | Key | Required | Holds |
 | --- | --- | --- |
 | `format_version` | Yes | The integer `2` |
-| `input` | Yes | An object with one key, `shape` |
+| `input` | Yes | An object: `shape`, and optionally `dtype`, `fit` and `normalise` |
+| `inputs` | No | An object that maps a name to `{ "shape": [...], "dtype": ... }`: extra inputs a row reads beside `input` |
 | `layers` | Yes | A list of at least one layer object, called rows below |
 | `defaults` | No | A map from a layer type to keys its rows receive |
 | `outputs` | No | A list of at least one output entry |
@@ -54,6 +55,27 @@ The shape of one sample, without the batch axis: a list of one or more positive 
 `ModelSpec::input_shape` holds it. The list holds at most 6 extents, and their product must fit
 a signed 64-bit integer.
 
+### `inputs`
+
+`input` is the input of the model, and a model has one. A model that reads more values per sample,
+the lengths of a padded text or the tokens of the options of a question, names each of them in
+`inputs`:
+
+```json
+"inputs": {
+    "lengths": { "shape": [1] },
+    "options": { "shape": [4, 8], "dtype": "int32" }
+}
+```
+
+An entry has the `shape` of one sample, as `input.shape` has, and a `dtype`, `float32` when absent or
+`int32`. A name is not empty and holds no `.`. A key of an entry other than those two is an error.
+`ModelSpec::inputs` holds the entries in the order of the file. A row reads one by the `from` string
+`"inputs.<name>"`, as the table below shows. The training step and the evaluation step declare one leaf
+for each entry, of the shape `[batch, ...shape]`, and fill it from the batch role of the same name: a
+dataset that publishes no role `lengths` cannot train this model, and `sushiai train` says so before the
+first step. `applications/examples/decision_model/model.json` states four.
+
 ### `layers`
 
 Each row is an object. `type` names the layer and is required. `from` is described below. Every
@@ -65,19 +87,20 @@ Rows are numbered from 0 in file order.
 ### `from`
 
 `from` names the values a row reads. It holds one entry or a list of entries, and a row without
-`from` reads the row before it. An entry takes one of four forms.
+`from` reads the row before it. An entry takes one of five forms.
 
 | Entry | Reads |
 | --- | --- |
 | `-1` | The row before; at row 0, the model input |
 | A whole number from 0 up | That row, which must be above the row that names it |
 | `"input"` | The model input |
+| `"inputs.lengths"` | The extra input `lengths` of the `inputs` object; a name `inputs` does not state is an error |
 | `{ "node": 23, "port": "boxes" }` | The named port of a row; `node` follows the two number rules above, and `port` is optional |
 
 A negative number other than `-1`, a row's own index, a later row's index and an empty list are
 errors, and so is a `port` that is an empty string. The reader resolves every entry to an
-absolute row, so `LayerSpec::from` holds a row index or `K_MODEL_INPUT`, never `-1` in the
-relative sense.
+absolute row, so `LayerSpec::from` holds a row index, `K_MODEL_INPUT` or `K_NAMED_INPUT` with the name
+in `SourceSpec::input`, never `-1` in the relative sense.
 
 ### `defaults`
 
@@ -107,9 +130,27 @@ first row is an `embedding`. A `language_head` row may state `"tie"` with a row 
 the forms above; it then shares the table of that `embedding` row and needs no `vocabulary`.
 
 `input` may state `"fit"`: `"resize"`, which scales each axis of an image to the input on its
-own, or `"letterbox"`, which scales both by one ratio and pads the rest. `sushiai train` and
+own, `"letterbox"`, which scales both by one ratio and pads the rest, or `"darknet_letterbox"`, which
+does the same with Darknet's rules: the scaled sides and the offsets are truncated, the padding
+is grey (128) and the image is scaled up as well as down. `sushiai train` and
 `sushiai inference` hand it to a data block that states no `fit`, and refuse one that states
 another. `sushiai import darknet` writes it from the `.cfg`'s `letter_box`.
+
+`input` may state `"normalise"`, the conversion of the fitted bytes of an image to input values:
+`(byte * scale - mean) / std` per channel. Every key is optional. `"channels"` is `"rgb"` (the
+decoded order, the default) or `"bgr"`, which swaps red and blue. `"scale"` is a finite number above
+0 and defaults to 1/255. `"mean"` and `"std"` are three numbers each, in the order of the output
+channels, defaulting to 0 and 1; each `std` entry is above 0. A key the object does not know is
+refused by name. Without the key the conversion is the byte divided by 255, bit for bit. A `mean`,
+a `std` or `"bgr"` needs a 3-channel input; `scale` alone applies to any channel count.
+`sushiai train` and `sushiai inference` hand the object to a data block that states no
+`normalise` and refuse one that states another; the one place that applies it is
+`write_batch_inputs`. The MNIST reader and the table readers do not read it.
+
+```json
+"input": { "shape": [800, 1440, 3], "fit": "letterbox",
+           "normalise": { "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225] } }
+```
 
 `task` says what the published outputs mean, for a model whose rows alone do not: a detector's
 anchors, the coding of its heads and its suppression. It is an object, and `type` names the
@@ -172,8 +213,20 @@ has two rows.
 
 | Row | Types | A row reads |
 | --- | --- | --- |
-| Node | `batchnorm2d`, `concat`, `add`, `embedding`, `layernorm`, `dropout`; the vision rows `conv`, `bottleneck`, `c3k`, `c3k2`, `c2f`, `c3`, `sppf`, `c2psa`, `detect`, `segment_head`; the language rows | One value; `concat` reads one or more |
+| Node | `batchnorm2d`, `concat`, `add`, `mul`, `maximum`, `sub`, `div`, `softmax`, `transpose`, `embedding`, `layernorm`, `dropout`; the vision rows `conv`, `bottleneck`, `c3k`, `c3k2`, `c2f`, `c3`, `sppf`, `c2psa`, `detect`, `segment_head`; the language rows | One value; `concat` reads one or more; `add`, `mul`, `maximum`, `sub` and `div` read two |
 | Layer | `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`, `avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu`, `mish`, `slice_channels` | One value |
+
+The rows that combine or reorder values take these keys.
+
+| Row | Keys | What it does |
+| --- | --- | --- |
+| `add` | none | Sums two values of one `[H, W, C]` shape |
+| `mul`, `sub`, `div` | none | The product, the difference or the quotient of two values of one shape, in the order the row reads them. The second value may be a leading prefix of the first, such as `[H, W]` against `[H, W, C]`, and is broadcast over the axes it lacks; a `mul` may take the prefix first |
+| `maximum` | none | The larger of two values of one shape, per element; it does not broadcast |
+| `softmax` | `axis`, a per-sample axis, negative from the end, default -1 | Normalises the values along one axis to sum to 1 |
+| `transpose` | `perm`, required, a permutation of the per-sample axes | Gives output axis `i` the extent of input axis `perm[i]`; the batch axis stays first. The row copies its input once, in one `K_TRANSPOSE` node, and takes a half, float32 or float64 input; a permutation that leaves more than four runs of axes, as a reversal of four per-sample axes does, is refused |
+| `conv2d` | adds `groups`, default 1 | Splits the channels into `groups` convolutions, each filter reading `in / groups` channels, so the weight is `[out, kh, kw, in / groups]`; `groups` equal to both channel counts is depthwise, with the weight `[kh, kw, C]`, and takes no `trailing_padding` |
+| `maxpool2d` | adds `leading_padding` and `end_padding`, each an integer or `[h, w]` | The pad before and after each axis; both keys together replace `padding` and `trailing_padding`, and an end pad below the leading pad is allowed |
 
 `build_model` reads both kinds of row. `build_layer_stack` reads the layer rows only, so a chain
 of `conv` rows builds with `build_model`. A type the registry does not hold fails with a message

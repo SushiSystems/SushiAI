@@ -68,7 +68,7 @@ several checkouts at once. Run `sa config` to see what the CLI resolved.
 | `sa demo mlp` | Train an MLP end to end and report the compile count |
 | `sushiai train` | Train a model described by a JSON configuration |
 | `sushiai inference` | Evaluate a trained checkpoint over a dataset |
-| `sushiai import` | Write a model of another framework as a model, a weight and a training file |
+| `sushiai import` | Write a model of another framework as a model, a weight and a training file; `import weights` writes the `.sushi` file of a model file from a PyTorch or safetensors weight file |
 | `sushiai tokenize` | Learn a byte-pair vocabulary from a corpus, or encode a corpus with one |
 | `sa profile` | Read a profiling record with SushiProfiler's `sp`; `sa train --profile` and `sa inference --profile` write one |
 | `sa config` | Show the resolved configuration |

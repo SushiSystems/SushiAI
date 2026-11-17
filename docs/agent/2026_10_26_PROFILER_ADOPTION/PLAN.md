@@ -1,6 +1,6 @@
 # SushiAI on SushiProfiler: plan
 
-**Status:** Open — 2026-10-26; reviewed twice, no code yet
+**Status:** Open — written 2026-10-26; A1, T1 to T5 are on disk against SushiProfiler v0.4.1, and the owner's build confirms them
 **Implements:** PROFILING#P1, PROFILING#P2, PROFILING#P3, PROFILING#P4, PROFILING#P5
 
 Spec: `SPEC.md` in this folder. Every task closes on one `sa build` and `sa test` at one job (the
@@ -12,7 +12,7 @@ orchestrator writes `CHANGELOG.md`, so no two workers hold it.
 
 ## Global constraints
 
-- SushiProfiler v0.2.0 names only; nothing from v0.3.0.
+- SushiProfiler v0.4.1 names only, the pin of `cli/sushistack.deps.toml`.
 - No public header of SushiAI includes a `profile` header or a SushiProfiler header; modules name
   `profile` in `PRIVATE_DEPENDS` and SushiProfiler in `EXTERNAL_PRIVATE_LINKS`.
 - Zone groups and stages exactly as SPEC section 3; timeline names `train.step` and
@@ -34,7 +34,7 @@ orchestrator writes `CHANGELOG.md`, so no two workers hold it.
 
 | Id | Task | Who | Acceptance |
 | --- | --- | --- | --- |
-| A1 | Build lines: tier entry `profile core` in `cmake/SushiAILayers.cmake`; `modules/core/profile/CMakeLists.txt` with `sushiai_add_module(NAME profile TIER core SOURCES timelines.cpp EXTERNAL_PRIVATE_LINKS SushiProfiler::SushiProfiler)` (no SushiProfiler link when the option is OFF) and `configure_file` of `profile_config.hpp.in` holding `SA_ENABLE_PROFILER` and `SA_PROFILE_LEVEL`; `PRIVATE_DEPENDS profile` and `EXTERNAL_PRIVATE_LINKS SushiProfiler::SushiProfiler` for `train`, `eager`, `graph`, `vision/training` and `programs`; options `SA_ENABLE_PROFILER` ON and `SA_PROFILE_LEVEL` 2 in the root; `cmake/Profiler.cmake` included after `include(Log)`; `[sushisystems.sushiprofiler]` v0.2.0 and `depends_on` in `cli/sushistack.deps.toml`; `tests/core/profile/CMakeLists.txt`; the options' rows in the build manual page and their changelog line | orchestrator | Configure succeeds with the option ON and OFF |
+| A1 | Build lines: tier entry `profile core` in `cmake/SushiAILayers.cmake`; `modules/core/profile/CMakeLists.txt` with `sushiai_add_module(NAME profile TIER core SOURCES timelines.cpp EXTERNAL_PRIVATE_LINKS SushiProfiler::SushiProfiler)` (no SushiProfiler link when the option is OFF) and `configure_file` of `profile_config.hpp.in` holding `SA_ENABLE_PROFILER` and `SA_PROFILE_LEVEL`; `PRIVATE_DEPENDS profile` and `EXTERNAL_PRIVATE_LINKS SushiProfiler::SushiProfiler` for `train`, `eager`, `graph`, `vision/training` and `programs`; options `SA_ENABLE_PROFILER` ON and `SA_PROFILE_LEVEL` 2 in the root; `cmake/Profiler.cmake` included after `include(Log)`; `[sushisystems.sushiprofiler]` v0.4.1 and `depends_on` in `cli/sushistack.deps.toml`; `tests/core/profile/CMakeLists.txt`; the options' rows in the build manual page and their changelog line | orchestrator | Configure succeeds with the option ON and OFF |
 | T1 | `profile.hpp`, `timelines.hpp`, `timeline_binding.hpp` and `source/timelines.cpp` as SPEC section 2; module README; `tests/core/profile/test_timelines.cpp` | worker | `Small_Timelines.NamesAreTrainStepAndInferenceBatch`, `Small_Timelines.MarkWithNoBindingDoesNothing` and `Medium_Timelines.ABoundSessionRecordsOnePeriodPerMark` pass |
 | T2 | Layers and eager: in `modules/layers/train` (`trainer.hpp`, `trainer.cpp`) and `modules/core/eager` (`session.hpp`, `session.cpp`), remove SPEC section 4's names and add the `train`, `data`, `host`, `copy`, `device` and `eager` zones and the `TrainStep` mark of `Trainer::fit`; change the section 4 consumers (`test_convergence.cpp` and `.md`, `test_session.cpp`, `demo_mlp.cpp`); `modules/layers/train/README.md` is T2's, and T3 hands its rows for it back in its report | worker | `Medium_TrainerZones.AFitOfTwoStepsWritesTwoPeriodsWithTheirGroups` passes, and `git grep -n "node_timings\|duration_ms\|partition_ns\|options.profile" -- modules tests applications` is empty |
 | T3 | Graph: in `modules/core/graph` (`compiled_step.hpp`, `compiled_step.cpp`, `lowering.cpp`), the `label` parameter, the `compile` zones, the per-rule origin scope and the `step.trailing` scope; the labels in `training_step.cpp`, `evaluation_step.cpp`, `replica_step.cpp` and `region_executor.cpp`; the two comments of SPEC section 4 (`compiled_step.hpp:151-152`, `ir.hpp:184`); tests in `tests/core/graph/` that attach a `SushiRuntime::RunObserver` and read `RunObservation::table` | worker | `Medium_CompiledStepAttribution.EveryTaskOfANodeCarriesItsOrigin`, `.TwoStepsHaveTwoLabels`, `.TheOptimizerCarriesTheTrailingOrigin` and `.AViewLeavesNoOriginOpen` pass |
@@ -47,7 +47,7 @@ orchestrator writes `CHANGELOG.md`, so no two workers hold it.
 
 | Wave | Tasks | Files | Waits on |
 | --- | --- | --- | --- |
-| 1 | A1, T1 | Build files; `modules/core/profile`, `tests/core/profile` | SushiProfiler v0.2.0's names |
+| 1 | A1, T1 | Build files; `modules/core/profile`, `tests/core/profile` | SushiProfiler v0.4.1's names |
 | 2 | T2, T3, T5 | `modules/layers/train/{trainer.*}`, `modules/core/eager` and their tests; `modules/core/graph` (with `ir.hpp`), `training_step.cpp`, `evaluation_step.cpp`, `replica_step.cpp`, `region_executor.cpp` and their tests; `modules/vision/training` and its tests. No file is in two sets; `CHANGELOG.md` is the orchestrator's | T1; T3 also R15, R16 and B-O1 |
 | 3 | T4 | `applications/programs`, `cli/` | Wave 2 |
 | 4 | T6, T7 | Build files; records | SushiCore's packages, the build |

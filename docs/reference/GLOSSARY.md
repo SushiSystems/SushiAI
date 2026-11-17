@@ -23,7 +23,7 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 | Word | Meaning |
 | --- | --- |
 | Lowering | Records the SushiBLAS work of an IR graph, node by node, each node through its row of the lowering table (`Graph::Lowering`, `graph/lowering.hpp`) |
-| Lowering table | One of the eight per-domain tables under `graph/lowering/`, each a list of rows; `graph/lowering/all.hpp` joins them and checks at compile time that every operation identity has exactly one row, or is listed in `K_UNLOWERED` |
+| Lowering table | One of the twelve per-domain tables under `graph/lowering/`, each a list of rows; `graph/lowering/all.hpp` joins them and checks at compile time that every operation identity has exactly one row, or is listed in `K_UNLOWERED` |
 | Lowering row | One entry of a table: an operation identity and the function that records it (`LoweringEntry`, `graph/lowering/rule.hpp`) |
 | Lowering context | What one row reads for its node: the recorder, the pool, the operands and the results (`LoweringContext`, `graph/lowering/context.hpp`) |
 | Task recorder | The object a SushiBLAS call records its tasks on. A lowering row builds its SushiBLAS view from one (`SushiBLAS::TaskRecorder`) |

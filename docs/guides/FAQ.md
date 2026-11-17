@@ -22,7 +22,7 @@ empty checkout to a trained model.
 
 SushiAI is built on SushiBLAS's tensor and BLAS layer, and SushiBLAS runs on SushiRuntime's task
 graph. SushiAI writes no SYCL: no file names a `sycl::` type or submits to a queue, every
-compute call goes through SushiBLAS, and the eight per-domain tables under `modules/core/graph/source/lowering/`
+compute call goes through SushiBLAS, and the twelve per-domain tables under `modules/core/graph/source/lowering/`
 turn IR into those calls, each through a view built from the step's `SushiBLAS::TaskRecorder`.
 The library target `SushiAI::sushiai` links `SushiRuntime::core`, `SushiRuntime::api`,
 `SushiBLAS::sushiblas` and `SushiLog::SushiLog` `PUBLIC`.

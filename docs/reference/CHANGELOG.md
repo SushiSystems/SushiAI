@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- 2026-11-16 — imaging: Breaking change: Renamed `fit_long_side` and `resize_long_side` to `fit_within` and `resize_within`, which fit an image within any height and width (`resize.hpp`).
+- 2026-11-16 — imaging: Breaking change: Took the mosaic's training size as an `ImageSize`, with a canvas of twice each side (`mosaic.hpp`).
+- 2026-11-16 — imaging: Breaking change: Took `image_size` of `TrainingSettings` and `ValidationSettings` as an `ImageSize` (`pipeline.hpp`).
+- 2026-11-16 — datasets: Breaking change: Took `AugmentOptions::image_size` as an `ImageSize`, and let the `default` pipeline make samples that are not square (`augment_pipeline.hpp`).
+- 2026-11-16 — model_import: Breaking change: Took an `UltralyticsInputSize` in `describe_ultralytics_model` and `translate_ultralytics_model`, dividing each anchor by its own axis (`ultralytics_model.hpp`).
+- 2026-11-16 — model_import: Refused an Ultralytics `imgsz` that is neither an integer nor a list of sides, which fell back to 640 (`ultralytics_import.cpp`).
+- 2026-11-16 — tools: Took the shared tools from SushiCore v0.14.0 into a lock file and moved the SushiCore pin to 0.14 (`tools/shared_tools.lock`).
 - 2026-11-15 — model_import: Extended the Ultralytics importer to YOLOv5n, YOLOv8n and YOLO11n (RW-183, `e299ea91`).
 - 2026-11-15 — model_import: Added a large test matching the detections of four imported Ultralytics checkpoints on 16 coco128 images (RW-184, `0af99bee`).
 - 2026-11-15 — model_import: Added `sa import ultralytics`, reading a `.pt` with SushiAI's own zip, pickle and PyTorch readers; on 16 coco128 images `sa inference` matches all 39 of Ultralytics' boxes (RW-182, `35c2829f`).

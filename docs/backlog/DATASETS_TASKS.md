@@ -16,6 +16,7 @@
 | RW-78 | P2 | open | Upsample bilinearly in the graph | a head can have boundaries finer than its scale (G7 of the graph capabilities plan) |  |  | 2026-10-19 |
 | RW-79 | P2 | open | Take several polygons per object in a label | an outline of more than one part loads |  |  | 2026-10-19 |
 | RW-80 | P2 | open | Give the `default` pipeline keys for its probabilities, gains and mosaic epochs | each is a key |  |  | 2026-10-19 |
+| RW-185 | P2 | open | Train and import models whose input is not square | The training, mask and validation pipelines, the default row and the Ultralytics import take any height and width; their tests pass |  | `docs/design/DATASETS/NON_SQUARE_INPUTS.md` | 2026-11-16 |
 
 ## Known issues
 

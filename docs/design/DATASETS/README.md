@@ -1,6 +1,6 @@
 # Datasets
 
-**Status:** Open — all seven phases written, not yet built
+**Status:** Open — phases 1 to 7 and NS1 written, not yet built
 **About:** How SushiAI reads training data for more than one kind of task, from the layouts data is commonly kept in, without a class per named dataset.
 **Modules:** none
 
@@ -205,9 +205,10 @@ recall beside it.
 | 5 | The binary and multi-label objectives and their metrics | building |
 | 6 | `coco_json`, `voc_xml`, `mask_png` | building |
 | 7 | `vision/segment`, its objectives, its head, and a model that overfits one batch | building |
+| NS1 | Training transforms at any height and width: fit_within, a mosaic canvas of twice each side, ImageSize through the training, mask and validation pipelines and the default row | building |
 
 Each phase's code can be written before SushiBLAS follows SushiRuntime v0.4.0; none can be
-verified before it.
+verified before it. Phase NS1 is [NON_SQUARE_INPUTS.md](NON_SQUARE_INPUTS.md).
 
 ### Work
 

@@ -111,15 +111,46 @@ A `data` block with `reader`:
 | `batch_size` | 16 | |
 | `input` | required | `[height, width]` of the network input |
 | `channels` | 3 | |
-| `fit` | The model file's, else `letterbox` for `detection` and `segmentation` and `resize` for the other tasks | `resize` scales each axis on its own; `letterbox` scales both by one ratio and pads. A `fit` other than the model file's is an error |
+| `fit` | The model file's, else `letterbox` for `detection` and `segmentation` and `resize` for the other tasks | `resize` scales each axis on its own; `letterbox` scales both by one ratio and pads; `darknet_letterbox` is Darknet's `letterbox_image`: the scaled sides and the offsets truncate, the padding is 128 and the image is scaled up as well as down. A `fit` other than the model file's is an error |
+| `letterbox_padding`, `letterbox_scale_up` | 114, false | With the `letterbox` fit, the padding byte in [0, 255] and whether an image smaller than `input` is scaled up; an error beside another fit |
 | `classes` | The count the samples name | `yolo_txt` requires it |
 | `max_objects` | required for `detection` | The object slots of one image; an image with more is an error |
 | `cache`, `cache_side` | none, 0 | A directory of raw images written on the first pass and read afterwards; `cache_side` bounds the longest side |
 | `shuffle`, `seed` | false, 0 | A sample order drawn anew at each epoch from the seed |
-| `pipeline` | `"none"` | `"default"` runs mosaic, the affine warp, flips and colour on each sample |
+| `pipeline` | `"none"` | `"default"` runs mosaic, the affine warp, flips and colour on each sample. `"darknet"` crops each sample by Darknet's jitter, resizes the crop to `input` and distorts its colour; it reads `jitter`, `hue`, `saturation` and `exposure` |
+| `jitter`, `hue`, `saturation`, `exposure` | 0, 0, 1, 1 | Keys of the `"darknet"` pipeline, refused beside any other. `jitter` in [0, 0.5) moves each crop edge by up to that fraction of the side, past the image where the edge pixel repeats; `hue` in [0, 1] shifts the hue by up to that fraction of the circle either way; `saturation` and `exposure`, each at least 1, scale by a factor drawn in [1/s, s] as Darknet's `rand_scale` does. A sample with a mask is an error. `sushiai import darknet` writes the four from the `.cfg`, with Darknet's defaults 0.2, 0, 1 and 1 for what it omits |
 | `workers`, `prefetch` | 0, the worker count | Threads that read batches ahead, and how many batches they hold |
 
 `applications/examples/yolov7_tiny/` holds a training file that uses all three.
+
+### One objective over several outputs
+
+A model that publishes several outputs trains through objectives that each name the one they read. The
+four dense objectives, `cross_entropy`, `binary_cross_entropy`, `multi_label` and `mean_squared_error`,
+share three keys, and the `sum` objective adds the losses of its `terms`:
+
+| Key | Holds |
+| --- | --- |
+| `output` | The name of the model output the term reads. Without it the term reads the model's only output |
+| `type_mask` | `true`, or `{ "columns": k, "column": c }`: the loss keeps the rows the batch role `type_mask` marks with 1, read as `[N]` or as column `c` of `[N, k]` |
+| `target` | The name of the batch role the term reads its targets from, in place of `labels` (`values` for `mean_squared_error`) |
+
+```json
+"objective": {
+  "type": "sum",
+  "terms": [
+    { "type": "cross_entropy", "output": "choice", "target": "choice",
+      "type_mask": { "columns": 3, "column": 0 } },
+    { "type": "mean_squared_error", "output": "number", "target": "number",
+      "type_mask": { "columns": 3, "column": 2 } }
+  ]
+}
+```
+
+A dataset that mixes several kinds of question publishes one role of targets for each kind, and each
+term keeps the rows of its own kind with `type_mask`. The roles a model reads beside its input are the
+`inputs` of its model file (`docs/guides/MODEL_FILE.md`). `applications/examples/decision_model/`
+holds both files for a model that answers a choice, a yes or no and a number.
 
 ### Training a detector
 
@@ -273,8 +304,9 @@ sushiai import darknet yolov7-tiny.cfg yolov7-tiny.weights --output models/yolov
 | Argument | Meaning |
 | --- | --- |
 | `<format>` | The importer to read with. `darknet` is the one a build with the vision domain has; a format with no importer is refused with the formats that have one |
-| `<files...>` | The files of the other framework, in the order the format states them. `darknet` takes a `.cfg` and optionally a `.weights` |
+| `<files...>` | The files of the other framework, in the order the format states them. `darknet` takes a `.cfg` and optionally a `.weights`; `caffe` takes a `.prototxt` and optionally a `.caffemodel`; `onnx` takes one `.onnx` |
 | `--output`, `-o` | The directory that receives the files; it is created when absent |
+| `--task` | A JSON file holding an object with a string `type`, which becomes the `task` section of `model.json`. An importer that writes a task section itself refuses the flag |
 | `--force` | Replace a file that is already there. Without it an existing file stops the import before anything is written |
 
 It writes three files into the directory:
@@ -295,6 +327,88 @@ foreign files that none of the three files holds; for Darknet these are `batch`,
 `.weights` file there is no `weights` key and a run initialises the model.
 
 The command creates no engine and needs no device.
+
+### `sushiai import caffe`: a Caffe net
+
+```bash
+sushiai import caffe lenet.prototxt lenet.caffemodel --output models/lenet
+```
+
+The command reads a deploy prototxt and, when given, the caffemodel with its weights, and writes
+the three files above. The layers it translates are `Input`, `Convolution`, `Pooling`, `ReLU`,
+`InnerProduct`, `Concat`, `Eltwise`, `Softmax`, `Dropout`, and `BatchNorm` with the
+`Scale` after it, which become one normalisation row. A net with a layer outside that list is
+refused with one message that names every such layer, so one run shows the whole gap.
+
+Three differences from Caffe show in the written files. The model reads `[H, W, C]` images, so
+convolution weights are stored `[out, kh, kw, in]` and the inputs of an inner product follow the
+order of a flattened `[H, W, C]` image. A `Softmax` becomes a `softmax` row, and a net that ends in
+it publishes the probabilities. `Eltwise` with `SUM`, `PROD` or `MAX` becomes `add`, `mul` or
+`maximum` rows, and a grouped `Convolution` states `groups`. The import writes no task section; a
+Caffe net states none.
+
+### `sushiai import onnx`: an ONNX graph
+
+```bash
+sushiai import onnx detector.onnx --output models/detector --task detector_task.json
+```
+
+The command reads an ONNX file of opset 13 or newer with one float32 image input `[N, C, H, W]`
+whose C, H and W are stated, and writes the three files above. The operators it translates are
+`Conv`, `BatchNormalization`, `Relu`, `Sigmoid`, `Mul` (only as the SiLU of a `Sigmoid` and its own
+input), `Add`, `Sub`, `Div`, `Softmax`, `Transpose`, `Concat`, `MaxPool`, `Resize`, `Reshape`,
+`Slice`, `Split`, `Flatten`, `Gemm`, `MatMul`, `Identity` and `Constant`, each in the forms
+[`modules/vision/importers/README.md`](../../modules/vision/importers/README.md) lists. A graph with
+a node outside those forms is refused with one message that names every such node, so one run shows
+the whole gap.
+
+The model reads `[H, W, C]` images, so convolution weights are stored `[out, kh, kw, in]`, and an
+output flattened from an image lists its features as `(H, W, C)` where ONNX lists `(C, H, W)`. An
+ONNX file states no task and no training recipe, so `model.json` has no `task` section until you
+pass `--task`, and `train.json` states no recipe.
+
+### `sushiai import weights`: a weight file for a model you wrote
+
+A weight file holds tensors and no architecture, so it cannot produce a model file. When you
+have written the model file yourself, `import weights` fills its state records from the weight
+file and writes the `.sushi` file.
+
+```bash
+sushiai import weights model.json yolox_x.pth.tar --map yolox_map.json --output yolox_x.sushi
+```
+
+| Argument | Meaning |
+| --- | --- |
+| `<model.json>` | The model file whose parameters and buffers the weights fill |
+| `<weights-file>` | A PyTorch file (`.pth`, `.pt`, `.pth.tar`) or a `.safetensors` file. The command reads the container from the first bytes of the file, not from its extension |
+| `--map` | The name map, below |
+| `--output`, `-o` | The `.sushi` file to write; its folder is created when absent |
+| `--force` | Replace the output when it exists |
+
+The name map is a JSON object with three optional keys:
+
+```json
+{
+  "state_dict": "model",
+  "rename": [{"from": "backbone.", "to": "body."}],
+  "drop": ["num_batches_tracked"]
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `state_dict` | The key of the state dictionary inside a PyTorch file, such as `model` in a ByteTrack checkpoint. Leave it out when the file is the dictionary. A safetensors file has no nesting and ignores it |
+| `rename` | Prefix rules applied to each tensor name, in order; the first rule that matches wins. An empty `from` matches every name |
+| `drop` | Names the model has no record for. An entry matches a tensor whose name is the entry, or ends in a dot and the entry, so `num_batches_tracked` drops that buffer of every normalisation. Drops are read against the name as the file states it, before any rename |
+
+The import is strict both ways. It fails, and writes nothing, when a record of the model has
+no tensor, a tensor has no record, two tensors rename to one record, or a shape differs. One
+message names every such entry, grouped by kind, so one run shows the whole gap. A tensor whose
+shape is its record's is copied as it is. A convolution weight stored `[out, in, kh, kw]`, the
+PyTorch layout, is permuted to the record's `[out, kh, kw, in]`, and a depthwise one stored
+`[channels, 1, kh, kw]` to `[kh, kw, channels]`; any other difference of shape is refused as
+misshapen. Values are read as float32 and stored in the record's element type, float32 or
+float64.
 
 ## `sushiai tokenize`: a vocabulary and a token file
 

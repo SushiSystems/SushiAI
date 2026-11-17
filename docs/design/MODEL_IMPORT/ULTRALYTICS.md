@@ -41,7 +41,7 @@ PyTorch rebuilder.
 
 | Brick | Where | Responsibility |
 | --- | --- | --- |
-| `ZipArchive` | `io` | The entries of a zip file held in memory, plain or zip64, as views. It reads stored entries only and refuses a compressed one by name |
+| `ZipArchive` | `io` | The entries of a zip file held in memory, plain or zip64, as views. It reads stored entries, and a deflate entry through `inflate` |
 | `read_pickle` | `io` | A pickle of protocol 2 to 5 into a tree of `PickleValue` nodes. It calls nothing, and admits a global only when the caller's list names it |
 | `pickle_to_value` | `io` | The plain data of a tree into a `Config::Value` |
 | `TorchArchive` | `io` | A PyTorch zip: the pickle tree, and each tensor read at its stride into row-major float32, from half, float32 or float64 |
@@ -82,7 +82,7 @@ A module with no row is refused, and the message lists every such module of the 
 the entries that use it. The Detect row writes `reg_max`, `end2end` and the class branch, plain
 before C3k2 and depthwise after it, and drops the fixed `dfl` ramp. A Detect with anchors, as
 YOLOv5 writes it, becomes one 1x1 `conv2d` per level published as `head_<level>` and the
-`anchor_detection` task, its anchors as fractions of the input side; the level's tensors
+`anchor_detection` task, its anchors as fractions of the input, each width over its width and each height over its height; the level's tensors
 `<detect>.m.<level>.` are renamed to that convolution's row and the `anchors` buffer is dropped.
 
 ## Verification
@@ -113,5 +113,3 @@ The released `.pt` files are downloaded on the owner's machine and are never com
 ## Left out
 
 - `train_args` is not translated, so `train.json` states no recipe and the import notes it.
-- A compressed zip entry is refused. PyTorch writes stored entries, so a deflate reader waits for
-  `.npz` (phase 9).

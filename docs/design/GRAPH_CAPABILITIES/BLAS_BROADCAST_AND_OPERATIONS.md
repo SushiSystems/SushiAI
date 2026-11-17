@@ -87,7 +87,6 @@ namespace SushiBLAS
     {
         public:
             explicit BroadcastOps(TaskRecorder& recorder) noexcept;
-            explicit BroadcastOps(Engine& engine) noexcept;
 
             /** @brief Computes `C = A + v`. */
             TaskHandle add(const Tensor& A, const Tensor& v, Tensor& C, BroadcastAxis axis);
@@ -143,8 +142,8 @@ the task body, installed because a consumer's functor instantiates it.
 `sushiblas/modules/operations/broadcast/` with `CMakeLists.txt`, `README.md`,
 `include/SushiBLAS/broadcast/broadcast_operand.hpp`, `include/SushiBLAS/broadcast/dispatch.hpp`,
 `include/SushiBLAS/broadcast/broadcast.hpp`, `source/add.cpp`, `source/sub.cpp`,
-`source/mul.cpp`, `source/div.cpp` and `tests/test_broadcast.cpp`, `tests/test_broadcast_seam.cpp`.
-`sushiblas/tests/benchmark/benchmark_broadcast.cpp`. Operation identities `"broadcast.add"_op`
+`source/mul.cpp`, `source/div.cpp`; its test `sushiblas/tests/operations/broadcast/test_broadcast.cpp` and benchmark
+`sushiblas/tests/operations/broadcast/benchmark_broadcast.cpp`. Operation identities `"broadcast.add"_op`
 to `"broadcast.div"_op`.
 
 **Must not change.** `ElementwiseOps`, `SpatialOps::channel_affine`, `MapTask`, `ZipTask`.
@@ -239,9 +238,11 @@ reference against the device.
 **Limit and evidence.** `ReductionOps::argmax` reduces the whole tensor to one index, and the
 per-axis reductions are `max_along`, `min_along` and `sum_along`
 (`sushiblas/modules/operations/reductions/include/SushiBLAS/reductions/reductions.hpp:98-105`,
-`:150-177`). `measure_segmentation` therefore picks each pixel's class on the host from
-`R * C` logits, 39 million reads for one 512 by 512 image over 150 classes, and fails above
-4096 classes (`modules/vision/training/README.md:190-195`).
+`:150-177`). The step therefore computes each pixel's class through `argmax_rows` in the graph,
+`R * C` logits read on the device in every replay, 39 million reads for one 512 by 512 image over
+150 classes, and `measure_segmentation` reads the resulting int64 value and counts it in a
+`C * C` matrix with no class limit but the host's memory
+(`modules/vision/training/README.md`, the paragraph on `pixel_classes`).
 
 **Signature**, a member of `ReductionOps` beside `max_along`:
 

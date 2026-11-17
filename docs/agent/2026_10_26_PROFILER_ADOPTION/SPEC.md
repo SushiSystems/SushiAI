@@ -1,6 +1,6 @@
 # SushiAI on SushiProfiler: specification
 
-**Status:** Open — 2026-10-26; reviewed twice, no code yet
+**Status:** Open — written 2026-10-26; P1 to P5 are on disk against SushiProfiler v0.4.1, and the owner's build confirms them
 **Implements:** PROFILING#P1, PROFILING#P2, PROFILING#P3, PROFILING#P4, PROFILING#P5
 
 The topic is `docs/design/PROFILING/README.md`; its Decision table holds the rulings. This page
@@ -22,17 +22,17 @@ fixes the interfaces and what each changes.
 | Each program makes its runtime and engine before it runs | `applications/programs/source/train.cpp:78-79`, `inference.cpp:79-80` |
 | A module names its edges with `PUBLIC_DEPENDS` and `PRIVATE_DEPENDS` | `cmake/SushiAIModule.cmake:176` |
 
-What SushiProfiler v0.2.0 provides, read from its headers:
+What SushiProfiler v0.4.1 provides, read from its headers:
 
 - `Session::start(const ProfilerConfig&, const Registry&)` returns a `SessionStart` holding the
-  session or an `error` string (`session/session.hpp:59-67`, `:96-97`).
+  session or an `error` string (`session/session.hpp:65-73`, `:112`).
 - `Session::timeline(std::string_view)` makes and owns a timeline; the window follows the one the
-  configuration's `timeline` names (`session.hpp:107-108`, `config/profiler_config.hpp:76`). A
+  configuration's `timeline` names (`session.hpp:124`, `config/profiler_config.hpp:99`). A
   timeline the session did not make is never observed.
 - `Session::stop()` returns a `SessionStop` with the `record` and `problems`; `Session::report(record)`
   runs the configured analyses and record writers. `~Session()` drops an unstopped record.
 - `read_profiler_config(std::string_view text)` returns a `ConfigReadResult` with an optional
-  configuration or an `error` (`profiler_config.hpp:86-104`).
+  configuration or an `error` (`profiler_config.hpp:111-129`).
 - `breakdown` groups zones by the site's `group` and its parents (`record_queries.cpp:133-145`); it
   does not split names.
 - `DeviceSpanKeys::K_GRAPH` and `K_ORIGIN`, and `roofline` grouping by them (task C10).
@@ -209,7 +209,7 @@ class ProfileSession final
 
 ## 7. Dependencies and build
 
-- `cli/sushistack.deps.toml`: `[sushisystems.sushiprofiler]` pinned to v0.2.0; `depends_on` gains
+- `cli/sushistack.deps.toml`: `[sushisystems.sushiprofiler]` pinned to v0.4.1; `depends_on` gains
   `sushiprofiler`.
 - Options `SA_ENABLE_PROFILER` (ON) and `SA_PROFILE_LEVEL` (2) are written into the generated
   `profile_config.hpp`, never into compile definitions, so a change of level rebuilds the sources
