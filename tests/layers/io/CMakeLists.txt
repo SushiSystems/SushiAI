@@ -15,12 +15,23 @@ sushiai_add_test_program(OWNER io
         test_imported_model.cpp
         test_imported_model_writer.cpp
         test_importer_registry.cpp
+        test_inflate.cpp
         test_memory_input.cpp
+        test_name_map.cpp
+        test_npy_reader.cpp
+        test_npz_weight_source.cpp
         test_pickle_data.cpp
         test_pickle_reader.cpp
+        test_protobuf_text.cpp
+        test_protobuf_wire.cpp
         test_run_checkpoint.cpp
         test_run_progress.cpp
+        test_safetensors_reader.cpp
+        test_safetensors_weight_source.cpp
         test_torch_archive.cpp
+        test_torch_weight_source.cpp
+        test_weight_import.cpp
+        test_weight_source.cpp
         test_zip_archive.cpp
     DEPENDS
         classifier_objective

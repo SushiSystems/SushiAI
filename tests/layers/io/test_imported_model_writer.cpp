@@ -41,6 +41,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
@@ -172,6 +173,23 @@ TEST(Small_ImportedModelWriter, LeavesTheDataBlockNull)
 
     ASSERT_TRUE(training.has("data"));
     EXPECT_TRUE(require_value(training.at("data", "file")).is_null());
+}
+
+/** @brief Tests that the data block holds what the import states, and is no other kind. */
+TEST(Small_ImportedModelWriter, StatesTheDataBlockOfTheImport)
+{
+    ImportedModel imported = make_imported();
+    imported.data = SushiAI::Test::attributes_from(R"({ "pipeline": "darknet", "jitter": 0.3 })");
+
+    SA_ASSERT_OK_AND_ASSIGN(const Config::Value training, IO::compose_training_file(imported));
+    const Config::Value& data = require_value(training.at("data", "file"));
+    EXPECT_EQ(require_value(require_value(data.at("pipeline", "data")).as_string("pipeline")),
+              "darknet");
+    EXPECT_TRUE(data.has("jitter"));
+
+    imported.data = Config::Value::integer(3);
+    SA_EXPECT_FAILURE(IO::compose_training_file(imported), StatusCode::InvalidDescription,
+                      "data block", "must be an object");
 }
 
 /** @brief Tests that a model without tensors states no "weights" key. */
@@ -356,6 +374,27 @@ TEST(Medium_ImportedModelWriter, ReplaceOverwritesAnExistingFile)
 
     EXPECT_NE(read_bytes(scratch.path() / "train.json").find("sushiai_train"),
               std::string::npos);
+}
+
+/** @brief Tests that one weight file is written alone, its folder is made, and a second write is refused. */
+TEST(Medium_ImportedModelWriter, OneWeightFileIsWrittenAloneAndAnExistingOneIsRefused)
+{
+    const ScratchDirectory scratch("sushiai_import_one_weight_file");
+    const std::filesystem::path file = scratch.path() / "nested" / "out.sushi";
+    const ImportedModel imported = make_imported();
+    const SushiRuntime::span<const ImportedTensor> tensors(imported.weights.data(),
+                                                           imported.weights.size());
+
+    SA_EXPECT_OK(IO::write_imported_weights(tensors, file, ExistingFiles::Refuse));
+
+    const std::vector<ReadTensor> read = read_weight_file(file);
+    ASSERT_EQ(read.size(), imported.weights.size());
+    EXPECT_EQ(read[0].record.name, imported.weights[0].record.name);
+    EXPECT_EQ(read[0].payload, imported.weights[0].payload);
+    EXPECT_FALSE(std::filesystem::exists(file.parent_path() / "model.json"));
+    SA_EXPECT_FAILURE(IO::write_imported_weights(tensors, file, ExistingFiles::Refuse),
+                      StatusCode::Incompatible, "out.sushi", "exists already");
+    SA_EXPECT_OK(IO::write_imported_weights(tensors, file, ExistingFiles::Replace));
 }
 
 /** @brief Tests that a tensor whose bytes differ from its record is refused by its name. */

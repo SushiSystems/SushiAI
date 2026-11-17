@@ -72,9 +72,10 @@ namespace SushiAI
 
         /**
          * @brief Returns the training file of @p imported as a value.
-         * @return The version, "model", "weights" when the model has weights, "data" as null,
-         *         "checkpoint", then the keys of ImportedModel::training in their order; or
-         *         InvalidDescription when the recipe is no object or states one of those keys.
+         * @return The version, "model", "weights" when the model has weights, "data" as ImportedModel::data (null
+         *         when it states none), "checkpoint", then the keys of ImportedModel::training in
+         *         their order; or InvalidDescription when the recipe or the data is no object or
+         *         the recipe states one of those keys.
          */
         [[nodiscard]] Result<Config::Value> compose_training_file(const ImportedModel& imported) noexcept;
 
@@ -86,6 +87,18 @@ namespace SushiAI
          */
         [[nodiscard]] Status check_imported_tensors(
             SushiRuntime::span<const ImportedTensor> tensors) noexcept;
+
+        /**
+         * @brief Writes @p tensors as the one weight file @p file.
+         * @param file Its parent directory is created when absent.
+         * @param existing Refuse stops when @p file exists.
+         * @return Success, or what check_imported_tensors returns for @p tensors; Incompatible
+         *         naming @p file under Refuse; InvalidFile for a failed write. A failure leaves
+         *         @p file as it was.
+         */
+        [[nodiscard]] Status write_imported_weights(
+            SushiRuntime::span<const ImportedTensor> tensors, const std::filesystem::path& file,
+            ExistingFiles existing) noexcept;
 
         /**
          * @brief Writes the model, weight and training files of @p imported into @p directory.

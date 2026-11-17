@@ -426,6 +426,12 @@ optimizer's `type` is "sgd".
 
 The composed file has a `data` key whose value is null.
 
+### StatesTheDataBlockOfTheImport
+
+With `data` set to an object of `"pipeline": "darknet"` and a `jitter` of 0.3, the composed file's
+`data` is that object. With `data` set to an integer the composition fails with
+`InvalidDescription`, "data block" and "must be an object".
+
 ### StatesNoWeightsKeyWithoutTensors
 
 With no tensors the composed file has no `weights` key.
@@ -562,8 +568,8 @@ seed 0. Each is refused as `Incompatible`, naming the file and both seeds.
 
 ## archive_bytes.hpp
 
-`zip_of` writes a zip archive in memory: each entry stored with its method and no extra field, then
-the central directory and an end record. `bytes_of` and `view_of` turn text into the bytes a reader
+`zip_of` writes a zip archive in memory: each entry with its method, its CRC-32 and its decoded size
+as the fixture states them and no extra field, then the central directory and an end record. `bytes_of` and `view_of` turn text into the bytes a reader
 takes. The pickle streams of the tests below are written by hand from the opcodes of the pickle
 format, each beside a comment that spells the value it encodes.
 
@@ -579,9 +585,38 @@ An archive of three stored entries, one of them empty, lists the three in order 
 
 `find` returns the entry `x/byteorder` with its bytes and null for a name the archive does not hold.
 
-### ReadRefusesACompressedEntryByName
+### ReadRefusesAnEntryOfAnotherMethodByName
 
-An entry of method 8 fails with `Unsupported`, naming the entry and the method.
+An entry of method 12 fails with `Unsupported`, naming the entry and the method.
+
+### ReadDecodesADeflatedEntryWithItsCrc
+
+An entry of method 8 holding a fixed-Huffman stream that `zlib` made, with the CRC-32 `zlib` gave,
+is marked deflated and reads as its 23-byte text.
+
+### ContentsOfAMixedArchiveStayWithTheirEntries
+
+Stored, deflated, stored and deflated entries in turn each read their own bytes.
+
+### ReadRefusesADeflatedEntryWithAWrongCrcByName
+
+The same entry with its CRC-32 changed by one bit fails with `InvalidFile`, naming the entry and
+"CRC-32".
+
+### ReadRefusesACorruptDeflateStreamByEntryName
+
+An entry whose stream is a block of the reserved type 3 fails with `InvalidFile`, naming the entry
+and the reason.
+
+### ReadRefusesADeflatedEntryOfAnotherSizeThanItStates
+
+An entry that states 24 bytes and whose stream holds 23 fails with `InvalidFile`, naming the entry
+and both numbers.
+
+### ReadRefusesADeflatedSizeBeyondTheMostDeflateCanMake
+
+An entry of 10 compressed bytes that states 1,000,000 fails with `InvalidFile`, naming the entry,
+before any byte is decoded.
 
 ### ReadRefusesBytesWithoutAnEndRecord
 
@@ -681,3 +716,46 @@ input.
 ### ADepthwiseWeightRunsTapChannel
 
 A [3, 1, 2, 1] depthwise weight holding 0 to 5 copies as 0, 2, 4, 1, 3, 5: tap, channel.
+
+## test_inflate.cpp
+
+Its cases are described in [test_inflate.md](test_inflate.md).
+
+## test_npy_reader.cpp
+
+Its cases are described in [test_npy_reader.md](test_npy_reader.md).
+
+## test_protobuf_wire.cpp
+
+Its cases are described in [test_protobuf_wire.md](test_protobuf_wire.md).
+
+## test_protobuf_text.cpp
+
+Its cases are described in [test_protobuf_text.md](test_protobuf_text.md).
+
+## test_name_map.cpp
+
+Its cases are described in [test_name_map.md](test_name_map.md).
+
+## test_npz_weight_source.cpp
+
+Its cases are described in [test_npz_weight_source.md](test_npz_weight_source.md). It builds the
+fixture model of `weight_fixtures.hpp` as a stored and a deflated `.npz`.
+
+## test_weight_source.cpp
+
+Its cases are described in [test_weight_source.md](test_weight_source.md). `weight_fixtures.hpp`
+builds the one small model, in a PyTorch zip and in a safetensors file, that this file and
+`test_weight_import.cpp` read.
+
+## test_safetensors_weight_source.cpp
+
+Its cases are described in [test_safetensors_weight_source.md](test_safetensors_weight_source.md). It reads the safetensors fixture of `weight_fixtures.hpp` through `open_safetensors_source`.
+
+## test_torch_weight_source.cpp
+
+Its cases are described in [test_torch_weight_source.md](test_torch_weight_source.md). It reads the PyTorch zip fixture of `weight_fixtures.hpp` through `open_torch_source`.
+
+## test_weight_import.cpp
+
+Its cases are described in [test_weight_import.md](test_weight_import.md).

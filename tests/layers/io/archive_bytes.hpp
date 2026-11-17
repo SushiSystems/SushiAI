@@ -45,8 +45,10 @@ namespace SushiAI
         struct ZipFixtureEntry
         {
             std::string name;          /**< The path the archive stores it under. */
-            std::string contents;      /**< Its bytes. */
-            std::uint16_t method = 0;  /**< Its compression method; 0 stores it. */
+            std::string contents;          /**< Its bytes as stored. */
+            std::uint16_t method = 0;      /**< Its compression method; 0 stores it. */
+            std::size_t inflated_size = 0; /**< Its size decoded; read when the method is not 0. */
+            std::uint32_t crc = 0;         /**< The CRC-32 the headers state. */
         };
 
         /** @brief Returns the bytes of @p text, one byte per character. */
@@ -71,9 +73,15 @@ namespace SushiAI
                 out.push_back(static_cast<char>((value >> (8u * i)) & 0xFFu));
         }
 
+        /** @brief Returns the size @p entry has after decoding. */
+        inline std::size_t decoded_size(const ZipFixtureEntry& entry)
+        {
+            return entry.method == 0 ? entry.contents.size() : entry.inflated_size;
+        }
+
         /**
-         * @brief Returns a zip archive of @p entries, each written as stored with no extra
-         *        field, then a central directory and an end record with no comment.
+         * @brief Returns a zip archive of @p entries, each written with its method, its CRC-32
+         *        and no extra field, then a central directory and an end record with no comment.
          */
         inline std::vector<std::byte> zip_of(const std::vector<ZipFixtureEntry>& entries)
         {
@@ -87,9 +95,9 @@ namespace SushiAI
                 put_le(out, 0, 2);
                 put_le(out, entry.method, 2);
                 put_le(out, 0, 4);
-                put_le(out, 0, 4);
+                put_le(out, entry.crc, 4);
                 put_le(out, entry.contents.size(), 4);
-                put_le(out, entry.contents.size(), 4);
+                put_le(out, decoded_size(entry), 4);
                 put_le(out, entry.name.size(), 2);
                 put_le(out, 0, 2);
                 out += entry.name;
@@ -105,9 +113,9 @@ namespace SushiAI
                 put_le(out, 0, 2);
                 put_le(out, entry.method, 2);
                 put_le(out, 0, 4);
-                put_le(out, 0, 4);
+                put_le(out, entry.crc, 4);
                 put_le(out, entry.contents.size(), 4);
-                put_le(out, entry.contents.size(), 4);
+                put_le(out, decoded_size(entry), 4);
                 put_le(out, entry.name.size(), 2);
                 put_le(out, 0, 2);
                 put_le(out, 0, 2);

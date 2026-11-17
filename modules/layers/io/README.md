@@ -39,8 +39,9 @@ pointer to its bytes, so the writer needs no engine either.
 
 `compose_training_file` returns the training file as a value: `sushiai_train`, `model`,
 `weights` when the model has tensors, `data`, `checkpoint`, then the keys of the recipe in
-their order. `data` is null, because no foreign file names a dataset; `Config::parse_train`
-refuses a null `data`, so a person fills the block before a run. A recipe that states one of
+their order. `data` is `ImportedModel::data`, which holds the pipeline an importer states and is null
+otherwise, because no foreign file names a dataset; `Config::parse_train` refuses a `data` block
+without a reader, so a person fills the block before a run. A recipe that states one of
 the writer's five keys is refused.
 
 `write_imported_model` checks everything before it writes anything: it composes both texts,
@@ -161,8 +162,15 @@ both reach the module through them.
 forward-only stream they read through; it copies nothing.
 
 The module also reads PyTorch files, with no dependency outside the repository. `ZipArchive` lists
-the entries of a zip archive held in memory, plain or zip64, and hands out views of their bytes;
-it reads stored entries and refuses a compressed one by name. `read_pickle` turns a pickle stream
+the entries of a zip archive held in memory, plain or zip64, and hands out their bytes. A stored
+entry (method 0) is a view of the archive's bytes. A deflated entry (method 8) is decoded by
+`inflate` when `read` runs, and `contents` returns the archive's own copy of the decoded bytes; its
+size is checked against the entry's stated size and its CRC-32 against the archive's, and
+`ZipEntry::deflated` marks it. `read` refuses with `InvalidFile` a deflated entry whose stream is
+corrupt, whose decoded size or CRC-32 differs from the archive's, or whose stated size is more than
+1032 times its compressed length, each naming the entry; an entry of any other method is refused
+with `Unsupported`, naming the entry and the method. The CRC-32 of a stored entry is not checked.
+`read_pickle` turns a pickle stream
 of protocol 2 to 5 into a tree of `PickleValue` nodes and calls nothing the stream names: a global
 is admitted only when the caller's list names it, whole or by a module prefix ending in `.`, and a
 call becomes a `Call` node that holds its arguments and what the stream builds onto it.
@@ -173,6 +181,104 @@ globals, and reads a tensor of half, float32 or float64 elements, at any stride,
 float32. `copy_kernel_last` and `copy_depthwise_kernel_last` move a convolution weight from
 `[out, in, kh, kw]` to `[out, kh, kw, in]` and a depthwise one from `[C, 1, kh, kw]` to
 `[kh, kw, C]`, for every importer. The design is `docs/design/MODEL_IMPORT/ULTRALYTICS.md`.
+
+`SafetensorsReader` reads a safetensors file held in memory: the 8-byte little-endian length of
+the header, the JSON header, then the data. It lists each tensor, in the order of its bytes, as a
+`SafetensorsTensor`: name, `SafetensorsType` (F16, BF16, F32 or F64; bfloat16 is no `DType`, so the
+type is its own enumeration), shape, the offset of its first byte from the start of the file and its
+length in bytes. It copies no data; `contents` returns a view of the caller's bytes, and
+`read_float32` widens a tensor to float32 the way `TorchArchive::read_float32` does. The header's
+`__metadata__` entry is skipped. `read` refuses with `InvalidFile` a file with no length field, a
+header longer than the file or no JSON object, a tensor that lacks `dtype`, `shape` or
+`data_offsets`, an extent that is not positive, a range that runs backwards, ends outside the data
+or does not hold the bytes its shape needs, and two ranges that overlap; it refuses with
+`Unsupported` a dtype other than the four above. Each message names the tensor, or the header. A
+gap between two ranges is accepted. The private header `source/float_widening.hpp` holds the exact
+widening of binary16 and bfloat16 that both readers share.
+
+`inflate` decodes a raw DEFLATE stream, RFC 1951, into an output the caller sized: stored, fixed
+Huffman and dynamic Huffman blocks, up to the block that states it is the last, and it returns the
+bytes written. It decodes bit by bit with canonical Huffman tables built per block and allocates
+nothing. It refuses with `InvalidFile`, naming the stream and the bit offset where the fault is
+found: a block of the reserved type 3, a stored block whose length and check disagree, a code that
+has more codes than its lengths allow or leaves bit patterns unused, a repeat that has no previous
+length or runs past the lengths, a dynamic block with no end-of-block code, a symbol or distance
+the tables do not hold, a match that reaches back before the start of the output, input that ends
+inside a block, and a block that would write past the end of the output. The private header
+`source/crc32.hpp` holds the CRC-32 that `ZipArchive` checks.
+
+`NpyReader` reads one NumPy `.npy` file held in memory, format version 1.0, 2.0 or 3.0. It parses
+the header, a Python dictionary literal of `descr`, `fortran_order` and `shape`, and returns an
+`NpyArray` through `array`: the `NpyType`, the `Shape`, `fortran_order`, and the offset and length
+of the data in the caller's bytes, copying none of them; `contents` returns the data. The types are
+the little-endian `<f2`, `<f4` and `<f8` and the integers `|i1`, `|u1`, `<i2`, `<u2`, `<i4`, `<u4`,
+`<i8` and `<u8`. `read_float32` returns the elements as row-major float32, widening half exactly,
+rounding float64 and the integers to the nearest float32 and transposing a column-major array.
+`read` refuses with `Unsupported`, naming the descriptor, an object array (`|O`), a big-endian
+array, a structured type and any other type; with `Unsupported` an extent of 0, an extent or element
+count above 2^40, a rank above `K_MAX_RANK` and a format version other than 1.0, 2.0 and 3.0; and
+with `InvalidFile` a file without the magic, a header that is cut short or is not a dictionary of
+exactly those three keys, each once, and data shorter than the shape needs. Bytes after the data
+are allowed. Like the other readers, it copies elements with `memcpy` and so assumes a
+little-endian host. The private header `source/float_widening.hpp` supplies the half widening.
+
+Two readers know no message schema, ONNX's or Caffe's: the importers that need them bring their
+own tables. `ProtobufWire` reads the binary wire format forward over a byte view and copies
+nothing. `next_field` returns a field number and a `WireType`; `read_varint`, `read_zigzag`,
+`read_fixed32`, `read_fixed64` and `read_length_delimited` read the value, and `float_from_bits`
+and `double_from_bits` give a fixed value its float. `message` returns a reader over a
+length-delimited value, and a packed repeated field is read through it until `at_end`. `skip`
+passes a field of any wire type, a group through its end tag by counting depth. Every refusal is
+`InvalidFile` and names the byte offset from the start of the outermost bytes, also inside a
+sub-message: a truncated varint, a varint above 64 bits, a fixed value or a length that runs past
+the end, a field number of 0 or above 2^29 - 1, a wire type of 6 or 7, a group with no end tag and
+an end tag with no group. `parse_protobuf_text` reads the text format of a Caffe prototxt into a
+tree of `TextField`: `name: value` and `name { ... }`, the colon before a brace optional, a value
+a `Number` (as written, with the type left to the schema), a `String` with its C, octal, hex and
+`\u` escapes decoded and adjacent strings joined, or an `Identifier` such as an enum value; `#`
+comments; `;` or `,` after a field; a repeated field as repeated entries in document order, found
+with `find_field` and `find_fields`. Every field records the line and column of its name. A list in
+brackets, an extension name, the angle-bracket form of a message and nesting past 100 braces are
+refused, as are a stray or unclosed brace, a bad token, a malformed number or string and a
+document that ends after a field name, each as `InvalidFile` naming the line and column. The design
+is `docs/design/MODEL_IMPORT/README.md`.
+
+A weight file of another framework enters through `WeightSource`, one interface and one
+implementation per container. A source lists its tensors as `SourceTensor` (name, shape, the stored
+type as the file spells it) and reads any of them as float32 by index; it owns the bytes it was
+built from. `TorchWeightSource` reads the state dictionary of a PyTorch file through `TorchArchive`:
+the `state_key` option names the dictionary inside the file (`model` for a ByteTrack checkpoint),
+empty takes the root, and an entry that is no tensor is refused with a message that names the key
+to state. `SafetensorsWeightSource` reads a safetensors file through `SafetensorsReader` and ignores
+`state_key`. `NpzWeightSource` reads a `.npz` file, stored or deflated, through `ZipArchive` and
+`NpyReader`: one tensor per `<name>.npy` entry, named without the extension, and `state_key` is
+ignored. Its matcher accepts a zip only when it holds entries and every one ends in `.npy`, so a
+PyTorch zip (it holds `data.pkl`) is not taken; both are zips, so a caller adds the npz row before
+the torch row. Each container ships a matcher over the file's first bytes (a zip magic; an 8-byte
+length that fits the file followed by `{`), an opener and a `WeightSourceEntry` constant
+(`K_TORCH_WEIGHT_SOURCE_ROW`, `K_SAFETENSORS_WEIGHT_SOURCE_ROW`, `K_NPZ_WEIGHT_SOURCE_ROW`). `WeightSourceRegistry` holds the
+rows in the order the caller adds them; `open_weight_source` opens the bytes through the first row
+whose matcher accepts them and, when none does, names the origin and every format the registry
+holds; `open_weight_file` reads a path first. The module adds no row to a registry: the caller
+does, so a new container adds its own files and one `add` and edits no source of the module.
+
+`NameMap` reads the JSON map beside a model file: `state_dict`, the key of the state dictionary;
+`rename`, prefix rules in the shape of `RenameRule`; and `drop`, names the model has no record for.
+A drop entry matches a tensor whose name is the entry or ends in a dot and the entry, read against
+the name as the file states it. `import_state_weights` matches a source against the state records
+of a model (`NN::StateEntry`, which `ModelState` lists, so no engine is needed): drops, then renames,
+then looks each tensor up. It returns one `ImportedTensor` per record in the model's order, in
+the record's element type (float32 or float64), and it fails with `Incompatible` in one message
+that groups every record the file does not supply, every tensor no record takes (and every one of
+two tensors that rename to one record) and every tensor whose shape differs from its record's.
+A rank-4 tensor [out, in, kh, kw] whose permutation [out, kh, kw, in] is the record's shape is a
+PyTorch convolution weight and is moved to the record's kernel-last layout with `copy_kernel_last`
+(the permutation wins when both layouts fit). A rank-4 tensor [C, 1, kh, kw] whose record is the
+rank-3 [kh, kw, C] is a depthwise weight and goes through `copy_depthwise_kernel_last`; shapes are
+compared after it. Every other tensor is
+copied in the layout the file stores.
+`write_imported_weights` writes such tensors as one `.sushi` file, through the checks and the
+committed write the three-file writer uses.
 
 ## Public entry points
 
@@ -187,11 +293,22 @@ The headers sit in `modules/layers/io/include/SushiAI/io/`.
 | `import_weights.hpp` | `RenameRule`, `renamed`, `import_weights` (a path, or bytes in memory) |
 | `memory_input.hpp` | `MemoryInput` |
 | `zip_archive.hpp` | `ZipEntry`, `ZipArchive` |
+| `inflate.hpp` | `inflate` |
+| `npy_reader.hpp` | `NpyType`, `npy_type_size`, `npy_type_name`, `NpyArray`, `NpyReader` |
 | `pickle_reader.hpp` | `PickleKind`, `PickleValue`, `PickleRef`, `is_call_of`, `find_entry`, `read_pickle` |
 | `pickle_data.hpp` | `pickle_to_value` |
 | `torch_archive.hpp` | `TorchTensor`, `TorchArchive` |
+| `safetensors_reader.hpp` | `SafetensorsType`, `safetensors_type_size`, `safetensors_type_name`, `SafetensorsTensor`, `SafetensorsReader` |
+| `protobuf_wire.hpp` | `WireType`, `WireField`, `ProtobufWire`, `float_from_bits`, `double_from_bits` |
+| `protobuf_text.hpp` | `TextKind`, `TextField`, `find_field`, `find_fields`, `parse_protobuf_text` |
+| `weight_source.hpp` | `SourceTensor`, `WeightSource`, `WeightSourceOptions`, `WeightSourceMatcher`, `WeightSourceOpener`, `WeightSourceEntry`, `WeightSourceRegistry`, `open_weight_source`, `open_weight_file` |
+| `torch_weight_source.hpp` | `is_torch_file`, `open_torch_source`, `K_TORCH_WEIGHT_SOURCE_ROW` |
+| `npz_weight_source.hpp` | `is_npz_file`, `open_npz_source`, `K_NPZ_WEIGHT_SOURCE_ROW` |
+| `safetensors_weight_source.hpp` | `is_safetensors_file`, `open_safetensors_source`, `K_SAFETENSORS_WEIGHT_SOURCE_ROW` |
+| `name_map.hpp` | `NameMap` |
+| `weight_import.hpp` | `import_state_weights` |
 | `filter_layout.hpp` | `FilterExtents`, `copy_kernel_last`, `copy_depthwise_kernel_last` |
 | `imported_model.hpp` | `ImportedTensor`, `ImportedModel` |
 | `importer_registry.hpp` | `ImporterFunction`, `ImporterEntry`, `ImporterRegistry`, `import_model` |
 | `in_memory_importer.hpp` | `count_files_importer`, `refuse_no_file_importer`, `K_COUNTING_IMPORTER_ROW`, `K_REFUSING_IMPORTER_ROW` |
-| `imported_model_writer.hpp` | `K_IMPORTED_MODEL_FILE`, `K_IMPORTED_WEIGHTS_FILE`, `K_IMPORTED_TRAINING_FILE`, `K_IMPORTED_CHECKPOINT_FILE`, `ExistingFiles`, `WrittenImport`, `compose_training_file`, `check_imported_tensors`, `write_imported_model` |
+| `imported_model_writer.hpp` | `K_IMPORTED_MODEL_FILE`, `K_IMPORTED_WEIGHTS_FILE`, `K_IMPORTED_TRAINING_FILE`, `K_IMPORTED_CHECKPOINT_FILE`, `ExistingFiles`, `WrittenImport`, `compose_training_file`, `check_imported_tensors`, `write_imported_weights`, `write_imported_model` |

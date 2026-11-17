@@ -47,19 +47,27 @@ namespace SushiAI
             /** @brief Holds the path the archive stores the entry under. */
             std::string name;
 
-            /** @brief Holds the offset of the entry's first byte from the archive's start. */
+            /**
+             * @brief Holds the offset of the entry's first byte from the archive's start.
+             *
+             * For a deflated entry it is the first byte of the compressed form.
+             */
             std::size_t offset = 0;
 
-            /** @brief Holds the entry's size in bytes. */
+            /** @brief Holds the entry's size in bytes, after decoding when it is deflated. */
             std::size_t size = 0;
+
+            /** @brief Holds whether the archive stores the entry deflated, method 8. */
+            bool deflated = false;
         };
 
         /**
          * @class ZipArchive
          * @brief Lists the entries of a zip archive and hands out views of their bytes.
          *
-         * Only stored entries are read; an entry compressed by any method is refused by name.
-         * The archive holds a view of the bytes it was read from and copies none of them.
+         * Stored and deflated entries are read, and any other method is refused by name. A
+         * deflated entry is decoded and its CRC-32 checked when the archive is read; a stored
+         * one is a view of the bytes the archive was read from.
          */
         class ZipArchive final
         {
@@ -68,8 +76,9 @@ namespace SushiAI
                  * @brief Reads the central directory of @p bytes, plain or zip64.
                  * @param bytes The archive; must outlive the archive and every view of it.
                  * @param origin Names the archive in a message.
-                 * @return InvalidFile for bytes that are not a whole zip archive; Unsupported
-                 *         for an entry that is compressed, naming it.
+                 * @return InvalidFile for bytes that are not a whole zip archive and, naming the
+                 *         entry, for a deflated one whose stream, size or CRC-32 is wrong;
+                 *         Unsupported, naming the entry, for a method other than 0 and 8.
                  */
                 [[nodiscard]] static Result<ZipArchive> read(
                     SushiRuntime::span<const std::byte> bytes, std::string_view origin) noexcept;
@@ -81,22 +90,26 @@ namespace SushiAI
                 [[nodiscard]] SushiRuntime::span<const ZipEntry> entries() const noexcept;
 
                 /**
-                 * @brief Returns the bytes of @p entry.
+                 * @brief Returns the bytes of @p entry, decoded when it is deflated.
                  * @pre @p entry is one of entries().
                  */
                 [[nodiscard]] SushiRuntime::span<const std::byte> contents(
                     const ZipEntry& entry) const noexcept;
 
             private:
-                /** @brief Holds the archive's bytes and the entries read from them. */
+                /** @brief Holds the archive's bytes, its entries and the bytes of its deflated ones. */
                 ZipArchive(SushiRuntime::span<const std::byte> bytes,
-                           std::vector<ZipEntry> entries) noexcept;
+                           std::vector<ZipEntry> entries,
+                           std::vector<std::vector<std::byte>> decoded) noexcept;
 
                 /** @brief Holds a view of the whole archive. */
                 SushiRuntime::span<const std::byte> bytes_;
 
                 /** @brief Holds the entries in central-directory order. */
                 std::vector<ZipEntry> entries_;
+
+                /** @brief Holds the decoded bytes of each entry, empty for a stored one. */
+                std::vector<std::vector<std::byte>> decoded_;
         };
     } // namespace IO
 } // namespace SushiAI

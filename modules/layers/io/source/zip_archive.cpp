@@ -23,7 +23,8 @@
 
 /**
  * @file zip_archive.cpp
- * @brief Defines the reader of the central directory and the stored entries of a zip archive.
+ * @brief Defines the reader of the central directory and the stored and deflated entries of a
+ *        zip archive.
  * @author Mustafa Garip
  */
 
@@ -38,6 +39,9 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/io/inflate.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include "crc32.hpp"
 
 namespace SushiAI
 {
@@ -86,6 +90,12 @@ namespace SushiAI
 
             /** @brief Holds the method number of a stored entry. */
             constexpr std::uint16_t K_STORED = 0;
+
+            /** @brief Holds the method number of a deflated entry. */
+            constexpr std::uint16_t K_DEFLATED = 8;
+
+            /** @brief Holds the most bytes DEFLATE makes of one compressed byte, with slack. */
+            constexpr std::uint64_t K_MAX_DEFLATE_RATIO = 1032;
 
             /** @brief Reads the little-endian integer of @p width bytes at @p at. */
             std::uint64_t read_le(SushiRuntime::span<const std::byte> bytes, std::size_t at,
@@ -209,20 +219,29 @@ namespace SushiAI
                 return Status();
             }
 
+            /** @brief Holds an entry with what decoding it needs. */
+            struct ParsedEntry
+            {
+                ZipEntry entry;               /**< The entry. */
+                std::uint64_t compressed = 0; /**< The bytes of its compressed form. */
+                std::uint32_t crc = 0;        /**< The CRC-32 the archive states of its bytes. */
+            };
+
             /**
              * @brief Reads the central-directory header at @p at into an entry.
              * @param at Advanced past the header, its name, extra field and comment.
-             * @return InvalidFile for a header out of the file; Unsupported for a compressed
-             *         entry.
+             * @return InvalidFile for a header out of the file; Unsupported for an entry
+             *         compressed by a method other than stored and deflated.
              */
-            Result<ZipEntry> read_entry(SushiRuntime::span<const std::byte> bytes,
-                                        std::size_t& at, std::string_view origin)
+            Result<ParsedEntry> read_entry(SushiRuntime::span<const std::byte> bytes,
+                                           std::size_t& at, std::string_view origin)
             {
                 SA_FAIL_IF(!fits(bytes, at, K_CENTRAL_BYTES) ||
                                read_le(bytes, at, 4) != K_CENTRAL_SIGNATURE,
                            StatusCode::InvalidFile,
                            "'{}': byte {} should open a central-directory header", origin, at);
                 const std::uint64_t method = read_le(bytes, at + 10, 2);
+                const std::uint32_t crc = static_cast<std::uint32_t>(read_le(bytes, at + 16, 4));
                 std::uint64_t compressed = read_le(bytes, at + 20, 4);
                 std::uint64_t size = read_le(bytes, at + 24, 4);
                 const std::size_t name_length = static_cast<std::size_t>(read_le(bytes, at + 28, 2));
@@ -237,18 +256,19 @@ namespace SushiAI
                            "'{}': the central-directory header at byte {} runs past the file",
                            origin, at);
 
-                ZipEntry entry;
+                ParsedEntry parsed;
+                ZipEntry& entry = parsed.entry;
                 entry.name.assign(reinterpret_cast<const char*>(bytes.data() + name_at),
                                   name_length);
                 SA_TRY(widen_entry(bytes.subspan(name_at + name_length, extra_length), size,
                                    compressed, local, entry.name, origin));
                 at = name_at + name_length + extra_length + comment_length;
 
-                SA_FAIL_IF(method != K_STORED, StatusCode::Unsupported,
+                SA_FAIL_IF(method != K_STORED && method != K_DEFLATED, StatusCode::Unsupported,
                            "'{}': the entry '{}' is compressed with method {}, and only stored "
-                           "entries are read",
+                           "and deflated entries are read",
                            origin, entry.name, method);
-                SA_FAIL_IF(compressed != size, StatusCode::InvalidFile,
+                SA_FAIL_IF(method == K_STORED && compressed != size, StatusCode::InvalidFile,
                            "'{}': the stored entry '{}' states {} bytes stored and {} bytes long",
                            origin, entry.name, compressed, size);
                 SA_FAIL_IF(!fits(bytes, local, K_LOCAL_BYTES) ||
@@ -260,18 +280,62 @@ namespace SushiAI
                 const std::size_t local_at = static_cast<std::size_t>(local);
                 const std::uint64_t data = local + K_LOCAL_BYTES + read_le(bytes, local_at + 26, 2) +
                                            read_le(bytes, local_at + 28, 2);
-                SA_FAIL_IF(!fits(bytes, data, size), StatusCode::InvalidFile,
-                           "'{}': the {} bytes of the entry '{}' run past the file", origin, size,
-                           entry.name);
+                SA_FAIL_IF(!fits(bytes, data, compressed), StatusCode::InvalidFile,
+                           "'{}': the {} bytes of the entry '{}' run past the file", origin,
+                           compressed, entry.name);
+                SA_FAIL_IF(method == K_DEFLATED && size > compressed * K_MAX_DEFLATE_RATIO,
+                           StatusCode::InvalidFile,
+                           "'{}': the deflated entry '{}' states {} bytes from {} compressed, "
+                           "more than DEFLATE can make",
+                           origin, entry.name, size, compressed);
                 entry.offset = static_cast<std::size_t>(data);
                 entry.size = static_cast<std::size_t>(size);
-                return entry;
+                entry.deflated = method == K_DEFLATED;
+                parsed.compressed = compressed;
+                parsed.crc = crc;
+                return parsed;
+            }
+
+            /**
+             * @brief Decodes the deflated entry @p parsed and checks its CRC-32.
+             * @return InvalidFile naming the entry for a corrupt stream, for a stream that
+             *         decodes to other than the entry's size and for a CRC-32 that differs;
+             *         OutOfMemory when the decoded bytes do not fit.
+             */
+            Result<std::vector<std::byte>> decode_entry(SushiRuntime::span<const std::byte> bytes,
+                                                        const ParsedEntry& parsed,
+                                                        std::string_view origin)
+            {
+                const ZipEntry& entry = parsed.entry;
+                std::vector<std::byte> decoded;
+                SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                {
+                    decoded.resize(entry.size);
+                    return Status();
+                }));
+
+                const Result<std::size_t> written = inflate(
+                    bytes.subspan(entry.offset, static_cast<std::size_t>(parsed.compressed)),
+                    SushiRuntime::span<std::byte>(decoded.data(), decoded.size()), origin);
+                SA_TRY(SA_ANNOTATE(written.status(), "the entry '{}'", entry.name));
+                SA_FAIL_IF(written.value() != entry.size, StatusCode::InvalidFile,
+                           "'{}': the entry '{}' states {} bytes and its deflate stream holds {}",
+                           origin, entry.name, entry.size, written.value());
+
+                const std::uint32_t crc = Detail::crc32(
+                    SushiRuntime::span<const std::byte>(decoded.data(), decoded.size()));
+                SA_FAIL_IF(crc != parsed.crc, StatusCode::InvalidFile,
+                           "'{}': the entry '{}' decodes to the CRC-32 {}, and the archive "
+                           "states {}",
+                           origin, entry.name, crc, parsed.crc);
+                return decoded;
             }
         } // namespace
 
         ZipArchive::ZipArchive(SushiRuntime::span<const std::byte> bytes,
-                               std::vector<ZipEntry> entries) noexcept
-            : bytes_(bytes), entries_(std::move(entries))
+                               std::vector<ZipEntry> entries,
+                               std::vector<std::vector<std::byte>> decoded) noexcept
+            : bytes_(bytes), entries_(std::move(entries)), decoded_(std::move(decoded))
         {
 
         }
@@ -290,14 +354,23 @@ namespace SushiAI
                        directory.count, directory.size);
 
             std::vector<ZipEntry> entries;
+            std::vector<std::vector<std::byte>> decoded;
             entries.reserve(static_cast<std::size_t>(directory.count));
+            decoded.reserve(static_cast<std::size_t>(directory.count));
             std::size_t at = static_cast<std::size_t>(directory.offset);
             for (std::uint64_t i = 0; i < directory.count; ++i)
             {
-                SA_TRY_ASSIGN(ZipEntry entry, read_entry(bytes, at, origin));
-                entries.push_back(std::move(entry));
+                SA_TRY_ASSIGN(ParsedEntry parsed, read_entry(bytes, at, origin));
+                decoded.emplace_back();
+                if (parsed.entry.deflated)
+                {
+                    SA_TRY_ASSIGN(std::vector<std::byte> inflated,
+                                  decode_entry(bytes, parsed, origin));
+                    decoded.back() = std::move(inflated);
+                }
+                entries.push_back(std::move(parsed.entry));
             }
-            return ZipArchive(bytes, std::move(entries));
+            return ZipArchive(bytes, std::move(entries), std::move(decoded));
         }
 
         const ZipEntry* ZipArchive::find(std::string_view name) const noexcept
@@ -317,7 +390,11 @@ namespace SushiAI
 
         SushiRuntime::span<const std::byte> ZipArchive::contents(const ZipEntry& entry) const noexcept
         {
-            return bytes_.subspan(entry.offset, entry.size);
+            if (!entry.deflated)
+                return bytes_.subspan(entry.offset, entry.size);
+            const std::vector<std::byte>& bytes =
+                decoded_[static_cast<std::size_t>(&entry - entries_.data())];
+            return SushiRuntime::span<const std::byte>(bytes.data(), bytes.size());
         }
     } // namespace IO
 } // namespace SushiAI

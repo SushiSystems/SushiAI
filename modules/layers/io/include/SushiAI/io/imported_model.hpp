@@ -64,6 +64,10 @@ namespace SushiAI
             ///        "objective", "optimizer", "schedule", "epochs". Null states none.
             Config::Value training;
 
+            /// @brief Holds the keys of the "data" block the foreign files state, as an object:
+            ///        "pipeline" and the keys of its row. Null states none; the block stays null.
+            Config::Value data;
+
             /** @brief Lists what the foreign files state that none of the three files holds. */
             std::vector<std::string> notes;
         };

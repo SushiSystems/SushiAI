@@ -29,7 +29,6 @@
 
 #include <SushiAI/io/torch_archive.hpp>
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -45,6 +44,7 @@
 #include <SushiAI/io/pickle_reader.hpp>
 #include <SushiAI/io/zip_archive.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include "float_widening.hpp"
 
 namespace SushiAI
 {
@@ -98,23 +98,6 @@ namespace SushiAI
                         return type.bytes;
                 }
                 return 0;
-            }
-
-            /** @brief Widens the IEEE 754 binary16 value @p bits to a float, exactly. */
-            float widen_half(std::uint16_t bits) noexcept
-            {
-                const std::uint32_t sign = static_cast<std::uint32_t>(bits >> 15u) << 31u;
-                const std::uint32_t exponent = (bits >> 10u) & 0x1Fu;
-                const std::uint32_t mantissa = bits & 0x3FFu;
-                float magnitude = 0.0f;
-                if (exponent == 0)
-                    magnitude = std::ldexp(static_cast<float>(mantissa), -24);
-                else if (exponent == 0x1Fu)
-                    magnitude = mantissa == 0 ? INFINITY : NAN;
-                else
-                    magnitude = std::ldexp(static_cast<float>(mantissa | 0x400u),
-                                           static_cast<int>(exponent) - 25);
-                return sign != 0 ? -magnitude : magnitude;
             }
 
             /** @brief Returns the whole numbers of the tuple @p value, or a failure. */
@@ -297,7 +280,7 @@ namespace SushiAI
                 {
                     const std::uint16_t bits = static_cast<std::uint16_t>(
                         static_cast<unsigned>(raw[0]) | (static_cast<unsigned>(raw[1]) << 8u));
-                    out[n] = widen_half(bits);
+                    out[n] = Detail::widen_half(bits);
                 }
                 else if (tensor.dtype == DType::Float32)
                 {

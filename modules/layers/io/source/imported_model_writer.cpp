@@ -90,6 +90,16 @@ namespace SushiAI
                 return false;
             }
 
+            /** @brief Returns InvalidDescription unless the data block is null or an object. */
+            [[nodiscard]] Status validate_data(const Config::Value& data)
+            {
+                SA_FAIL_IF(!data.is_null() && data.kind() != Config::Kind::Object,
+                           StatusCode::InvalidDescription,
+                           "the data block of an imported model must be an object, but it is {}",
+                           Config::kind_name(data.kind()));
+                return Status();
+            }
+
             /** @brief Returns InvalidDescription unless the recipe is null or an object. */
             [[nodiscard]] Status validate_recipe(const Config::Value& recipe)
             {
@@ -195,9 +205,32 @@ namespace SushiAI
             });
         }
 
+        Status write_imported_weights(SushiRuntime::span<const ImportedTensor> tensors,
+                                      const std::filesystem::path& file,
+                                      ExistingFiles existing) noexcept
+        {
+            SA_TRY(check_imported_tensors(tensors));
+            if (existing == ExistingFiles::Refuse)
+            {
+                SA_TRY(refuse_existing(SushiRuntime::span<const std::filesystem::path>(&file, 1)));
+            }
+
+            const std::filesystem::path directory = file.parent_path();
+            if (!directory.empty())
+            {
+                std::error_code failure;
+                std::filesystem::create_directories(directory, failure);
+                SA_FAIL_IF(failure, StatusCode::InvalidFile, "could not create '{}': {}",
+                           directory.string(), failure.message());
+            }
+
+            return write_weights(file, tensors);
+        }
+
         Result<Config::Value> compose_training_file(const ImportedModel& imported) noexcept
         {
             SA_TRY(validate_recipe(imported.training));
+            SA_TRY(validate_data(imported.data));
 
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
@@ -215,8 +248,8 @@ namespace SushiAI
                     state(K_WEIGHTS_KEY,
                           Config::Value::string(std::string(K_IMPORTED_WEIGHTS_FILE)));
 
-                // No foreign file names a dataset, so the block is null until a person fills it.
-                state(K_DATA_KEY, Config::Value());
+                // No foreign file names a dataset: the block holds its pipeline keys at most.
+                state(K_DATA_KEY, imported.data);
                 state(K_CHECKPOINT_KEY,
                       Config::Value::string(std::string(K_IMPORTED_CHECKPOINT_FILE)));
 
