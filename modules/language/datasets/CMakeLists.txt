@@ -7,6 +7,8 @@
 
 sushiai_add_module(NAME datasets TIER language
     SOURCES
+        source/decision_dataset.cpp
+        source/decision_file.cpp
         source/disk.cpp
         source/next_token_collator.cpp
         source/prompt_dataset.cpp

@@ -56,6 +56,12 @@ namespace SushiAI
             /** @brief Names the key that says where a row's attention takes positions from. */
             inline constexpr std::string_view K_POSITIONS_KEY = "positions";
 
+            /** @brief Names the key that holds the width of a row's rows. */
+            inline constexpr std::string_view K_DIM_KEY = "dim";
+
+            /** @brief Names the key that holds how many blocks a row stacks. */
+            inline constexpr std::string_view K_BLOCKS_KEY = "blocks";
+
             /** @brief Names the key that holds a row's vocabulary size. */
             inline constexpr std::string_view K_VOCABULARY_KEY = "vocabulary";
 

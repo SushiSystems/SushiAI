@@ -244,8 +244,9 @@ TEST_P(Small_LanguageTrainingExpertBalanceLoss, TheLossIsTheMeanOfTheBalanceOutp
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<ExpertBalanceObjective> objective,
         ExpertBalanceObjective::make(row.balances, {ExpertUsageOutput{"usage", K_EXPERTS}}));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace loss_trace,
                             objective->loss(builder, graph, outputs, leaves));
+    const Graph::ValueID loss = loss_trace.loss();
 
     Graph::HostEvaluator evaluator(graph);
     SA_EXPECT_OK(evaluator.write(first, {2.0}));

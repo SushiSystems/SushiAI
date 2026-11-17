@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -50,7 +51,7 @@
 #include <SushiAI/language/datasets/token_dataset.hpp>
 #include <SushiAI/language/datasets/token_file.hpp>
 #include <SushiAI/language/datasets/tokens_section.hpp>
-#include <SushiAI/language/text/token.hpp>
+#include <SushiAI/language/text/token.hpp>
 #include <support/test_names.hpp>
 
 using namespace SushiAI;
@@ -169,6 +170,21 @@ TEST(Small_LanguageDatasetsTokensSection, AnAbsentBatchSizeIsSixteen)
 
     EXPECT_EQ(keys.options.batch_size, 16);
     EXPECT_FALSE(keys.options.stride.has_value());
+    EXPECT_FALSE(keys.options.shuffle);
+    EXPECT_EQ(keys.options.seed, 0u);
+}
+
+/** @brief Tests that "shuffle" and "seed" are read, a seed as its 64-bit pattern. */
+TEST(Small_LanguageDatasetsTokensSection, ShuffleAndSeedAreRead)
+{
+    const Config::Value section =
+        section_of("a.satk", R"(, "window": 1, "shuffle": true, "seed": -1)");
+
+    SA_ASSERT_OK_AND_ASSIGN(const TokensSection keys,
+                            read_tokens_section(section, "the data block"));
+
+    EXPECT_TRUE(keys.options.shuffle);
+    EXPECT_EQ(keys.options.seed, std::numeric_limits<std::uint64_t>::max());
 }
 
 /** @brief Tests that an absent, a mistyped and an unknown key are each refused by name. */
@@ -190,8 +206,8 @@ INSTANTIATE_TEST_SUITE_P(
                   "whole number", ""},
         BlockCase{"AWindowOfZero", R"({"file": "a.satk", "window": 0})", "'window'", "positive",
                   ""},
-        BlockCase{"AnUnknownKey", R"({"file": "a.satk", "window": 4, "shuffle": true})",
-                  "the data block", "'shuffle'", "does not have"}),
+        BlockCase{"AnUnknownKey", R"({"file": "a.satk", "window": 4, "vocabulary": 2})",
+                  "the data block", "'vocabulary'", "does not have"}),
     [](const ::testing::TestParamInfo<BlockCase>& info)
     {
         return ::SushiAI::Test::parameter_name(info.param.label);

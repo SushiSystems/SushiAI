@@ -110,14 +110,14 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that position r of label l becomes r * V + l, row after row. */
-TEST(Small_LanguageTrainingNextTokenTargets, APositionIndexesItsLabelAmongEveryScore)
+/** @brief Tests that each position's label is written to its own element of the leaf. */
+TEST(Small_LanguageTrainingNextTokenTargets, APositionHoldsItsLabel)
 {
     std::vector<std::int32_t> targets = untouched_leaf();
 
     SA_EXPECT_OK(fill({4, 0, 2, 1, 1, 3}, K_VOCABULARY, targets));
 
-    EXPECT_EQ(targets, (std::vector<std::int32_t>{4, 5, 12, 16, 21, 28}));
+    EXPECT_EQ(targets, (std::vector<std::int32_t>{4, 0, 2, 1, 1, 3}));
 }
 
 /** @brief Tests that a label outside the vocabulary is refused and the leaf is left alone. */
@@ -137,7 +137,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(RefusedLabels{{4, 0, 2, 1, 5, 3}, "position 4 is 5", "holds 5 tokens"},
                       RefusedLabels{{4, 0, -1, 1, 1, 3}, "position 2 is -1", "holds 5 tokens"}));
 
-/** @brief Tests that another count and an unindexable size are refused. */
+/** @brief Tests that another count and a vocabulary below 1 are refused. */
 TEST_P(Small_LanguageTrainingNextTokenTargetsFit, AFillThatDoesNotFitIsRefused)
 {
     const MisfitFill& row = GetParam();
@@ -151,9 +151,17 @@ INSTANTIATE_TEST_SUITE_P(
     Rows, Small_LanguageTrainingNextTokenTargetsFit,
     ::testing::Values(
         MisfitFill{{4, 0, 2, 1}, K_POSITIONS, K_VOCABULARY, "holds 4 labels", "expects 6"},
-        MisfitFill{{4, 0, 2, 1, 1, 3}, K_POSITIONS, std::numeric_limits<std::int32_t>::max(),
-                   "6 positions", "cannot be indexed"},
-        MisfitFill{{4, 0, 2, 1, 1, 3}, K_POSITIONS, 0, "6 positions", "cannot be indexed"}));
+        MisfitFill{{4, 0, 2, 1, 1, 3}, K_POSITIONS, 0, "vocabulary of 0", "holds no token"}));
+
+/** @brief Tests that a vocabulary above what INT32 indexes with R rows is accepted. */
+TEST(Small_LanguageTrainingNextTokenTargets, AVocabularyOfTheLargestInt32IsAccepted)
+{
+    std::vector<std::int32_t> targets = untouched_leaf();
+
+    SA_EXPECT_OK(fill({4, 0, 2, 1, 1, 3}, std::numeric_limits<std::int32_t>::max(), targets));
+
+    EXPECT_EQ(targets, (std::vector<std::int32_t>{4, 0, 2, 1, 1, 3}));
+}
 
 /** @brief Tests that labels of another element type than int32 are refused. */
 TEST(Small_LanguageTrainingNextTokenTargets, LabelsOfAnotherElementTypeAreRefused)

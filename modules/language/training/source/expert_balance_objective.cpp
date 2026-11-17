@@ -106,7 +106,7 @@ namespace SushiAI::Language::Training
 
     }
 
-    Result<Graph::ValueID> ExpertBalanceObjective::loss(
+    Result<Train::LossTrace> ExpertBalanceObjective::loss(
         const Graph::GraphBuilder& builder, const Graph::Graph& graph,
         const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves&) const
     {
@@ -137,12 +137,12 @@ namespace SushiAI::Language::Training
 
         // A mean over one term changes nothing, so it emits no node.
         if (balances_.size() == 1)
-            return total;
+            return Train::LossTrace(total);
 
         SA_TRY_ASSIGN(const Graph::ValueID mean,
                       builder.scale(total, 1.0 / static_cast<double>(balances_.size())));
 
-        return mean;
+        return Train::LossTrace(mean);
     }
 
     Status ExpertBalanceObjective::feed(const Data::Batch&, const Train::ObjectiveLeaves&,

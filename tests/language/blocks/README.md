@@ -169,6 +169,20 @@ Without the mask an earlier position does read the later input.
 
 A whole causal transformer block keeps the same property.
 
+The key-padding cases of this file, `forward_with_lengths` of the attention and of
+`TransformerBlock`, are described in `test_causal_self_attention.md`.
+
+## test_sequence_pool.cpp
+
+Suites: `Small_BlockSequencePool`, `Small_BlockSequencePoolInput`, `Medium_BlockSequencePool`.
+Tests `SequencePool`; the cases are described in `test_sequence_pool.md`.
+
+## test_text_encoder.cpp
+
+Suites: `Small_BlockTextEncoder`, `Small_BlockTextEncoderFactory`, `Medium_BlockTextEncoder`.
+Tests `TextEncoder` and `make_text_encoder_node`; the cases are described in
+`test_text_encoder.md`.
+
 ## test_expert_transformer_block.cpp
 
 Suites: `Small_BlockExpertTransformerBlock`, `Small_BlockExpertTransformerBlockOnePort`,
@@ -662,3 +676,16 @@ The factory hands "positions" to the attention.
 ### RotaryPositionsOverAnOddHeadWidthAreRefused
 
 Rotary positions over an odd head width are refused.
+
+## test_option_head.cpp
+
+Suites: `Small_BlockOptionHead`, `Small_BlockOptionHeadScore`, `Small_BlockOptionHeadEncode`,
+`Medium_BlockOptionHead`, `Medium_BlockOptionHeadMask`.
+Tests `OptionHead`; the cases are described in `test_option_head.md`.
+
+## test_decision_heads.cpp
+
+Suites: `Small_BlockDecisionHeads`, `Small_BlockDecisionHeadsFactory`,
+`Medium_BlockDecisionHeads`.
+Tests `DecisionHeads` and `make_decision_node`; the cases are described in
+`test_decision_heads.md`.

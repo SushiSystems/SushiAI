@@ -113,6 +113,15 @@ namespace SushiAI
             Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
+             * @brief Traces forward() with each key at t >= lengths[n] of sequence n masked.
+             * @param x A [N, T, dim] value of a real floating type.
+             * @param lengths N real floating counts, each at most T, as a [N] value or any shape.
+             * @return The [N, T, dim] id, or @p x after trace.fail() when an argument misfits.
+             */
+            Graph::ValueID forward_with_lengths(const NN::Trace& trace, Graph::ValueID x,
+                                                Graph::ValueID lengths) noexcept;
+
+            /**
              * @brief Traces one position against the keys and values the step carries. The row
              *        it writes is K_POSITION_LEAF, or K_CACHE_SLOT_LEAF for rotary positions.
              * @param x The [1, 1, dim] slice of one sequence, of a real floating type.

@@ -10,6 +10,18 @@ Suites: `Small_LanguageDatasetsCollator`. Cases: see `test_collator.md`.
 
 Tests that a caller sizes a batch from the `Collator` interface in `collator.hpp`.
 
+## test_decision_dataset.cpp
+
+Suites: `Small_LanguageDatasetsDecisionDataset`, `Small_LanguageDatasetsDecisionDatasetFit`, `Small_LanguageDatasetsDecisionDatasetBlock`, `Medium_LanguageDatasetsDecisionDataset`, `Medium_LanguageDatasetsDecisionDatasetRefusal`. Cases: see `test_decision_dataset.md`.
+
+Tests `lay_out_decisions`, `DecisionDataset`, `read_decisions_section` and `make_decisions_dataset` in `decision_dataset.hpp`.
+
+## test_decision_file.cpp
+
+Suites: `Small_LanguageDatasetsDecisionFile`, `Small_LanguageDatasetsDecisionFileWriterRefusal`, `Small_LanguageDatasetsDecisionFileTruncation`, `Small_LanguageDatasetsDecisionFileRefusal`, `Medium_LanguageDatasetsDecisionFile`. Cases: see `test_decision_file.md`.
+
+Tests `write_decision_file` and `read_decision_file` in `decision_file.hpp`.
+
 ## test_next_token_collator.cpp
 
 Suites: `Small_LanguageDatasetsNextTokenCollator`, `Small_LanguageDatasetsNextTokenCollatorMake`, `Small_LanguageDatasetsNextTokenCollatorRefusal`, `Medium_LanguageDatasetsNextTokenCollator`. Cases: see `test_next_token_collator.md`.

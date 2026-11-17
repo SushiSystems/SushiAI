@@ -234,15 +234,8 @@ namespace
 
     };
 
-    /** @brief Provides the products INT32 cannot index. */
-    class Small_LanguageTrainingNextTokenObjectiveIndex
-        : public ::testing::TestWithParam<RefusedExtents>
-    {
-
-    };
-
-    /** @brief Provides the largest products INT32 indexes. */
-    class Small_LanguageTrainingNextTokenObjectiveLargest
+    /** @brief Provides extents whose product INT32 cannot index and extents it can. */
+    class Small_LanguageTrainingNextTokenObjectiveSizes
         : public ::testing::TestWithParam<Extents>
     {
 
@@ -279,34 +272,18 @@ INSTANTIATE_TEST_SUITE_P(
                       RefusedExtents{{2, 0, 5}, {"at least 1", "got 2, 0 and 5", "", ""}},
                       RefusedExtents{{2, 3, 0}, {"at least 1", "got 2, 3 and 0", "", ""}}));
 
-/** @brief Tests that a product INT32 cannot index is refused, naming it. */
-TEST_P(Small_LanguageTrainingNextTokenObjectiveIndex, MakeRefusesWhatInt32CannotIndex)
-{
-    const RefusedExtents& row = GetParam();
-
-    SA_EXPECT_FAILURE(NextTokenObjective::make(row.extents.batch, row.extents.length,
-                                               row.extents.vocabulary),
-                      StatusCode::InvalidDescription, row.needles[0], row.needles[1]);
-}
-
-// 64 * 1024 * 50257 is 3 293 642 752, above 2 147 483 647.
-INSTANTIATE_TEST_SUITE_P(
-    Rows, Small_LanguageTrainingNextTokenObjectiveIndex,
-    ::testing::Values(
-        RefusedExtents{{64, 1024, 50257}, {"int32 index", "64 * 1024 * 50257", "", ""}},
-        RefusedExtents{{1, 2, 2147483647}, {"int32 index", "1 * 2 * 2147483647", "", ""}}));
-
-/** @brief Tests that the largest products INT32 indexes are accepted. */
-TEST_P(Small_LanguageTrainingNextTokenObjectiveLargest, MakeAcceptsWhatInt32CanIndex)
+/** @brief Tests that a product above what INT32 indexes is accepted, as a smaller one is. */
+TEST_P(Small_LanguageTrainingNextTokenObjectiveSizes, MakeAcceptsAnyBatchLengthAndVocabulary)
 {
     const Extents& row = GetParam();
 
     SA_EXPECT_OK(NextTokenObjective::make(row.batch, row.length, row.vocabulary));
 }
 
-// 32 * 256 * 8192 is 67 108 864.
-INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageTrainingNextTokenObjectiveLargest,
-                         ::testing::Values(Extents{32, 256, 8192}, Extents{1, 1, 2147483647}));
+// 32 * 256 * 8192 is 67 108 864; 64 * 1024 * 50257 is 3 293 642 752, above 2 147 483 647.
+INSTANTIATE_TEST_SUITE_P(Rows, Small_LanguageTrainingNextTokenObjectiveSizes,
+                         ::testing::Values(Extents{32, 256, 8192}, Extents{64, 1024, 50257},
+                                           Extents{1, 2, 2147483647}));
 
 /** @brief Tests that the one leaf is INT32 [N * T] and that labels are read as [T] ids. */
 TEST(Small_LanguageTrainingNextTokenObjective, ItDeclaresAnIndexLeafAndReadsLabels)
@@ -332,7 +309,7 @@ TEST(Small_LanguageTrainingNextTokenObjective, ItDeclaresAnIndexLeafAndReadsLabe
 }
 
 /** @brief Tests that the loss is one element and the parameter of the model has a gradient. */
-TEST(Small_LanguageTrainingNextTokenObjective, TheLossGathersOneLogProbabilityPerPosition)
+TEST(Small_LanguageTrainingNextTokenObjective, TheLossTakesOneLogProbabilityPerPosition)
 {
     NN::Embedding model = make_bigram_model();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
@@ -436,8 +413,9 @@ TEST(Small_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongSe
     Train::ObjectiveLeaves leaves;
     objective->declare(builder, leaves);
 
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace loss_trace,
                             objective->loss(builder, graph, outputs, leaves));
+    const Graph::ValueID loss = loss_trace.loss();
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
 }
@@ -619,6 +597,65 @@ TEST_F(Medium_NextTokenObjective, TheLossAndItsGradientEqualTheHostComputation)
 
 namespace
 {
+    /** @brief Holds the rows of the embedding of the untied cases; the head scores K_VOCABULARY. */
+    constexpr std::int64_t K_UNTIED_ROWS = 3;
+
+    /**
+     * @brief Builds the objective of a model whose embedding holds K_UNTIED_ROWS rows and whose
+     *        head scores K_VOCABULARY tokens, and feeds it a batch of the input ids @p ids.
+     * @return What feed() returns; the pool holds no tensor, so an id the check accepts ends in
+     *         the refusal to find the targets leaf.
+     */
+    Status feed_untied(SushiBLAS::Engine& engine, const std::vector<std::int32_t>& ids)
+    {
+        Train::ObjectiveContext given = make_context();
+        given.input_classes = K_UNTIED_ROWS;
+        SA_TRY_ASSIGN(const std::unique_ptr<Train::Objective> objective,
+                      make_next_token_objective(given, attributes_of("{}"), "objective"));
+
+        Data::Batch batch;
+        SA_TRY_ASSIGN(batch.inputs,
+                      allocate_tensor(engine, Shape{K_BATCH, K_LENGTH}, DType::Int32));
+        write_int32(batch.inputs, ids);
+        Data::BatchTarget labels;
+        labels.role = std::string(Data::K_ROLE_LABELS);
+        SA_TRY_ASSIGN(labels.values,
+                      allocate_tensor(engine, Shape{K_BATCH, K_LENGTH}, DType::Int32));
+        write_int32(labels.values, std::vector<std::int32_t>(ids.size(), 0));
+        batch.targets.push_back(std::move(labels));
+
+        Graph::Graph graph;
+        const Graph::GraphBuilder builder(graph);
+        Train::ObjectiveLeaves leaves;
+        objective->declare(builder, leaves);
+        Graph::InMemoryTensorSource source;
+        Graph::TensorPool pool(source);
+
+        return objective->feed(batch, leaves, pool);
+    }
+} // namespace
+
+/**
+ * @brief Tests that an input id the logit width admits but the embedding does not is refused.
+ *
+ * The head scores 5 tokens and the embedding holds 3 rows, so id 4 is a valid label and no row of
+ * the table; the check bounds the ids by the embedding the context states.
+ */
+TEST_F(Medium_NextTokenObjective, FeedBoundsTheInputIdsByTheRowsOfTheEmbeddingTheContextStates)
+{
+    SA_EXPECT_FAILURE(feed_untied(*engine, {0, 1, 2, 1, 4, 0}), StatusCode::Incompatible,
+                      "position 4", "is 4", "holds 3 rows");
+}
+
+/** @brief Tests that the ids the embedding holds pass the check, and the pool is asked next. */
+TEST_F(Medium_NextTokenObjective, FeedAcceptsTheInputIdsTheEmbeddingHolds)
+{
+    SA_EXPECT_FAILURE(feed_untied(*engine, {0, 1, 2, 1, 2, 0}), StatusCode::InvalidDescription,
+                      "holds no tensor");
+}
+
+namespace
+{
 
     /** @brief Holds the passes fit() makes over the one batch. */
     constexpr std::int64_t K_EPOCHS = 30;
@@ -644,14 +681,14 @@ namespace
     }
 
     /** @brief Returns a dataset of one batch in which each token is followed by one label. */
-    Result<Data::MaterialisedDataset> make_dataset(SushiBLAS::Engine& engine,
-                                                   const std::vector<std::int32_t>& labels)
+    Result<Data::MaterialisedDataset> make_dataset(
+        SushiBLAS::Engine& engine, const std::vector<std::int32_t>& labels,
+        const std::vector<std::int32_t>& tokens = {0, 3, 1, 1, 4, 2})
     {
         SA_TRY_ASSIGN(Data::Batch batch,
                       Data::allocate_batch(engine, K_BATCH, token_input(),
                                            label_roles(K_VOCABULARY)));
 
-        const std::vector<std::int32_t> tokens = {0, 3, 1, 1, 4, 2};
         for (std::size_t i = 0; i < tokens.size(); ++i)
         {
             batch.inputs.data_as<std::int32_t>()[i] = tokens[i];
@@ -673,7 +710,8 @@ namespace
              * @return The report of the run, or the first failure.
              */
             [[nodiscard]] Result<Train::RunReport> fit_bigram(
-                const std::vector<std::int32_t>& labels)
+                const std::vector<std::int32_t>& labels,
+                const std::vector<std::int32_t>& tokens = {0, 3, 1, 1, 4, 2})
             {
                 NN::Embedding model = make_bigram_model();
 
@@ -706,7 +744,7 @@ namespace
                                                    options));
 
                 SA_TRY_ASSIGN(const Data::MaterialisedDataset dataset,
-                              make_dataset(*engine, labels));
+                              make_dataset(*engine, labels, tokens));
                 return trainer->fit(dataset);
             }
     };
@@ -732,6 +770,13 @@ TEST_F(Medium_NextTokenTrainer, ALabelOutsideTheVocabularyStopsTheFirstStep)
 {
     SA_EXPECT_FAILURE(fit_bigram({3, 1, 1, 9, 2, 0}), StatusCode::Incompatible, "position 3",
                       "is 9", "holds 5 tokens");
+}
+
+/** @brief Tests that an input id outside the table stops the first step and names its position. */
+TEST_F(Medium_NextTokenTrainer, AnInputIdOutsideTheTableStopsTheFirstStep)
+{
+    SA_EXPECT_FAILURE(fit_bigram({3, 1, 1, 4, 2, 0}, {0, 3, 1, 1, 9, 2}),
+                      StatusCode::Incompatible, "position 4", "is 9", "holds 5 rows");
 }
 
 namespace

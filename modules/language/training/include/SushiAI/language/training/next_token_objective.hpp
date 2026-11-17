@@ -60,8 +60,8 @@ namespace SushiAI::Language::Training
     /**
      * @brief Computes the mean cross entropy of [N, T, V] logits against [N, T] token ids.
      *
-     * The loss reads one log-probability per position through K_GATHER_ROWS, so its target
-     * leaf holds N * T int32 indices and no one-hot row.
+     * The loss reads one log-probability per position through K_TAKE_ALONG, so its target
+     * leaf holds the N * T labels as int32 and no one-hot row.
      */
     class NextTokenObjective final : public Train::Objective
     {
@@ -70,12 +70,13 @@ namespace SushiAI::Language::Training
              * @brief Builds the objective for @p batch rows of @p length positions.
              * @param output Names the published output that holds the logits; empty reads
              *        the one output of a model that publishes no other.
-             * @return The objective, or InvalidDescription for an extent below 1 or for
-             *         batch * length * vocabulary above what INT32 indexes.
+             * @param input_classes The rows of the embedding the input ids index; 0 checks the
+             *        ids against @p vocabulary.
+             * @return The objective, or InvalidDescription for a bad extent or input_classes.
              */
             [[nodiscard]] static Result<std::unique_ptr<NextTokenObjective>> make(
                 std::int64_t batch, std::int64_t length, std::int64_t vocabulary,
-                std::string output = {}) noexcept;
+                std::string output = {}, std::int64_t input_classes = 0) noexcept;
 
             /** @brief Declares the INT32 [N * T] "targets" leaf and requires the labels role. */
             void declare(const Graph::GraphBuilder& builder,
@@ -87,15 +88,17 @@ namespace SushiAI::Language::Training
              * @pre @p outputs holds the [N, T, V] value make() was told of, alone or under
              *      the name it was given; anything else stops the process.
              */
-            [[nodiscard]] Result<Graph::ValueID> loss(
+            [[nodiscard]] Result<Train::LossTrace> loss(
                 const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                 const NN::ModelOutputs& outputs,
                 const Train::ObjectiveLeaves& leaves) const override;
 
             /**
-             * @brief Writes the index of every label with fill_next_token_targets().
-             * @return InvalidDescription for a batch with no labels role, or what the
-             *         fill refuses.
+             * @brief Checks every input id against the rows of the embedding, then writes
+             *        every label with fill_next_token_targets().
+             * @return InvalidDescription for a batch with no labels role; Incompatible for an
+             *         input id outside [0, input_classes()), or [0, V) when none is stated,
+             *         naming its position; or what the fill refuses.
              */
             [[nodiscard]] Status feed(const Data::Batch& batch,
                                       const Train::ObjectiveLeaves& leaves,
@@ -123,10 +126,14 @@ namespace SushiAI::Language::Training
             /** @brief Returns V, the last extent of the logits. */
             [[nodiscard]] std::int64_t vocabulary() const noexcept { return vocabulary_; }
 
+            /** @brief Returns the rows of the embedding the input ids index; 0 when not stated. */
+            [[nodiscard]] std::int64_t input_classes() const noexcept { return input_classes_; }
+
         private:
             /** @brief Stores extents make() has checked and the name of the logits. */
             NextTokenObjective(std::int64_t batch, std::int64_t length,
-                               std::int64_t vocabulary, std::string output) noexcept;
+                               std::int64_t vocabulary, std::string output,
+                               std::int64_t input_classes) noexcept;
 
             /// @brief N, the rows of a batch.
             std::int64_t batch_ = 0;
@@ -139,15 +146,18 @@ namespace SushiAI::Language::Training
 
             /// @brief The name of the output that holds the logits; empty for the only one.
             std::string output_;
+
+            /// @brief The rows of the embedding the input ids index; 0 checks against V.
+            std::int64_t input_classes_ = 0;
     };
 
     /**
      * @brief Builds a next-token objective from the batch and the logits of @p given.
-     * @param attributes May state "output", the name of the published output that holds
-     *        the logits; a model that publishes one output needs no key.
-     * @return The objective, or InvalidDescription for another key, for logits that are
-     *         not one [N, T, V] output over [T] samples, for data of more classes than V,
-     *         or for what NextTokenObjective::make refuses.
+     * @param given Its input_classes, when not 0, bounds the input ids in place of the logits.
+     * @param attributes May state "output", the published output that holds the logits.
+     * @return The objective, or InvalidDescription for another key, logits that are not one
+     *         [N, T, V] output over [T] samples, more data classes than V, or what
+     *         NextTokenObjective::make refuses.
      */
     [[nodiscard]] Result<std::unique_ptr<Train::Objective>> make_next_token_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,

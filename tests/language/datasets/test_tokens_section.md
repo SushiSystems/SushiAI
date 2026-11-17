@@ -24,7 +24,7 @@ documented default of `TokenDatasetOptions::batch_size`, written here as the val
 One promise over five rows: `read_tokens_section` fails with `InvalidDescription` for a block
 without `window` ("the data block", "has no 'window'"), a block without `file` ("the data block",
 "has no 'file'"), a `window` of "four" ("'window'", "whole number"), a `window` of 0 ("'window'",
-"positive") and a `shuffle` key ("the data block", "'shuffle'", "does not have").
+"positive") and a `vocabulary` key ("the data block", "'vocabulary'", "does not have").
 
 ## TheKeysDescribeTheDataset
 
@@ -40,3 +40,9 @@ has 40 classes.
 
 `Medium_`. A block whose `file` does not exist returns a status that is not ok. The case checks
 neither the code nor the message.
+
+## ShuffleAndSeedAreRead
+
+A block with `"shuffle": true` and `"seed": -1` states `shuffle` true and the seed 2 to the 64th
+power minus 1, the bit pattern of the whole number -1. A block without either keeps `shuffle` false
+and the seed 0 (`AnAbsentBatchSizeIsSixteen`).

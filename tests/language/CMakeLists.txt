@@ -7,6 +7,7 @@
 
 add_subdirectory(blocks)
 add_subdirectory(datasets)
+add_subdirectory(decision_models)
 add_subdirectory(decoder_models)
 add_subdirectory(generation)
 add_subdirectory(registration)

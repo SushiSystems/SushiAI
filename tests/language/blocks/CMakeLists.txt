@@ -8,6 +8,7 @@
 sushiai_add_test_program(OWNER language/blocks
     SOURCES
         test_causal_self_attention.cpp
+        test_decision_heads.cpp
         test_expert_projection.cpp
         test_expert_trace.cpp
         test_expert_transformer_block.cpp
@@ -15,9 +16,12 @@ sushiai_add_test_program(OWNER language/blocks
         test_incremental.cpp
         test_language_head.cpp
         test_moe_feed_forward.cpp
+        test_option_head.cpp
         test_position_embedding.cpp
         test_rotary_embedding.cpp
         test_rotary_positions.cpp
+        test_sequence_pool.cpp
+        test_text_encoder.cpp
         test_transformer_block.cpp
     DEPENDS
         failure_expectations

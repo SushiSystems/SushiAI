@@ -53,12 +53,14 @@ namespace SushiAI::Language::Datasets
         /** @brief Counts the positions of one input row. */
         std::int64_t window = 0;
 
-        /** @brief Holds the stride and the batch size the block states; the rest is default. */
+        /** @brief Holds the stride, the batch size, the shuffle and the seed the block states; the
+         *         rest is default. */
         TokenDatasetOptions options;
     };
 
     /**
-     * @brief Reads "file", "window", "stride" and "batch_size" of a "tokens" data block.
+     * @brief Reads "file", "window", "stride", "batch_size", "shuffle" and "seed" of a "tokens"
+     *        data block.
      * @param context Names the block in a message.
      * @return The keys, or InvalidDescription for a block that is no object, a key it does
      *         not accept, or a key that is absent, of another kind or not positive.
@@ -70,7 +72,7 @@ namespace SushiAI::Language::Datasets
      * @brief Builds a TokenDataset with a NextTokenCollator from the keys of a data block.
      * @param engine Allocates the tensors of each batch; it must outlive the dataset.
      * @param section "file" and "window" are required; "stride" is one window when absent
-     *        and "batch_size" is that of TokenDatasetOptions.
+     *        and "batch_size", "shuffle" and "seed" are those of TokenDatasetOptions.
      * @return The dataset, or InvalidDescription for a key that does not fit, or the failure
      *         of the file's header or of TokenDataset::make.
      */

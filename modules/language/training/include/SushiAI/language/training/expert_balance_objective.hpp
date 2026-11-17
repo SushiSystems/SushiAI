@@ -100,7 +100,7 @@ namespace SushiAI::Language::Training
              * @pre @p outputs holds every name make() was given as one element of one
              *      element type; anything else stops the process.
              */
-            [[nodiscard]] Result<Graph::ValueID> loss(
+            [[nodiscard]] Result<Train::LossTrace> loss(
                 const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                 const NN::ModelOutputs& outputs,
                 const Train::ObjectiveLeaves& leaves) const override;

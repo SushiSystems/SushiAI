@@ -9,6 +9,14 @@ an attention and a feed-forward, each normalised first and added to what it read
 `LanguageHead`, the final normalisation and the linear layer to the vocabulary. Every block is an `NN::TraceModule` over a `[N, T, C]` value, and every block has a
 factory that builds an `NN::Node` from a row's attributes. A per-sample shape is `[T, C]`.
 
+Two blocks read a text padded to `T`. `SequencePool` is the mean of a `[N, T, C]` value over the
+first `lengths[n]` positions of each sequence, and `TextEncoder` is a token embedding, learned
+positions, `blocks` transformer blocks without the causal mask and a `SequencePool`, a node of two
+inputs, the tokens and the lengths, and one `[C]` port. `OptionHead` encodes the `K` options of a
+question through that encoder and scores each against the state of the question, and
+`DecisionHeads` is the encoder behind three heads: the choice among the options, a yes-or-no logit
+and a number. Its node has five inputs and the ports `choice`, `yes_no` and `number`.
+
 `RotaryEmbedding` turns the channel pairs of a sequence by the angle of each position. It
 holds no state, and `CausalSelfAttention` traces it over its queries and keys when its
 `positions` are rotary, in place of a `PositionEmbedding` row before the blocks.
@@ -41,6 +49,10 @@ Consumers include each header by the path in the first column.
 | `<SushiAI/language/blocks/rotary_positions.hpp>` | `K_ROTARY_BASE`, `rotary_angle`, `check_rotary_row_spans`, `write_rotary_row` |
 | `<SushiAI/language/blocks/feed_forward.hpp>` | `FeedForward`, `make_feed_forward_node` |
 | `<SushiAI/language/blocks/transformer_block.hpp>` | `TransformerBlock`, `make_transformer_block_node` |
+| `<SushiAI/language/blocks/sequence_pool.hpp>` | `SequencePool` |
+| `<SushiAI/language/blocks/text_encoder.hpp>` | `TextEncoder`, `make_text_encoder_node` |
+| `<SushiAI/language/blocks/option_head.hpp>` | `OptionHead` |
+| `<SushiAI/language/blocks/decision_heads.hpp>` | `DecisionHeads`, `DecisionTrace`, `K_CHOICE_PORT`, `K_YES_NO_PORT`, `K_NUMBER_PORT`, `make_decision_node` |
 | `<SushiAI/language/blocks/language_head.hpp>` | `LanguageHead`, `make_language_head_node` |
 | `<SushiAI/language/blocks/moe_feed_forward.hpp>` | `MoEFeedForward`, `check_expert_counts`, `make_moe_feed_forward_node` |
 | `<SushiAI/language/blocks/expert_projection.hpp>` | `ExpertProjection` |
@@ -63,11 +75,90 @@ argument defaults to a view of no row.
 | `make_feed_forward_node` | `feed_forward` | `hidden` | |
 | `make_transformer_block_node` | `transformer_block` | `heads` | `hidden`, four times the width when absent; `causal`, true when absent; `ln_epsilon`, 1e-5 when absent; `positions`, which its attention takes; `experts`, 0 when absent, which above 0 makes `hidden` the width of one expert and the node that of an `ExpertTransformerBlock`; `top_k`, 0 when absent, stated only with `experts` |
 | `make_moe_feed_forward_node` | `moe_feed_forward` | `experts`, `hidden` | `top_k`, 0 when absent: every expert is kept; at most `experts` |
+| `make_text_encoder_node` | `text_encoder` | `vocabulary`, `dim`, `heads`, `blocks` | `hidden`, four times `dim` when absent; `length`, the rows of the position table, `T` when absent and at least `T`; `ln_epsilon`, 1e-5 when absent |
+| `make_decision_node` | `decision_heads` | the keys of `make_text_encoder_node`, and `options`, the `K` of the lists, which equals the `K` of the option tokens | the optional keys of `make_text_encoder_node`; `length` defaults to the longer of the two texts |
 | `make_language_head_node` | `language_head` | `vocabulary`, unless `tie` is stated | `ln_epsilon`, 1e-5 when absent; `tie`, the `embedding` row above whose table the head scores with |
 
-`modules/language/registration` adds the six factories to a node registry. `RotaryEmbedding`
+`modules/language/registration` adds the factories to a node registry, `make_text_encoder_node` under
+`text_encoder` and `make_decision_node` under `decision_heads` among them. `RotaryEmbedding`
 has no row: a model states `"positions": "rotary"` on the rows that hold an attention and
 leaves the `position_embedding` row out.
+
+## Padded texts
+
+A text shorter than `T` is padded to it, and the lengths say where the text ends. A length is a
+real floating value of `N` elements, a `[N]` value or any shape of `N` elements, in the type of the
+sequence or another real floating type, which the block casts. The graph has no broadcasting
+operation and no iota, so the blocks build what they need from the operations it has:
+
+| Step | Emitter | Result |
+| --- | --- | --- |
+| 1 | `matmul` of the `[N, 1]` lengths by a `[1, T]` of ones | The lengths repeated along `T`, `[N, T]` |
+| 2 | `causal_mask` of a `[T, T]` of ones, then `matmul` by a `[T, 1]` of ones, then `matmul` of a `[N, 1]` of ones by the `[1, T]` result | The counts 1 to `T` of every sequence, `[N, T]` |
+| 3 | `less_equal` of the counts by the lengths | 1 at each position a sequence holds, `[N, T]` |
+| 4 | `matmul` of a `[N, T, 1]` of ones by the `[N, 1, T]` view of step 3 | 1 at each key a sequence holds, for every query, `[N, T, T]` |
+
+`CausalSelfAttention::forward_with_lengths` takes the lengths through steps 1 to 4 once for all
+heads and replaces the score of every key at or past its sequence's length, after the causal mask
+and before the softmax, with `select`. `TransformerBlock::forward_with_lengths` hands the lengths
+to its attention. The fill is `K_MASKED_ATTENTION_SCORE` for float32 and float64, whose `exp` is
+exactly 0, and -65504, the lowest finite half, for half, so that a row of padded keys alone
+softmaxes to a uniform row and not to NaN. Half counts the positions of step 2 exactly up to 2048,
+and a longer half sequence is refused. The rows of a sequence at or past its length hold values the
+caller ignores. `forward` of both blocks is unchanged, and the incremental forms read no lengths.
+
+`SequencePool::forward_with_lengths` takes steps 1 to 3, divides the 0 and 1 of step 3 by
+`maximum(lengths, 1)` and multiplies the `[N, 1, T]` view of the result by the `[N, T, C]` value
+with a rank-3 `matmul`, which sums the first `lengths[n]` rows of sequence `n` with the weight
+`1 / lengths[n]` each. A length of 0 gives a row of zeros. A length is not differentiated, since
+`less_equal` is a gradient barrier and the divisor is no parameter.
+
+`TextEncoder::forward(trace, tokens, lengths)` traces the `Embedding`, the `PositionEmbedding`, each
+block with `forward_with_lengths`, and the pool. It has no final normalisation. A token at or past
+its sequence's length changes no value of the result: its row is a query that no pooled value
+reads, and a key no other row reads. `Graph::HostEvaluator` has no rule for `DIV` and `MAXIMUM`, so
+the pool and the encoder are computed on an engine, and the attention alone on the host.
+
+## Option scores
+
+`OptionHead` holds no state. `encode(trace, encoder, tokens, lengths)` reads `[N, K, T]` option tokens
+and `[N, K]` lengths, sees the tokens as `[N * K, T]`, traces the encoder of the question over them
+and sees the `[N * K, dim]` result as `[N, K, dim]`. Every option goes through the one encoder the
+question went through, so the two states share a space. The lengths of an option mask its attention
+and its pool as the lengths of a question do, and are handed on in their `[N, K]` shape, whose
+`N * K` elements are the lengths of the `N * K` rows.
+
+`score(trace, question, options, valid)` sees the `[N, dim]` question state as `[N, dim, 1]` and
+takes one rank-3 `matmul` with the `[N, K, dim]` option states: logit `(n, k)` is the dot product of
+question `n` and option `(n, k)`, with no scale. `valid` is an `[N, K]` real floating value, 1 for an
+option the text holds and 0 for a padded one. `less_equal(1, valid)` makes the condition, so a flag of
+at least 1 counts as held, and `select` replaces the logit of every other option with the same fill
+the attention uses for a padded key: `K_MASKED_ATTENTION_SCORE` for float32 and float64, whose `exp`
+is exactly 0, and -65504 for half. A softmax of the logits therefore weighs a padded option exactly 0
+and the argmax of a row is a held option, whenever the row holds one. A row with no held option
+softmaxes to a uniform row, so a caller states at least one option for each question. The valid flags
+are no parameter and are not differentiated, and the gradient of a padded logit is exactly 0.
+
+## Decision heads
+
+`DecisionHeads` is a `TextEncoder`, an `OptionHead` and two `NN::Linear` layers from `dim` to 1,
+`yes_no` and `number`. `trace_decision(trace, question_tokens, question_lengths, option_tokens,
+option_lengths, option_valid)` traces the encoder over the question, `OptionHead::encode` over the
+options and then `trace_heads`, which reads the question state alone for the two linear heads and both
+states for the choice. It returns a `DecisionTrace` of the `[N, K]` choice logits, the `[N, 1]`
+yes-or-no logit and the `[N, 1]` number, or the failure of the first operand that does not fit.
+`trace_heads` is public so that a caller holding states, a test or a trainer that freezes the encoder,
+reaches the heads without the encoder. The state walks `encoder`, `yes_no` and `number`, in that
+order.
+
+`make_decision_node` has the pattern of the nodes with experts: one node, three ports, one value
+appended for each, in the order of `ports()`. Its inputs are the per-sample `[T]` question tokens, the
+`[1]` question length, the `[K, T']` option tokens, the `[K]` option lengths and the `[K]` option
+flags. `options` states `K` and the factory refuses a row whose option tokens hold another count. One
+position table serves the question and the options, so `length` defaults to the longer of `T` and
+`T'`. `TextEncoder` and the node factory read their keys through one reader,
+`Detail::read_text_encoder`, in `source/text_encoder_attributes.hpp`, so a key the encoder gains is
+accepted by both rows.
 
 ## The incremental forms
 

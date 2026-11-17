@@ -12,17 +12,18 @@ The `Medium_` cases run a kernel against a host computation or train on the devi
 
 ## Small_LanguageRegistration
 
-### RegisterNodesAddsTheSixBlockRows
+### RegisterNodesAddsTheBlockRowsAndTheHeadRow
 
-`register_nodes` adds five node rows in the order "position_embedding",
-"causal_self_attention", "feed_forward", "transformer_block", "moe_feed_forward", and one linked
+`register_nodes` adds seven node rows in the order "position_embedding",
+"causal_self_attention", "feed_forward", "transformer_block", "moe_feed_forward",
+"text_encoder", "decision_heads", and one linked
 row, "language_head". A second call fails with `InvalidDescription` and a message holding
 "'position_embedding'" and "already".
 
-### RegisterDatasetsAddsTokensAndPrompt
+### RegisterDatasetsAddsTokensPromptAndDecisions
 
-After `register_datasets` the registry has two rows, and `find` returns a row for "tokens" and
-for "prompt".
+After `register_datasets` the registry has three rows, and `find` returns a row for "tokens",
+for "prompt" and for "decisions".
 
 ### RegisterObjectivesAddsNextTokenAndExpertBalance
 

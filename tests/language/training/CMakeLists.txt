@@ -7,10 +7,13 @@
 
 sushiai_add_test_program(OWNER language/training
     SOURCES
+        test_calibration_error.cpp
         test_expert_balance_objective.cpp
+        test_next_token_inputs.cpp
         test_next_token_objective.cpp
         test_next_token_targets.cpp
         test_perplexity.cpp
+        test_temperature_scaling.cpp
     DEPENDS
         failure_expectations
         scratch_files

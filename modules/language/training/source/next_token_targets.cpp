@@ -31,7 +31,6 @@
 
 #include <cstdint>
 #include <cstddef>
-#include <limits>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -47,12 +46,10 @@ namespace SushiAI::Language::Training
                    "position",
                    labels.size(), targets.size());
 
+        SA_FAIL_IF(vocabulary < 1, StatusCode::Incompatible,
+                   "A vocabulary of {} holds no token", vocabulary);
+
         const std::int64_t rows = static_cast<std::int64_t>(targets.size());
-        constexpr std::int64_t K_LARGEST_INDEX = std::numeric_limits<std::int32_t>::max();
-        SA_FAIL_IF(vocabulary < 1 || rows > K_LARGEST_INDEX / vocabulary,
-                   StatusCode::Incompatible,
-                   "{} positions over a vocabulary of {} cannot be indexed in {}", rows,
-                   vocabulary, dtype_name(DType::Int32));
 
         for (std::int64_t row = 0; row < rows; ++row)
         {
@@ -65,8 +62,7 @@ namespace SushiAI::Language::Training
         // Every label was checked, so a refused batch leaves the leaf as it was.
         for (std::int64_t row = 0; row < rows; ++row)
         {
-            targets[static_cast<std::size_t>(row)] = static_cast<std::int32_t>(
-                row * vocabulary + labels[static_cast<std::size_t>(row)]);
+            targets[static_cast<std::size_t>(row)] = labels[static_cast<std::size_t>(row)];
         }
 
         return Status();

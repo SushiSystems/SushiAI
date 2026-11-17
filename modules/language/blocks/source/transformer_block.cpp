@@ -29,6 +29,7 @@
 
 #include <SushiAI/language/blocks/transformer_block.hpp>
 
+#include <type_traits>
 #include <utility>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -87,6 +88,23 @@ namespace SushiAI
                 trace_block(*this, trace, x, [&trace](auto& child, Graph::ValueID value)
             {
                 return NN::trace_layer(child, trace, value);
+            });
+
+            // A child that refused has already recorded its failure, which fail() keeps.
+            return trace.value_or_fail(traced, x);
+        }
+
+        Graph::ValueID TransformerBlock::forward_with_lengths(const NN::Trace& trace,
+                                                              Graph::ValueID x,
+                                                              Graph::ValueID lengths) noexcept
+        {
+            const Result<Graph::ValueID> traced =
+                trace_block(*this, trace, x, [&trace, lengths](auto& child, Graph::ValueID value)
+            {
+                if constexpr (std::is_same_v<std::decay_t<decltype(child)>, CausalSelfAttention>)
+                    return child.forward_with_lengths(trace, value, lengths);
+                else
+                    return NN::trace_layer(child, trace, value);
             });
 
             // A child that refused has already recorded its failure, which fail() keeps.

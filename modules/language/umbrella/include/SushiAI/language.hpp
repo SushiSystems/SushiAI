@@ -87,3 +87,12 @@
 #include <SushiAI/language/generation/in_memory_window_logits.hpp>
 #include <SushiAI/language/generation/one_position_step.hpp>
 #include <SushiAI/language/generation/window_logits.hpp>
+#include <SushiAI/language/blocks/decision_heads.hpp>
+#include <SushiAI/language/blocks/option_head.hpp>
+#include <SushiAI/language/blocks/sequence_pool.hpp>
+#include <SushiAI/language/blocks/text_encoder.hpp>
+#include <SushiAI/language/datasets/decision_dataset.hpp>
+#include <SushiAI/language/datasets/decision_file.hpp>
+#include <SushiAI/language/training/calibration_error.hpp>
+#include <SushiAI/language/training/next_token_inputs.hpp>
+#include <SushiAI/language/training/temperature_scaling.hpp>

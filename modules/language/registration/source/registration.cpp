@@ -32,11 +32,14 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/language/blocks/causal_self_attention.hpp>
+#include <SushiAI/language/blocks/decision_heads.hpp>
 #include <SushiAI/language/blocks/feed_forward.hpp>
 #include <SushiAI/language/blocks/language_head.hpp>
 #include <SushiAI/language/blocks/moe_feed_forward.hpp>
 #include <SushiAI/language/blocks/position_embedding.hpp>
+#include <SushiAI/language/blocks/text_encoder.hpp>
 #include <SushiAI/language/blocks/transformer_block.hpp>
+#include <SushiAI/language/datasets/decision_dataset.hpp>
 #include <SushiAI/language/datasets/prompt_dataset.hpp>
 #include <SushiAI/language/datasets/tokens_section.hpp>
 #include <SushiAI/language/training/expert_balance_objective.hpp>
@@ -57,6 +60,8 @@ namespace SushiAI::Language
                                           &Blocks::make_transformer_block_node}));
         SA_TRY(registry.add(NN::NodeEntry{"moe_feed_forward",
                                           &Blocks::make_moe_feed_forward_node}));
+        SA_TRY(registry.add(NN::NodeEntry{"text_encoder", &Blocks::make_text_encoder_node}));
+        SA_TRY(registry.add(NN::NodeEntry{"decision_heads", &Blocks::make_decision_node}));
 
         // The head may name the embedding row above it, so its factory reads the rows.
         return registry.add(NN::LinkedNodeEntry{"language_head",
@@ -68,8 +73,11 @@ namespace SushiAI::Language
         SA_TRY(registry.add(Data::DatasetEntry{Datasets::K_TOKENS_DATA_TYPE,
                                                &Datasets::make_tokens_dataset}));
 
-        return registry.add(Data::DatasetEntry{Datasets::K_PROMPT_DATA_TYPE,
-                                               &Datasets::make_prompt_dataset});
+        SA_TRY(registry.add(Data::DatasetEntry{Datasets::K_PROMPT_DATA_TYPE,
+                                               &Datasets::make_prompt_dataset}));
+
+        return registry.add(Data::DatasetEntry{Datasets::K_DECISIONS_DATA_TYPE,
+                                               &Datasets::make_decisions_dataset});
     }
 
     Status register_objectives(Train::ObjectiveRegistry& registry) noexcept

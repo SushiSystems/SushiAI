@@ -39,6 +39,7 @@
 #include <SushiAI/language/blocks/incremental.hpp>
 #include <SushiAI/language/blocks/rotary_embedding.hpp>
 #include "block_attributes.hpp"
+#include "key_padding.hpp"
 #include "positions_attribute.hpp"
 #include "sequence.hpp"
 #include "slice.hpp"
@@ -59,6 +60,22 @@ namespace SushiAI
             constexpr std::string_view K_ATTENTION_KEYS[] = {
                 Detail::K_HEADS_KEY, Detail::K_CAUSAL_KEY, Detail::K_POSITIONS_KEY};
 
+            /** @brief Names the two values that keep a query off the padded keys of its row. */
+            struct KeyPadding
+            {
+                /** @brief Holds the [N, T, T] condition, 1 at a key a row holds. */
+                Graph::ValueID condition = Graph::K_NO_VALUE;
+
+                /** @brief Holds the [N, T, T] score a padded key takes. */
+                Graph::ValueID fill = Graph::K_NO_VALUE;
+
+                /** @brief Reports whether the block masks padded keys. */
+                [[nodiscard]] bool is_set() const noexcept
+                {
+                    return condition != Graph::K_NO_VALUE;
+                }
+            };
+
             /** @brief Holds what the per-head trace reads beside the projected value. */
             struct HeadGeometry
             {
@@ -67,6 +84,7 @@ namespace SushiAI
                 int64_t dim = 0;      /**< @brief The width of the block. */
                 int64_t heads = 0;    /**< @brief The head count. */
                 AttentionMask mask{}; /**< @brief The positions a position may read. */
+                KeyPadding padding{}; /**< @brief The padded keys, or none. */
             };
 
             /** @brief Names the two [N, T, 1, C] maps the heads are cut from. */
@@ -145,9 +163,12 @@ namespace SushiAI
 
                     const Graph::Traced scores =
                         builder.scale(builder.matmul(q, k, false, true), scale);
-                    const Graph::Traced readable = g.mask == AttentionMask::Causal
+                    const Graph::Traced seen = g.mask == AttentionMask::Causal
                         ? builder.causal_mask(scores, K_MASKED_ATTENTION_SCORE)
                         : scores;
+                    const Graph::Traced readable = g.padding.is_set()
+                        ? builder.select(g.padding.condition, seen, g.padding.fill)
+                        : seen;
 
                     const Graph::Traced weighed = builder.matmul(builder.softmax(readable), v);
                     SA_TRY_ASSIGN(const Graph::ValueID head_result,
@@ -163,10 +184,44 @@ namespace SushiAI
                 return result;
             }
 
-            /** @brief Traces the block, or returns why @p x or @p block does not fit. */
+            /**
+             * @brief Emits the condition and the fill that keep each query off the keys past the
+             *        length of its row.
+             * @param lengths A value holding one length per sequence, or K_NO_VALUE for none.
+             * @return No padding for no lengths, else the condition and the fill, or the refusal
+             *         of an emitter or of lengths that do not fit.
+             */
+            [[nodiscard]] Result<KeyPadding> pad_keys(const Graph::GraphBuilder& builder,
+                                                      Graph::ValueID lengths,
+                                                      const Shape& sequence, DType dtype)
+            {
+                if (lengths == Graph::K_NO_VALUE)
+                    return KeyPadding{};
+
+                SA_TRY_ASSIGN(const Graph::ValueID expanded,
+                              Detail::expand_lengths(builder, lengths, sequence[0], sequence[1],
+                                                     dtype, "CausalSelfAttention"));
+                SA_TRY_ASSIGN(const Graph::ValueID valid,
+                              Detail::valid_positions(builder, expanded, sequence[0],
+                                                      sequence[1], dtype));
+                SA_TRY_ASSIGN(const Graph::ValueID condition,
+                              Detail::key_condition(builder, valid, sequence[0], sequence[1],
+                                                    dtype));
+                SA_TRY_ASSIGN(const Graph::ValueID fill,
+                              builder.constant(Shape{sequence[0], sequence[1], sequence[1]},
+                                               Detail::padded_score(dtype), dtype));
+
+                return KeyPadding{condition, fill};
+            }
+
+            /**
+             * @brief Traces the block, or returns why @p x, @p lengths or @p block does not fit.
+             * @param lengths A value of one length per sequence, or K_NO_VALUE for none.
+             */
             [[nodiscard]] Result<Graph::ValueID> trace_attention(CausalSelfAttention& block,
                                                                  const NN::Trace& trace,
-                                                                 Graph::ValueID x)
+                                                                 Graph::ValueID x,
+                                                                 Graph::ValueID lengths)
             {
                 const Graph::GraphBuilder& builder = trace.builder();
                 SA_TRY(check_attention_widths(block.dim, block.heads));
@@ -196,8 +251,12 @@ namespace SushiAI
                     return NN::trace_layer(rotary, trace, value);
                 }));
 
+                // By value: the emissions below grow the value table.
+                const DType dtype = builder.graph().value(x).dtype;
+                SA_TRY_ASSIGN(const KeyPadding padding,
+                              pad_keys(builder, lengths, sequence, dtype));
                 const HeadGeometry geometry{sequence[0], sequence[1], block.dim, block.heads,
-                                            block.mask};
+                                            block.mask, padding};
                 SA_TRY_ASSIGN(const Graph::ValueID joined, attend(builder, projections, geometry));
 
                 return Detail::over_rows(builder, joined, sequence, block.dim,
@@ -416,7 +475,14 @@ namespace SushiAI
 
         Graph::ValueID CausalSelfAttention::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
-            return trace.value_or_fail(trace_attention(*this, trace, x), x);
+            return trace.value_or_fail(trace_attention(*this, trace, x, Graph::K_NO_VALUE), x);
+        }
+
+        Graph::ValueID CausalSelfAttention::forward_with_lengths(const NN::Trace& trace,
+                                                                 Graph::ValueID x,
+                                                                 Graph::ValueID lengths) noexcept
+        {
+            return trace.value_or_fail(trace_attention(*this, trace, x, lengths), x);
         }
 
         Graph::ValueID CausalSelfAttention::forward_incremental(const NN::Trace& trace,

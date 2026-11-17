@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -44,6 +45,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/epoch.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/language/datasets/collator.hpp>
 #include <SushiAI/language/datasets/token_file.hpp>
@@ -63,17 +65,23 @@ namespace SushiAI::Language::Datasets
 
         /** @brief Holds the name a run report prints. */
         std::string name = "tokens";
+
+        /** @brief Redraws the window starts in every epoch; false keeps the strided ones. */
+        bool shuffle = false;
+
+        /** @brief Holds the seed of the draws of every epoch; read when shuffle is set. */
+        std::uint64_t seed = 0;
     };
 
     /**
      * @brief Builds batch i from windows [i * batch size, (i + 1) * batch size) of a token file.
      *
-     * Window w begins at id w * stride; those past the last whole batch are not read. read()
-     * keeps no state, so threads may call it at once, each with its own Batch.
+     * Window w begins at id w * stride; with TokenDatasetOptions::shuffle every epoch redraws
+     * the starts. read() changes nothing, so threads may call it while none calls begin_epoch().
      * @pre The engine outlives the dataset.
      * @see modules/language/datasets/README.md, section "Windows".
      */
-    class TokenDataset final : public Data::Dataset
+    class TokenDataset final : public Data::Dataset, public Data::EpochAware
     {
         public:
             /**
@@ -134,12 +142,22 @@ namespace SushiAI::Language::Datasets
             [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange rows,
                                            Data::Batch& batch) const override;
 
+            /**
+             * @brief Sets the epoch whose starts the next reads take.
+             * @pre What Data::EpochAware::begin_epoch() states; the epoch is 0 until a call.
+             */
+            void begin_epoch(std::int64_t epoch) const noexcept override;
+
         private:
             /** @brief Takes the parts make() checked. */
             TokenDataset(SushiBLAS::Engine& engine, std::filesystem::path file,
                          TokenFileHeader header, std::unique_ptr<const Collator> collator,
                          WindowLayout layout, std::uint64_t windows,
                          TokenDatasetOptions options) noexcept;
+
+            /** @brief Returns the id of the first token of position @p position of @p epoch. */
+            [[nodiscard]] std::uint64_t start_of(std::uint64_t position,
+                                                 std::int64_t epoch) const noexcept;
 
             /// @brief Allocates the tensors of each batch; not owned.
             SushiBLAS::Engine* engine_;
@@ -161,5 +179,11 @@ namespace SushiAI::Language::Datasets
 
             /// @brief Holds the batch size and the name.
             TokenDatasetOptions options_;
+
+            /// @brief Counts the ids the last window leaves over; an epoch's offset is in [0, it].
+            std::uint64_t slack_;
+
+            /// @brief Holds the epoch begin_epoch() set; a read takes it once, at its start.
+            mutable std::atomic<std::int64_t> epoch_{0};
     };
 } // namespace SushiAI::Language::Datasets

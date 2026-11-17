@@ -29,6 +29,7 @@
 
 #include <SushiAI/language/datasets/token_dataset.hpp>
 
+#include <atomic>
 #include <fstream>
 #include <ios>
 #include <utility>
@@ -39,6 +40,8 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/epoch.hpp>
+#include <SushiAI/data/epoch_permutation.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/language/text/token.hpp>
 
@@ -99,9 +102,33 @@ namespace SushiAI::Language::Datasets
                                TokenDatasetOptions options) noexcept
         : engine_(&engine), file_(std::move(file)), header_(header),
           collator_(std::move(collator)), layout_(layout), windows_(windows),
-          options_(std::move(options))
+          options_(std::move(options)),
+          slack_(header_.token_count
+                 - (windows_ - 1) * static_cast<std::uint64_t>(layout_.stride)
+                 - static_cast<std::uint64_t>(layout_.tokens))
     {
 
+    }
+
+    void TokenDataset::begin_epoch(std::int64_t epoch) const noexcept
+    {
+        SA_FATAL_IF(epoch < 0, "{}: '{}' was given the epoch {}; epochs count from 0", K_DATASET,
+                    options_.name, epoch);
+
+        epoch_.store(epoch, std::memory_order_relaxed);
+    }
+
+    std::uint64_t TokenDataset::start_of(std::uint64_t position,
+                                         std::int64_t epoch) const noexcept
+    {
+        if (!options_.shuffle)
+            return first_token_of(position, layout_);
+
+        // The offset keeps every window inside the file: it never exceeds what the last leaves.
+        const Data::EpochPermutation offsets(options_.seed, epoch, slack_ + 1);
+        const Data::EpochPermutation order(options_.seed, epoch, windows_);
+
+        return first_token_of(order.at(position), layout_) + offsets.at(0);
     }
 
     std::int64_t TokenDataset::batch_size() const noexcept
@@ -159,6 +186,7 @@ namespace SushiAI::Language::Datasets
                 static_cast<std::uint64_t>(index) * static_cast<std::uint64_t>(options_.batch_size)
                 + static_cast<std::uint64_t>(range.first);
             const std::size_t per_window = static_cast<std::size_t>(layout_.tokens);
+            const std::int64_t epoch = epoch_.load(std::memory_order_relaxed);
             std::vector<Text::TokenID> tokens(rows * per_window);
 
             std::ifstream in(file_, std::ios::binary);
@@ -168,12 +196,12 @@ namespace SushiAI::Language::Datasets
 
             for (std::size_t row = 0; row < rows; ++row)
             {
-                const std::uint64_t window = first + row;
+                const std::uint64_t position = first + row;
                 const SushiRuntime::span<Text::TokenID> ids(tokens.data() + row * per_window,
                                                             per_window);
 
                 SA_TRY(SA_ANNOTATE(
-                    read_token_range(in, header_, first_token_of(window, layout_), ids), "'{}'",
+                    read_token_range(in, header_, start_of(position, epoch), ids), "'{}'",
                     Detail::display_of(file_)));
             }
 

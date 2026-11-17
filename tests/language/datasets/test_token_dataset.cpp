@@ -34,6 +34,7 @@
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <utility>
 #include <vector>
 #include <string>
@@ -46,6 +47,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/epoch.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
@@ -278,6 +280,142 @@ INSTANTIATE_TEST_SUITE_P(Rows, Medium_LanguageDatasetsTokenDatasetStride,
                                            StrideCase{"BatchOne", 1, 6, 9},
                                            StrideCase{"BatchTwo", 2, 12, 15}),
                          label_of<StrideCase>);
+
+namespace
+{
+    /** @brief Holds the epochs the draws are compared over. */
+    constexpr std::int64_t K_EPOCHS = 8;
+
+    /** @brief Holds the seed of the shuffled datasets. */
+    constexpr std::uint64_t K_SEED = 7;
+
+    /** @brief Holds the windows of the 20-id file at the default stride: (20 - 5) / 4 + 1. */
+    constexpr std::size_t K_WINDOWS = 4;
+
+    /** @brief Holds the stride of the default windows, the length of one input row. */
+    constexpr TokenID K_STRIDE = 4;
+
+    /**
+     * @brief Begins @p epoch and returns the first id of each window of the whole epoch, in the
+     *        order the batches give them.
+     */
+    std::vector<TokenID> starts_of_epoch(const TokenDataset& dataset, std::int64_t epoch)
+    {
+        Data::begin_epoch(dataset, epoch);
+
+        std::vector<TokenID> starts;
+        Data::Batch batch;
+        for (std::size_t index = 0; index < dataset.batch_count(); ++index)
+        {
+            EXPECT_TRUE(SaTest::status_is_ok(dataset.read(index, batch)));
+            for (std::int64_t row = 0; row < dataset.batch_size(); ++row)
+                starts.push_back(batch.inputs.data_as<TokenID>()[row * K_LENGTH]);
+        }
+        return starts;
+    }
+
+    /** @brief Returns @p base with the shuffle on and the seed of these tests. */
+    TokenDatasetOptions shuffled_options(const TokenDatasetOptions& base)
+    {
+        TokenDatasetOptions options = base;
+        options.shuffle = true;
+        options.seed = K_SEED;
+        return options;
+    }
+} // namespace
+
+/** @brief Tests that a token dataset is told the epoch through Data::EpochAware. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, ItIsEpochAware)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_aware");
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> dataset,
+        TokenDataset::make(*engine, rising_file(scratch), next_token(), tiny_options()));
+
+    EXPECT_NE(dynamic_cast<const Data::EpochAware*>(dataset.get()), nullptr);
+}
+
+/** @brief Tests that a shuffled epoch reads each window once, shifted by one offset. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, EveryEpochReadsEachWindowOnceWithinTheFile)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_cover");
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> dataset,
+        TokenDataset::make(*engine, rising_file(scratch), next_token(),
+                           shuffled_options(tiny_options())));
+
+    // The file holds id p at position p; window w begins at 4w plus an offset in [0, 3].
+    for (std::int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
+    {
+        const std::vector<TokenID> starts = starts_of_epoch(*dataset, epoch);
+
+        ASSERT_EQ(starts.size(), K_WINDOWS);
+        std::set<TokenID> windows;
+        for (const TokenID start : starts)
+            windows.insert(start / K_STRIDE);
+        EXPECT_EQ(windows.size(), K_WINDOWS) << "epoch " << epoch;
+
+        const TokenID offset = starts.front() % K_STRIDE;
+        for (const TokenID start : starts)
+            EXPECT_EQ(start % K_STRIDE, offset) << "epoch " << epoch;
+    }
+}
+
+/** @brief Tests that epochs of one seed do not all draw the same windows. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, TwoEpochsDrawDifferentWindows)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_differ");
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> dataset,
+        TokenDataset::make(*engine, rising_file(scratch), next_token(),
+                           shuffled_options(tiny_options())));
+
+    // Each epoch has one of 4! orders and one of 4 offsets; eight identical draws is 1 in 96^7.
+    std::set<std::vector<TokenID>> draws;
+    for (std::int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
+        draws.insert(starts_of_epoch(*dataset, epoch));
+
+    EXPECT_GT(draws.size(), 1u);
+}
+
+/** @brief Tests that one seed and one epoch give one sequence, in any dataset and read order. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, OneSeedGivesOneSequence)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_seeded");
+    const std::filesystem::path file = rising_file(scratch);
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> first,
+        TokenDataset::make(*engine, file, next_token(), shuffled_options(tiny_options())));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> second,
+        TokenDataset::make(*engine, file, next_token(), shuffled_options(tiny_options())));
+
+    // The second dataset visits the epochs backwards, so its draws depend on the epoch alone.
+    std::vector<std::vector<TokenID>> forward;
+    for (std::int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
+        forward.push_back(starts_of_epoch(*first, epoch));
+    for (std::int64_t epoch = K_EPOCHS - 1; epoch >= 0; --epoch)
+        EXPECT_EQ(starts_of_epoch(*second, epoch), forward[static_cast<std::size_t>(epoch)])
+            << "epoch " << epoch;
+}
+
+/** @brief Tests that without shuffle every epoch reads the strided windows in order. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, WithoutShuffleEveryEpochReadsTheStridedWindows)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_plain");
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> dataset,
+        TokenDataset::make(*engine, rising_file(scratch), next_token(), tiny_options()));
+
+    for (std::int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
+        EXPECT_EQ(starts_of_epoch(*dataset, epoch), (std::vector<TokenID>{0, 4, 8, 12}))
+            << "epoch " << epoch;
+}
 
 /** @brief Tests that make refuses options no batch can be built from. */
 TEST_P(Medium_LanguageDatasetsTokenDatasetRefusal, MakeRefusesOptionsOutsideTheirBounds)

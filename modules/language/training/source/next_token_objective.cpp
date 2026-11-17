@@ -30,7 +30,6 @@
 #include <SushiAI/language/training/next_token_objective.hpp>
 
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -41,6 +40,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
+#include <SushiAI/language/training/next_token_inputs.hpp>
 #include <SushiAI/language/training/next_token_targets.hpp>
 #include <SushiAI/language/training/perplexity.hpp>
 #include <SushiAI/train/batch_role.hpp>
@@ -51,21 +51,6 @@ namespace SushiAI::Language::Training
     {
         /** @brief Names the rank of the [N, T, V] logits the objective reads. */
         constexpr std::int32_t K_LOGITS_RANK = 3;
-
-        /** @brief Holds the largest index K_GATHER_ROWS addresses a table row by. */
-        constexpr std::int64_t K_LARGEST_INDEX = std::numeric_limits<std::int32_t>::max();
-
-        /**
-         * @brief Reports whether INT32 indexes batch * length * vocabulary elements.
-         * @pre Every argument is at least 1.
-         */
-        [[nodiscard]] bool fits_index(std::int64_t batch, std::int64_t length,
-                                      std::int64_t vocabulary) noexcept
-        {
-            // Dividing first keeps each product below what int64 holds.
-            return batch <= K_LARGEST_INDEX / length
-                && batch * length <= K_LARGEST_INDEX / vocabulary;
-        }
 
         /**
          * @brief Reads the name under K_NEXT_TOKEN_OUTPUT_KEY, or none when it is absent.
@@ -131,29 +116,32 @@ namespace SushiAI::Language::Training
     } // namespace
 
     Result<std::unique_ptr<NextTokenObjective>> NextTokenObjective::make(
-        std::int64_t batch, std::int64_t length, std::int64_t vocabulary, std::string output) noexcept
+        std::int64_t batch, std::int64_t length, std::int64_t vocabulary, std::string output,
+        std::int64_t input_classes) noexcept
     {
         SA_FAIL_IF(batch < 1 || length < 1 || vocabulary < 1, StatusCode::InvalidDescription,
                    "A next-token objective needs a batch, a length and a vocabulary of at "
                    "least 1; got {}, {} and {}",
                    batch, length, vocabulary);
 
-        SA_FAIL_IF(!fits_index(batch, length, vocabulary), StatusCode::InvalidDescription,
-                   "A next-token objective picks one of batch * length * vocabulary "
-                   "log-probabilities by an int32 index; {} * {} * {} is above {}",
-                   batch, length, vocabulary, K_LARGEST_INDEX);
+        SA_FAIL_IF(input_classes < 0, StatusCode::InvalidDescription,
+                   "A next-token objective bounds its input ids by the rows of the embedding, "
+                   "0 or more; got {}", input_classes);
 
         return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
         {
             return std::unique_ptr<NextTokenObjective>(
-                new NextTokenObjective(batch, length, vocabulary, std::move(output)));
+                new NextTokenObjective(batch, length, vocabulary, std::move(output),
+                                       input_classes));
         });
     }
 
     NextTokenObjective::NextTokenObjective(std::int64_t batch, std::int64_t length,
                                            std::int64_t vocabulary,
-                                           std::string output) noexcept
-        : batch_(batch), length_(length), vocabulary_(vocabulary), output_(std::move(output))
+                                           std::string output,
+                                           std::int64_t input_classes) noexcept
+        : batch_(batch), length_(length), vocabulary_(vocabulary), output_(std::move(output)),
+          input_classes_(input_classes)
     {
 
     }
@@ -170,7 +158,7 @@ namespace SushiAI::Language::Training
                                                Shape{length_}, DType::Int32, 0});
     }
 
-    Result<Graph::ValueID> NextTokenObjective::loss(
+    Result<Train::LossTrace> NextTokenObjective::loss(
         const Graph::GraphBuilder& builder, const Graph::Graph& graph,
         const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
@@ -193,16 +181,15 @@ namespace SushiAI::Language::Training
         const Graph::Traced log_probabilities =
             builder.log_softmax(builder.reshape(logits, Shape{rows, vocabulary_}));
 
-        // As a table of rows * V single values, one index picks one log-probability.
-        const Graph::Traced table =
-            builder.reshape(log_probabilities, Shape{rows * vocabulary_, 1});
+        // The label of each position is the column its log-probability sits at.
         const Graph::Traced picked =
-            builder.gather_rows(table, leaves.at(K_NEXT_TOKEN_TARGETS_LEAF));
+            builder.take_along(log_probabilities, leaves.at(K_NEXT_TOKEN_TARGETS_LEAF));
+        const Graph::Traced picked_column = builder.reshape(picked, Shape{rows, 1});
         SA_TRY_ASSIGN(const Graph::ValueID loss,
-                      builder.scale(builder.sum_rows(picked),
+                      builder.scale(builder.sum_rows(picked_column),
                                     -1.0 / static_cast<double>(rows)));
 
-        return loss;
+        return Train::LossTrace(loss);
     }
 
     Status NextTokenObjective::feed(const Data::Batch& batch,
@@ -211,6 +198,8 @@ namespace SushiAI::Language::Training
     {
         SA_TRY_ASSIGN(const Data::BatchTarget* const labels,
                       Train::require_batch_role(batch, Data::K_ROLE_LABELS));
+        SA_TRY(check_next_token_inputs(batch.inputs,
+                                       input_classes_ != 0 ? input_classes_ : vocabulary_));
         SA_TRY_ASSIGN(SushiBLAS::Tensor* const targets,
                       Train::find_leaf_tensor(leaves, K_NEXT_TOKEN_TARGETS_LEAF, pool));
 
@@ -246,7 +235,7 @@ namespace SushiAI::Language::Training
 
         SA_TRY_ASSIGN(std::unique_ptr<NextTokenObjective> made,
                       NextTokenObjective::make(logits[0], logits[1], logits[2],
-                                               std::move(name)));
+                                               std::move(name), given.input_classes));
         std::unique_ptr<Train::Objective> base = std::move(made);
         return std::move(base);
     }

@@ -9,9 +9,9 @@ Tests `Language::Training::fill_next_token_targets` in
 they allocate no tensor and need no engine. The perplexity cases that sat here moved to
 `test_perplexity.cpp`. The vocabulary has five tokens, and a leaf of six elements starts at -7.
 
-## APositionIndexesItsLabelAmongEveryScore
+## APositionHoldsItsLabel
 
-The labels 4, 0, 2, 1, 1, 3 fill the leaf with 4, 5, 12, 16, 21, 28.
+The labels 4, 0, 2, 1, 1, 3 fill the leaf with 4, 0, 2, 1, 1, 3.
 
 ## ALabelOutsideTheVocabularyIsRefused
 
@@ -22,8 +22,12 @@ element of the leaf is still -7. The two inputs are rows.
 ## AFillThatDoesNotFitIsRefused
 
 The fill fails with `Incompatible` for four labels over a leaf of six ("holds 4 labels",
-"expects 6"), for a vocabulary of 2147483647 ("6 positions", "cannot be indexed") and for a
-vocabulary of 0 ("cannot be indexed"). The three are rows.
+"expects 6") and for a vocabulary of 0 ("vocabulary of 0", "holds no token"). The two are rows.
+
+## AVocabularyOfTheLargestInt32IsAccepted
+
+Six labels over a vocabulary of 2147483647 fill the leaf with the labels. The fill once refused
+this product of positions and vocabulary.
 
 ## LabelsOfAnotherElementTypeAreRefused
 

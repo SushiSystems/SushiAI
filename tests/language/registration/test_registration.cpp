@@ -105,8 +105,8 @@ using Language::Blocks::MoEFeedForward;
 using SaTest::read_tensor;
 using SaTest::write_tensor;
 
-/** @brief Tests that the five block rows and the linked head row are added in order. */
-TEST(Small_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
+/** @brief Tests that the seven block rows and the linked head row are added in order. */
+TEST(Small_LanguageRegistration, RegisterNodesAddsTheBlockRowsAndTheHeadRow)
 {
     NN::NodeRegistry registry;
     SA_EXPECT_OK(Language::register_nodes(registry));
@@ -114,7 +114,8 @@ TEST(Small_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
     EXPECT_EQ(SaTest::types_of(registry.nodes()),
               (std::vector<std::string_view>{"position_embedding", "causal_self_attention",
                                              "feed_forward", "transformer_block",
-                                             "moe_feed_forward"}));
+                                             "moe_feed_forward", "text_encoder",
+                                             "decision_heads"}));
     EXPECT_EQ(SaTest::types_of(registry.linked()),
               (std::vector<std::string_view>{"language_head"}));
 
@@ -122,15 +123,16 @@ TEST(Small_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
                       "'position_embedding'", "already");
 }
 
-/** @brief Tests that the tokens row and the prompt row are added. */
-TEST(Small_LanguageRegistration, RegisterDatasetsAddsTokensAndPrompt)
+/** @brief Tests that the tokens row, the prompt row and the decisions row are added. */
+TEST(Small_LanguageRegistration, RegisterDatasetsAddsTokensPromptAndDecisions)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(Language::register_datasets(registry));
 
     EXPECT_NE(registry.find("tokens"), nullptr);
     EXPECT_NE(registry.find("prompt"), nullptr);
-    EXPECT_EQ(registry.rows().size(), 2u);
+    EXPECT_NE(registry.find("decisions"), nullptr);
+    EXPECT_EQ(registry.rows().size(), 3u);
 }
 
 /** @brief Tests that the next_token row and the expert_balance row are added. */

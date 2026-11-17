@@ -67,6 +67,8 @@
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/gradient_probe.hpp>
+#include <support/padded_text_comparison.hpp>
 #include <support/tolerance.hpp>
 #include "blocks_test_support.hpp"
 
@@ -229,18 +231,6 @@ namespace
                               SaTest::eighths(K_DIM, 3));
     }
 
-    /** @brief Expects every element of @p computed to be within the bound of @p reference. */
-    void expect_close(const std::vector<double>& computed, const std::vector<double>& reference)
-    {
-        ASSERT_EQ(computed.size(), reference.size());
-        for (std::size_t i = 0; i < computed.size(); ++i)
-        {
-            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_sum_error<double>(
-                computed[i], reference[i], 1.0, K_REFERENCE_OPERATIONS)))
-                << "at element " << i;
-        }
-    }
-
     /** @brief Names a row by its name field. */
     template<typename Row>
     std::string row_name(const ::testing::TestParamInfo<Row>& info)
@@ -378,7 +368,7 @@ TEST(Small_BlockCausalSelfAttention, TheScoresOfEachHeadAreScaledByTheRootOfItsW
     SA_EXPECT_OK(run.run());
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got, run.read(y));
-    expect_close(got, attention_on_host(rows));
+    SaTest::expect_close<double>(got, attention_on_host(rows), K_REFERENCE_OPERATIONS, 1.0);
 }
 
 /** @brief Tests that a block without a mask adds no CAUSAL_MASK node. */
@@ -829,141 +819,12 @@ namespace
         return values;
     }
 
-    /** @brief Names the leaf a probe differentiates at and the [N, C] value its loss reads. */
-    struct Subject
-    {
-        ValueID variable = Graph::K_NO_VALUE; /**< The leaf the gradient is taken at. */
-        ValueID logits = Graph::K_NO_VALUE;   /**< The [N, C] value the cross-entropy reads. */
-    };
-
-    /**
-     * @brief Holds a FLOAT64 graph whose loss and gradient can both be evaluated at a point.
-     *
-     * The loss is the cross-entropy of the logits the build function names, against targets
-     * whose row r names class r mod C. Every other leaf is filled from the host stream.
-     */
-    class Probe
-    {
-        public:
-            /** @brief Builds the graph, differentiates it at its variable and compiles it. */
-            template<typename BuildFn>
-            Probe(SushiAI::ExecutionBackend& backend, std::uint64_t seed, BuildFn&& build)
-                : pool_(backend.engine())
-            {
-                const GraphBuilder builder(graph_);
-                const Subject subject = build(builder);
-                variable_ = subject.variable;
-
-                const Shape logit_shape = graph_.value(subject.logits).shape;
-                targets_ = builder.input(logit_shape, "targets", DType::Float64);
-                // A constructor cannot ASSERT; a Subject's logits are a well-formed [N, C].
-                loss_ = builder.nll_loss(builder.log_softmax(subject.logits), targets_).value();
-
-                const std::vector<ValueID> wrt = {variable_};
-                // The graph is fixed here, so a refusal is a defect: value() stops the test.
-                gradient_ = Autograd::differentiate(
-                    graph_, loss_,
-                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value().at(0);
-                EXPECT_NE(gradient_, Graph::K_NO_VALUE);
-
-                SA_EXPECT_OK(pool_.materialise_leaves(graph_));
-                fill_other_leaves(seed, logit_shape);
-
-                Result<std::unique_ptr<CompiledStep>> compiled =
-                    CompiledStep::compile(backend, graph_, pool_);
-                SA_EXPECT_OK(compiled);
-                if (compiled.has_value())
-                    step_ = std::move(compiled).value();
-            }
-
-            /** @brief Returns the graph the probe built, with its gradient nodes. */
-            const Graph::Graph& graph() const noexcept
-            {
-                return graph_;
-            }
-
-            /** @brief Returns how many elements the variable holds. */
-            std::size_t variable_size() const
-            {
-                return static_cast<std::size_t>(graph_.value(variable_).shape.num_elements());
-            }
-
-            /** @brief Returns the loss at @p point, or zero when the step did not compile. */
-            double value(SushiRuntime::span<const double> point)
-            {
-                if (step_ == nullptr)
-                    return 0.0;
-
-                write_tensor(pool_.tensor(variable_), point);
-                SA_EXPECT_OK(step_->run());
-                return read_tensor(pool_.tensor(loss_))[0];
-            }
-
-            /** @brief Writes the analytic gradient at @p point into @p out. */
-            void gradient(SushiRuntime::span<const double> point, SushiRuntime::span<double> out)
-            {
-                if (step_ == nullptr)
-                    return;
-
-                write_tensor(pool_.tensor(variable_), point);
-                SA_EXPECT_OK(step_->run());
-
-                const std::vector<double> values = read_tensor(pool_.tensor(gradient_));
-                ASSERT_EQ(values.size(), out.size());
-                for (std::size_t i = 0; i < values.size(); ++i)
-                    out[i] = values[i];
-            }
-
-        private:
-            /** @brief Writes the one-hot targets, and noise into each leaf but the variable. */
-            void fill_other_leaves(std::uint64_t seed, const Shape& logit_shape)
-            {
-                std::vector<double> one_hot(
-                    static_cast<std::size_t>(logit_shape.num_elements()), 0.0);
-                for (int64_t row = 0; row < logit_shape[0]; ++row)
-                    one_hot[static_cast<std::size_t>(row * logit_shape[1]
-                                                     + row % logit_shape[1])] = 1.0;
-                write_tensor(pool_.tensor(targets_), one_hot);
-
-                for (ValueID id = 0; id < graph_.value_count(); ++id)
-                {
-                    const Graph::Lifetime lifetime = graph_.value(id).lifetime;
-                    const bool is_leaf = lifetime == Graph::Lifetime::Parameter
-                                      || lifetime == Graph::Lifetime::Input;
-                    if (!is_leaf || id == variable_ || id == targets_)
-                        continue;
-
-                    const std::size_t count =
-                        static_cast<std::size_t>(graph_.value(id).shape.num_elements());
-                    write_tensor(pool_.tensor(id), noise(count, seed + id));
-                }
-            }
-
-            Graph::Graph graph_;
-            TensorPool pool_;
-            std::unique_ptr<CompiledStep> step_;
-            ValueID variable_ = Graph::K_NO_VALUE;
-            ValueID targets_ = Graph::K_NO_VALUE;
-            ValueID loss_ = Graph::K_NO_VALUE;
-            ValueID gradient_ = Graph::K_NO_VALUE;
-    };
-
     /** @brief Runs the full-Jacobian check of @p probe at a point drawn from @p seed. */
-    void expect_gradient_matches(Probe& probe, std::uint64_t seed)
+    void expect_gradient_at_noise(SaTest::GradientProbe& probe, std::uint64_t seed)
     {
-        std::vector<double> point = noise(probe.variable_size(), seed);
-        const Autograd::GradCheckResult result = Autograd::check_full_jacobian(
-            [&probe](SushiRuntime::span<const double> at)
-            {
-                return probe.value(at);
-            },
-            [&probe](SushiRuntime::span<const double> at, SushiRuntime::span<double> out)
-            {
-                probe.gradient(at, out);
-            },
-            point);
+        std::vector<double> point = noise(probe.size(), seed);
 
-        EXPECT_TRUE(result.passed) << result.to_string();
+        SaTest::expect_gradient_matches(probe, point);
     }
 
     /** @brief Names which leaf of an attention probe the gradient is taken at. */
@@ -974,11 +835,13 @@ namespace
     };
 
     /**
-     * @brief Traces @p block over a FLOAT64 [1, K_GRADIENT_LENGTH, K_GRADIENT_DIM] sequence and names its
-     *        [K_GRADIENT_LENGTH, K_GRADIENT_DIM] output rows as the logits.
+     * @brief Traces @p block over a FLOAT64 [1, K_GRADIENT_LENGTH, K_GRADIENT_DIM] sequence and
+     *        names the log-softmax of its [K_GRADIENT_LENGTH, K_GRADIENT_DIM] output rows as the
+     *        output.
      */
-    Subject attention_subject(const GraphBuilder& builder, CausalSelfAttention& block,
-                              AttentionVariable variable)
+    SaTest::GradientSubject attention_subject(const GraphBuilder& builder,
+                                              CausalSelfAttention& block,
+                                              AttentionVariable variable)
     {
         const Shape sequence{1, K_GRADIENT_LENGTH, K_GRADIENT_DIM};
         const ValueID x = variable == AttentionVariable::Input
@@ -994,8 +857,8 @@ namespace
             ? x
             : block.qkv.weight.id_in(builder.graph());
         // The trace succeeded above, so y is the [1, T, dim] the reshape reads.
-        return Subject{at,
-                       builder.reshape(y, Shape{K_GRADIENT_LENGTH, K_GRADIENT_DIM}).value()};
+        const ValueID rows = builder.reshape(y, Shape{K_GRADIENT_LENGTH, K_GRADIENT_DIM}).value();
+        return SaTest::GradientSubject{at, builder.log_softmax(rows).value()};
     }
 
     /** @brief Checks the gradient of a block with @p mask at @p variable. */
@@ -1003,12 +866,13 @@ namespace
                                            AttentionVariable variable, std::uint64_t seed)
     {
         CausalSelfAttention block(K_GRADIENT_DIM, K_HEADS, mask);
-        Probe probe(backend, seed, [&block, variable](const GraphBuilder& builder)
+        SaTest::GradientProbe probe(backend, SaTest::BuildsSubject{},
+                                    [&block, variable](const GraphBuilder& builder)
         {
             return attention_subject(builder, block, variable);
-        });
+        }, SaTest::GradientProbeOptions::noise_filled(seed));
 
-        ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(probe, seed + 1000));
+        ASSERT_NO_FATAL_FAILURE(expect_gradient_at_noise(probe, seed + 1000));
     }
 }
 
@@ -1079,28 +943,32 @@ TEST_F(Medium_AttentionGradient, AnUnfusedLogSoftmaxMatchesItsClosedForm)
 /** @brief Tests the gradient of a [3, 4] softmax that a matrix product reads. */
 TEST_F(Medium_AttentionGradient, ASoftmaxGradientMatchesCentralDifferences)
 {
-    Probe probe(backend(), 7200, [](const GraphBuilder& builder)
+    SaTest::GradientProbe probe(backend(), SaTest::BuildsSubject{},
+                                [](const GraphBuilder& builder)
     {
         const ValueID x = builder.parameter(Shape{3, 4}, "x", DType::Float64);
         const ValueID mix = builder.input(Shape{4, 3}, "mix", DType::Float64);
         // A lambda cannot ASSERT; a [3, 4] softmax times a [4, 3] matrix is well formed.
-        return Subject{x, builder.matmul(builder.softmax(x), mix).value()};
-    });
+        const ValueID mixed = builder.matmul(builder.softmax(x), mix).value();
+        return SaTest::GradientSubject{x, builder.log_softmax(mixed).value()};
+    }, SaTest::GradientProbeOptions::noise_filled(7200));
 
-    ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(probe, 7201));
+    ASSERT_NO_FATAL_FAILURE(expect_gradient_at_noise(probe, 7201));
 }
 
 /** @brief Tests the gradient of a softmax over the last axis of a [2, 3, 4] value. */
 TEST_F(Medium_AttentionGradient, ASoftmaxOverRankThreeDifferentiatesThroughItsReshapes)
 {
-    Probe probe(backend(), 7300, [](const GraphBuilder& builder)
+    SaTest::GradientProbe probe(backend(), SaTest::BuildsSubject{},
+                                [](const GraphBuilder& builder)
     {
         const ValueID x = builder.parameter(Shape{2, 3, 4}, "x", DType::Float64);
         // A lambda cannot ASSERT; the [2, 3, 4] softmax holds the 24 elements of [6, 4].
-        return Subject{x, builder.reshape(builder.softmax(x), Shape{6, 4}).value()};
-    });
+        const ValueID rows = builder.reshape(builder.softmax(x), Shape{6, 4}).value();
+        return SaTest::GradientSubject{x, builder.log_softmax(rows).value()};
+    }, SaTest::GradientProbeOptions::noise_filled(7300));
 
-    ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(probe, 7301));
+    ASSERT_NO_FATAL_FAILURE(expect_gradient_at_noise(probe, 7301));
 }
 
 /** @brief Tests the gradient of a causal attention block at the sequence it reads. */
@@ -1381,4 +1249,236 @@ TEST(Small_BlockCausalSelfAttention, ATransformerBlockKeepsEarlierPositions)
 
     EXPECT_EQ(changed_elements(runs, 0, K_CHANGED_POSITION), 0u);
     EXPECT_GT(changed_elements(runs, K_CHANGED_POSITION, K_MASK_LENGTH), 0u);
+}
+
+namespace
+{
+    /** @brief Holds T of the padded texts the length cases read. */
+    constexpr int64_t K_PADDED_POSITIONS = 5;
+
+    /** @brief Holds the length of the short text, which the padded batch holds first. */
+    constexpr int64_t K_SHORT_POSITIONS = 3;
+
+    /** @brief Holds the offset of the padding the first padded batch ends its short text with. */
+    constexpr int64_t K_FIRST_PADDING_OFFSET = 9;
+
+    /** @brief Holds the offset of the padding the second padded batch ends its short text with. */
+    constexpr int64_t K_SECOND_PADDING_OFFSET = 2;
+
+    /** @brief Returns the [3, dim] rows of the short text. */
+    std::vector<double> short_text()
+    {
+        return SaTest::eighths(K_SHORT_POSITIONS * K_DIM, 4);
+    }
+
+    /** @brief Returns the [5, dim] rows of the text that fills its sequence. */
+    std::vector<double> full_text()
+    {
+        return SaTest::eighths(K_PADDED_POSITIONS * K_DIM, 6);
+    }
+
+    /** @brief Returns the short text, padding drawn from @p offset, then the full text. */
+    std::vector<double> padded_rows(int64_t offset)
+    {
+        return SaTest::padded_batch(
+            short_text(), SaTest::eighths((K_PADDED_POSITIONS - K_SHORT_POSITIONS) * K_DIM, offset),
+            full_text());
+    }
+
+    /** @brief Returns the lengths of the two texts of padded_rows(). */
+    std::vector<double> batch_lengths()
+    {
+        return {static_cast<double>(K_SHORT_POSITIONS), static_cast<double>(K_PADDED_POSITIONS)};
+    }
+
+    /** @brief Runs @p block over the [2, 5, dim] rows of @p rows with @p lengths, on the host. */
+    template<typename Block>
+    std::vector<double> run_with_lengths(Block& block, const std::vector<double>& rows,
+                                         const std::vector<double>& lengths)
+    {
+        Graph::Graph graph;
+        const Graph::GraphBuilder builder(graph);
+        const Graph::ValueID x = builder.input(Shape{2, K_PADDED_POSITIONS, K_DIM}, "x");
+        const Graph::ValueID counts = builder.input(Shape{2}, "lengths");
+        const Graph::ValueID y = block.forward_with_lengths(Trace::evaluation(builder), x, counts);
+        Graph::HostEvaluator run(graph);
+        SA_EXPECT_OK(run.write(x, rows));
+        SA_EXPECT_OK(run.write(counts, lengths));
+        SA_EXPECT_OK(SaTest::write_state(run, graph, block));
+        SA_EXPECT_OK(run.run());
+
+        // A refused run leaves nothing to read; value() stops the test there.
+        return run.read(y).value();
+    }
+
+    /** @brief Runs @p block over one text of @p positions rows, without lengths, on the host. */
+    template<typename Block>
+    std::vector<double> run_whole_text(Block& block, const std::vector<double>& rows,
+                                       int64_t positions)
+    {
+        Graph::Graph graph;
+        const Graph::GraphBuilder builder(graph);
+        const Graph::ValueID x = builder.input(Shape{1, positions, K_DIM}, "x");
+        const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
+        Graph::HostEvaluator run(graph);
+        SA_EXPECT_OK(run.write(x, rows));
+        SA_EXPECT_OK(SaTest::write_state(run, graph, block));
+        SA_EXPECT_OK(run.run());
+
+        // A refused run leaves nothing to read; value() stops the test there.
+        return run.read(y).value();
+    }
+
+    /**
+     * @brief Expects each text of a padded batch to come out as it does alone: the short text
+     *        as a text of its own length, the full text as a text of the whole sequence.
+     */
+    template<typename Block>
+    void expect_texts_as_alone(Block& block)
+    {
+        const std::vector<double> padded =
+            run_with_lengths(block, padded_rows(K_FIRST_PADDING_OFFSET), batch_lengths());
+        const std::size_t sequence = static_cast<std::size_t>(K_PADDED_POSITIONS * K_DIM);
+
+        SaTest::expect_close<double>(
+            SaTest::leading(padded, 0, static_cast<std::size_t>(K_SHORT_POSITIONS * K_DIM)),
+            run_whole_text(block, short_text(), K_SHORT_POSITIONS), K_REFERENCE_OPERATIONS, 1.0);
+        SaTest::expect_close<double>(
+            SaTest::leading(padded, sequence, sequence),
+            run_whole_text(block, full_text(), K_PADDED_POSITIONS), K_REFERENCE_OPERATIONS, 1.0);
+    }
+
+    /** @brief Counts the CONSTANT nodes of @p graph whose fill is @p fill. */
+    std::size_t count_fills(const Graph::Graph& graph, double fill)
+    {
+        std::size_t count = 0;
+        for (const Graph::Node& node : graph.nodes())
+        {
+            // A fill is copied into the slot of the node, never computed, so it compares exactly.
+            if (node.op == Ops::K_CONSTANT.id && node.attributes.get(0) == fill)
+                ++count;
+        }
+
+        return count;
+    }
+
+    /** @brief Runs one mask of the length cases. */
+    class Small_BlockCausalSelfAttentionLengths : public ::testing::TestWithParam<AttentionMask>
+    {
+
+    };
+
+    /** @brief Holds lengths the trace refuses and the words of its message. */
+    struct LengthsRow
+    {
+        std::string name;   /**< The row name. */
+        Shape shape;        /**< The shape of the lengths. */
+        DType dtype;        /**< The element type of the lengths. */
+        std::string first;  /**< A word of the message. */
+        std::string second; /**< A word of the message. */
+    };
+
+    /** @brief Runs one lengths value the trace refuses. */
+    class Small_BlockCausalSelfAttentionLengthsInput : public ::testing::TestWithParam<LengthsRow>
+    {
+
+    };
+} // namespace
+
+/**
+ * @brief Tests that a text padded to T gives the rows of the same text at its own length.
+ *
+ * The oracle is the block run alone over each text, without lengths. The two texts share one
+ * padded batch, a short one with two padded positions and one that fills its sequence, so the
+ * condition has to read the length of its own row.
+ */
+TEST_P(Small_BlockCausalSelfAttentionLengths, APaddedTextGivesTheRowsOfTheTextAtItsOwnLength)
+{
+    CausalSelfAttention block(K_DIM, K_HEADS, GetParam());
+
+    ASSERT_NO_FATAL_FAILURE(expect_texts_as_alone(block));
+}
+
+/** @brief Tests that the same holds for a whole transformer block over the attention. */
+TEST(Small_BlockCausalSelfAttention, APaddedTextGivesTheRowsOfTheTextAtItsOwnLengthThroughABlock)
+{
+    TransformerBlock block(K_DIM, K_HEADS, 4 * K_DIM, AttentionMask::None,
+                           NN::K_LAYER_NORM_EPSILON);
+
+    ASSERT_NO_FATAL_FAILURE(expect_texts_as_alone(block));
+}
+
+/** @brief Tests that changing the padding changes no row within a length, bit for bit. */
+TEST_P(Small_BlockCausalSelfAttentionLengths, APaddedValueChangesNoRowWithinItsLength)
+{
+    CausalSelfAttention block(K_DIM, K_HEADS, GetParam());
+    const std::size_t kept = static_cast<std::size_t>(K_SHORT_POSITIONS * K_DIM);
+
+    const std::vector<double> first =
+        run_with_lengths(block, padded_rows(K_FIRST_PADDING_OFFSET), batch_lengths());
+    const std::vector<double> second =
+        run_with_lengths(block, padded_rows(K_SECOND_PADDING_OFFSET), batch_lengths());
+
+    EXPECT_EQ(SaTest::leading(first, 0, kept), SaTest::leading(second, 0, kept));
+}
+
+INSTANTIATE_TEST_SUITE_P(Masks, Small_BlockCausalSelfAttentionLengths,
+                         ::testing::Values(AttentionMask::None, AttentionMask::Causal));
+
+/** @brief Tests that lengths that do not fit the batch fail and emit no mask. */
+TEST_P(Small_BlockCausalSelfAttentionLengthsInput, LengthsThatDoNotFitFail)
+{
+    const LengthsRow& row = GetParam();
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, K_PADDED_POSITIONS, K_DIM}, "x");
+    const Graph::ValueID lengths = builder.input(row.shape, "lengths", row.dtype);
+    CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::None);
+
+    const Trace trace = Trace::evaluation(builder);
+    EXPECT_EQ(block.forward_with_lengths(trace, x, lengths), x);
+
+    SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, row.first, row.second);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SELECT.id), 0u);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_BlockCausalSelfAttentionLengthsInput,
+    ::testing::Values(LengthsRow{"TwoLengthsForOneText", Shape{2}, DType::Float32,
+                                 "one real floating length", "[2]"},
+                      LengthsRow{"IntegerLengths", Shape{1}, DType::Int32,
+                                 "one real floating length", "int32"}),
+    row_name<LengthsRow>);
+
+/** @brief Tests that a half block fills a padded key with the lowest finite half, not -1e9. */
+TEST(Small_BlockCausalSelfAttention, AHalfBlockFillsAPaddedKeyWithTheLowestFiniteHalf)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, K_PADDED_POSITIONS, K_DIM}, "x", DType::Half);
+    const Graph::ValueID lengths = builder.input(Shape{1}, "lengths", DType::Half);
+    CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::None);
+
+    const Trace trace = Trace::evaluation(builder);
+    static_cast<void>(block.forward_with_lengths(trace, x, lengths));
+
+    SA_EXPECT_OK(trace.status());
+    EXPECT_EQ(count_fills(graph, -65504.0), 1u);
+    EXPECT_EQ(count_fills(graph, Language::Blocks::K_MASKED_ATTENTION_SCORE), 0u);
+}
+
+/** @brief Tests that a float32 block fills a padded key with the score the causal mask uses. */
+TEST(Small_BlockCausalSelfAttention, AFloat32BlockFillsAPaddedKeyWithTheMaskedScore)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, K_PADDED_POSITIONS, K_DIM}, "x");
+    const Graph::ValueID lengths = builder.input(Shape{1}, "lengths");
+    CausalSelfAttention block(K_DIM, K_HEADS, AttentionMask::None);
+
+    const Trace trace = Trace::evaluation(builder);
+    static_cast<void>(block.forward_with_lengths(trace, x, lengths));
+
+    SA_EXPECT_OK(trace.status());
+    EXPECT_EQ(count_fills(graph, Language::Blocks::K_MASKED_ATTENTION_SCORE), 1u);
 }

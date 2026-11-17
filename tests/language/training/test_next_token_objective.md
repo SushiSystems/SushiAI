@@ -2,7 +2,7 @@
 
 
 Suites: `Small_LanguageTrainingNextTokenObjective`, `Small_LanguageTrainingNextTokenObjectiveExtents`,
-`Small_LanguageTrainingNextTokenObjectiveIndex`, `Small_LanguageTrainingNextTokenObjectiveLargest`,
+`Small_LanguageTrainingNextTokenObjectiveSizes`,
 `Small_LanguageTrainingNextTokenObjectiveFactory`, `Small_LanguageTrainingNextTokenObjectiveOutputKey`,
 `Medium_NextTokenObjective`, `Medium_NextTokenTrainer`, `Medium_DecoderOverfit`,
 `Large_DecoderOverfit`.
@@ -19,21 +19,18 @@ graphs and read descriptions on the host and use no device. The medium suites ru
 vocabulary of 0, naming all three extents ("got 0, 3 and 5" and so on). The three are rows. The
 getters of a made objective are not asserted.
 
-## MakeRefusesWhatInt32CannotIndex
+## MakeAcceptsAnyBatchLengthAndVocabulary
 
-`make(64, 1024, 50257)` and `make(1, 2, 2147483647)` fail with `InvalidDescription`, "int32
-index" and the product ("64 * 1024 * 50257", "1 * 2 * 2147483647"). Rows.
-
-## MakeAcceptsWhatInt32CanIndex
-
-`make(32, 256, 8192)` and `make(1, 1, 2147483647)` are ok. Rows.
+`make(32, 256, 8192)`, `make(64, 1024, 50257)` and `make(1, 2, 2147483647)` are ok; the
+last two have a product above 2147483647, which `K_GATHER_ROWS` could not index and
+`K_TAKE_ALONG` does not. Rows.
 
 ## ItDeclaresAnIndexLeafAndReadsLabels
 
 `declare` adds one leaf, "targets", an `Int32` value of the shape [6]. It requires one role,
 `K_ROLE_LABELS`, with the sample shape [3], the type `Int32` and 0 classes.
 
-## TheLossGathersOneLogProbabilityPerPosition
+## TheLossTakesOneLogProbabilityPerPosition
 
 `Train::build_training_graph` over an `NN::Embedding` of five rows and five columns, with an
 `Int32` input of the shape [2, 3], gives a loss of one element and `Int32` targets. The one
@@ -77,6 +74,19 @@ Over the same two outputs, the factory fails with `InvalidDescription` for an em
 'labels' role". The source received no request, so the refusal came before any tensor was asked
 for. Small.
 
+## FeedBoundsTheInputIdsByTheRowsOfTheEmbeddingTheContextStates
+
+The context states `input_classes` of 3 while the head scores 5 tokens, an untied head of another
+width than the embedding. The factory builds the objective, and `feed` over a batch whose input
+ids are 0, 1, 2, 1, 4, 0 is refused as `Incompatible` with "position 4", "is 4" and "holds 3
+rows": 4 is a token the head scores and no row of the table (RW-98).
+
+## FeedAcceptsTheInputIdsTheEmbeddingHolds
+
+The same objective and batch with the ids 0, 1, 2, 1, 2, 0 passes the input check, so `feed` goes
+on to the pool, which is an empty `InMemoryTensorSource`, and fails with `InvalidDescription` and
+"holds no tensor". The ids sit on the edge of the table, 2 being its last row.
+
 ## TheLossAndItsGradientEqualTheHostComputation
 
 The model is an `Embedding` of five rows and width five, so the logits of a position are the
@@ -98,6 +108,10 @@ The compile count and the report's text are not asserted.
 
 A label of 9 with five tokens is refused as `Incompatible`. The message contains "position 3", "is
 9" and "holds 5 tokens".
+
+## AnInputIdOutsideTheTableStopsTheFirstStep
+
+An input id of 9 at position 4 with five tokens is refused as `Incompatible` before the step runs (RW-98). The message contains "position 4", "is 9" and "holds 5 rows". The labels are valid, so only the input check can refuse it.
 
 ## ATwoBlockDecoderOverfitsOneBatch
 

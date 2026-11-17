@@ -8,6 +8,8 @@
 sushiai_add_test_program(OWNER language/datasets
     SOURCES
         test_collator.cpp
+        test_decision_dataset.cpp
+        test_decision_file.cpp
         test_next_token_collator.cpp
         test_prompt_dataset.cpp
         test_token_dataset.cpp

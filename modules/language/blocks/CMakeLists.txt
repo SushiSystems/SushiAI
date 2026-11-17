@@ -8,14 +8,18 @@
 sushiai_add_module(NAME blocks TIER language
     SOURCES
         source/causal_self_attention.cpp
+        source/decision_heads.cpp
         source/expert_projection.cpp
         source/expert_transformer_block.cpp
         source/feed_forward.cpp
         source/language_head.cpp
         source/moe_feed_forward.cpp
+        source/option_head.cpp
         source/position_embedding.cpp
         source/rotary_embedding.cpp
         source/rotary_positions.cpp
+        source/sequence_pool.cpp
+        source/text_encoder.cpp
         source/transformer_block.cpp
     PUBLIC_DEPENDS config failure graph nn shape
     PRIVATE_DEPENDS dtype seam

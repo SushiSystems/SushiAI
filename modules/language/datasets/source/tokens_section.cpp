@@ -52,9 +52,16 @@ namespace SushiAI::Language::Datasets
         /** @brief Names the key that holds the windows of one batch. */
         constexpr std::string_view K_BATCH_SIZE_KEY = "batch_size";
 
+        /** @brief Names the key that redraws the window starts in every epoch. */
+        constexpr std::string_view K_SHUFFLE_KEY = "shuffle";
+
+        /** @brief Names the key that holds the seed of those draws. */
+        constexpr std::string_view K_SEED_KEY = "seed";
+
         /** @brief Lists every key a "tokens" data block accepts beside its type. */
         constexpr std::string_view K_TOKENS_KEYS[] = {K_FILE_KEY, Detail::K_WINDOW_KEY,
-                                                      K_STRIDE_KEY, K_BATCH_SIZE_KEY};
+                                                      K_STRIDE_KEY, K_BATCH_SIZE_KEY,
+                                                      K_SHUFFLE_KEY, K_SEED_KEY};
     } // namespace
 
     Result<TokensSection> read_tokens_section(const Config::Value& section,
@@ -78,6 +85,22 @@ namespace SushiAI::Language::Datasets
         {
             SA_TRY_ASSIGN(keys.options.batch_size,
                           Detail::read_count(reader, K_BATCH_SIZE_KEY));
+        }
+
+        if (reader.has(K_SHUFFLE_KEY))
+        {
+            SA_TRY_ASSIGN(const Config::Value* const member,
+                          reader.find_of(K_SHUFFLE_KEY, Config::Kind::Bool));
+            SA_TRY_ASSIGN(keys.options.shuffle, member->as_bool(reader.member(K_SHUFFLE_KEY)));
+        }
+
+        if (reader.has(K_SEED_KEY))
+        {
+            // Reinterpreting the signed integer keeps every 64-bit seed a file can state.
+            SA_TRY_ASSIGN(const Config::Value* const member, reader.find(K_SEED_KEY));
+            SA_TRY_ASSIGN(const std::int64_t seed,
+                          Config::read_whole(*member, reader.member(K_SEED_KEY)));
+            keys.options.seed = static_cast<std::uint64_t>(seed);
         }
 
         return keys;

@@ -17,4 +17,5 @@ add_subdirectory(umbrella)
 # The modules only the tests use; see cmake/SushiAITestProgram.cmake.
 if(SA_BUILD_TESTS)
     add_subdirectory(decoder_models)
+    add_subdirectory(decision_models)
 endif()

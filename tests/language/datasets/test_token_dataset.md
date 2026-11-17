@@ -84,3 +84,28 @@ with inputs of 1 row, and `read(1)` fails with `InvalidFile` naming "rising.satk
 One promise over two rows: `read_rows` returns `InvalidDescription` rather than stopping, for the
 rows 1 to 3 of batch 1 ("Rows 1 to 3", "of batch 1", "a batch of 2") and for batch 99 ("Batch 99
 is out of range").
+
+## ItIsEpochAware
+
+The dataset is a `Data::EpochAware`, so `Data::begin_epoch` reaches it (RW-90).
+
+## EveryEpochReadsEachWindowOnceWithinTheFile
+
+With `shuffle` and the seed 7 over the 20-id file (windows of 5 ids, stride 4, four windows, three
+ids left over), eight epochs each give four starts. `start / 4` names each window once, and the
+offset `start % 4`, in [0, 3], is the same for the four windows of an epoch. A window lies in the
+file by construction, so no read fails.
+
+## TwoEpochsDrawDifferentWindows
+
+Over eight epochs of one seed the sequences of starts are not all the same. Each epoch has one of
+24 orders and one of 4 offsets, so eight equal draws have the chance 1 in 96 to the seventh power.
+
+## OneSeedGivesOneSequence
+
+Two datasets of the same file, options and seed give the same starts for each epoch, though the
+second visits the epochs from 7 down to 0: a draw depends on the seed and the epoch alone.
+
+## WithoutShuffleEveryEpochReadsTheStridedWindows
+
+Without `shuffle` all eight epochs read the starts 0, 4, 8, 12 in that order.

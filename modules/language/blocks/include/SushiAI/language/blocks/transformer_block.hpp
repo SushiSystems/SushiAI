@@ -97,6 +97,17 @@ namespace SushiAI
             Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
+             * @brief Traces forward() with the attention reading no key past its sequence's
+             *        length; the other children read each row alone.
+             * @param x A [N, T, dim] value of a real floating type.
+             * @param lengths A value of N real floating counts, as
+             *        CausalSelfAttention::forward_with_lengths() reads them.
+             * @return The [N, T, dim] result's id, or @p x once a child has failed the trace.
+             */
+            Graph::ValueID forward_with_lengths(const NN::Trace& trace, Graph::ValueID x,
+                                                Graph::ValueID lengths) noexcept;
+
+            /**
              * @brief Traces the incremental form of each child in the order forward() has.
              * @param x The [1, 1, dim] slice of one sequence, of a real floating type.
              * @param sample The per-sample [T, dim] shape of the ordinary form.
