@@ -29,8 +29,11 @@
 
 #include <SushiAI/train/sum_objective.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <string_view>
 #include <utility>
+#include <vector>
 #include <SushiAI/config/section_reader.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -92,6 +95,44 @@ namespace SushiAI
 
                 return Result<SumTerm>(std::move(term));
             }
+
+            /**
+             * @brief Returns the metric names of every term of @p terms, each once, in order.
+             * @return Empty when a term states none: the sum cannot state what it appends then.
+             */
+            [[nodiscard]] std::vector<std::string_view> merged_names(
+                const std::vector<SumTerm>& terms)
+            {
+                std::vector<std::string_view> merged;
+                for (const SumTerm& term : terms)
+                {
+                    const SushiRuntime::span<const std::string_view> stated =
+                        term.objective->metric_names();
+                    if (stated.empty())
+                        return {};
+
+                    for (const std::string_view name : stated)
+                    {
+                        if (std::find(merged.begin(), merged.end(), name) == merged.end())
+                            merged.push_back(name);
+                    }
+                }
+
+                return merged;
+            }
+
+            /** @brief Reports whether @p metrics holds every name of @p names. */
+            [[nodiscard]] bool holds_every(const Metrics& metrics,
+                                           SushiRuntime::span<const std::string_view> names) noexcept
+            {
+                for (const std::string_view name : names)
+                {
+                    if (metrics.find(name) == nullptr)
+                        return false;
+                }
+
+                return !names.empty();
+            }
         } // namespace
 
         Result<std::unique_ptr<SumObjective>> SumObjective::make(std::vector<SumTerm> terms) noexcept
@@ -104,10 +145,10 @@ namespace SushiAI
                 const SumTerm& term = terms[index];
                 SA_FATAL_IF(term.objective == nullptr, "Term {} of a sum objective is null",
                             index);
-                SA_FAIL_IF(!std::isfinite(term.weight) || !(term.weight > 0.0),
+                SA_FAIL_IF(!std::isfinite(term.weight) || !(term.weight >= 0.0),
                            StatusCode::InvalidDescription,
                            "Term {} of a sum objective, '{}', has the weight {}; a weight is "
-                           "finite and above zero",
+                           "finite and at least zero",
                            index, term.objective->name(), term.weight);
                 SA_FAIL_IF(!term.objective->is_fed_by_batch(), StatusCode::InvalidDescription,
                            "Term {} of a sum objective is '{}', which is fed by its own step; "
@@ -115,14 +156,27 @@ namespace SushiAI
                            index, term.objective->name());
             }
 
+            const bool has_weight = std::any_of(terms.begin(), terms.end(),
+                                                [](const SumTerm& term)
+            {
+                return term.weight > 0.0;
+            });
+            SA_FAIL_IF(!has_weight, StatusCode::InvalidDescription,
+                       "Every term of a sum objective has the weight 0, so its loss is 0 and no "
+                       "parameter has a gradient; give one term a weight above zero");
+
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                return std::unique_ptr<SumObjective>(new SumObjective(std::move(terms)));
+                std::vector<std::string_view> names = merged_names(terms);
+
+                return std::unique_ptr<SumObjective>(
+                    new SumObjective(std::move(terms), std::move(names)));
             });
         }
 
-        SumObjective::SumObjective(std::vector<SumTerm> terms) noexcept
-            : terms_(std::move(terms))
+        SumObjective::SumObjective(std::vector<SumTerm> terms,
+                                   std::vector<std::string_view> names) noexcept
+            : terms_(std::move(terms)), names_(std::move(names))
         {
 
         }
@@ -149,18 +203,22 @@ namespace SushiAI
             }
         }
 
-        Result<Graph::ValueID> SumObjective::loss(
+        Result<LossTrace> SumObjective::loss(
             const Graph::GraphBuilder& builder, const Graph::Graph& graph,
             const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const
         {
             Graph::ValueID total = Graph::K_NO_VALUE;
+            std::vector<LossTrace> traces;
+            traces.reserve(terms_.size());
             DType total_dtype = DType::Float32;
             for (std::size_t index = 0; index < terms_.size(); ++index)
             {
                 const SumTerm& term = terms_[index];
                 const ObjectiveLeaves own = leaves_of_term(leaves, index);
-                SA_TRY_ASSIGN(Graph::ValueID value,
-                          term.objective->loss(builder, graph, outputs, own));
+                SA_TRY_ASSIGN(LossTrace term_trace,
+                              term.objective->loss(builder, graph, outputs, own));
+                Graph::ValueID value = term_trace.loss();
+                traces.push_back(std::move(term_trace));
 
                 // By value: every emission below can reallocate the value vector.
                 const Shape shape = graph.value(value).shape;
@@ -197,7 +255,37 @@ namespace SushiAI
                 total_dtype = dtype;
             }
 
-            return total;
+            LossTrace trace(total);
+            for (LossTrace& term_trace : traces)
+                trace.add_term(std::move(term_trace));
+
+            return trace;
+        }
+
+        Result<NN::ModelOutputs> SumObjective::declare_metric_values(
+            const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+            const LossTrace& trace) const
+        {
+            NN::ModelOutputs merged;
+            for (std::size_t index = 0; index < terms_.size(); ++index)
+            {
+                SA_TRY_ASSIGN(const NN::ModelOutputs own,
+                              terms_[index].objective->declare_metric_values(
+                                  builder, outputs, trace.term(index)));
+                for (const NN::ModelOutputs::Entry& entry : own.all())
+                {
+                    if (merged.at(entry.first).has_value())
+                        continue;
+
+                    SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate,
+                                                  [&]() -> Status
+                    {
+                        return merged.add(entry.first, entry.second);
+                    }));
+                }
+            }
+
+            return Result<NN::ModelOutputs>(std::move(merged));
         }
 
         Status SumObjective::feed(const Data::Batch& batch, const ObjectiveLeaves& leaves,
@@ -221,6 +309,10 @@ namespace SushiAI
         {
             for (const SumTerm& term : terms_)
             {
+                // A term whose metrics are all appended already would only compute them again.
+                if (holds_every(metrics, term.objective->metric_names()))
+                    continue;
+
                 Metrics own;
                 SA_TRY(term.objective->measure(step, own));
 
@@ -233,6 +325,11 @@ namespace SushiAI
             }
 
             return Status();
+        }
+
+        SushiRuntime::span<const std::string_view> SumObjective::metric_names() const noexcept
+        {
+            return SushiRuntime::span<const std::string_view>(names_.data(), names_.size());
         }
 
         SushiRuntime::span<const SumTerm> SumObjective::terms() const noexcept

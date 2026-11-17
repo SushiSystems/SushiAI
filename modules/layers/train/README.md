@@ -20,8 +20,8 @@ declared. `match_roles` checks those roles against the ones a
 dataset publishes, and `match_input` checks the per-sample shape and the element type of the
 input leaf against the input the dataset states. Each objective writes its own leaves in `feed`, on the host, once per batch:
 cross-entropy reads `labels` and calls `fill_one_hot`. `TrainingStep` and `EvaluationStep`
-compile a graph into a replayable step, and `BufferUpdateRecorder` records the
-running-statistic updates behind a training step. `Trainer` copies the inputs of a batch, has the
+compile a graph into a replayable step, and `BufferUpdateRecorder`, which lives in
+`core/graph`, records the running-statistic updates behind a training step. `Trainer` copies the inputs of a batch, has the
 objective feed its leaves, runs the step, reads the loss and asks the objective for its
 `Metrics`; its `fit` runs `options.epochs` passes over a dataset
 and returns a `RunReport`. `fit` reads every batch into one `Data::Batch` through
@@ -96,25 +96,32 @@ The headers sit in `modules/layers/train/include/SushiAI/train/`.
 | --- | --- |
 | `objective.hpp` | `ObjectiveLeaves`, `find_leaf_tensor`, `Objective`, `CrossEntropyObjective`, `make_cross_entropy` |
 | `in_memory_objective.hpp` | `InMemoryObjective` |
-| `metrics.hpp` | `Metric`, `Metrics`, `K_METRIC_CAPACITY`, `describe_metric_value` |
+| `metrics.hpp` | `Metric`, `Metrics`, `K_METRIC_CAPACITY`, `K_ACCURACY_METRIC`, `K_PRECISION_METRIC`, `K_RECALL_METRIC`, `K_F1_METRIC`, `K_MEAN_ABSOLUTE_ERROR_METRIC`, `describe_metric_value` |
 | `step_view.hpp` | `StepOutput`, `StepView`, `only_output` |
 | `batch_role.hpp` | `require_batch_role` |
 | `host_values.hpp` | `require_host_reals`, `host_real` |
+| `leaf_writes.hpp` | `mark_leaves_unwritten`, `require_leaves_written` |
 | `binary_cross_entropy_objective.hpp` | `BinaryCrossEntropyObjective`, `make_binary_cross_entropy`, `K_BINARY_CROSS_ENTROPY_TYPE` |
 | `multi_label_objective.hpp` | `MultiLabelObjective`, `make_multi_label`, `K_MULTI_LABEL_TYPE` |
 | `mean_squared_error_objective.hpp` | `MeanSquaredErrorObjective`, `make_mean_squared_error`, `K_MEAN_SQUARED_ERROR_TYPE` |
-| `dense_losses.hpp` | `emit_mean_of_elements`, `emit_logistic_loss`, `emit_squared_error` |
+| `dense_losses.hpp` | `emit_sum_of_elements`, `emit_mean_of_elements`, `emit_logistic_terms`, `emit_logistic_loss`, `emit_squared_terms`, `emit_squared_error` |
+| `objective_output.hpp` | `K_OUTPUT_KEY`, `K_TARGET_KEY`, `ObjectiveOutput`, `ObjectiveTarget`, `ObjectiveSelection`, `is_selection_key`, `read_selection` |
+| `row_mask.hpp` | `K_TYPE_MASK_KEY`, `K_TYPE_MASK_COLUMNS_KEY`, `K_TYPE_MASK_COLUMN_KEY`, `K_TYPE_MASK_WEIGHTS_LEAF`, `RowMask` |
+| `kept_rows.hpp` | `KeptRows` |
+| `loss_trace.hpp` | `LossTrace` |
 | `dense_targets.hpp` | `fill_dense_targets`, `fill_binary_targets` |
-| `binary_confusion.hpp` | `BinaryConfusion`, `ColumnOfLogits`, `count_confusion`, `accuracy_of`, `precision_of`, `recall_of`, `f1_of` |
+| `binary_confusion.hpp` | `BinaryConfusion`, `ColumnOfLogits`, `count_confusion` (over the rows of a `KeptRows`), `accuracy_of`, `precision_of`, `recall_of`, `f1_of` |
 | `decision_threshold.hpp` | `K_THRESHOLD_KEY`, `K_DEFAULT_THRESHOLD`, `validate_threshold`, `read_threshold`, `logit_of` |
 | `objective_context.hpp` | `OutputShape`, `ObjectiveContext`, `list_output_shapes`, `find_output_shape` |
 | `objective_registry.hpp` | `ObjectiveFactory`, `ObjectiveEntry`, `ObjectiveRegistry`, `register_objectives`, `make_objective` |
 | `sum_objective.hpp` | `K_SUM_TYPE`, `K_SUM_TERMS_KEY`, `K_SUM_TERM_TYPE_KEY`, `K_SUM_TERM_WEIGHT_KEY`, `SumTerm`, `SumObjective`, `make_sum_objective` |
-| `training_graph.hpp` | `StepSpec`, `ParameterBinding`, `TrainingGraph` |
+| `training_graph.hpp` | `StepSpec`, `ParameterBinding`, `TrainingGraph` (with its `extra_inputs`) |
 | `steps.hpp` | `K_MODEL_INPUT_NAME`, `GraphOptions`, `TracedStep`, `batch_shape`, `retain`, `fill_host_tables`, `build_training_graph`, `build_probe_graph`, `build_evaluation_graph`, `build_carrying_graph`, `build_incremental_graph`, `build_classifier` |
-| `buffer_update_recorder.hpp` | `BufferUpdateSlot`, `bind_buffer_updates`, `BufferUpdateRecorder` |
+| `buffer_update_recorder.hpp` | `bind_buffer_updates`, and `BufferUpdateSlot` and `BufferUpdateRecorder` as names for the `Graph` types of `SushiAI/graph/buffer_update_recorder.hpp` |
 | `training_step.hpp` | `OptimizerPlacement`, `HostStage`, `TrainingStepOptions`, `TrainingStep` |
-| `evaluation_step.hpp` | `NamedFeed`, `FeedSpan`, `EvaluationStep` |
+| `evaluation_step.hpp` | `FeedSpan`, `EvaluationStep` |
+| `extra_inputs.hpp` | `NamedFeed`, `extra_feeds` |
+| `extra_input_copy.hpp` | `copy_extra_inputs` |
 | `feed.hpp` | `check_feed` |
 | `input_match.hpp` | `describe_input_leaf`, `match_input` |
 | `one_hot.hpp` | `fill_one_hot` |
@@ -197,20 +204,74 @@ process for a pool that holds a plan. A caller that reads those results and neve
 such as the master of a cluster run, holds no leaf and no intermediate value.
 `tests/layers/train/test_steps.cpp` covers the rule and the roles of a traced model.
 
+## The extra inputs of a model
+
+A model that states `extra_inputs()`, as `NN::ModelGraph` does for the `inputs` object of its model
+file, reads values beside its input. Each of `build_training_graph`, `build_probe_graph`,
+`build_evaluation_graph` and the carrying builders declares one leaf of `[batch, sample...]` for
+each of them, after the model input and the leaves of the objective, and hands the list to the trace
+(`NN::Trace::provide_inputs`), which the model reads it from. The list is
+`TrainingGraph::extra_inputs` or `TracedStep::extra_inputs`. A training graph also requires, in
+`leaves.required()`, a role of the name, the sample shape and the element type of each extra input,
+so `fit` and a training file's role match refuse a dataset that publishes none, in the one place a
+dataset is matched. The leaf carries the label `extra_input` in the graph's diagnostics, and no
+objective leaf of the same name exists, since the objectives' leaves live in `ObjectiveLeaves`.
+
+The trainer and the evaluation step feed the leaves through one function, `extra_feeds`, which pairs
+each leaf with the batch role of its name and fails naming the leaf when the batch lacks it.
+`copy_extra_inputs` holds the check and the copy: it calls `extra_feeds`, checks each feed against its
+leaf with `check_feed` and records the copy on the `BLASOps` it is given. `Trainer::run_step` and
+the replica model of `sushiai train` call it inside the recorded section that copies the model input,
+so a refusal drops the recording before any task runs. `EvaluationStep::run_batch(batch)` feeds the model input from
+`batch.inputs` and each extra input from its role, then replays; `run` by position and `run_by_name`
+see the extra inputs after the model input and after the fed leaves of a carrying trace, so a caller
+that feeds the model input alone is refused with the list of leaves. A model input named `inputs`
+may not be an extra input's name. `tests/layers/train/test_extra_inputs.cpp` covers the leaves, the
+roles, the feeds and the two copies.
+
 ## The objective owns its feed and its metrics
 
 `Trainer` names no role and no task. `Trainer::make(backend, built, pool, objective, optimizer)`
 keeps the leaves and the outputs of the `TrainingGraph` and a reference to the objective.
 `run_step` then does five things: `check_feed` on the inputs, `objective.feed(batch, leaves,
 pool)`, a copy of the inputs, the step, and `objective.measure(view, metrics)` unless
-`TrainerOptions::track_metrics` is off. `fit` matches the dataset against
+`TrainerOptions::track_metrics` is off. Around the feed it fills every leaf the objective
+declared with the NaN pattern `0x7FC0DEAD` (`mark_leaves_unwritten`) and afterwards refuses, as
+`InvalidDescription` naming the leaf's role and the index of its first element, a leaf in
+which any element still holds it in every byte (`require_leaves_written`, RW-111): a feed
+that skips a leaf, or writes part of one, would otherwise leave the step reading what an
+earlier step wrote. The fill is one pass over the bytes of the leaves, the targets of one
+batch. The replica path of the training program, `TrainingReplicaModel::feed`, calls the
+same pair around its own `feed`. `fit` matches the dataset against
 `leaves.required()`, the roles the objective declared.
 
 | Virtual | Default | Overridden by |
 | --- | --- | --- |
 | `feed(batch, leaves, pool)` | `Unsupported`: the objective is fed by its own step | Every objective of this tier; `pixel_cross_entropy` and `dice` of `vision/training`; `next_token` of `language/training` |
 | `is_fed_by_batch()` | `false` | Every objective that overrides `feed`, with `true` |
+| `declare_metric_values(builder, outputs, trace)` | An empty `ModelOutputs`: no value | `pixel_cross_entropy`, `dice` and `anchor_free` of `vision/training`; `sum`, which merges its terms' |
 | `measure(step, metrics)` | Success, no metric | The same objectives |
+| `metric_names()` | An empty span: no name stated | The four objectives of this tier and `sum` |
+
+`InMemoryObjective` stands in for any `Objective` in a test, so no test subclasses one. Its
+scripts set the leaves it declares (`script_leaf`, `script_input_leaf`), the roles it requires,
+the loss (a value, a failure or an emitter), the leaves its feed fills (a leaf no fill names is
+skipped), a feed failure, `is_fed_by_batch`, the metrics `measure` appends and the names
+`metric_names` states. `declare_count`, `loss_count`, `feed_count` and `measure_count` say how
+often each ran. What is not scripted keeps the default of the base.
+
+`declare_metric_values` lets an objective compute a value on the device that its metrics would
+otherwise recompute on the host. `loss` returns a `LossTrace`: the loss value and the named
+values the objective chose to keep, so no objective holds state between the two calls.
+`build_training_graph` calls the hook once after `loss`, with that trace, and
+`build_evaluation_graph(model, shape, objective)` calls it once after the trace with an empty
+`LossTrace`, since an evaluation graph has no loss; an objective that reads a kept value
+emits it again when the trace lacks it. The values are
+kept in `TrainingGraph::metric_values` and `TracedStep::metric_values`, observed so the fusion pass
+keeps them and pinned so the planner does not pack them. `Trainer` puts their tensors in
+`StepView::values`, and `EvaluationStep::metric_value(name)` returns one. A value sees the model's
+outputs, the graph and the trace, never the leaves of the batch. `build_evaluation_graph(model, shape)` with
+no objective holds none.
 
 `is_fed_by_batch` states ahead of a step what the default `feed` states by refusing: whether a
 batch alone fills the leaves. `SumObjective::make` reads it, so an objective that overrides
@@ -218,7 +279,9 @@ batch alone fills the leaves. `SumObjective::make` reads it, so an objective tha
 
 `feed` looks its leaf up with `find_leaf_tensor` and its role with `require_batch_role`, so a
 missing leaf or role is a `Status` that names it. `measure` reads a `StepView`: the batch, the
-loss the step computed and the tensor of every output the model published. `Metrics` holds up
+loss the step computed, the tensor of every output the model published and the tensor of every
+value the objective declared with `declare_metric_values`, which `named_value(step, name)` finds
+by name. `Metrics` holds up
 to eight named numbers in the order they were added; `RunReport::last_metrics` holds those of
 the last step and `RunReport::to_string` prints one line each.
 
@@ -239,12 +302,15 @@ accuracy of the last step.
 | Call | What the composite does |
 | --- | --- |
 | `declare` | Has term `i` declare into its own `ObjectiveLeaves`, then records each leaf as `term<i>.<role>` and each required role as it is |
-| `loss` | Gives each term the leaves under its prefix, by the term's own role names; views each loss as `[1]`, emits `SCALE` by the weight unless it is exactly 1, and `ADD`s them in order |
+| `loss` | Gives each term the leaves under its prefix, by the term's own role names; views each loss as `[1]`, emits `SCALE` by the weight unless it is exactly 1, and `ADD`s them in order; the trace holds the sum and, per term, the term's own trace |
 | `feed` | Calls `feed` of each term, in order, with the leaves under its prefix; the first refusal ends the call |
-| `measure` | Calls `measure` of each term, in order; of two metrics of one name the first term's is kept and the other dropped |
+| `measure` | Calls `measure` of each term, in order, except a term whose `metric_names()` are all appended already; of two metrics of one name the first term's is kept and the other dropped |
+| `declare_metric_values` | Merges the values of each term, in order, each over its own trace; of two values of one name the first term's is kept, and the node of the other stays in the graph unobserved |
+| `metric_names` | The names of every term once, in order; empty when a term states none |
 | `is_fed_by_batch` | `true` |
 
-`SumObjective::make` refuses an empty list, a weight that is not finite and above zero, and a
+`SumObjective::make` refuses an empty list, a weight that is not finite or is below zero, a list
+whose weights are all 0, and a
 term whose `is_fed_by_batch()` is false, with the term's position and name: the anchor objective
 is fed by `AnchorTrainingStep` between two runs, and no `feed` of a composite can do that.
 
@@ -260,13 +326,25 @@ absent, and hands every other key to the factory of its type, built by `make_obj
 `ObjectiveContext::registry` with the same context. A term is named `<context> 'terms' entry
 <i>` in a refusal. A term may be a `sum`; its leaves then carry both prefixes.
 
+A weight of 0 is allowed: the term adds nothing to the loss and its gradient is 0, but it is
+fed and measured like the others, so a term may stand for its metrics alone, such as a usage
+metric with no balance term. A sum of terms that are all 0 would train nothing and is refused.
+
+`Objective::metric_names()` names the metrics `measure` appends before it runs. A sum does not
+measure a term whose names are all appended already, so `pixel_cross_entropy` and `dice`, which
+both read every score for `mean_iou`, compute it once. A term that states no name, the default,
+and a term with one name not yet appended are measured whole, and a repeated name is dropped as
+before.
+
 Costs. `loss` and `feed` build one `ObjectiveLeaves` per term per call, a short vector of
-names. `measure` runs every term's `measure` before it drops a repeated name, so two terms
-that compute one metric compute it twice: `pixel_cross_entropy` and `dice` both read every
-score for `mean_iou`. The merged set holds at most `K_METRIC_CAPACITY` metrics.
+names. The merged set holds at most `K_METRIC_CAPACITY` metrics.
 `build_training_graph` sets `StepSpec::targets` from a leaf named `targets`; a composite has
 none under that name, so the field stays unset, as it does for `dice`.
 
+`tests/layers/train/test_trainer/test_metric_values.cpp` covers the hook: the default, the values of a
+training and an evaluation graph, a failure, the merge of a sum and the hand-over to `measure`.
+`tests/layers/train/test_loss_trace.cpp` covers the trace: its values, its duplicate refusal, and the
+empty trace a missing term answers.
 `tests/layers/train/test_sum_objective.cpp` covers the terms, the prefixes, the emitted nodes, the merge and
 the factory. `tests/vision/training/test_pixel_cross_entropy_objective.cpp` runs a step over
 `pixel_cross_entropy` plus half of `dice` and compares the loss and its gradient with the host.
@@ -275,7 +353,7 @@ the factory. `tests/vision/training/test_pixel_cross_entropy_objective.cpp` runs
 
 | Type | Output | Role | Loss | Metrics |
 | --- | --- | --- | --- | --- |
-| `binary_cross_entropy` | `[N, 1]` logits | `labels`, float32 `[N]`, 0 or 1 | `emit_logistic_loss` | `accuracy`, `precision`, `recall` |
+| `binary_cross_entropy` | `[N, 1]` logits | `labels`, float32 `[N, 1]`, 0 or 1 | `emit_logistic_loss` | `accuracy`, `precision`, `recall` |
 | `multi_label` | `[N, C]` logits | `labels`, float32 `[N, C]`, 0 or 1 | `emit_logistic_loss` | `f1`, the mean of each class's F1 |
 | `mean_squared_error` | `[N, K]` values | `values`, float32 `[N, K]` | `emit_squared_error` | `mean_absolute_error` |
 
@@ -292,10 +370,58 @@ precision of a batch with no predicted 1, the recall of a batch with no true 1, 
 a class with neither. `fill_binary_targets` refuses a label that is neither 0 nor 1 and leaves
 the leaf as it was.
 
-Each factory takes its extents from the one output of `ObjectiveContext::outputs` and
-refuses a model that publishes another count of outputs, another rank or another batch. The
-`loss` of each stops the process when the model's output is not the shape the objective was
-made for; a factory call has already compared the two.
+Each factory takes its extents from the output it reads, the only one or the one its `output`
+key names (see the next section), and refuses a model that does not publish it, or publishes it
+with another rank or another batch. The `loss` of each stops the process when that output is not
+the shape the objective was made for; a factory call has already compared the two.
+
+## The output an objective reads and the rows it keeps
+
+`cross_entropy`, `binary_cross_entropy`, `multi_label` and `mean_squared_error` share three
+optional keys, read by `read_selection` into an `ObjectiveSelection`:
+
+| Key | Value | Effect |
+| --- | --- | --- |
+| `output` | the name of a model output | The objective reads that port. Without it, it reads the model's only output and refuses a model of several. |
+| `type_mask` | `true`, or `{"columns": k, "column": c}` | The loss keeps the rows a batch role marks with 1. `true` reads the role `type_mask` as float32 `[N]`; the object reads it as `[N, k]` and uses column `c`, 0 when absent. |
+| `target` | the name of a batch role | The objective requires, feeds and measures against that role in place of its own: `labels` for `cross_entropy`, `binary_cross_entropy` and `multi_label`, `values` for `mean_squared_error`. The role keeps the shape and element type the objective gives its own. |
+
+`ObjectiveTarget` holds the name of the `target` role and returns it, or the role the objective is
+written for, from `role_or`; each of the four objectives reads it in `declare`, `feed` and `measure`,
+so one batch can carry the targets of several objectives under several roles. When the data states no
+class count, the `cross_entropy` factory takes its classes from the width of the output it names.
+Each of the four declares the sample shape of its target role from the width of the output it reads:
+`[1]` for `binary_cross_entropy`, `[C]` for `multi_label`, `[K]` for `mean_squared_error`, and `[]`
+with the class count `C` for `cross_entropy`, whose labels are class indices. `match_roles` compares
+that shape exactly.
+
+`ObjectiveOutput` resolves the selected port in the graph (`ModelOutputs`), in a step that has
+run (`StepView`) and in the context a factory sees (`ObjectiveContext`), so `loss`, `measure`
+and the factory read one rule. The metrics of an objective read the selected output as well. A
+model that publishes several outputs trains through an objective only when it names one.
+
+`RowMask` turns the mask into a leaf, `type_mask_weights`, of the shape of the loss terms,
+`[N, width]`. `feed` writes `1 / kept` into every element of a kept row and 0 into a dropped
+row, `kept` being the count of rows with a mask of 1, or 1 when there is none. The loss is the
+sum of every term times its weight, scaled by `1 / width` for the three element objectives (each
+row contributes its mean) and by -1 for `cross_entropy` (each row contributes its negative
+log-likelihood). The result is the mean over the kept rows. A batch that drops every row has
+weights of 0, so its loss is 0 and its gradient is 0, with no division. A mask value other than
+0 or 1 is refused and the leaf keeps its values. With no `type_mask` key no leaf, role or node
+is added and the graph is the one the objective emitted before.
+
+The metrics read the mask too: `measure` asks the mask for its `KeptRows` (`kept_rows_of`, which
+also refuses a role of another row count than the objective's batch) and counts the kept rows
+alone, in the numerator and in the denominator. `accuracy`, `precision`, `recall`, `f1` and
+`mean_absolute_error` therefore leave out the rows of another question type, whose labels are
+placeholders. A batch that keeps no row gives 0 for each, the value its ratio takes for no
+prediction. An off mask keeps every row.
+
+The role is `Data::K_ROLE_TYPE_MASK`, declared in `SushiAI/data/roles.hpp` with the other role
+names.
+
+`tests/layers/train/test_objective_output.cpp` covers the selector, the keys, the leaf, the
+weights and the loss of the four objectives; `test_row_mask.cpp` covers their metrics.
 
 ## The objective registry
 
@@ -312,6 +438,7 @@ Every factory has one signature and receives an `ObjectiveContext` beside its ow
 | --- | --- | --- |
 | `batch` | Samples per step | Every objective of this tier, `anchor` |
 | `classes` | Classes of the data, 0 when it states none | `cross_entropy`; `anchor` compares it with the task |
+| `input_classes` | Rows of the embedding that reads the input ids, 0 for a model with none | `next_token` |
 | `input_sample` | Shape of one sample entering the model | `anchor` |
 | `task` | The `task` object of the model file, null for none | `anchor` |
 | `outputs` | Name and extents of each published output, batch first | `binary_cross_entropy`, `multi_label`, `mean_squared_error`, `anchor` |

@@ -8,11 +8,11 @@ Tests the zones and the period mark of `Trainer::fit` in
 trains a classifier of two linear layers over a synthetic dataset of two batches under a
 SushiProfiler session that follows `train.step`, and reads the record the session returns.
 
-## EachStepOfAFitWritesAPeriodWithItsGroups
+## AFitOfTwoStepsWritesTwoPeriodsWithTheirGroups
 
-One row per period, 0 and 1. `fit` runs two steps with `TimelineBinding` in place. The test then
+`fit` runs two steps with `TimelineBinding` in place. The test then
 marks a third period, which ends the second; a period without its end mark is not kept. The record
-holds two periods, and the period of the row holds exactly the SushiAI zones `data.read`,
+holds two periods, and each of them holds exactly the SushiAI zones `data.read`,
 `host.feed`, `copy.input`, `device.run`, `host.loss` and `host.measure`, each in the group its name
 starts with, and at least one zone of group `Runtime`, which SushiRuntime records while it runs
 the step. The `train.fit` zone opens before the first period, so no period holds it.

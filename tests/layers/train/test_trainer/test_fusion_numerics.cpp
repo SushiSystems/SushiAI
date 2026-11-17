@@ -666,17 +666,17 @@ INSTANTIATE_TEST_SUITE_P(Forms, Medium_FusionDisabled,
                          disabled_name);
 
 /**
- * @brief Tests that the fused ReLU MLP step issues ten fewer operations than the unfused one.
+ * @brief Tests that the fused ReLU MLP step issues eight fewer operations than the unfused one.
  * @see tests/layers/train/README.md
  */
-TEST_F(Medium_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
+TEST_F(Medium_Fusion, TheFusedStepIssuesEightFewerKernelsPerStep)
 {
     TrainedRun fused;
     ASSERT_NO_FATAL_FAILURE(train_with(Activation::ReLU, FusionOptions{}, fused));
     TrainedRun plain;
     ASSERT_NO_FATAL_FAILURE(train_with(Activation::ReLU, off(), plain));
 
-    EXPECT_EQ(plain.operations_per_step, fused.operations_per_step + 10u);
+    EXPECT_EQ(plain.operations_per_step, fused.operations_per_step + 8u);
 }
 
 /**

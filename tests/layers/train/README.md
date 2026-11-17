@@ -11,16 +11,21 @@ Each test file has a page beside it that says what its cases pin.
 | `test_binary_confusion.cpp` | [`test_binary_confusion.md`](test_binary_confusion.md) |
 | `test_dense_losses.cpp` | [`test_dense_losses.md`](test_dense_losses.md) |
 | `test_dense_targets.cpp` | [`test_dense_targets.md`](test_dense_targets.md) |
+| `test_in_memory_objective.cpp` | [`test_in_memory_objective.md`](test_in_memory_objective.md) |
 | `test_input_match.cpp` | [`test_input_match.md`](test_input_match.md) |
+| `test_leaf_writes.cpp` | [`test_leaf_writes.md`](test_leaf_writes.md) |
 | `test_metrics.cpp` | [`test_metrics.md`](test_metrics.md) |
 | `test_objective.cpp` | [`test_objective.md`](test_objective.md) |
 | `test_objective_context.cpp` | [`test_objective_context.md`](test_objective_context.md) |
+| `test_objective_output.cpp` | [`test_objective_output.md`](test_objective_output.md) |
+| `test_row_mask.cpp` | [`test_row_mask.md`](test_row_mask.md) |
 | `test_objective_registry.cpp` | [`test_objective_registry.md`](test_objective_registry.md) |
 | `test_one_hot.cpp` | [`test_one_hot.md`](test_one_hot.md) |
 | `test_role_match.cpp` | [`test_role_match.md`](test_role_match.md) |
 | `test_steps.cpp` | [`test_steps.md`](test_steps.md) |
 | `test_sum_objective.cpp` | [`test_sum_objective.md`](test_sum_objective.md) |
 | `test_evaluation_step.cpp` | [`test_evaluation_step.md`](test_evaluation_step.md) |
+| `test_extra_inputs.cpp` | [`test_extra_inputs.md`](test_extra_inputs.md) |
 | `test_buffer_update_recorder.cpp` | [`test_buffer_update_recorder.md`](test_buffer_update_recorder.md) |
 | `test_trainer/test_convergence.cpp` | [`test_trainer/test_convergence.md`](test_trainer/test_convergence.md) |
 | `test_trainer/test_dense_objectives.cpp` | [`test_trainer/test_dense_objectives.md`](test_trainer/test_dense_objectives.md) |
@@ -35,4 +40,8 @@ Each test file has a page beside it that says what its cases pin.
 | `test_trainer/test_loss_scaling.cpp` | [`test_trainer/test_loss_scaling.md`](test_trainer/test_loss_scaling.md) |
 | `test_trainer/test_learning_curve.cpp` | [`test_trainer/test_learning_curve.md`](test_trainer/test_learning_curve.md) |
 | `test_trainer/test_static_memory.cpp` | [`test_trainer/test_static_memory.md`](test_trainer/test_static_memory.md) |
+| `test_trainer/test_unwritten_leaf.cpp` | [`test_trainer/test_unwritten_leaf.md`](test_trainer/test_unwritten_leaf.md) |
+| `test_trainer/test_metric_values.cpp` | [`test_trainer/test_metric_values.md`](test_trainer/test_metric_values.md) |
+| `test_kept_rows.cpp` | [`test_kept_rows.md`](test_kept_rows.md) |
+| `test_extra_input_copy.cpp` | [`test_extra_input_copy.md`](test_extra_input_copy.md) |
 | `test_binary_cross_entropy_objective.cpp, test_multi_label_objective.cpp, test_mean_squared_error_objective.cpp, test_objective.cpp` | [`test_binary_cross_entropy_objective.md`](test_binary_cross_entropy_objective.md) |

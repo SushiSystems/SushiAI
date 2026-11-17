@@ -40,6 +40,21 @@ namespace SushiAI
 {
     namespace Train
     {
+        /** @brief Names the fraction of rows an objective gets right. */
+        inline constexpr std::string_view K_ACCURACY_METRIC = "accuracy";
+
+        /** @brief Names the fraction of predicted 1s that are right. */
+        inline constexpr std::string_view K_PRECISION_METRIC = "precision";
+
+        /** @brief Names the fraction of true 1s that were predicted. */
+        inline constexpr std::string_view K_RECALL_METRIC = "recall";
+
+        /** @brief Names the mean over the columns of the harmonic mean of precision and recall. */
+        inline constexpr std::string_view K_F1_METRIC = "f1";
+
+        /** @brief Names the mean of the absolute differences of a regression. */
+        inline constexpr std::string_view K_MEAN_ABSOLUTE_ERROR_METRIC = "mean_absolute_error";
+
         /** @brief Holds one named number a step produced. */
         struct Metric
         {

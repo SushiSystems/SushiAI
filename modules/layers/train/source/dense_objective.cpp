@@ -30,6 +30,7 @@
 #include "dense_objective.hpp"
 
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/train/dense_losses.hpp>
 
 namespace SushiAI
 {
@@ -56,34 +57,50 @@ namespace SushiAI
             Graph::ValueID require_matrix_output(const Graph::Graph& graph,
                                                  const NN::ModelOutputs& outputs,
                                                  const Shape& expected,
-                                                 std::string_view objective)
+                                                 std::string_view objective,
+                                                 const ObjectiveOutput& selector)
             {
-                const Result<Graph::ValueID> single = outputs.only();
-                SA_FATAL_IF(!single.has_value(), "The {} objective reads one output: {}",
-                            objective, single.status().message());
+                const Result<Graph::ValueID> chosen = selector.resolve(outputs);
+                SA_FATAL_IF(!chosen.has_value(), "The {} objective reads one output: {}",
+                            objective, chosen.status().message());
 
-                const Shape& produced = graph.value(single.value()).shape;
+                const Shape& produced = graph.value(chosen.value()).shape;
                 SA_FATAL_IF(produced != expected,
                             "The model produced {} but the {} objective was made for {}",
                             produced.to_string(), objective, expected.to_string());
 
-                return single.value();
+                return chosen.value();
             }
 
-            Result<Shape> read_matrix_output(const ObjectiveContext& given,
-                                             std::string_view context)
+            Result<const OutputShape*> read_matrix_output(const ObjectiveContext& given,
+                                                          std::string_view context,
+                                                          const ObjectiveOutput& selector)
             {
-                SA_FAIL_IF(given.outputs.size() != 1, StatusCode::InvalidDescription,
-                           "{} reads one [batch, columns] output, but the model publishes {}",
-                           context, given.outputs.size());
-
-                const OutputShape& output = given.outputs.front();
-                SA_FAIL_IF(output.shape.rank() != K_MATRIX_RANK || output.shape[0] != given.batch,
+                SA_TRY_ASSIGN(const OutputShape* const output, selector.resolve(given, context));
+                SA_FAIL_IF(output->shape.rank() != K_MATRIX_RANK
+                               || output->shape[0] != given.batch,
                            StatusCode::InvalidDescription,
                            "{} reads [{}, columns] values, but the model's output '{}' is {}",
-                           context, given.batch, output.name, output.shape.to_string());
+                           context, given.batch, output->name, output->shape.to_string());
 
-                return output.shape;
+                return output;
+            }
+
+            Graph::Traced emit_dense_loss(const Graph::GraphBuilder& builder,
+                                          const Graph::Graph& graph, const Graph::Traced& terms,
+                                          const RowMask& mask,
+                                          const ObjectiveLeaves& leaves) noexcept
+            {
+                if (!mask.is_active())
+                    return emit_mean_of_elements(builder, graph, terms);
+
+                SA_TRY_ASSIGN(const Graph::ValueID held, terms);
+
+                // By value: the emissions below can reallocate the value vector.
+                const std::int64_t width = graph.value(held).shape[1];
+
+                return mask.emit_weighted(builder, graph, held, leaves,
+                                          1.0 / static_cast<double>(width));
             }
 
         } // namespace Detail

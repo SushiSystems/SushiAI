@@ -8,9 +8,10 @@ is `NLL_LOSS` over the masked value with every target at -64, which is the sum o
 elements. The model case uses `Linear, ReLU, Dropout(0.2), Linear` over 8 features, 32 hidden units
 and 4 classes with a batch of 16.
 
-The draw itself is not checked against `Graph::dropout_keeps`, since that is the code under test;
-`tests/core/graph/test_dropout_mask.cpp` holds the draw and `tests/core/graph/test_compiled_step.cpp`
-holds that each run takes the mask of its run count. The gradient being the mask is held by
+The draw itself is not checked here, since it is the code under test: `tests/core/graph/lowering/test_random.cpp`
+holds that two runs draw two masks, that a stream seeded alike repeats them and the kept fraction of a
+large mask, and `tests/core/graph/test_compiled_step.cpp` holds that each run index takes its own mask.
+The gradient being the mask is held by
 `tests/core/autograd/rules/test_random.cpp`, and the two trace modes of the layer by
 `tests/layers/nn/test_dropout.cpp`.
 

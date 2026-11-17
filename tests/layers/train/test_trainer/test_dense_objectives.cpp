@@ -47,6 +47,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/config/value.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
@@ -61,10 +62,12 @@
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/binary_cross_entropy_objective.hpp>
+#include <SushiAI/train/decision_threshold.hpp>
 #include <SushiAI/train/mean_squared_error_objective.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/multi_label_objective.hpp>
 #include <SushiAI/train/objective.hpp>
+#include <SushiAI/train/objective_output.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
@@ -178,6 +181,19 @@ namespace
 
         SA_TRY_ASSIGN(const Graph::ValueID output, built.outputs.only());
         return visit(*trainer, pool.tensor(output));
+    }
+
+    /** @brief Returns the gradient of every slot of @p slots, one after the other. */
+    std::vector<double> gradients_of(const std::vector<Optim::ParameterSlot>& slots)
+    {
+        std::vector<double> all;
+        for (const Optim::ParameterSlot& slot : slots)
+        {
+            const std::vector<double> gradient = SaTest::read_tensor(slot.gradient);
+            all.insert(all.end(), gradient.begin(), gradient.end());
+        }
+
+        return all;
     }
 
     /** @brief Returns max(x, 0) - x y + log(1 + exp(-|x|)), averaged over every element. */
@@ -364,4 +380,61 @@ TEST_F(Medium_DenseObjectives, TheFitReportCarriesTheRegressionMetric)
 
     EXPECT_NE(report.last_metrics.find("mean_absolute_error"), nullptr);
     EXPECT_NE(report.to_string().find("mean_absolute_error"), std::string::npos);
+}
+
+/**
+ * @brief Tests that a batch whose every row the type mask drops gives a gradient of exactly 0.
+ *
+ * The weights of the mask are 0 for every element, so each term of the loss is multiplied by an
+ * exact 0 and so is each term of the gradient. A first step that keeps every row shows that the
+ * gradient the second step has to overwrite is not 0.
+ */
+TEST_F(Medium_DenseObjectives, ABatchThatDropsEveryRowGivesAGradientOfExactlyZero)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Config::Value attributes,
+                            Config::parse_json(R"({"type_mask": true})", "<test>"));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::ObjectiveSelection selection,
+                            Train::read_selection(attributes, "objective"));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Train::BinaryCrossEntropyObjective> objective,
+        Train::BinaryCrossEntropyObjective::make(K_BATCH, Train::K_DEFAULT_THRESHOLD,
+                                                 DType::Float32, selection));
+    std::vector<Data::TargetDescription> roles = real_role(Data::K_ROLE_LABELS, Shape{});
+    roles.push_back(Data::TargetDescription{std::string(Data::K_ROLE_TYPE_MASK), Shape{},
+                                            DType::Float32, 0});
+    SA_ASSERT_OK_AND_ASSIGN(
+        Data::Batch batch,
+        Data::allocate_batch(*engine, K_BATCH, input_description(), roles));
+    SaTest::write_tensor(batch.inputs, make_inputs(1.0));
+    SaTest::write_tensor(batch.targets[0].values, std::vector<double>{1.0, 0.0, 0.0, 1.0});
+
+    NN::Linear model{K_FEATURES, 1};
+    SA_ASSERT_OK_AND_ASSIGN(
+        Train::TrainingGraph built,
+        Train::build_training_graph(model, *objective, Shape{K_BATCH, K_FEATURES}));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
+                            NN::ModelState::create(backend().engine(), model));
+    Graph::TensorPool pool(backend().engine());
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(write_state(state));
+    Optim::SGDOptions sgd;
+    sgd.learning_rate = 0.05;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(backend(), slots, sgd));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(backend(), built, pool, *objective, *optimizer));
+
+    SaTest::write_tensor(batch.targets[1].values, std::vector<double>{1.0, 1.0, 1.0, 1.0});
+    SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics kept, trainer->run_step(batch));
+    const std::vector<double> kept_gradient = gradients_of(slots);
+    ASSERT_FALSE(kept_gradient.empty());
+    ASSERT_NE(kept_gradient, std::vector<double>(kept_gradient.size(), 0.0));
+    ASSERT_NE(kept.loss, 0.0);
+
+    SaTest::write_tensor(batch.targets[1].values, std::vector<double>{0.0, 0.0, 0.0, 0.0});
+    SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics dropped, trainer->run_step(batch));
+
+    EXPECT_EQ(dropped.loss, 0.0);
+    EXPECT_EQ(gradients_of(slots), std::vector<double>(kept_gradient.size(), 0.0));
 }

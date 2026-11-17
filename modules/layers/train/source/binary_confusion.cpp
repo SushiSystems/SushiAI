@@ -49,11 +49,15 @@ namespace SushiAI
 
         BinaryConfusion count_confusion(const SushiBLAS::Tensor& logits,
                                         const SushiBLAS::Tensor& truth,
-                                        const ColumnOfLogits& where, double cut) noexcept
+                                        const ColumnOfLogits& where, double cut,
+                                        const KeptRows& kept) noexcept
         {
             BinaryConfusion counts;
             for (std::int64_t row = 0; row < where.rows; ++row)
             {
+                if (!kept.keeps(row))
+                    continue;
+
                 const std::int64_t index = row * where.columns + where.column;
                 const bool predicted = host_real(logits, index) >= cut;
                 const bool actual = host_real(truth, index) > K_TRUTH_CUT;

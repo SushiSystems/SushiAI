@@ -36,13 +36,16 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/data/dataset.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/nn/input_leaves.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
+#include <SushiAI/train/extra_inputs.hpp>
 
 namespace SushiAI
 {
@@ -54,16 +57,6 @@ namespace SushiAI
     namespace Train
     {
         struct TracedStep;
-
-        /** @brief Pairs one tensor of a run with the name of the leaf it is copied into. */
-        struct NamedFeed
-        {
-            /** @brief Names an input leaf of the step. */
-            std::string_view name;
-
-            /** @brief Points at the tensor to copy; never null. */
-            const SushiBLAS::Tensor* tensor = nullptr;
-        };
 
         /** @brief Views the tensors of a run, one per input leaf, in the step's order. */
         using FeedSpan = SushiRuntime::span<const SushiBLAS::Tensor* const>;
@@ -135,6 +128,15 @@ namespace SushiAI
                 [[nodiscard]] Status run_by_name(SushiRuntime::span<const NamedFeed> feeds) noexcept;
 
                 /**
+                 * @brief Feeds the model input from the inputs of @p batch and each extra input
+                 *        from the batch role of its name, then replays the plan.
+                 * @param batch Holds the inputs and one role for each extra input of the step.
+                 * @return What run_by_name() returns, or InvalidDescription naming an extra
+                 *         input the batch has no role for.
+                 */
+                [[nodiscard]] Status run_batch(const Data::Batch& batch) noexcept;
+
+                /**
                  * @brief Fills every carried leaf with its initial value.
                  * @pre The engine holds no recorded task; the fills run everything recorded.
                  * @return Success, at once for a step that carries nothing, or the failure of
@@ -165,6 +167,16 @@ namespace SushiAI
                  */
                 [[nodiscard]] Result<const SushiBLAS::Tensor*> output(std::string_view name) const noexcept;
 
+                /**
+                 * @brief Returns the tensor behind the value the objective declared under
+                 *        @p name.
+                 * @return A tensor the pool owns, holding what the last run computed, or
+                 *         InvalidDescription listing the names that exist; none exist for a
+                 *         graph built without an objective.
+                 */
+                [[nodiscard]] Result<const SushiBLAS::Tensor*> metric_value(
+                    std::string_view name) const noexcept;
+
                 /** @brief Returns the compiled step, for its counters. */
                 [[nodiscard]] const Graph::CompiledStep& step() const noexcept;
 
@@ -187,9 +199,11 @@ namespace SushiAI
                 {
                     std::vector<std::string> input_names;        /**< One per input leaf. */
                     std::vector<SushiBLAS::Tensor*> input_leaves; /**< In the same order. */
+                    std::vector<NN::InputLeaf> extras; /**< The extra inputs, in step order. */
                     std::vector<CarriedLeaf> carried;             /**< One per carried value. */
                     std::vector<BufferUpdateSlot> carries;        /**< leaf = next, per value. */
                     NN::ModelOutputs outputs;                     /**< What the model published. */
+                    NN::ModelOutputs metric_values;               /**< What the objective declared. */
                 };
 
                 /** @brief Takes the parts make() built; the plan is compiled afterwards. */
@@ -218,6 +232,12 @@ namespace SushiAI
                 /** @brief The tensor of each input leaf, in the order of input_names_. */
                 std::vector<SushiBLAS::Tensor*> input_leaves_;
 
+                /** @brief The extra inputs among input_names_, which run_batch() feeds. */
+                std::vector<NN::InputLeaf> extras_;
+
+                /** @brief The feeds run_batch() hands to run_by_name(), kept between runs. */
+                std::vector<NamedFeed> batch_feeds_;
+
                 /** @brief The feeds of run_by_name() in the step's order, kept between runs. */
                 std::vector<const SushiBLAS::Tensor*> ordered_;
 
@@ -226,6 +246,9 @@ namespace SushiAI
 
                 /** @brief The values the model published, by name. */
                 NN::ModelOutputs outputs_;
+
+                /** @brief The values the objective declared for its metrics, by name. */
+                NN::ModelOutputs metric_values_;
 
                 /** @brief Records leaf = next for every carried value behind the graph. */
                 BufferUpdateRecorder carries_;

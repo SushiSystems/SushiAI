@@ -53,6 +53,20 @@ namespace SushiAI
             }
         } // namespace
 
+        Graph::Traced emit_sum_of_elements(const Graph::GraphBuilder& builder,
+                                           const Graph::Graph& graph,
+                                           const Graph::Traced& values) noexcept
+        {
+            SA_TRY_ASSIGN(const Graph::ValueID held, values);
+
+            // By value: every emission below can reallocate the value vector.
+            const std::int64_t elements = graph.value(held).shape.num_elements();
+            SA_FATAL_IF(elements < 1, "The sum of a value that holds no element was asked for");
+
+            // As [elements, 1], K_SUM_ROWS adds every element into one.
+            return builder.sum_rows(builder.reshape(held, Shape{elements, 1}));
+        }
+
         Graph::Traced emit_mean_of_elements(const Graph::GraphBuilder& builder,
                                             const Graph::Graph& graph,
                                             const Graph::Traced& values) noexcept
@@ -63,15 +77,13 @@ namespace SushiAI
             const std::int64_t elements = graph.value(held).shape.num_elements();
             SA_FATAL_IF(elements < 1, "The mean of a value that holds no element was asked for");
 
-            // As [elements, 1], K_SUM_ROWS adds every element into one.
-            const Graph::Traced column = builder.reshape(held, Shape{elements, 1});
-
-            return builder.scale(builder.sum_rows(column), 1.0 / static_cast<double>(elements));
+            return builder.scale(emit_sum_of_elements(builder, graph, held),
+                                 1.0 / static_cast<double>(elements));
         }
 
-        Graph::Traced emit_logistic_loss(const Graph::GraphBuilder& builder,
-                                         const Graph::Graph& graph, Graph::ValueID logits,
-                                         Graph::ValueID targets) noexcept
+        Graph::Traced emit_logistic_terms(const Graph::GraphBuilder& builder,
+                                          const Graph::Graph& graph, Graph::ValueID logits,
+                                          Graph::ValueID targets) noexcept
         {
             require_same_values(graph, logits, targets);
 
@@ -80,12 +92,19 @@ namespace SushiAI
 
             // exp reads a value at or below zero, so it cannot overflow for any logit.
             const Graph::Traced tail = builder.softplus(builder.scale(builder.abs(logits), -1.0));
-            const Graph::Traced each = builder.add(builder.sub(positive_part, product), tail);
 
-            return emit_mean_of_elements(builder, graph, each);
+            return builder.add(builder.sub(positive_part, product), tail);
         }
 
-        Graph::Traced emit_squared_error(const Graph::GraphBuilder& builder,
+        Graph::Traced emit_logistic_loss(const Graph::GraphBuilder& builder,
+                                         const Graph::Graph& graph, Graph::ValueID logits,
+                                         Graph::ValueID targets) noexcept
+        {
+            return emit_mean_of_elements(builder, graph,
+                                         emit_logistic_terms(builder, graph, logits, targets));
+        }
+
+        Graph::Traced emit_squared_terms(const Graph::GraphBuilder& builder,
                                          const Graph::Graph& graph, Graph::ValueID outputs,
                                          Graph::ValueID targets) noexcept
         {
@@ -93,7 +112,15 @@ namespace SushiAI
 
             const Graph::Traced difference = builder.sub(outputs, targets);
 
-            return emit_mean_of_elements(builder, graph, builder.mul(difference, difference));
+            return builder.mul(difference, difference);
+        }
+
+        Graph::Traced emit_squared_error(const Graph::GraphBuilder& builder,
+                                         const Graph::Graph& graph, Graph::ValueID outputs,
+                                         Graph::ValueID targets) noexcept
+        {
+            return emit_mean_of_elements(builder, graph,
+                                         emit_squared_terms(builder, graph, outputs, targets));
         }
 
     } // namespace Train

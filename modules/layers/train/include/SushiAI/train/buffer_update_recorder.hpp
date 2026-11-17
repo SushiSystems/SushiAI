@@ -23,8 +23,8 @@
 
 /**
  * @file buffer_update_recorder.hpp
- * @brief Declares BufferUpdateSlot, bind_buffer_updates and BufferUpdateRecorder, which blend
- *        a training trace's running statistics into their buffers on every replay.
+ * @brief Declares bind_buffer_updates, which turns a training trace's updates into the slots
+ *        Graph::BufferUpdateRecorder blends.
  * @author Mustafa Garip
  */
 
@@ -34,8 +34,7 @@
 #include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/failure/result.hpp>
-#include <SushiAI/graph/step_recorder.hpp>
-#include <SushiAI/graph/step_recording.hpp>
+#include <SushiAI/graph/buffer_update_recorder.hpp>
 
 namespace SushiAI
 {
@@ -52,21 +51,11 @@ namespace SushiAI
 
     namespace Train
     {
-        /** @brief Holds one running-statistic update as the two tensors it touches. */
-        struct BufferUpdateSlot
-        {
-            /** @brief The buffer the update writes; it shares storage with the model state. */
-            SushiBLAS::Tensor target;
+        /** @brief Names Graph::BufferUpdateSlot, the pair of tensors one update touches. */
+        using Graph::BufferUpdateSlot;
 
-            /** @brief The batch value the update reads; it shares storage with the pool. */
-            SushiBLAS::Tensor source;
-
-            /** @brief The weight of the source against the buffer's current content. */
-            double momentum = 0.0;
-
-            /** @brief The factor the source is scaled by before it is blended in. */
-            double source_scale = 1.0;
-        };
+        /** @brief Names Graph::BufferUpdateRecorder, the recorder that blends every slot. */
+        using Graph::BufferUpdateRecorder;
 
         /**
          * @brief Resolves each update's target in @p state and its source in @p pool.
@@ -79,35 +68,6 @@ namespace SushiAI
         [[nodiscard]] Result<std::vector<BufferUpdateSlot>> bind_buffer_updates(
             const NN::BufferUpdateList& updates, NN::ModelState& state,
             const Graph::TensorPool& pool) noexcept;
-
-        /**
-         * @brief Records target = (1 - momentum) * target + momentum * source_scale * source
-         *        for every slot, as device work behind a compiled step.
-         */
-        class BufferUpdateRecorder final : public Graph::StepRecorder
-        {
-            public:
-                /**
-                 * @brief Takes the slots that every replay blends.
-                 * @param slots The slots from bind_buffer_updates(); an empty list records nothing.
-                 */
-                explicit BufferUpdateRecorder(std::vector<BufferUpdateSlot> slots) noexcept;
-
-                /**
-                 * @brief Records two tasks per slot: a scale of the target, then an axpy of the
-                 *        source into it.
-                 * @return Twice slot_count(), or the failure of a recorded call.
-                 */
-                [[nodiscard]] Result<std::size_t> record_into_step(
-                    const Graph::StepRecording& recording) override;
-
-                /** @brief Returns how many slots this recorder blends. */
-                [[nodiscard]] std::size_t slot_count() const noexcept;
-
-            private:
-                /** @brief The slots, in the order they were given; each replay visits them all. */
-                std::vector<BufferUpdateSlot> slots_;
-        };
 
     } // namespace Train
 } // namespace SushiAI

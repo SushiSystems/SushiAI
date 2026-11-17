@@ -38,6 +38,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
+#include <SushiAI/train/objective_output.hpp>
 
 namespace SushiAI
 {
@@ -49,7 +50,8 @@ namespace SushiAI
         /**
          * @brief Computes the mean squared error of [N, K] outputs against [N, K] values.
          *
-         * The loss is emit_squared_error() over the N * K elements. The metric is the
+         * The loss is emit_squared_error() over the N * K elements of the selected output;
+         * a type mask keeps the loss of its rows alone. The metric is the
          * mean absolute error over the same elements.
          */
         class MeanSquaredErrorObjective final : public Objective
@@ -58,25 +60,34 @@ namespace SushiAI
                 /**
                  * @brief Builds the objective for @p batch samples of @p width values.
                  * @param dtype The element type of the target leaf, float32 or float64.
+                 * @param selection The output it reads and the rows it keeps.
                  * @return The objective, or InvalidDescription for an extent below 1 or
                  *         another element type.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<MeanSquaredErrorObjective>> make(
-                    std::int64_t batch, std::int64_t width, DType dtype = DType::Float32) noexcept;
+                    std::int64_t batch, std::int64_t width, DType dtype = DType::Float32,
+                    ObjectiveSelection selection = {}) noexcept;
 
-                /** @brief Declares the [N, K] "targets" leaf and requires float32 [N, K] values. */
+                /**
+                 * @brief Declares the [N, K] "targets" leaf and requires float32 [N, K] values,
+                 *        and the weights leaf and the mask role when the mask is on.
+                 */
                 void declare(const Graph::GraphBuilder& builder,
                              ObjectiveLeaves& leaves) const override;
 
                 /**
-                 * @brief Emits the mean squared error of the model's only output.
-                 * @pre @p outputs holds one [N, K] value; anything else stops the process.
+                 * @brief Emits the mean squared error of the selected output.
+                 * @pre @p outputs holds the selected output, an [N, K] value; anything else
+                 *      stops the process.
                  */
-                [[nodiscard]] Result<Graph::ValueID> loss(
+                [[nodiscard]] Result<LossTrace> loss(
                     const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                     const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const override;
 
-                /** @brief Copies the values role into the leaf with fill_dense_targets(). */
+                /**
+                 * @brief Copies the values role into the leaf with fill_dense_targets(), then
+                 *        writes the mask weights.
+                 */
                 [[nodiscard]] Status feed(const Data::Batch& batch, const ObjectiveLeaves& leaves,
                                           Graph::TensorPool& pool) const override;
 
@@ -85,12 +96,16 @@ namespace SushiAI
 
                 /**
                  * @brief Appends "mean_absolute_error" over the N * K elements.
-                 * @return InvalidDescription for a step of several outputs, values the host
-                 *         cannot read or a batch with no values role; Incompatible for
-                 *         another count of outputs or values.
+                 * @return InvalidDescription for a step that publishes no selected output,
+                 *         values the host cannot read or a batch with no values role;
+                 *         Incompatible for another count of outputs or values.
                  */
                 [[nodiscard]] Status measure(const StepView& step,
                                              Metrics& metrics) const override;
+
+                                /** @brief Returns K_MEAN_ABSOLUTE_ERROR_METRIC. */
+                [[nodiscard]] SushiRuntime::span<const std::string_view> metric_names()
+                    const noexcept override;
 
                 /** @brief Returns "mean_squared_error". */
                 std::string_view name() const noexcept override
@@ -104,10 +119,16 @@ namespace SushiAI
                 /** @brief Returns K, the values of a sample. */
                 [[nodiscard]] std::int64_t width() const noexcept { return width_; }
 
+                /** @brief Returns the output the objective reads and the rows it keeps. */
+                [[nodiscard]] const ObjectiveSelection& selection() const noexcept
+                {
+                    return selection_;
+                }
+
             private:
                 /** @brief Stores what make() has checked. */
-                MeanSquaredErrorObjective(std::int64_t batch, std::int64_t width,
-                                          DType dtype) noexcept;
+                MeanSquaredErrorObjective(std::int64_t batch, std::int64_t width, DType dtype,
+                                          ObjectiveSelection selection) noexcept;
 
                 /// @brief N, the samples of a batch.
                 std::int64_t batch_ = 0;
@@ -117,15 +138,18 @@ namespace SushiAI
 
                 /// @brief The element type of the target leaf.
                 DType dtype_ = DType::Float32;
+
+                /// @brief The output it reads and the rows it keeps.
+                ObjectiveSelection selection_;
         };
 
         /**
-         * @brief Builds a regression objective over the batch and the one output of @p given.
-         * @param attributes The objective's own keys; it has none.
+         * @brief Builds a regression objective over the batch and the selected output of @p given.
+         * @param attributes The objective's own keys: "output" and "type_mask".
          * @param context What to call this objective in a diagnostic.
-         * @return The objective, or InvalidDescription for a key, for a model that does not
-         *         publish one [N, K] output, or for what MeanSquaredErrorObjective::make
-         *         refuses.
+         * @return The objective, or InvalidDescription for a key read_selection() refuses, for
+         *         a model that does not publish the selected [N, K] output, or for what
+         *         MeanSquaredErrorObjective::make refuses.
          */
         [[nodiscard]] Result<std::unique_ptr<Objective>> make_mean_squared_error(
             const ObjectiveContext& given, const Config::Value& attributes,

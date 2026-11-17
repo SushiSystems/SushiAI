@@ -7,9 +7,10 @@ refused section) and `Medium_SumObjectiveDeathTest`.
 
 Tests `Train::SumObjective` and its factory `Train::make_sum_objective`, reached through the
 `sum` row of the registry. Most cases sum two `CrossEntropyObjective` terms over 4 rows of 3
-classes. The term that its own step feeds is a `Train::InMemoryObjective`, the repository's
-objective that keeps the base's `is_fed_by_batch`; no local stand-in objective is left in the
-file.
+classes. Every other term is a scripted `Train::InMemoryObjective`: the term that its own step
+feeds keeps the default `is_fed_by_batch` of false, and the terms that state and report metrics
+are scripted to be fed by a batch, to state names and to append fixed values. The file holds no
+`Objective` subclass.
 
 ## K_WEIGHTED_LOSS_OPERATIONS
 
@@ -35,9 +36,23 @@ The sum is named "sum", is fed by the batch, and `leaf_prefix(1)` is "term1.".
 
 ## MakeRefusesAWeightItCannotUse
 
-One row per weight pair: a second weight of 0 ("Term 1", "above zero"), a first weight of -0.5
-("Term 0", "above zero"), a second weight of infinity ("Term 1", "finite") and a first weight of
-NaN ("Term 0", "finite").
+One row per weight pair: a first weight of -0.5 ("Term 0", "at least zero"), a second weight of
+infinity ("Term 1", "finite") and a first weight of NaN ("Term 0", "finite"). A weight of 0 is not
+a row any more: see `MakeAcceptsAWeightOfZero` (RW-84).
+
+## MakeAcceptsAWeightOfZero
+
+A sum of the weights 1 and 0 is made, and its second term holds the weight 0.
+
+## MakeRefusesASumWhoseWeightsAreAllZero
+
+A sum of the weights 0 and 0 fails with `InvalidDescription`, "Every term", "weight 0" and "no
+parameter has a gradient": its loss would be 0 for every input.
+
+## ATermOfWeightZeroAddsNothingToTheLoss
+
+On the data of `TheLossAddsTheWeightedLossesOfItsTerms` with the weights 1 and 0, the loss is that
+of term 0, `ln 5 - ln 3 = ln (5 / 3)`, within the rounded operations of the weighted case.
 
 ## MakeRefusesATermItsOwnStepFeeds
 
@@ -78,9 +93,35 @@ One row per parameter, 0 and 1: its gradient is set.
 ## MeasureReportsTheAccuracyOfTheFirstOfTwoTerms
 
 `SumObjective::measure` keeps the first term's metric when two terms report one name (the rule is
-written at `sum_objective.cpp`, in `measure`). Two terms of a local `FixedAccuracyObjective`, which
-wraps a cross-entropy term and reports a fixed accuracy, report 0.25 and 0.75. The sum gives one
-metric, `accuracy`, of 0.25, so the case shows which term's value won.
+written at `sum_objective.cpp`, in `measure`). Two scripted `InMemoryObjective` terms that state
+no name and append `accuracy` report 0.25 and 0.75. The sum gives one metric, `accuracy`, of
+0.25, so the case shows which term's value won.
+
+## ATermWhoseMetricsAreAppendedAlreadyIsNotMeasured
+
+Two scripted `InMemoryObjective` terms, each stating and appending `mean_iou`, with the values
+0.25 and 0.75 (RW-76). After `measure` the first term's `measure_count()` is 1 and the second's is
+0, and the sum holds one metric of 0.25.
+
+## ATermWithANameNotAppendedYetIsMeasured
+
+The first term states and appends `accuracy`; the second states and appends `accuracy` and
+`recall`. The second is measured once, `accuracy` keeps the first term's 0.25 and `recall` is the
+second's 0.75.
+
+## ATermThatStatesNoNameIsMeasured
+
+The second term states no name and appends `accuracy`. It is measured once, and `accuracy` keeps
+the first term's value: a term that states nothing cannot be left out.
+
+## ASumStatesTheNamesOfItsTermsOnce
+
+Terms that state `accuracy` and `accuracy`, `recall`: the sum states `accuracy`, `recall`, so a sum
+nested in a sum is left out the same way.
+
+## ASumWithATermThatStatesNoNameStatesNone
+
+A term that states nothing makes the sum state nothing, since the sum cannot say what it appends.
 
 ## ANullTermStopsTheProcessNamingIt
 

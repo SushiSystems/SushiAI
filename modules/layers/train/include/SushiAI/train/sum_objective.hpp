@@ -61,14 +61,16 @@ namespace SushiAI
         struct SumTerm
         {
             std::unique_ptr<Objective> objective; /**< The term; the composite owns it. */
-            double weight = 1.0;                  /**< Its weight; finite and above zero. */
+            double weight = 1.0;                  /**< Its weight; finite and not below zero. */
         };
 
         /**
          * @brief Computes the sum over its terms of weight * loss, in the graph.
          *
          * Term i declares its leaves under leaf_prefix(i), so two terms may use one role
-         * name. README.md states how the metrics of the terms merge.
+         * name. README.md states how the metrics of the terms merge. A term of weight 0 adds
+         * nothing to the loss and its gradient is 0, but it is fed and measured as any other,
+         * so it may stand for its metrics alone.
          */
         class SumObjective final : public Objective
         {
@@ -76,8 +78,9 @@ namespace SushiAI
                 /**
                  * @brief Builds the composite over @p terms, in the order given.
                  * @return The objective, or InvalidDescription for no term, a weight that
-                 *         is not finite and above zero, or a term its own step feeds, named
-                 *         by its position and its name. A null term stops the process.
+                 *         is not finite or is below zero, every weight being 0, or a term its
+                 *         own step feeds, named by its position and its name. A null term
+                 *         stops the process.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<SumObjective>> make(
                     std::vector<SumTerm> terms) noexcept;
@@ -91,12 +94,22 @@ namespace SushiAI
 
                 /**
                  * @brief Emits each term's loss, scaled by its weight, and their sum.
+                 * @return The sum, with the trace of each term, in order, for
+                 *         declare_metric_values().
                  * @pre Every term's loss is one element of one element type; anything else
                  *      stops the process.
                  */
-                [[nodiscard]] Result<Graph::ValueID> loss(
+                [[nodiscard]] Result<LossTrace> loss(
                     const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                     const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const override;
+
+                /**
+                 * @brief Declares the metric values of every term, in order, each over its own
+                 *        trace; of two values of one name the first term's is kept.
+                 */
+                [[nodiscard]] Result<NN::ModelOutputs> declare_metric_values(
+                    const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+                    const LossTrace& trace) const override;
 
                 /** @brief Feeds every term from @p batch, in order; the first refusal ends it. */
                 [[nodiscard]] Status feed(const Data::Batch& batch, const ObjectiveLeaves& leaves,
@@ -108,9 +121,20 @@ namespace SushiAI
                 /**
                  * @brief Appends the metrics of every term, in order; of two metrics of one
                  *        name the first term's is kept.
+                 *
+                 * A term whose metric_names() are all appended by the terms before it is not
+                 * measured, so a metric two terms share is computed once; a term that states
+                 * no names, or one name not yet appended, is measured whole.
                  */
                 [[nodiscard]] Status measure(const StepView& step,
                                              Metrics& metrics) const override;
+
+                /**
+                 * @brief Returns the names of every term once, in the order the terms give
+                 *        them; empty when a term states none, since the sum then cannot.
+                 */
+                [[nodiscard]] SushiRuntime::span<const std::string_view> metric_names()
+                    const noexcept override;
 
                 /** @brief Returns "sum". */
                 std::string_view name() const noexcept override { return K_SUM_TYPE; }
@@ -120,10 +144,14 @@ namespace SushiAI
 
             private:
                 /** @brief Stores what make() has checked. */
-                explicit SumObjective(std::vector<SumTerm> terms) noexcept;
+                SumObjective(std::vector<SumTerm> terms,
+                             std::vector<std::string_view> names) noexcept;
 
                 /// @brief The terms, in order.
                 std::vector<SumTerm> terms_;
+
+                /// @brief The metric names of every term, once; empty when a term states none.
+                std::vector<std::string_view> names_;
         };
 
         /**

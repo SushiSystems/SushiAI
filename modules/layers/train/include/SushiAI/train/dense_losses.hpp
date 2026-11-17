@@ -37,6 +37,15 @@ namespace SushiAI
     namespace Train
     {
         /**
+         * @brief Emits the sum of every element of @p values.
+         * @pre @p values holds at least one element of a real floating type.
+         * @return A 1-element value, or the failure of @p values or of an emitter.
+         */
+        [[nodiscard]] Graph::Traced emit_sum_of_elements(const Graph::GraphBuilder& builder,
+                                                         const Graph::Graph& graph,
+                                                         const Graph::Traced& values) noexcept;
+
+        /**
          * @brief Emits the mean of every element of @p values.
          * @pre @p values holds at least one element of a real floating type.
          * @return A 1-element value, or the failure of @p values or of an emitter.
@@ -44,6 +53,17 @@ namespace SushiAI
         [[nodiscard]] Graph::Traced emit_mean_of_elements(const Graph::GraphBuilder& builder,
                                                           const Graph::Graph& graph,
                                                           const Graph::Traced& values) noexcept;
+
+        /**
+         * @brief Emits max(x, 0) - x * y + log(1 + exp(-|x|)) for every element: the terms
+         *        emit_logistic_loss() averages.
+         * @pre The same as emit_logistic_loss().
+         * @return A value shaped like @p logits, or the failure of an emitter.
+         */
+        [[nodiscard]] Graph::Traced emit_logistic_terms(const Graph::GraphBuilder& builder,
+                                                        const Graph::Graph& graph,
+                                                        Graph::ValueID logits,
+                                                        Graph::ValueID targets) noexcept;
 
         /**
          * @brief Emits the mean of max(x, 0) - x * y + log(1 + exp(-|x|)) over every element:
@@ -56,6 +76,17 @@ namespace SushiAI
         [[nodiscard]] Graph::Traced emit_logistic_loss(const Graph::GraphBuilder& builder,
                                                        const Graph::Graph& graph,
                                                        Graph::ValueID logits,
+                                                       Graph::ValueID targets) noexcept;
+
+        /**
+         * @brief Emits (x - y) squared for every element: the terms emit_squared_error()
+         *        averages.
+         * @pre The same as emit_squared_error().
+         * @return A value shaped like @p outputs, or the failure of an emitter.
+         */
+        [[nodiscard]] Graph::Traced emit_squared_terms(const Graph::GraphBuilder& builder,
+                                                       const Graph::Graph& graph,
+                                                       Graph::ValueID outputs,
                                                        Graph::ValueID targets) noexcept;
 
         /**

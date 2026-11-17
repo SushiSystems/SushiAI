@@ -25,7 +25,7 @@ section on the spilled activation describes: `TheGELUModelLowersItsLoss`, the th
 `Small_FusionReport` cases, `TheSpillHoldsThePreActivationItself`,
 `ADeclinedEpilogueStillFillsTheSpillWithThePreActivation`, and the rows of `Medium_FusionRefusal`
 and `Medium_FusionDisabled` over GELU. The third counts what fusion cost and orders it:
-`TheFusedStepIssuesTenFewerKernelsPerStep`, `AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias` and
+`TheFusedStepIssuesEightFewerKernelsPerStep`, `AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias` and
 `WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt`. The fourth covers the dynamic selector on
 a described device, in `Small_FusionSelector`. That each step compiles once is
 `test_compile_once.cpp`'s.
@@ -177,14 +177,14 @@ result, so the trailing activation runs in place and costs one. The numbers are 
 the launch counts differ. The per-entry switch also serves a user who has measured a different
 result on their own model and needs a way out.
 
-## TheFusedStepIssuesTenFewerKernelsPerStep
+## TheFusedStepIssuesEightFewerKernelsPerStep
 
 This test counts the headline claim and does not time it. A wall clock says different things on a
 loaded machine, and the kernel count is the number the change controls.
 
-The saving is ten for the ReLU model. The first layer's gemm+bias+relu replaces five calls (gemm;
-copy and ger for the bias; copy and relu) with one. The second layer's gemm+bias replaces three with
-one. The cross-entropy gradient's exp/sub/scale replaces five with one.
+The saving is eight for the ReLU model. The first layer's gemm+bias+relu replaces four calls (gemm;
+the broadcast add of the bias; copy and relu) with one. The second layer's gemm+bias replaces two
+with one. The cross-entropy gradient's exp/sub/scale replaces five with one.
 
 The saving has no cost beside it. Each fused GEMM needs no host-side ordering node to carry the
 dependency edges execute_gemm could not declare for a bias its functor dereferences. SushiBLAS's

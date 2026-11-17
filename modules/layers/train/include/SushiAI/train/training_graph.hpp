@@ -34,6 +34,8 @@
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/nn/host_table.hpp>
+#include <SushiAI/nn/input_leaves.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
@@ -115,11 +117,20 @@ namespace SushiAI
             /** @brief Holds every value the model published, by name. */
             NN::ModelOutputs outputs;
 
+            /** @brief Holds the values the objective declared for its metrics, by name. */
+            NN::ModelOutputs metric_values;
+
             /** @brief Holds the buffer updates the training trace requested. */
             NN::BufferUpdateList updates;
 
             /** @brief Lists the leaves the step fills once with numbers of the host. */
             NN::HostTableList tables;
+
+            /**
+             * @brief Lists the leaves declared for the extra inputs of the model, which a run
+             *        fills from the batch roles of the same names.
+             */
+            NN::InputLeafList extra_inputs;
 
             /** @brief Lists the values the memory planner must not pack. */
             std::vector<Graph::ValueID> pinned;

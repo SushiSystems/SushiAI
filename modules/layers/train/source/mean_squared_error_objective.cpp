@@ -40,6 +40,7 @@
 #include <SushiAI/train/dense_losses.hpp>
 #include <SushiAI/train/dense_targets.hpp>
 #include <SushiAI/train/host_values.hpp>
+#include <SushiAI/train/kept_rows.hpp>
 
 #include "dense_objective.hpp"
 
@@ -48,21 +49,23 @@ namespace SushiAI
     namespace Train
     {
         Result<std::unique_ptr<MeanSquaredErrorObjective>> MeanSquaredErrorObjective::make(
-            std::int64_t batch, std::int64_t width, DType dtype) noexcept
+            std::int64_t batch, std::int64_t width, DType dtype,
+            ObjectiveSelection selection) noexcept
         {
             SA_TRY(Detail::validate_dense_leaf(batch, width, dtype, K_MEAN_SQUARED_ERROR_TYPE));
 
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
                 return std::unique_ptr<MeanSquaredErrorObjective>(
-                    new MeanSquaredErrorObjective(batch, width, dtype));
+                    new MeanSquaredErrorObjective(batch, width, dtype, std::move(selection)));
             });
         }
 
         MeanSquaredErrorObjective::MeanSquaredErrorObjective(std::int64_t batch,
                                                              std::int64_t width,
-                                                             DType dtype) noexcept
-            : batch_(batch), width_(width), dtype_(dtype)
+                                                             DType dtype,
+                                                             ObjectiveSelection selection) noexcept
+            : batch_(batch), width_(width), dtype_(dtype), selection_(std::move(selection))
         {
 
         }
@@ -72,21 +75,27 @@ namespace SushiAI
         {
             leaves.add(Detail::K_TARGETS_LEAF,
                        builder.input(Shape{batch_, width_}, Detail::K_TARGETS_LEAF, dtype_));
-            leaves.require(Data::TargetDescription{std::string(Data::K_ROLE_VALUES),
-                                                   Shape{width_}, DType::Float32, 0});
+            leaves.require(Data::TargetDescription{
+                std::string(selection_.target.role_or(Data::K_ROLE_VALUES)), Shape{width_},
+                DType::Float32, 0});
+            selection_.mask.declare(builder, leaves, Shape{batch_, width_}, dtype_);
         }
 
-        Result<Graph::ValueID> MeanSquaredErrorObjective::loss(
+        Result<LossTrace> MeanSquaredErrorObjective::loss(
             const Graph::GraphBuilder& builder, const Graph::Graph& graph,
             const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const
         {
             const Graph::ValueID predicted = Detail::require_matrix_output(
-                graph, outputs, Shape{batch_, width_}, K_MEAN_SQUARED_ERROR_TYPE);
+                graph, outputs, Shape{batch_, width_}, K_MEAN_SQUARED_ERROR_TYPE,
+                selection_.output);
 
             SA_TRY_ASSIGN(const Graph::ValueID loss,
-                          emit_squared_error(builder, graph, predicted,
-                                             leaves.at(Detail::K_TARGETS_LEAF)));
-            return loss;
+                          Detail::emit_dense_loss(
+                              builder, graph,
+                              emit_squared_terms(builder, graph, predicted,
+                                                 leaves.at(Detail::K_TARGETS_LEAF)),
+                              selection_.mask, leaves));
+            return LossTrace(loss);
         }
 
         Status MeanSquaredErrorObjective::feed(const Data::Batch& batch,
@@ -94,43 +103,67 @@ namespace SushiAI
                                                Graph::TensorPool& pool) const
         {
             SA_TRY_ASSIGN(const Data::BatchTarget* const values,
-                          require_batch_role(batch, Data::K_ROLE_VALUES));
+                          require_batch_role(batch,
+                                             selection_.target.role_or(Data::K_ROLE_VALUES)));
             SA_TRY_ASSIGN(SushiBLAS::Tensor* const targets,
                           find_leaf_tensor(leaves, Detail::K_TARGETS_LEAF, pool));
 
-            return fill_dense_targets(values->values, *targets);
+            SA_TRY(fill_dense_targets(values->values, *targets));
+
+            return selection_.mask.feed(batch, leaves, pool);
         }
 
         Status MeanSquaredErrorObjective::measure(const StepView& step, Metrics& metrics) const
         {
             const std::int64_t elements = batch_ * width_;
 
-            SA_TRY_ASSIGN(const SushiBLAS::Tensor* const predicted, only_output(step));
+            SA_TRY_ASSIGN(const SushiBLAS::Tensor* const predicted, selection_.output.resolve(step));
             SA_TRY(require_host_reals(*predicted, elements, "the outputs"));
 
             SA_TRY_ASSIGN(const Data::BatchTarget* const values,
-                          require_batch_role(step.batch, Data::K_ROLE_VALUES));
+                          require_batch_role(step.batch,
+                                             selection_.target.role_or(Data::K_ROLE_VALUES)));
             SA_TRY(require_host_reals(values->values, elements, "the values"));
 
-            double total = 0.0;
-            for (std::int64_t index = 0; index < elements; ++index)
-                total += std::abs(host_real(*predicted, index) - host_real(values->values, index));
+            SA_TRY_ASSIGN(const KeptRows kept, selection_.mask.kept_rows_of(step.batch, batch_));
 
-            return metrics.add(
-                Metric{"mean_absolute_error", total / static_cast<double>(elements), false});
+            // A dropped row's values are placeholders, so neither the sum nor the count has them.
+            double total = 0.0;
+            std::int64_t counted = 0;
+            for (std::int64_t index = 0; index < elements; ++index)
+            {
+                if (!kept.keeps(index / width_))
+                    continue;
+
+                ++counted;
+                total += std::abs(host_real(*predicted, index) - host_real(values->values, index));
+            }
+
+            const double mean = counted == 0 ? 0.0 : total / static_cast<double>(counted);
+
+            return metrics.add(Metric{K_MEAN_ABSOLUTE_ERROR_METRIC, mean, false});
+        }
+
+        SushiRuntime::span<const std::string_view> MeanSquaredErrorObjective::metric_names()
+            const noexcept
+        {
+            static constexpr std::string_view K_NAMES[] = {K_MEAN_ABSOLUTE_ERROR_METRIC};
+
+            return SushiRuntime::span<const std::string_view>(K_NAMES, 1);
         }
 
         Result<std::unique_ptr<Objective>> make_mean_squared_error(
             const ObjectiveContext& given, const Config::Value& attributes,
             std::string_view context) noexcept
         {
-            SA_FAIL_IF(!attributes.keys().empty(), StatusCode::InvalidDescription,
-                       "{} states the key '{}', but a mean_squared_error objective has no keys",
-                       context, attributes.keys().front());
-            SA_TRY_ASSIGN(const Shape outputs, Detail::read_matrix_output(given, context));
+            SA_TRY_ASSIGN(ObjectiveSelection selection, read_selection(attributes, context));
+            SA_TRY_ASSIGN(const OutputShape* const port,
+                          Detail::read_matrix_output(given, context, selection.output));
 
             SA_TRY_ASSIGN(std::unique_ptr<MeanSquaredErrorObjective> made,
-                          MeanSquaredErrorObjective::make(outputs[0], outputs[1]));
+                          MeanSquaredErrorObjective::make(port->shape[0], port->shape[1],
+                                                          DType::Float32,
+                                                          std::move(selection)));
             std::unique_ptr<Objective> base = std::move(made);
             return std::move(base);
         }

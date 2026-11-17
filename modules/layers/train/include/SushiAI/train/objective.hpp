@@ -36,6 +36,7 @@
 #include <utility>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -46,8 +47,10 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/train/loss_trace.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/objective_context.hpp>
+#include <SushiAI/train/objective_output.hpp>
 #include <SushiAI/train/step_view.hpp>
 
 namespace SushiAI
@@ -148,12 +151,24 @@ namespace SushiAI
                  * @param builder Where the nodes go.
                  * @param graph The graph, for checking shapes.
                  * @param outputs The model's outputs; the objective names the ones it reads.
-                 * @param leaves Declared auxiliary leaves.
-                 * @return The loss value identifier, or InvalidDescription for an unread output.
+                 * @return The loss value with the values kept for declare_metric_values(), or
+                 *         InvalidDescription for an unread output.
                  */
-                [[nodiscard]] virtual Result<Graph::ValueID> loss(
+                [[nodiscard]] virtual Result<LossTrace> loss(
                     const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                     const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const = 0;
+
+                /**
+                 * @brief Emits the graph values the metrics read, computed on the device.
+                 * @param builder Where the nodes go.
+                 * @param outputs The model's outputs.
+                 * @param trace What loss() returned, or a default trace for an evaluation graph.
+                 * @return The values by name, found by measure() in StepView::values; none by
+                 *         default; or the failure of an emission.
+                 */
+                [[nodiscard]] virtual Result<NN::ModelOutputs> declare_metric_values(
+                    const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+                    const LossTrace& trace) const;
 
                 /**
                  * @brief Writes the leaves declare() recorded from the roles of @p batch.
@@ -182,6 +197,16 @@ namespace SushiAI
                 [[nodiscard]] virtual Status measure(const StepView& step,
                                                      Metrics& metrics) const;
 
+                /**
+                 * @brief Names the metrics measure() appends, before it runs, so a composite
+                 *        computes a metric two terms share once.
+                 * @return Every name measure() may append, in order, as views of literals that
+                 *         outlive the objective. Empty, the default, means a composite always
+                 *         measures it.
+                 */
+                [[nodiscard]] virtual SushiRuntime::span<const std::string_view> metric_names()
+                    const noexcept;
+
                 /** @brief A short name for a run report. */
                 virtual std::string_view name() const noexcept = 0;
         };
@@ -190,8 +215,8 @@ namespace SushiAI
          * @class CrossEntropyObjective
          * @brief Multi-class cross-entropy over one-hot targets, and accuracy.
          *
-         * Emits @c nll_loss(log_softmax(output), targets). The targets leaf holds one-hot
-         * rows, which feed() writes from the labels role of each batch.
+         * Emits @c nll_loss(log_softmax(output), targets); feed() writes the one-hot rows
+         * from the labels role. A type mask averages over its kept rows alone.
          */
         class CrossEntropyObjective final : public Objective
         {
@@ -201,19 +226,25 @@ namespace SushiAI
                  * @param batch Samples per step.
                  * @param classes How many classes.
                  * @param dtype The element type the target leaf carries.
+                 * @param selection The output it reads and the rows it keeps.
                  */
                 CrossEntropyObjective(int64_t batch, int64_t classes,
-                                      DType dtype = DType::Float32) noexcept
-                    : batch_(batch), classes_(classes), dtype_(dtype) {}
+                                      DType dtype = DType::Float32,
+                                      ObjectiveSelection selection = {}) noexcept
+                    : batch_(batch), classes_(classes), dtype_(dtype),
+                      selection_(std::move(selection)) {}
 
                 void declare(const Graph::GraphBuilder& builder,
                              ObjectiveLeaves& leaves) const override;
 
-                [[nodiscard]] Result<Graph::ValueID> loss(
+                [[nodiscard]] Result<LossTrace> loss(
                     const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                     const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const override;
 
-                /** @brief Writes the one-hot row of every label with fill_one_hot(). */
+                /**
+                 * @brief Writes the one-hot row of every label with fill_one_hot(), then the
+                 *        mask weights.
+                 */
                 [[nodiscard]] Status feed(const Data::Batch& batch,
                                           const ObjectiveLeaves& leaves,
                                           Graph::TensorPool& pool) const override;
@@ -224,26 +255,38 @@ namespace SushiAI
                 /**
                  * @brief Appends "accuracy": the fraction of rows whose label is the
                  *        largest logit.
-                 * @return InvalidDescription for a step of several outputs, logits the
-                 *         host cannot read or a batch with no labels role; Incompatible
-                 *         for another count of logits or labels.
+                 * @return InvalidDescription for a step that publishes no selected output,
+                 *         logits the host cannot read or a batch with no labels role;
+                 *         Incompatible for another count of logits or labels.
                  */
                 [[nodiscard]] Status measure(const StepView& step,
                                              Metrics& metrics) const override;
 
+                /** @brief Returns K_ACCURACY_METRIC. */
+                [[nodiscard]] SushiRuntime::span<const std::string_view> metric_names()
+                    const noexcept override;
+
                 std::string_view name() const noexcept override { return "cross_entropy"; }
+
+                /** @brief Returns the output the objective reads and the rows it keeps. */
+                [[nodiscard]] const ObjectiveSelection& selection() const noexcept
+                {
+                    return selection_;
+                }
 
             private:
                 int64_t batch_ = 0;
                 int64_t classes_ = 0;
                 DType dtype_ = DType::Float32;
+                ObjectiveSelection selection_;
         };
 
         /**
          * @brief Builds a cross-entropy objective over the batch and classes of @p given.
-         * @param attributes The objective's own keys; it has none.
+         * @param attributes The objective's own keys: "output" and "type_mask".
          * @param context What to call this objective in a diagnostic.
-         * @return The objective, or InvalidDescription for a key, or for a batch or a class
+         * @return The objective, or InvalidDescription for a key read_selection() refuses,
+         *         for an output the model does not publish, or for a batch or a class
          *         count below 1.
          */
         [[nodiscard]] Result<std::unique_ptr<Objective>> make_cross_entropy(

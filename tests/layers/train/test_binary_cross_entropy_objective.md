@@ -17,8 +17,14 @@ binds a tensor of 7s to the `targets` leaf before a feed.
 ## BinaryDeclaresAColumnLeafAndRealLabels
 
 In the built training graph the `targets` leaf has the shape [4, 1] and is `spec.targets`, and the loss has one
-element. The one required target has the role `K_ROLE_LABELS`, an empty sample shape, the type
-float32 and 0 classes.
+element. The one required target has the role `K_ROLE_LABELS`, the sample shape [1] (the width of
+the [4, 1] output it reads), the type float32 and 0 classes.
+
+## TheDeclaredLabelsRoleIsServedByOneValuePerSampleOnly
+
+`match_roles` over the labels role of the binary objective accepts a dataset that publishes labels
+as float32 [1] per sample, the width of the [4, 1] output, and refuses one that publishes float32 []
+with `Incompatible`, "'labels'", "float32 [] per sample" and "compiled for float32 [1] per sample".
 
 ## TheThresholdDefaultsToOneHalf
 

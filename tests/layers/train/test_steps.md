@@ -54,12 +54,12 @@ run fail, so a graph that reads a buffer it should not shows up there.
 named "body", a GELU named "activation" and a Linear named "head" over [6], and publishes
 "features" on the GELU and "logits" on the head.
 
-## NamedOutputObjective
+## script_named_output
 
-`NamedOutputObjective` is a `Train::Objective` that declares one leaf, "targets", of
-[batch, classes]. Its `loss()` is the cross-entropy of the output it was given by name against
-that leaf. It stays a stub on purpose: no repository objective reads a model output by name,
-and the case that uses it tests the builder's refusal to set the logits, not the objective.
+`script_named_output` scripts a `Train::InMemoryObjective` to declare one leaf, "targets", of
+[batch, classes] and to emit the cross-entropy of the output it was given by name against that
+leaf. No repository objective reads a model output by name, and the case that uses it tests the
+builder's refusal to set the logits, not the objective.
 
 ## ATrainingGraphOfAnMLPHasAScalarLossAndTheLogits
 
@@ -127,7 +127,7 @@ after the training graph alone, and that state has a leaf in all three graphs.
 
 ## AModelGraphWithTwoOutputsLeavesLogitsUnset
 
-`NamedOutputObjective("logits")` reads the model of `build_two_output_model`. The training graph
+An `InMemoryObjective` scripted to read the output "logits" reads the model of `build_two_output_model`. The training graph
 has `spec.logits` set to `K_NO_VALUE`, two entries in `outputs` and a set `spec.loss`.
 
 ## ARefusingLayerFailsTheBuilderWithItsStatus

@@ -24,19 +24,26 @@ sushiai_add_test_program(OWNER train
         test_dense_losses.cpp
         test_dense_targets.cpp
         test_evaluation_step.cpp
+        test_extra_input_copy.cpp
+        test_extra_inputs.cpp
         test_feed.cpp
         test_host_values.cpp
         test_in_memory_objective.cpp
         test_input_match.cpp
+        test_kept_rows.cpp
+        test_leaf_writes.cpp
+        test_loss_trace.cpp
         test_mean_squared_error_objective.cpp
         test_metrics.cpp
         test_multi_label_objective.cpp
         test_objective.cpp
         test_objective_context.cpp
+        test_objective_output.cpp
         test_objective_registry.cpp
         test_one_hot.cpp
         test_parameter_groups.cpp
         test_role_match.cpp
+        test_row_mask.cpp
         test_step_view.cpp
         test_steps.cpp
         test_sum_objective.cpp
@@ -49,9 +56,11 @@ sushiai_add_test_program(OWNER train
         test_trainer/test_fusion_numerics.cpp
         test_trainer/test_learning_curve.cpp
         test_trainer/test_loss_scaling.cpp
+        test_trainer/test_metric_values.cpp
         test_trainer/test_mixed_precision.cpp
         test_trainer/test_resilience.cpp
         test_trainer/test_static_memory.cpp
+        test_trainer/test_unwritten_leaf.cpp
         test_training_step.cpp
         ${SUSHIAI_TRAIN_TEST_PROFILED}
     DEPENDS

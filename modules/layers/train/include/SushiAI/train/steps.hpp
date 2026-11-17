@@ -49,6 +49,7 @@
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/precision.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/nn/input_leaves.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
@@ -96,6 +97,9 @@ namespace SushiAI
             /** @brief Holds every value the model published, by name. */
             NN::ModelOutputs outputs;
 
+            /** @brief Holds the values an objective declared for its metrics, by name. */
+            NN::ModelOutputs metric_values;
+
             /** @brief Holds what the cast pass converted, and where. */
             Graph::CastReport casts;
 
@@ -110,6 +114,12 @@ namespace SushiAI
 
             /** @brief Lists the leaves the step fills once with numbers of the host. */
             NN::HostTableList tables;
+
+            /**
+             * @brief Lists the leaves declared for the extra inputs of the model, which a run
+             *        fills from the batch roles of the same names.
+             */
+            NN::InputLeafList extra_inputs;
         };
 
         /**
@@ -162,6 +172,51 @@ namespace SushiAI
                                                                const Shape& batch_shape,
                                                                DType dtype);
 
+            /** @brief Detects extra_inputs() on M, which lists the extra inputs it reads. */
+            template<typename M, typename = void>
+            struct HasExtraInputs : std::false_type
+            {
+
+            };
+
+            /** @brief Holds for an M that lists its extra inputs. */
+            template<typename M>
+            struct HasExtraInputs<M, std::enable_if_t<std::is_same<
+                decltype(std::declval<const M&>().extra_inputs()),
+                SushiRuntime::span<const NN::ExtraInput>>::value>>
+                : std::true_type
+            {
+
+            };
+
+            /**
+             * @brief Lists the extra inputs @p model reads: its own, or none for a model that
+             *        has no extra_inputs().
+             */
+            template<typename M>
+            [[nodiscard]] SushiRuntime::span<const NN::ExtraInput> extra_inputs_of(
+                const M& model) noexcept
+            {
+                if constexpr (HasExtraInputs<M>::value)
+                    return model.extra_inputs();
+                else
+                    return SushiRuntime::span<const NN::ExtraInput>();
+            }
+
+            /**
+             * @brief Declares one leaf of [rows, sample...] for each of @p extras and lists it.
+             * @param rows The first extent of the step's inputs.
+             * @return InvalidDescription for an input named as the model input is, or a sample
+             *         that leaves no extent for the batch.
+             */
+            [[nodiscard]] Status declare_extra_inputs(
+                const Graph::GraphBuilder& builder, std::int64_t rows,
+                SushiRuntime::span<const NN::ExtraInput> extras, NN::InputLeafList& leaves);
+
+            /** @brief Requires the batch role of every extra input in @c built.leaves. */
+            void require_extra_roles(TrainingGraph& built,
+                                     SushiRuntime::span<const NN::ExtraInput> extras);
+
             /** @brief Returns a set that holds @p id under NN::K_SINGLE_PORT_NAME. */
             [[nodiscard]] Result<NN::ModelOutputs> single_output(Graph::ValueID id);
 
@@ -188,8 +243,19 @@ namespace SushiAI
                                                           const GraphOptions& options);
 
             /**
+             * @brief Fills @c step.metric_values with what @p objective declares over
+             *        @c step.outputs and an empty LossTrace, as the step has no loss.
+             * @pre @c step.outputs holds what the model published.
+             * @return The failure of Objective::declare_metric_values().
+             */
+            [[nodiscard]] Status add_metric_values(TracedStep& step,
+                                                   const Graph::GraphBuilder& builder,
+                                                   const Objective& objective);
+
+            /**
              * @brief Runs the cast pass and the fusion pass over a forward-only graph.
-             * @pre @c step.input, @c step.outputs, @c step.fed and @c step.carried are set.
+             * @pre @c step.input, @c step.outputs, @c step.fed, @c step.carried and
+             *      @c step.metric_values are set.
              */
             [[nodiscard]] Status finish_traced_step(TracedStep& step, const GraphOptions& options);
 
@@ -276,9 +342,15 @@ namespace SushiAI
             // The objective's leaves precede the model's nodes, which fixes their value ids.
             SA_TRY(Detail::declare_objective(built, builder, objective));
 
+            const SushiRuntime::span<const NN::ExtraInput> extras = Detail::extra_inputs_of(model);
+            SA_TRY(Detail::declare_extra_inputs(builder, batch_shape.dim(0), extras,
+                                                built.extra_inputs));
+            Detail::require_extra_roles(built, extras);
+
             {
                 NN::Trace trace = NN::Trace::training(builder, built.updates, options.seed);
                 trace.collect_tables(built.tables);
+                trace.provide_inputs(built.extra_inputs);
                 SA_TRY_ASSIGN(built.outputs,
                               Detail::trace_outputs(model, trace, built.spec.inputs));
             }
@@ -303,36 +375,15 @@ namespace SushiAI
             const Graph::GraphBuilder builder(step.graph);
 
             SA_TRY_ASSIGN(step.input, Detail::declare_input(builder, batch_shape, options.dtype));
+            SA_TRY(Detail::declare_extra_inputs(builder, batch_shape.dim(0),
+                                                Detail::extra_inputs_of(model),
+                                                step.extra_inputs));
 
             {
                 NN::Trace trace = NN::Trace::training(builder, NN::discard_updates(),
                                                       options.seed);
                 trace.collect_tables(step.tables);
-                SA_TRY_ASSIGN(step.outputs, Detail::trace_outputs(model, trace, step.input));
-            }
-
-            SA_TRY(Detail::finish_traced_step(step, options));
-
-            return Result<TracedStep>(std::move(step));
-        }
-
-        /**
-         * @brief Traces @p model in Evaluation mode.
-         * @param batch_shape The extents of the input leaf, batch first.
-         * @return The forward graph after the cast pass and the fusion pass.
-         */
-        template<typename M>
-        [[nodiscard]] Result<TracedStep> build_evaluation_graph(M& model, const Shape& batch_shape,
-                                                                GraphOptions options = {}) noexcept
-        {
-            TracedStep step;
-            const Graph::GraphBuilder builder(step.graph);
-
-            SA_TRY_ASSIGN(step.input, Detail::declare_input(builder, batch_shape, options.dtype));
-
-            {
-                NN::Trace trace = NN::Trace::evaluation(builder);
-                trace.collect_tables(step.tables);
+                trace.provide_inputs(step.extra_inputs);
                 SA_TRY_ASSIGN(step.outputs, Detail::trace_outputs(model, trace, step.input));
             }
 
@@ -344,25 +395,94 @@ namespace SushiAI
         namespace Detail
         {
             /**
+             * @brief Traces @p model in Evaluation mode and adds the metric values of
+             *        @p objective, when one is given.
+             * @return The forward graph after the cast pass and the fusion pass.
+             */
+            template<typename M>
+            [[nodiscard]] Result<TracedStep> build_evaluation(M& model, const Shape& batch_shape,
+                                                              const Objective* objective,
+                                                              GraphOptions options)
+            {
+                TracedStep step;
+                const Graph::GraphBuilder builder(step.graph);
+
+                SA_TRY_ASSIGN(step.input,
+                              declare_input(builder, batch_shape, options.dtype));
+                SA_TRY(declare_extra_inputs(builder, batch_shape.dim(0), extra_inputs_of(model),
+                                            step.extra_inputs));
+
+                {
+                    NN::Trace trace = NN::Trace::evaluation(builder);
+                    trace.collect_tables(step.tables);
+                    trace.provide_inputs(step.extra_inputs);
+                    SA_TRY_ASSIGN(step.outputs, trace_outputs(model, trace, step.input));
+                }
+
+                if (objective != nullptr)
+                {
+                    SA_TRY(add_metric_values(step, builder, *objective));
+                }
+
+                SA_TRY(finish_traced_step(step, options));
+
+                return Result<TracedStep>(std::move(step));
+            }
+        } // namespace Detail
+
+        /**
+         * @brief Traces @p model in Evaluation mode.
+         * @param batch_shape The extents of the input leaf, batch first.
+         * @return The forward graph after the cast pass and the fusion pass.
+         */
+        template<typename M>
+        [[nodiscard]] Result<TracedStep> build_evaluation_graph(M& model, const Shape& batch_shape,
+                                                                GraphOptions options = {}) noexcept
+        {
+            return Detail::build_evaluation(model, batch_shape, nullptr, options);
+        }
+
+        /**
+         * @brief Traces @p model in Evaluation mode and adds the values @p objective declares
+         *        for its metrics, which the step observes and pins.
+         * @param batch_shape The extents of the input leaf, batch first.
+         * @return The forward graph after the cast pass and the fusion pass, or the failure of
+         *         the model, of the objective or of a pass.
+         */
+        template<typename M>
+        [[nodiscard]] Result<TracedStep> build_evaluation_graph(M& model, const Shape& batch_shape,
+                                                                const Objective& objective,
+                                                                GraphOptions options = {}) noexcept
+        {
+            return Detail::build_evaluation(model, batch_shape, &objective, options);
+        }
+
+        namespace Detail
+        {
+            /**
              * @brief Builds a forward graph through a carrying trace.
+             * @param extras The extra inputs of the model, declared beside the model input.
              * @param trace_model Called as trace_model(const NN::Trace&, Graph::ValueID) and
              *        returns Result<NN::ModelOutputs>.
              * @return The graph after the cast pass and the fusion pass, with what the trace
              *         declared in @c fed and @c carried.
              */
             template<typename TraceModel>
-            [[nodiscard]] Result<TracedStep> build_carrying(const Shape& batch_shape,
-                                                            const GraphOptions& options,
-                                                            TraceModel&& trace_model)
+            [[nodiscard]] Result<TracedStep> build_carrying(
+                const Shape& batch_shape, const GraphOptions& options,
+                SushiRuntime::span<const NN::ExtraInput> extras, TraceModel&& trace_model)
             {
                 TracedStep step;
                 const Graph::GraphBuilder builder(step.graph);
 
                 SA_TRY_ASSIGN(step.input, declare_input(builder, batch_shape, options.dtype));
+                SA_TRY(declare_extra_inputs(builder, batch_shape.dim(0), extras,
+                                            step.extra_inputs));
 
                 {
                     NN::Trace trace = NN::Trace::carrying(builder, step.fed, step.carried);
                     trace.collect_tables(step.tables);
+                    trace.provide_inputs(step.extra_inputs);
                     SA_TRY_ASSIGN(step.outputs,
                                   std::forward<TraceModel>(trace_model)(trace, step.input));
                 }
@@ -383,7 +503,7 @@ namespace SushiAI
         [[nodiscard]] Result<TracedStep> build_carrying_graph(M& model, const Shape& batch_shape,
                                                               GraphOptions options = {}) noexcept
         {
-            return Detail::build_carrying(batch_shape, options,
+            return Detail::build_carrying(batch_shape, options, Detail::extra_inputs_of(model),
                                           [&model](const NN::Trace& trace, Graph::ValueID input)
             {
                 return Detail::trace_outputs(model, trace, input);
@@ -402,7 +522,7 @@ namespace SushiAI
                                                                  const Shape& slice_shape,
                                                                  GraphOptions options = {}) noexcept
         {
-            return Detail::build_carrying(slice_shape, options,
+            return Detail::build_carrying(slice_shape, options, Detail::extra_inputs_of(model),
                                           [&model](const NN::Trace& trace, Graph::ValueID input)
             {
                 return model.trace_incremental(trace, input);

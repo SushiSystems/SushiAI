@@ -62,9 +62,8 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Provides the engine a fit runs on and the index of the period a row checks. */
-    class Medium_TrainerZones : public SaTest::EngineTest,
-                                public ::testing::WithParamInterface<std::size_t>
+    /** @brief Provides the engine a fit runs on. */
+    class Medium_TrainerZones : public SaTest::EngineTest
     {
 
     };
@@ -80,8 +79,24 @@ namespace
 
 // A build that compiles every zone away records no period, so it holds no case of this file.
 #if SA_PROFILE_LEVEL >= 1
-/** @brief Tests that each step of a fit writes one period holding the zones of its stages. */
-TEST_P(Medium_TrainerZones, EachStepOfAFitWritesAPeriodWithItsGroups)
+namespace
+{
+    /** @brief Expects @p period to hold exactly the SushiAI zones of a step, each in its group. */
+    void expect_step_groups(const SushiProfiler::RunRecord& record,
+                            const SushiProfiler::PeriodRecord& period)
+    {
+        const std::map<std::string, std::string> expected = {
+            {"data.read", "data"},   {"host.feed", "host"},    {"copy.input", "copy"},
+            {"device.run", "device"}, {"host.loss", "host"},   {"host.measure", "host"}};
+        // SushiRuntime's own zones of the step's run land in the same period.
+        const std::array<std::string_view, 1> runtime = {"Runtime"};
+        EXPECT_EQ(SaTest::sushiai_zones_of(record, period), expected);
+        EXPECT_FALSE(SaTest::zones_in_groups(record, period, runtime).empty());
+    }
+} // namespace
+
+/** @brief Tests that a fit of two steps writes two periods, each holding the zones of its stages. */
+TEST_F(Medium_TrainerZones, AFitOfTwoStepsWritesTwoPeriodsWithTheirGroups)
 {
     MLP model(NN::Linear{K_FEATURES, 12}, NN::ReLU{}, NN::Linear{12, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -121,20 +136,7 @@ TEST_P(Medium_TrainerZones, EachStepOfAFitWritesAPeriodWithItsGroups)
     const SushiProfiler::SessionStop stopped = session.stop();
 
     ASSERT_EQ(stopped.record.periods.size(), static_cast<std::size_t>(K_STEPS));
-    const SushiProfiler::PeriodRecord& period = stopped.record.periods[GetParam()];
-    const std::map<std::string, std::string> expected = {
-        {"data.read", "data"},   {"host.feed", "host"},    {"copy.input", "copy"},
-        {"device.run", "device"}, {"host.loss", "host"},   {"host.measure", "host"}};
-    // SushiRuntime's own zones of the step's run land in the same period.
-    const std::array<std::string_view, 1> runtime = {"Runtime"};
-    EXPECT_EQ(SaTest::sushiai_zones_of(stopped.record, period), expected);
-    EXPECT_FALSE(SaTest::zones_in_groups(stopped.record, period, runtime).empty());
+    expect_step_groups(stopped.record, stopped.record.periods[0]);
+    expect_step_groups(stopped.record, stopped.record.periods[1]);
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    Periods, Medium_TrainerZones, ::testing::Values(std::size_t{0}, std::size_t{1}),
-    [](const ::testing::TestParamInfo<std::size_t>& info)
-    {
-        return "Period" + std::to_string(info.param);
-    });
 #endif

@@ -32,6 +32,8 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/train/step_view.hpp>
 
 using namespace SushiAI;
@@ -59,4 +61,60 @@ TEST(Small_StepView, AViewCarriesTheBatchTheLossAndTheOutputsInOrder)
     EXPECT_EQ(view.outputs[0].tensor, &small);
     EXPECT_EQ(view.outputs[1].name, "p4");
     EXPECT_EQ(view.outputs[1].tensor, &large);
+}
+
+/** @brief Tests that named_value returns the tensor of the value published under a name. */
+TEST(Small_StepView, ANamedValueIsFoundByName)
+{
+    const SushiBLAS::Tensor classes{};
+    const SushiBLAS::Tensor scores{};
+    const Data::Batch batch{};
+    const std::vector<Train::StepOutput> values{Train::StepOutput{"classes", &classes},
+                                                Train::StepOutput{"scores", &scores}};
+    const Train::StepView view{batch, 0.0, {},
+                               SushiRuntime::span<const Train::StepOutput>(values.data(),
+                                                                           values.size())};
+
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor* const found,
+                            Train::named_value(view, "scores"));
+
+    EXPECT_EQ(found, &scores);
+}
+
+/** @brief Tests that an unknown name is refused, listing the names the step holds. */
+TEST(Small_StepView, AnUnknownValueNameIsRefusedListingTheNamesHeld)
+{
+    const SushiBLAS::Tensor classes{};
+    const Data::Batch batch{};
+    const std::vector<Train::StepOutput> values{Train::StepOutput{"classes", &classes}};
+    const Train::StepView view{batch, 0.0, {},
+                               SushiRuntime::span<const Train::StepOutput>(values.data(),
+                                                                           values.size())};
+
+    SA_EXPECT_FAILURE(Train::named_value(view, "missing"), StatusCode::InvalidDescription,
+                      "no objective value 'missing'", "'classes'");
+}
+
+/** @brief Tests that a view built without values holds none, as every view of a step without. */
+TEST(Small_StepView, AViewBuiltWithoutValuesHoldsNone)
+{
+    const Data::Batch batch{};
+    const Train::StepView view{batch, 0.0, {}};
+
+    EXPECT_TRUE(view.values.empty());
+    SA_EXPECT_FAILURE(Train::named_value(view, "classes"), StatusCode::InvalidDescription,
+                      "no objective value 'classes'", "(none)");
+}
+
+/** @brief Tests that a value whose tensor is null is refused, naming the value. */
+TEST(Small_StepView, AValueWithNoTensorIsRefused)
+{
+    const Data::Batch batch{};
+    const std::vector<Train::StepOutput> values{Train::StepOutput{"classes", nullptr}};
+    const Train::StepView view{batch, 0.0, {},
+                               SushiRuntime::span<const Train::StepOutput>(values.data(),
+                                                                           values.size())};
+
+    SA_EXPECT_FAILURE(Train::named_value(view, "classes"), StatusCode::InvalidDescription,
+                      "'classes'", "no tensor");
 }

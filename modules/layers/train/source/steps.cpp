@@ -33,11 +33,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
+#include <SushiAI/data/target.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -62,6 +65,9 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Labels the leaf of every extra input in the graph's diagnostics. */
+            constexpr std::string_view K_EXTRA_INPUT_LABEL = "extra_input";
+
             /** @brief Views @p values as the span the passes read. */
             SushiRuntime::span<const Graph::ValueID> view_of(
                 const std::vector<Graph::ValueID>& values) noexcept
@@ -180,6 +186,39 @@ namespace SushiAI
                 return builder.input(batch_shape, "inputs", dtype);
             }
 
+            Status declare_extra_inputs(const Graph::GraphBuilder& builder, std::int64_t rows,
+                                        SushiRuntime::span<const NN::ExtraInput> extras,
+                                        NN::InputLeafList& leaves)
+            {
+                for (const NN::ExtraInput& extra : extras)
+                {
+                    SA_FAIL_IF(extra.name == K_MODEL_INPUT_NAME, StatusCode::InvalidDescription,
+                               "the extra input '{}' is named as the model input of every step "
+                               "is", extra.name);
+
+                    SA_TRY_ASSIGN(const Shape leaf_shape, Train::batch_shape(rows, extra.sample));
+                    SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
+                                                    [&]() -> Status
+                    {
+                        // The graph keeps the label, so it is a literal that outlives it.
+                        leaves.add(NN::InputLeaf{extra.name,
+                                                 builder.input(leaf_shape, K_EXTRA_INPUT_LABEL,
+                                                               extra.dtype)});
+                        return Status();
+                    }));
+                }
+
+                return Status();
+            }
+
+            void require_extra_roles(TrainingGraph& built,
+                                     SushiRuntime::span<const NN::ExtraInput> extras)
+            {
+                for (const NN::ExtraInput& extra : extras)
+                    built.leaves.require(Data::TargetDescription{extra.name, extra.sample,
+                                                                 extra.dtype, 0});
+            }
+
             Result<NN::ModelOutputs> single_output(Graph::ValueID id)
             {
                 NN::ModelOutputs outputs;
@@ -203,8 +242,11 @@ namespace SushiAI
             Status add_loss(TrainingGraph& built, const Graph::GraphBuilder& builder,
                             const Objective& objective)
             {
-                SA_TRY_ASSIGN(built.spec.loss,
+                SA_TRY_ASSIGN(const LossTrace trace,
                               objective.loss(builder, built.graph, built.outputs, built.leaves));
+                built.spec.loss = trace.loss();
+                SA_TRY_ASSIGN(built.metric_values,
+                              objective.declare_metric_values(builder, built.outputs, trace));
 
                 if (built.leaves.has("targets"))
                 {
@@ -215,6 +257,17 @@ namespace SushiAI
                 const std::vector<NN::ModelOutputs::Entry>& published = built.outputs.all();
                 built.spec.logits =
                     published.size() == 1 ? published.front().second : Graph::K_NO_VALUE;
+
+                return Status();
+            }
+
+            Status add_metric_values(TracedStep& step, const Graph::GraphBuilder& builder,
+                                     const Objective& objective)
+            {
+                // An evaluation graph has no loss, so the objective is handed the empty trace.
+                SA_TRY_ASSIGN(step.metric_values,
+                              objective.declare_metric_values(builder, step.outputs,
+                                                              LossTrace()));
 
                 return Status();
             }
@@ -260,16 +313,20 @@ namespace SushiAI
                                                 [&built, &observed]() -> Status
                 {
                     observed.push_back(built.spec.inputs);
+                    for (const NN::InputLeaf& leaf : built.extra_inputs.leaves())
+                        observed.push_back(leaf.value);
                     if (built.spec.targets != Graph::K_NO_VALUE)
                         observed.push_back(built.spec.targets);
                     observed.push_back(built.spec.loss);
                     if (built.loss_scale != Graph::K_NO_VALUE)
                         observed.push_back(built.loss_scale);
                     append_outputs(built.outputs, observed);
+                    append_outputs(built.metric_values, observed);
 
-                    // The host reads the loss and the outputs after the run.
+                    // The host reads the loss, the outputs and the metric values after the run.
                     built.pinned.push_back(built.spec.loss);
                     append_outputs(built.outputs, built.pinned);
+                    append_outputs(built.metric_values, built.pinned);
                     return Status();
                 }));
                 SA_TRY(retain(built.updates, observed, built.pinned));
@@ -284,7 +341,10 @@ namespace SushiAI
                                                 [&step, &observed]() -> Status
                 {
                     observed.push_back(step.input);
+                    for (const NN::InputLeaf& leaf : step.extra_inputs.leaves())
+                        observed.push_back(leaf.value);
                     append_outputs(step.outputs, observed);
+                    append_outputs(step.metric_values, observed);
 
                     // A fed leaf is written by id, and a carried pair is read by id after the run.
                     for (const NN::FedLeaf& leaf : step.fed.leaves())

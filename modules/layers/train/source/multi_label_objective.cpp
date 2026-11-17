@@ -40,6 +40,7 @@
 #include <SushiAI/train/dense_losses.hpp>
 #include <SushiAI/train/dense_targets.hpp>
 #include <SushiAI/train/host_values.hpp>
+#include <SushiAI/train/kept_rows.hpp>
 
 #include "dense_objective.hpp"
 
@@ -48,7 +49,8 @@ namespace SushiAI
     namespace Train
     {
         Result<std::unique_ptr<MultiLabelObjective>> MultiLabelObjective::make(
-            std::int64_t batch, std::int64_t classes, double threshold, DType dtype) noexcept
+            std::int64_t batch, std::int64_t classes, double threshold, DType dtype,
+            ObjectiveSelection selection) noexcept
         {
             SA_TRY(Detail::validate_dense_leaf(batch, classes, dtype, K_MULTI_LABEL_TYPE));
             SA_TRY(validate_threshold(threshold));
@@ -56,13 +58,15 @@ namespace SushiAI
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
                 return std::unique_ptr<MultiLabelObjective>(
-                    new MultiLabelObjective(batch, classes, threshold, dtype));
+                    new MultiLabelObjective(batch, classes, threshold, dtype, std::move(selection)));
             });
         }
 
         MultiLabelObjective::MultiLabelObjective(std::int64_t batch, std::int64_t classes,
-                                                 double threshold, DType dtype) noexcept
-            : batch_(batch), classes_(classes), threshold_(threshold), dtype_(dtype)
+                                                 double threshold, DType dtype,
+                                                 ObjectiveSelection selection) noexcept
+            : batch_(batch), classes_(classes), threshold_(threshold), dtype_(dtype),
+              selection_(std::move(selection))
         {
 
         }
@@ -72,63 +76,87 @@ namespace SushiAI
         {
             leaves.add(Detail::K_TARGETS_LEAF,
                        builder.input(Shape{batch_, classes_}, Detail::K_TARGETS_LEAF, dtype_));
-            leaves.require(Data::TargetDescription{std::string(Data::K_ROLE_LABELS),
-                                                   Shape{classes_}, DType::Float32, 0});
+            leaves.require(Data::TargetDescription{
+                std::string(selection_.target.role_or(Data::K_ROLE_LABELS)), Shape{classes_},
+                DType::Float32, 0});
+            selection_.mask.declare(builder, leaves, Shape{batch_, classes_}, dtype_);
         }
 
-        Result<Graph::ValueID> MultiLabelObjective::loss(
+        Result<LossTrace> MultiLabelObjective::loss(
             const Graph::GraphBuilder& builder, const Graph::Graph& graph,
             const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const
         {
             const Graph::ValueID logits = Detail::require_matrix_output(
-                graph, outputs, Shape{batch_, classes_}, K_MULTI_LABEL_TYPE);
+                graph, outputs, Shape{batch_, classes_}, K_MULTI_LABEL_TYPE, selection_.output);
 
             SA_TRY_ASSIGN(const Graph::ValueID loss,
-                          emit_logistic_loss(builder, graph, logits,
-                                             leaves.at(Detail::K_TARGETS_LEAF)));
-            return loss;
+                          Detail::emit_dense_loss(
+                              builder, graph,
+                              emit_logistic_terms(builder, graph, logits,
+                                                  leaves.at(Detail::K_TARGETS_LEAF)),
+                              selection_.mask, leaves));
+            return LossTrace(loss);
         }
 
         Status MultiLabelObjective::feed(const Data::Batch& batch, const ObjectiveLeaves& leaves,
                                          Graph::TensorPool& pool) const
         {
             SA_TRY_ASSIGN(const Data::BatchTarget* const labels,
-                          require_batch_role(batch, Data::K_ROLE_LABELS));
+                          require_batch_role(batch,
+                                             selection_.target.role_or(Data::K_ROLE_LABELS)));
             SA_TRY_ASSIGN(SushiBLAS::Tensor* const targets,
                           find_leaf_tensor(leaves, Detail::K_TARGETS_LEAF, pool));
 
-            return fill_binary_targets(labels->values, *targets);
+            SA_TRY(fill_binary_targets(labels->values, *targets));
+
+            return selection_.mask.feed(batch, leaves, pool);
         }
 
         Status MultiLabelObjective::measure(const StepView& step, Metrics& metrics) const
         {
-            SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, only_output(step));
+            SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, selection_.output.resolve(step));
             SA_TRY(require_host_reals(*logits, batch_ * classes_, "the logits"));
 
             SA_TRY_ASSIGN(const Data::BatchTarget* const labels,
-                          require_batch_role(step.batch, Data::K_ROLE_LABELS));
+                          require_batch_role(step.batch,
+                                             selection_.target.role_or(Data::K_ROLE_LABELS)));
             SA_TRY(require_host_reals(labels->values, batch_ * classes_, "the labels"));
+
+            SA_TRY_ASSIGN(const KeptRows kept, selection_.mask.kept_rows_of(step.batch, batch_));
 
             const double cut = logit_of(threshold_);
             double total = 0.0;
             for (std::int64_t column = 0; column < classes_; ++column)
             {
                 total += f1_of(count_confusion(*logits, labels->values,
-                                               ColumnOfLogits{batch_, classes_, column}, cut));
+                                               ColumnOfLogits{batch_, classes_, column}, cut,
+                                               kept));
             }
 
-            return metrics.add(Metric{"f1", total / static_cast<double>(classes_), true});
+            return metrics.add(Metric{K_F1_METRIC, total / static_cast<double>(classes_), true});
+        }
+
+        SushiRuntime::span<const std::string_view> MultiLabelObjective::metric_names()
+            const noexcept
+        {
+            static constexpr std::string_view K_NAMES[] = {K_F1_METRIC};
+
+            return SushiRuntime::span<const std::string_view>(K_NAMES, 1);
         }
 
         Result<std::unique_ptr<Objective>> make_multi_label(const ObjectiveContext& given,
                                                             const Config::Value& attributes,
                                                             std::string_view context) noexcept
         {
+            SA_TRY_ASSIGN(ObjectiveSelection selection,
+                          read_selection(attributes, context, K_THRESHOLD_KEY));
             SA_TRY_ASSIGN(const double threshold, read_threshold(attributes, context));
-            SA_TRY_ASSIGN(const Shape logits, Detail::read_matrix_output(given, context));
+            SA_TRY_ASSIGN(const OutputShape* const port,
+                          Detail::read_matrix_output(given, context, selection.output));
 
             SA_TRY_ASSIGN(std::unique_ptr<MultiLabelObjective> made,
-                          MultiLabelObjective::make(logits[0], logits[1], threshold));
+                          MultiLabelObjective::make(port->shape[0], port->shape[1], threshold,
+                                                    DType::Float32, std::move(selection)));
             std::unique_ptr<Objective> base = std::move(made);
             return std::move(base);
         }

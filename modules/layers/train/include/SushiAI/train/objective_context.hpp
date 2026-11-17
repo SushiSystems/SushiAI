@@ -57,6 +57,8 @@ namespace SushiAI
         {
             std::int64_t batch = 0;           /**< Samples per step. */
             std::int64_t classes = 0;         /**< Classes of the data; 0 when it states none. */
+            /// @brief Rows of the embedding that reads the input ids; 0 for a model with none.
+            std::int64_t input_classes = 0;
             Shape input_sample;               /**< Shape of one sample entering the model. */
             Config::Value task;               /**< Task section of the model; null for none. */
             std::vector<OutputShape> outputs; /**< Published outputs, in published order. */

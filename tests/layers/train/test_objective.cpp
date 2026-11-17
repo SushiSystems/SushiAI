@@ -487,8 +487,9 @@ TEST_P(Small_ObjectiveLoss, CrossEntropyReadsTheOnlyOutput)
     NN::ModelOutputs outputs;
     const Graph::ValueID logits_leaf = builder.input(Shape{3, 4}, "logits");
     SA_EXPECT_OK(outputs.add("output", logits_leaf));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace loss_trace,
                             objective.loss(builder, graph, outputs, leaves));
+    const Graph::ValueID loss = loss_trace.loss();
     Graph::HostEvaluator evaluator(graph);
     SA_EXPECT_OK(evaluator.write(logits_leaf, logits));
     SA_EXPECT_OK(evaluator.write(leaves.at("targets"), targets));

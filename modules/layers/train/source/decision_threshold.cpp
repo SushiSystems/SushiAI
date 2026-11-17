@@ -31,6 +31,7 @@
 
 #include <cmath>
 #include <string>
+#include <SushiAI/train/objective_output.hpp>
 
 namespace SushiAI
 {
@@ -49,7 +50,9 @@ namespace SushiAI
         {
             for (const std::string& key : attributes.keys())
             {
-                SA_FAIL_IF(key != K_THRESHOLD_KEY, StatusCode::InvalidDescription,
+                // The selection keys belong to read_selection(), which the factory runs first.
+                SA_FAIL_IF(key != K_THRESHOLD_KEY && !is_selection_key(key),
+                           StatusCode::InvalidDescription,
                            "{} states the key '{}', but the only key it reads is '{}'", context,
                            key, K_THRESHOLD_KEY);
             }

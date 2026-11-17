@@ -45,6 +45,8 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/in_memory_dataset.hpp>
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
@@ -61,6 +63,7 @@
 #include <SushiAI/train/multi_label_objective.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
+#include <SushiAI/train/role_match.hpp>
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
@@ -194,9 +197,32 @@ TEST(Small_BinaryCrossEntropyObjectiveGraph, BinaryDeclaresAColumnLeafAndRealLab
     const std::vector<Data::TargetDescription>& required = built.leaves.required();
     ASSERT_EQ(required.size(), 1u);
     EXPECT_EQ(required.front().role, Data::K_ROLE_LABELS);
-    EXPECT_EQ(required.front().sample_shape, Shape{});
+    EXPECT_EQ(required.front().sample_shape, Shape{1});
     EXPECT_EQ(required.front().dtype, DType::Float32);
     EXPECT_EQ(required.front().classes, 0);
+}
+
+/** @brief Tests that the labels role the binary objective declares matches [1] and refuses []. */
+TEST(Small_BinaryCrossEntropyObjectiveGraph, TheDeclaredLabelsRoleIsServedByOneValuePerSampleOnly)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> objective,
+                            BinaryCrossEntropyObjective::make(K_BATCH));
+    MLP model = make_model(1);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const Train::TrainingGraph built,
+        Train::build_training_graph(model, *objective, Shape{K_BATCH, K_FEATURES}));
+    const Data::InputDescription input{Shape{K_FEATURES}, DType::Float32};
+    const Data::InMemoryDataset one_per_sample(
+        0, K_BATCH, input,
+        {Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{1}, DType::Float32, 0}});
+    const Data::InMemoryDataset scalar(
+        0, K_BATCH, input,
+        {Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{}, DType::Float32, 0}});
+
+    SA_EXPECT_OK(Train::match_roles(built.leaves.required(), one_per_sample));
+    SA_EXPECT_FAILURE(Train::match_roles(built.leaves.required(), scalar),
+                      StatusCode::Incompatible, "'labels'", "float32 [] per sample",
+                      "compiled for float32 [1] per sample");
 }
 
 /** @brief Tests that the binary objective cuts at one half unless it is given a threshold. */

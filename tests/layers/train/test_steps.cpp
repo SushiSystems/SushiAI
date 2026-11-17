@@ -58,6 +58,7 @@
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/sample_models/two_output_model.hpp>
+#include <SushiAI/train/in_memory_objective.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
@@ -320,56 +321,26 @@ namespace
 
     };
 
-    /** @brief Computes cross-entropy over the one output it is told to read, by name. */
-    class NamedOutputObjective final : public Train::Objective
+    /**
+     * @brief Scripts @p objective to declare the [batch, classes] leaf "targets" and to emit the
+     *        cross-entropy of the output @p output against it.
+     * @pre The model publishes @p output; a missing one stops the process.
+     */
+    void script_named_output(Train::InMemoryObjective& objective, std::string output)
     {
-        public:
-            /** @brief Reads the output @p output of a model that ends in [batch, classes]. */
-            NamedOutputObjective(std::string output, int64_t batch, int64_t classes)
-                : output_(std::move(output)), batch_(batch), classes_(classes)
+        objective.script_input_leaf("targets", Shape{K_BATCH, K_CLASSES});
+        objective.script_loss_emitter(
+            [output = std::move(output)](const Graph::GraphBuilder& builder, const Graph::Graph&,
+                                         const NN::ModelOutputs& outputs,
+                                         const Train::ObjectiveLeaves& leaves)
+                -> Result<Graph::ValueID>
             {
-
-            }
-
-            /** @brief Declares the [batch, classes] leaf "targets". */
-            void declare(const Graph::GraphBuilder& builder,
-                         Train::ObjectiveLeaves& leaves) const override
-            {
-                leaves.add("targets", builder.input(Shape{batch_, classes_}, "targets"));
-            }
-
-            /**
-             * @brief Emits the cross-entropy of the named output against "targets".
-             * @pre @p outputs holds the name; a missing one stops the process.
-             */
-            [[nodiscard]] Result<Graph::ValueID> loss(
-                const Graph::GraphBuilder& builder, const Graph::Graph&,
-                const NN::ModelOutputs& outputs,
-                const Train::ObjectiveLeaves& leaves) const override
-            {
-                const Graph::ValueID logits = outputs.at(output_).value();
                 SA_TRY_ASSIGN(const Graph::ValueID loss,
-                              NN::CrossEntropyLoss{}.forward(builder, logits,
+                              NN::CrossEntropyLoss{}.forward(builder, outputs.at(output).value(),
                                                              leaves.at("targets")));
                 return loss;
-            }
-
-            /** @brief Returns "named_output". */
-            std::string_view name() const noexcept override
-            {
-                return "named_output";
-            }
-
-        private:
-            /** @brief The name of the output the loss reads. */
-            std::string output_;
-
-            /** @brief Samples per step. */
-            int64_t batch_;
-
-            /** @brief Classes of the target leaf. */
-            int64_t classes_;
-    };
+            });
+    }
 
 } // namespace
 
@@ -596,7 +567,8 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_StepsState, ::testing::Values(0u, 1u, 2u, 3
 TEST(Small_Steps, AModelGraphWithTwoOutputsLeavesLogitsUnset)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, SushiAI::Test::build_two_output_model());
-    const NamedOutputObjective objective("logits", K_BATCH, K_CLASSES);
+    Train::InMemoryObjective objective;
+    script_named_output(objective, "logits");
 
     SA_ASSERT_OK_AND_ASSIGN(
         const Train::TrainingGraph built,

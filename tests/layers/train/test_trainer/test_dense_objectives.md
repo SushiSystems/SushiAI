@@ -44,3 +44,11 @@ After the same fit, `mean_absolute_error` is among the last metrics and in the r
 
 The refusal of a dataset whose `labels` role has another type is held by
 `test_role_match.cpp`; that the trainer takes no step after it is an add recorded in the report.
+
+## ABatchThatDropsEveryRowGivesAGradientOfExactlyZero
+
+`BinaryCrossEntropyObjective` with `type_mask: true`, trained at a rate of 0.05. A first step with
+the mask 1, 1, 1, 1 leaves a loss and a gradient that are not 0, so the zero of the second step is
+not the zero the gradient tensors start with. A second step on the same trainer with the mask 0, 0,
+0, 0 has a loss of exactly 0 and a gradient of exactly 0 in every parameter: the weights of the mask
+are 0 in every element, and each term of the backward pass is multiplied by one.

@@ -48,6 +48,7 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
+#include <SushiAI/train/extra_inputs.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/objective.hpp>
@@ -188,10 +189,11 @@ namespace SushiAI
 
                 /**
                  * @brief Runs one step: feed, replay, read metrics, update.
-                 * @param batch The batch to train on; the objective fills its leaves from it.
                  * @return The loss and the metrics of the step, the refusal of the feed() or
-                 *         the measure() of the objective, Incompatible when @p batch does
-                 *         not match the compiled shapes, or the failure of the run.
+                 *         the measure() of the objective, InvalidDescription naming a leaf its
+                 *         feed() left unwritten or an extra input the batch has no role for,
+                 *         Incompatible when @p batch does not match the compiled shapes, or
+                 *         the failure of the run.
                  */
                 [[nodiscard]] Result<StepMetrics> run_step(const Data::Batch& batch) noexcept;
 
@@ -257,6 +259,8 @@ namespace SushiAI
                     Graph::ValueID loss = Graph::K_NO_VALUE;   /**< The 1-element loss. */
                     ObjectiveLeaves leaves;                    /**< Leaves the objective fills. */
                     NN::ModelOutputs outputs;                  /**< What the model published. */
+                    NN::InputLeafList extra_inputs;            /**< Leaves the batch roles feed. */
+                    NN::ModelOutputs metric_values;            /**< What the objective declared. */
                 };
 
                 /**
@@ -275,12 +279,14 @@ namespace SushiAI
                  * @param rows The first extent of the inputs.
                  * @param input What the input leaf reads from a batch.
                  * @param outputs The tensor of every output the model published.
+                 * @param values The tensor of every value the objective declared.
                  */
                 Trainer(ExecutionBackend& backend, Graph::TensorPool& pool, Binding binding,
                         const Objective& objective, TrainerOptions options,
                         std::unique_ptr<TrainingStep> step, int64_t rows,
                         const Data::InputDescription& input,
-                        std::vector<StepOutput> outputs) noexcept;
+                        std::vector<StepOutput> outputs,
+                        std::vector<StepOutput> values) noexcept;
 
                 /// @brief The backend the batch copies are recorded and run on; not owned.
                 ExecutionBackend* backend_;
@@ -308,6 +314,12 @@ namespace SushiAI
 
                 /// @brief The tensor of every output the model published, read by measure().
                 std::vector<StepOutput> outputs_;
+
+                /// @brief The tensor of every value the objective declared, read by measure().
+                std::vector<StepOutput> values_;
+
+                /// @brief The feeds of the extra inputs of the step in hand, kept between steps.
+                std::vector<NamedFeed> extra_feeds_;
 
                 /// @brief The number of steps that have run.
                 std::size_t steps_ = 0;

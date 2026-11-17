@@ -50,7 +50,9 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/profile/profile.hpp>
 #include <SushiAI/profile/timelines.hpp>
+#include <SushiAI/train/extra_input_copy.hpp>
 #include <SushiAI/train/input_match.hpp>
+#include <SushiAI/train/leaf_writes.hpp>
 #include <SushiAI/train/parameter_groups.hpp>
 #include <SushiAI/train/role_match.hpp>
 
@@ -247,7 +249,8 @@ namespace SushiAI
             SA_TRY_ASSIGN(Binding binding,
                           SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                return Binding{built.spec.inputs, built.spec.loss, built.leaves, built.outputs};
+                return Binding{built.spec.inputs, built.spec.loss, built.leaves, built.outputs,
+                               built.extra_inputs, built.metric_values};
             }));
 
             return assemble(backend, built.graph, pool, std::move(binding), objective, optimizer,
@@ -297,6 +300,13 @@ namespace SushiAI
                            entry.first);
             }
 
+            for (const NN::ModelOutputs::Entry& entry : binding.metric_values.all())
+            {
+                SA_FAIL_IF(!pool.is_bound(entry.second), StatusCode::InvalidDescription,
+                           "The compiled step holds no tensor for the objective's value '{}'",
+                           entry.first);
+            }
+
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
                 std::vector<StepOutput> outputs;
@@ -304,9 +314,15 @@ namespace SushiAI
                 for (const NN::ModelOutputs::Entry& entry : binding.outputs.all())
                     outputs.push_back(StepOutput{entry.first, &pool.tensor(entry.second)});
 
+                std::vector<StepOutput> values;
+                values.reserve(binding.metric_values.all().size());
+                for (const NN::ModelOutputs::Entry& entry : binding.metric_values.all())
+                    values.push_back(StepOutput{entry.first, &pool.tensor(entry.second)});
+
                 return std::unique_ptr<Trainer>(
                     new Trainer(backend, pool, std::move(binding), objective, options,
-                                std::move(step), rows, input, std::move(outputs)));
+                                std::move(step), rows, input, std::move(outputs),
+                                std::move(values)));
             });
         }
 
@@ -314,7 +330,8 @@ namespace SushiAI
                          const Objective& objective, TrainerOptions options,
                          std::unique_ptr<TrainingStep> step, int64_t rows,
                          const Data::InputDescription& input,
-                         std::vector<StepOutput> outputs) noexcept
+                         std::vector<StepOutput> outputs,
+                         std::vector<StepOutput> values) noexcept
             : backend_(&backend),
               pool_(&pool),
               binding_(std::move(binding)),
@@ -323,7 +340,8 @@ namespace SushiAI
               step_(std::move(step)),
               rows_(rows),
               input_(input),
-              outputs_(std::move(outputs))
+              outputs_(std::move(outputs)),
+              values_(std::move(values))
         {
 
         }
@@ -353,7 +371,9 @@ namespace SushiAI
             // No task is recorded here, so the objective may write its leaves on the host.
             {
                 SA_ZONE("host", "feed");
+                mark_leaves_unwritten(binding_.leaves, *pool_);
                 SA_TRY(objective_->feed(batch, binding_.leaves, *pool_));
+                SA_TRY(require_leaves_written(binding_.leaves, *pool_));
             }
 
             // The minibatch inputs are copied into the fixed address buffer the plan reads.
@@ -364,7 +384,10 @@ namespace SushiAI
                 {
                     SushiBLAS::BLASOps blas(recorder);
                     blas.copy(batch.inputs, inputs);
-                    return Status();
+
+                    // The extra inputs are read from the batch and copied beside the model input.
+                    return copy_extra_inputs(binding_.extra_inputs.leaves(), batch, *pool_, blas,
+                                             extra_feeds_);
                 }));
             }
 
@@ -384,7 +407,9 @@ namespace SushiAI
                 SA_ZONE("host", "measure");
                 const StepView view{batch, result.loss,
                                     SushiRuntime::span<const StepOutput>(outputs_.data(),
-                                                                         outputs_.size())};
+                                                                         outputs_.size()),
+                                    SushiRuntime::span<const StepOutput>(values_.data(),
+                                                                         values_.size())};
                 SA_TRY(objective_->measure(view, result.metrics));
             }
 

@@ -72,13 +72,16 @@ namespace SushiAI
             constexpr double K_WHOLE = 1.0;
 
             /**
-             * @brief Lists what the planner must not pack: every output the host reads and
-             *        the next value of every carried pair, which is read behind the graph.
+             * @brief Lists what the planner must not pack: every output and metric value the
+             *        host reads and the next value of every carried pair, which is read
+             *        behind the graph.
              */
             [[nodiscard]] std::vector<Graph::ValueID> pinned_values(const TracedStep& traced)
             {
                 std::vector<Graph::ValueID> ids;
                 for (const NN::ModelOutputs::Entry& entry : traced.outputs.all())
+                    ids.push_back(entry.second);
+                for (const NN::ModelOutputs::Entry& entry : traced.metric_values.all())
                     ids.push_back(entry.second);
 
                 const SushiRuntime::span<const Graph::ValueID> kept = traced.carried.sources();
@@ -116,6 +119,21 @@ namespace SushiAI
                            K_MODEL_INPUT_NAME);
             }
 
+            for (const NN::InputLeaf& extra : traced.extra_inputs.leaves())
+            {
+                SA_FAIL_IF(extra.name == K_MODEL_INPUT_NAME
+                               || traced.extra_inputs.find(extra.name) != extra.value,
+                           StatusCode::InvalidDescription,
+                           "The extra input '{}' repeats a name of the step's inputs", extra.name);
+
+                for (const NN::FedLeaf& leaf : traced.fed.leaves())
+                {
+                    SA_FAIL_IF(leaf.name == extra.name, StatusCode::InvalidDescription,
+                               "A layer declared a fed leaf named '{}', which is an extra input "
+                               "of the model as well", extra.name);
+                }
+            }
+
             for (const NN::CarriedValue& carried : traced.carried.values())
             {
                 SA_FAIL_IF(pool.tensor(carried.leaf).storage == pool.tensor(carried.next).storage,
@@ -136,6 +154,13 @@ namespace SushiAI
                     parts.input_leaves.push_back(&pool.tensor(leaf.value));
                 }
 
+                for (const NN::InputLeaf& extra : traced.extra_inputs.leaves())
+                {
+                    parts.input_names.push_back(extra.name);
+                    parts.input_leaves.push_back(&pool.tensor(extra.value));
+                    parts.extras.push_back(extra);
+                }
+
                 for (const NN::CarriedValue& carried : traced.carried.values())
                 {
                     SushiBLAS::Tensor& leaf = pool.tensor(carried.leaf);
@@ -145,6 +170,7 @@ namespace SushiAI
                 }
 
                 parts.outputs = traced.outputs;
+                parts.metric_values = traced.metric_values;
                 return parts;
             });
         }
@@ -203,9 +229,11 @@ namespace SushiAI
               pool_(&pool),
               input_names_(std::move(parts.input_names)),
               input_leaves_(std::move(parts.input_leaves)),
+              extras_(std::move(parts.extras)),
               ordered_(input_leaves_.size(), nullptr),
               carried_(std::move(parts.carried)),
               outputs_(std::move(parts.outputs)),
+              metric_values_(std::move(parts.metric_values)),
               carries_(std::move(parts.carries)),
               step_()
         {
@@ -282,6 +310,23 @@ namespace SushiAI
             return run_in_order(FeedSpan(ordered_.data(), ordered_.size()));
         }
 
+        Status EvaluationStep::run_batch(const Data::Batch& batch) noexcept
+        {
+            batch_feeds_.clear();
+            SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
+                                            [&]() -> Status
+            {
+                batch_feeds_.push_back(NamedFeed{K_MODEL_INPUT_NAME, &batch.inputs});
+                return Status();
+            }));
+            SA_TRY(extra_feeds(SushiRuntime::span<const NN::InputLeaf>(extras_.data(),
+                                                                       extras_.size()),
+                               batch, batch_feeds_));
+
+            return run_by_name(SushiRuntime::span<const NamedFeed>(batch_feeds_.data(),
+                                                                   batch_feeds_.size()));
+        }
+
         Status EvaluationStep::reset() noexcept
         {
             if (carried_.empty())
@@ -323,6 +368,15 @@ namespace SushiAI
         Result<const SushiBLAS::Tensor*> EvaluationStep::output(std::string_view name) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID id, outputs_.at(name));
+
+            const Graph::TensorPool& pool = *pool_;
+            return &pool.tensor(id);
+        }
+
+        Result<const SushiBLAS::Tensor*> EvaluationStep::metric_value(
+            std::string_view name) const noexcept
+        {
+            SA_TRY_ASSIGN(const Graph::ValueID id, metric_values_.at(name));
 
             const Graph::TensorPool& pool = *pool_;
             return &pool.tensor(id);

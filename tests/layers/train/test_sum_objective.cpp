@@ -188,52 +188,36 @@ namespace
 
     };
 
-    /**
-     * @brief Wraps a cross-entropy term and reports a fixed accuracy, so two terms of one sum
-     *        measure the same name with values that tell them apart.
-     */
-    class FixedAccuracyObjective final : public Train::Objective
+    /** @brief Returns a term that is fed by a batch and states the names @p stated. */
+    std::unique_ptr<Train::InMemoryObjective> make_metric_term(std::vector<std::string> stated)
     {
-        public:
-            /** @brief Makes a term over 3 rows of 2 classes that reports @p accuracy. */
-            explicit FixedAccuracyObjective(double accuracy) : accuracy_(accuracy) {}
+        auto term = std::make_unique<Train::InMemoryObjective>();
+        term->script_fed_by_batch(true);
+        term->script_stated_names(std::move(stated));
 
-            /** @brief Declares what the wrapped cross-entropy declares. */
-            void declare(const Graph::GraphBuilder& builder, ObjectiveLeaves& leaves) const override
-            {
-                inner_.declare(builder, leaves);
-            }
+        return term;
+    }
 
-            /** @brief Computes what the wrapped cross-entropy computes. */
-            Result<Graph::ValueID> loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                        const NN::ModelOutputs& outputs,
-                                        const ObjectiveLeaves& leaves) const override
-            {
-                return inner_.loss(builder, graph, outputs, leaves);
-            }
+    /** @brief Returns a term that states and appends the one metric @p name with @p value. */
+    std::unique_ptr<Train::InMemoryObjective> make_one_metric_term(const std::string& name,
+                                                                   double value)
+    {
+        auto term = make_metric_term({name});
+        term->script_metric(name, value);
 
-            /** @brief Appends the fixed accuracy and reads nothing of the step. */
-            Status measure(const Train::StepView&, Train::Metrics& metrics) const override
-            {
-                return metrics.add(Train::Metric{"accuracy", accuracy_});
-            }
+        return term;
+    }
 
-            /** @brief Is fed by the batch, as the wrapped cross-entropy is. */
-            [[nodiscard]] bool is_fed_by_batch() const noexcept override
-            {
-                return inner_.is_fed_by_batch();
-            }
+    /** @brief Makes a sum of two terms of weights 1 and 0.5. */
+    Result<std::unique_ptr<SumObjective>> make_named_pair(
+        std::unique_ptr<Train::Objective> first, std::unique_ptr<Train::Objective> second)
+    {
+        std::vector<SumTerm> terms;
+        terms.push_back(SumTerm{std::move(first), 1.0});
+        terms.push_back(SumTerm{std::move(second), 0.5});
 
-            /** @brief Names the term. */
-            std::string_view name() const noexcept override
-            {
-                return "fixed-accuracy";
-            }
-
-        private:
-            CrossEntropyObjective inner_{3, 2};   /**< @brief Supplies the graph. */
-            double accuracy_;                     /**< @brief Holds the value reported. */
-    };
+        return SumObjective::make(std::move(terms));
+    }
 
     /** @brief Names a weight row by its name field. */
     std::string weight_row_name(const ::testing::TestParamInfo<WeightRow>& info)
@@ -294,7 +278,7 @@ TEST(Small_SumObjective, MakeRefusesNoTerm)
                       "at least one term");
 }
 
-/** @brief Tests that a weight that is not finite and above zero is refused, naming its term. */
+/** @brief Tests that a weight that is not finite or is below zero is refused, naming its term. */
 TEST_P(Small_SumObjectiveWeight, MakeRefusesAWeightItCannotUse)
 {
     const WeightRow& row = GetParam();
@@ -306,15 +290,118 @@ TEST_P(Small_SumObjectiveWeight, MakeRefusesAWeightItCannotUse)
 INSTANTIATE_TEST_SUITE_P(
     Rows, Small_SumObjectiveWeight,
     ::testing::Values(
-        WeightRow{"ZeroWeight", 1.0, 0.0, "Term 1", "above zero"},
-        WeightRow{"NegativeWeight", -0.5, 1.0, "Term 0", "above zero"},
+        WeightRow{"NegativeWeight", -0.5, 1.0, "Term 0", "at least zero"},
         WeightRow{"InfiniteWeight", 1.0, std::numeric_limits<double>::infinity(), "Term 1",
                   "finite"},
         WeightRow{"NaNWeight", std::numeric_limits<double>::quiet_NaN(), 1.0, "Term 0",
                   "finite"}),
     weight_row_name);
 
-/** @brief Tests that a term its own step feeds is refused when the sum is made, by name. */
+/** @brief Tests that a sum accepts a weight of 0, so a term may stand for its metrics alone. */
+TEST(Small_SumObjective, MakeAcceptsAWeightOfZero)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.0));
+
+    ASSERT_EQ(objective->terms().size(), 2u);
+    EXPECT_EQ(objective->terms()[1].weight, 0.0);
+}
+
+/** @brief Tests that a sum whose weights are all 0 is refused, since no parameter has a gradient. */
+TEST(Small_SumObjective, MakeRefusesASumWhoseWeightsAreAllZero)
+{
+    SA_EXPECT_FAILURE(make_pair(0.0, 0.0), StatusCode::InvalidDescription, "Every term",
+                      "weight 0", "no parameter has a gradient");
+}
+
+/** @brief Tests that a term whose metrics another term has appended is not measured. */
+TEST(Small_SumObjective, ATermWhoseMetricsAreAppendedAlreadyIsNotMeasured)
+{
+    auto first = make_one_metric_term("mean_iou", 0.25);
+    auto second = make_one_metric_term("mean_iou", 0.75);
+    const Train::InMemoryObjective& first_term = *first;
+    const Train::InMemoryObjective& second_term = *second;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective,
+                            make_named_pair(std::move(first), std::move(second)));
+    const Data::Batch batch;
+    const Train::StepView step{batch, 0.0, SushiRuntime::span<const Train::StepOutput>()};
+
+    Train::Metrics metrics;
+    SA_EXPECT_OK(objective->measure(step, metrics));
+
+    EXPECT_EQ(first_term.measure_count(), 1u);
+    EXPECT_EQ(second_term.measure_count(), 0u);
+    ASSERT_EQ(metrics.all().size(), 1u);
+    EXPECT_EQ(metrics.all()[0].value, 0.25);
+}
+
+/** @brief Tests that a term with one name not appended yet is measured whole. */
+TEST(Small_SumObjective, ATermWithANameNotAppendedYetIsMeasured)
+{
+    auto first = make_one_metric_term("accuracy", 0.25);
+    auto second = make_metric_term({"accuracy", "recall"});
+    second->script_metric("accuracy", 0.75);
+    second->script_metric("recall", 0.75);
+    const Train::InMemoryObjective& second_term = *second;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective,
+                            make_named_pair(std::move(first), std::move(second)));
+    const Data::Batch batch;
+    const Train::StepView step{batch, 0.0, SushiRuntime::span<const Train::StepOutput>()};
+
+    Train::Metrics metrics;
+    SA_EXPECT_OK(objective->measure(step, metrics));
+
+    EXPECT_EQ(second_term.measure_count(), 1u);
+    ASSERT_NE(metrics.find("accuracy"), nullptr);
+    ASSERT_NE(metrics.find("recall"), nullptr);
+    EXPECT_EQ(metrics.find("accuracy")->value, 0.25);
+    EXPECT_EQ(metrics.find("recall")->value, 0.75);
+}
+
+/** @brief Tests that a term that states no names is measured, as it cannot be left out. */
+TEST(Small_SumObjective, ATermThatStatesNoNameIsMeasured)
+{
+    auto first = make_one_metric_term("accuracy", 0.25);
+    auto second = make_metric_term({});
+    second->script_metric("accuracy", 0.75);
+    const Train::InMemoryObjective& second_term = *second;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective,
+                            make_named_pair(std::move(first), std::move(second)));
+    const Data::Batch batch;
+    const Train::StepView step{batch, 0.0, SushiRuntime::span<const Train::StepOutput>()};
+
+    Train::Metrics metrics;
+    SA_EXPECT_OK(objective->measure(step, metrics));
+
+    EXPECT_EQ(second_term.measure_count(), 1u);
+    ASSERT_EQ(metrics.all().size(), 1u);
+    EXPECT_EQ(metrics.all()[0].value, 0.25);
+}
+
+/** @brief Tests that a sum states the names of its terms once, in order. */
+TEST(Small_SumObjective, ASumStatesTheNamesOfItsTermsOnce)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<SumObjective> objective,
+        make_named_pair(make_metric_term({"accuracy"}),
+                        make_metric_term({"accuracy", "recall"})));
+
+    const SushiRuntime::span<const std::string_view> names = objective->metric_names();
+
+    EXPECT_EQ((std::vector<std::string_view>(names.begin(), names.end())),
+              (std::vector<std::string_view>{"accuracy", "recall"}));
+}
+
+/** @brief Tests that a sum with a term that states no names states none itself. */
+TEST(Small_SumObjective, ASumWithATermThatStatesNoNameStatesNone)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective,
+                            make_named_pair(make_metric_term({"accuracy"}),
+                                            make_metric_term({})));
+
+    EXPECT_TRUE(objective->metric_names().empty());
+}
+
+/** @brief Tests that a term whose own step feeds it is refused when the sum is made, by name. */
 TEST(Small_SumObjective, MakeRefusesATermItsOwnStepFeeds)
 {
     std::vector<SumTerm> terms;
@@ -388,8 +475,9 @@ TEST(Small_SumObjective, TheLossAddsTheWeightedLossesOfItsTerms)
     const Graph::ValueID logits = builder.input(Shape{K_BATCH, K_CLASSES}, "logits");
     NN::ModelOutputs outputs;
     SA_EXPECT_OK(outputs.add("output", logits));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace loss_trace,
                             objective->loss(builder, graph, outputs, leaves));
+    const Graph::ValueID loss = loss_trace.loss();
     Graph::HostEvaluator evaluator(graph);
     SA_EXPECT_OK(evaluator.write(logits, {0, 1.0986122886681098, 0, 0, 1.0986122886681098, 0,
                                           0, 1.0986122886681098, 0, 0, 1.0986122886681098, 0}));
@@ -404,6 +492,41 @@ TEST(Small_SumObjective, TheLossAddsTheWeightedLossesOfItsTerms)
     ASSERT_EQ(result.size(), 1u);
     EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
         result.front(), 1.3155445799830407, K_WEIGHTED_LOSS_OPERATIONS)));
+}
+
+/**
+ * @brief Tests that a term of weight 0 adds nothing to the loss.
+ *
+ * On the data of the case above, term 0 has the loss ln 5 - ln 3 and term 1 has ln 5. With the
+ * weights 1 and 0 the sum is ln 5 - ln 3 = ln (5 / 3) = 0.5108256237659907.
+ */
+TEST(Small_SumObjective, ATermOfWeightZeroAddsNothingToTheLoss)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.0));
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    ObjectiveLeaves leaves;
+    objective->declare(builder, leaves);
+    const Graph::ValueID logits = builder.input(Shape{K_BATCH, K_CLASSES}, "logits");
+    NN::ModelOutputs outputs;
+    SA_EXPECT_OK(outputs.add("output", logits));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace loss_trace,
+                            objective->loss(builder, graph, outputs, leaves));
+    const Graph::ValueID loss = loss_trace.loss();
+    Graph::HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(logits, {0, 1.0986122886681098, 0, 0, 1.0986122886681098, 0,
+                                          0, 1.0986122886681098, 0, 0, 1.0986122886681098, 0}));
+    SA_EXPECT_OK(evaluator.write(leaves.at("term0.targets"),
+                                 {0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0}));
+    SA_EXPECT_OK(evaluator.write(leaves.at("term1.targets"),
+                                 {1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(loss));
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+        result.front(), 0.5108256237659907, K_WEIGHTED_LOSS_OPERATIONS)));
 }
 
 /** @brief Tests that the loss of a sum is one element. */
@@ -451,8 +574,12 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_SumObjectiveGradient, ::testing::Values(0u,
 TEST(Small_SumObjective, MeasureReportsTheAccuracyOfTheFirstOfTwoTerms)
 {
     std::vector<SumTerm> terms;
-    terms.push_back(SumTerm{std::make_unique<FixedAccuracyObjective>(0.25), 1.0});
-    terms.push_back(SumTerm{std::make_unique<FixedAccuracyObjective>(0.75), 0.5});
+    auto first = make_metric_term({});
+    first->script_metric("accuracy", 0.25);
+    auto second = make_metric_term({});
+    second->script_metric("accuracy", 0.75);
+    terms.push_back(SumTerm{std::move(first), 1.0});
+    terms.push_back(SumTerm{std::move(second), 0.5});
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective,
                             SumObjective::make(std::move(terms)));
     const Data::Batch batch;

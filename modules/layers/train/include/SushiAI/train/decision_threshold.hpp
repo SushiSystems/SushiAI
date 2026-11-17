@@ -49,11 +49,10 @@ namespace SushiAI
 
         /**
          * @brief Reads the optional K_THRESHOLD_KEY of an objective section.
-         * @param attributes The keys of the objective; it may state the threshold alone.
+         * @param attributes The keys of the objective: the threshold and the selection keys.
          * @param context What to call the objective in a diagnostic.
-         * @return The threshold, K_DEFAULT_THRESHOLD when the key is absent, or
-         *         InvalidDescription for another key, a value that is no number, or what
-         *         validate_threshold() refuses.
+         * @return The threshold, K_DEFAULT_THRESHOLD when absent, or InvalidDescription for
+         *         another key, a non-number, or what validate_threshold() refuses.
          */
         [[nodiscard]] Result<double> read_threshold(const Config::Value& attributes,
                                                     std::string_view context) noexcept;

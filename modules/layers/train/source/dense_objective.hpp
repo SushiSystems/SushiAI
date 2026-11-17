@@ -35,9 +35,13 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
+#include <SushiAI/train/objective_output.hpp>
+#include <SushiAI/train/row_mask.hpp>
 
 namespace SushiAI
 {
@@ -60,23 +64,37 @@ namespace SushiAI
                                                      DType dtype, std::string_view objective);
 
             /**
-             * @brief Returns the only output of @p outputs.
-             * @pre @p outputs holds one value of the shape @p expected; anything else stops
+             * @brief Returns the output @p selector names, or the only output of @p outputs.
+             * @pre @p outputs holds that output, of the shape @p expected; anything else stops
              *      the process, naming @p objective.
              */
-            [[nodiscard]] Graph::ValueID require_matrix_output(const Graph::Graph& graph,
-                                                               const NN::ModelOutputs& outputs,
-                                                               const Shape& expected,
-                                                               std::string_view objective);
+            [[nodiscard]] Graph::ValueID require_matrix_output(
+                const Graph::Graph& graph, const NN::ModelOutputs& outputs, const Shape& expected,
+                std::string_view objective, const ObjectiveOutput& selector = ObjectiveOutput());
 
             /**
-             * @brief Returns the extents of the one [batch, columns] output of @p given.
+             * @brief Returns the [batch, columns] output of @p given that @p selector names,
+             *        or its only output.
              * @param context What to call the objective in a diagnostic.
-             * @return InvalidDescription for a model that publishes another count of
-             *         outputs, or one of another rank or another batch.
+             * @return A pointer into @p given, never null, or InvalidDescription for a model
+             *         that publishes no such output, or one of another rank or another batch.
              */
-            [[nodiscard]] Result<Shape> read_matrix_output(const ObjectiveContext& given,
-                                                           std::string_view context);
+            [[nodiscard]] Result<const OutputShape*> read_matrix_output(
+                const ObjectiveContext& given, std::string_view context,
+                const ObjectiveOutput& selector = ObjectiveOutput());
+
+            /**
+             * @brief Emits the loss of a dense objective from its per-element @p terms.
+             * @param terms The [N, width] terms, e.g. emit_logistic_terms().
+             * @param mask The rows the loss keeps; the leaves of an off mask are not read.
+             * @return The mean of every term for an off mask; the mean, over the kept rows, of
+             *         the mean of each row for an on one.
+             */
+            [[nodiscard]] Graph::Traced emit_dense_loss(const Graph::GraphBuilder& builder,
+                                                        const Graph::Graph& graph,
+                                                        const Graph::Traced& terms,
+                                                        const RowMask& mask,
+                                                        const ObjectiveLeaves& leaves) noexcept;
 
         } // namespace Detail
     } // namespace Train

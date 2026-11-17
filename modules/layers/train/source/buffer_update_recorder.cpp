@@ -23,7 +23,7 @@
 
 /**
  * @file buffer_update_recorder.cpp
- * @brief Implements the binding of buffer updates and the recorder that blends them.
+ * @brief Implements the binding of buffer updates to the tensors they touch.
  * @author Mustafa Garip
  */
 
@@ -33,7 +33,6 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/check.hpp>
@@ -52,12 +51,6 @@ namespace SushiAI
 {
     namespace Train
     {
-        namespace
-        {
-            /** @brief Counts the device tasks one slot records: a scale and an axpy. */
-            constexpr std::size_t K_TASKS_PER_SLOT = 2;
-        } // namespace
-
         Result<std::vector<BufferUpdateSlot>> bind_buffer_updates(
             const NN::BufferUpdateList& updates, NN::ModelState& state,
             const Graph::TensorPool& pool) noexcept
@@ -100,34 +93,6 @@ namespace SushiAI
             }));
 
             return std::move(slots);
-        }
-
-        BufferUpdateRecorder::BufferUpdateRecorder(std::vector<BufferUpdateSlot> slots) noexcept
-            : slots_(std::move(slots))
-        {
-
-        }
-
-        Result<std::size_t> BufferUpdateRecorder::record_into_step(
-            const Graph::StepRecording& recording)
-        {
-            SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Record, [&]() -> Status
-            {
-                SushiBLAS::BLASOps blas(recording.tasks());
-                for (BufferUpdateSlot& slot : slots_)
-                {
-                    blas.scal(1.0 - slot.momentum, slot.target);
-                    blas.axpy(slot.momentum * slot.source_scale, slot.source, slot.target);
-                }
-                return Status();
-            }));
-
-            return slots_.size() * K_TASKS_PER_SLOT;
-        }
-
-        std::size_t BufferUpdateRecorder::slot_count() const noexcept
-        {
-            return slots_.size();
         }
 
     } // namespace Train

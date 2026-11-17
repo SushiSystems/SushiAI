@@ -30,6 +30,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -39,10 +40,13 @@ namespace SushiAI
 {
     namespace Train
     {
-        /** @brief Pairs the name of a published model output with the tensor a step wrote. */
+        /**
+         * @brief Pairs the name of a published value with the tensor a step wrote: a model
+         *        output, or a value an objective declared with Objective::declare_metric_values().
+         */
         struct StepOutput
         {
-            std::string name;                          /**< Name the model publishes it under. */
+            std::string name;                          /**< Name it is published under. */
             const SushiBLAS::Tensor* tensor = nullptr; /**< Its tensor; the pool owns it. */
         };
 
@@ -52,6 +56,7 @@ namespace SushiAI
             const Data::Batch& batch;                     /**< The batch the step trained on. */
             double loss = 0.0;                            /**< The loss the step computed. */
             SushiRuntime::span<const StepOutput> outputs; /**< Outputs, in published order. */
+            SushiRuntime::span<const StepOutput> values{}; /**< Objective values, declared order. */
         };
 
         /**
@@ -61,6 +66,15 @@ namespace SushiAI
          *         the step published.
          */
         [[nodiscard]] Result<const SushiBLAS::Tensor*> only_output(const StepView& step) noexcept;
+
+        /**
+         * @brief Returns the tensor of the value an objective declared under @p name.
+         * @pre No recorded task writes the tensor.
+         * @return The tensor, never null, or InvalidDescription naming @p name and the values
+         *         the step holds.
+         */
+        [[nodiscard]] Result<const SushiBLAS::Tensor*> named_value(const StepView& step,
+                                                                   std::string_view name) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

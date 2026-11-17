@@ -115,11 +115,12 @@ namespace
      * The loss is NLL_LOSS over the masked value itself with every target at -K_ROWS, which is
      * the sum of the masked elements.
      */
-    class Probe
+    class MaskedGraph
     {
         public:
             /** @brief Builds and compiles the graph with the site seed @p seed. */
-            Probe(SushiAI::ExecutionBackend& backend, std::uint64_t seed) : pool_(backend.engine())
+            MaskedGraph(SushiAI::ExecutionBackend& backend, std::uint64_t seed)
+                : pool_(backend.engine())
             {
                 const GraphBuilder builder(graph_);
                 const Shape shape{K_ROWS, K_WIDTH};
@@ -299,9 +300,9 @@ namespace
             void SetUp() override
             {
                 SaTest::EngineTest::SetUp();
-                first = std::make_unique<Probe>(backend(), K_SEED);
-                second = std::make_unique<Probe>(backend(), K_SEED);
-                other = std::make_unique<Probe>(backend(), K_SEED + 1);
+                first = std::make_unique<MaskedGraph>(backend(), K_SEED);
+                second = std::make_unique<MaskedGraph>(backend(), K_SEED);
+                other = std::make_unique<MaskedGraph>(backend(), K_SEED + 1);
             }
 
             /** @brief Runs the two probes of one seed once and expects the same output bytes. */
@@ -320,16 +321,16 @@ namespace
                 EXPECT_NE(first->y_bytes(), other->y_bytes());
             }
 
-            std::unique_ptr<Probe> first;   /**< @brief Holds the seed K_SEED. */
-            std::unique_ptr<Probe> second;  /**< @brief Holds the seed K_SEED again. */
-            std::unique_ptr<Probe> other;   /**< @brief Holds the seed K_SEED + 1. */
+            std::unique_ptr<MaskedGraph> first;   /**< @brief Holds the seed K_SEED. */
+            std::unique_ptr<MaskedGraph> second;  /**< @brief Holds the seed K_SEED again. */
+            std::unique_ptr<MaskedGraph> other;   /**< @brief Holds the seed K_SEED + 1. */
     };
 }
 
 /** @brief Tests that the mask holds 0 or the scale and each output is the input times it. */
 TEST_F(Medium_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
 {
-    Probe probe(backend(), K_SEED);
+    MaskedGraph probe(backend(), K_SEED);
     ASSERT_TRUE(probe.ready());
 
     probe.run();
@@ -349,7 +350,7 @@ TEST_F(Medium_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
 /** @brief Tests that the kept fraction of the mask is within four spreads of 3/4. */
 TEST_F(Medium_Dropout, TheKeptFractionIsAboutTheKeepProbability)
 {
-    Probe probe(backend(), K_SEED);
+    MaskedGraph probe(backend(), K_SEED);
     ASSERT_TRUE(probe.ready());
 
     probe.run();
@@ -384,7 +385,7 @@ TEST_F(Medium_DropoutSeeds, AStepWithAnotherSeedDiffersAtEveryRun)
 /** @brief Tests that the loss is the sum of the masked elements the step produced. */
 TEST_F(Medium_Dropout, TheLossIsTheSumOfTheMaskedOutput)
 {
-    Probe probe(backend(), K_SEED);
+    MaskedGraph probe(backend(), K_SEED);
     ASSERT_TRUE(probe.ready());
 
     probe.run();

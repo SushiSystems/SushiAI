@@ -29,6 +29,8 @@
 
 #include <SushiAI/train/step_view.hpp>
 
+#include <string>
+#include <SushiLog/text/text_format.hpp>
 #include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
@@ -44,6 +46,32 @@ namespace SushiAI
                        "The output '{}' of the step has no tensor", step.outputs[0].name);
 
             return step.outputs[0].tensor;
+        }
+
+        Result<const SushiBLAS::Tensor*> named_value(const StepView& step,
+                                                     std::string_view name) noexcept
+        {
+            for (const StepOutput& value : step.values)
+            {
+                if (value.name != name)
+                    continue;
+
+                SA_FAIL_IF(value.tensor == nullptr, StatusCode::InvalidDescription,
+                           "The value '{}' of the step has no tensor", name);
+
+                return value.tensor;
+            }
+
+            return Status::from_message(StatusCode::InvalidDescription, [&]()
+            {
+                std::string held;
+                for (const StepOutput& value : step.values)
+                    held += (held.empty() ? "'" : ", '") + value.name + "'";
+
+                return SushiLog::format_text(
+                    "The step holds no objective value '{}'; it holds: {}", name,
+                    held.empty() ? std::string("(none)") : held);
+            });
         }
 
     } // namespace Train
