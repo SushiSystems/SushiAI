@@ -19,6 +19,7 @@ from pathlib import Path
 from sushicore import build_admission, build_report
 from sushicore.build_tree import K_DEFAULT_BUILD_TYPE, refuse_another_build_type
 from sushicore.cmake_cache import cached_value
+from sushicore.errors import ProjectRootNotFoundError
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
 from sushicore.testing.program_runner import ProgramRunner
 from sushicore.provision.sushi_packages import PackageError, PackageSet, configure_arguments
@@ -661,7 +662,7 @@ def is_built(target: str) -> bool:
     """Returns whether the executable *target* exists in this checkout's default tree."""
     try:
         root = find_project_root()
-    except SystemExit:
+    except ProjectRootNotFoundError:
         return False
     build_dir = build_trees.build_dir(root, K_DEFAULT_TYPE.value)
     return build_dir.is_dir() and discovery.match_by_name(build_dir, target) is not None

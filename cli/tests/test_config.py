@@ -9,14 +9,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from sushicore.errors import ProjectRootNotFoundError
 
 from sushiai import config
 
 
 @pytest.mark.small
 def test_find_project_root_raises_outside_checkout():
-    """No ancestor is a root -> a clear SystemExit, not a crash."""
-    with pytest.raises(SystemExit):
+    """No ancestor is a root -> ProjectRootNotFoundError, not a crash."""
+    with pytest.raises(ProjectRootNotFoundError):
         config.find_project_root(Path("nowhere") / "below", is_root=lambda folder: False)
 
 

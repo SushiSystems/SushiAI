@@ -123,10 +123,13 @@ Still lacking:
 
 - **`ImportedModel` holds weights as records and bytes**, the pair the checkpoint writer takes,
   so an importer and the import program need no engine.
-- **`train.json` is written with `"data": null`.** `sushiai train` refuses it by name until a
-  person fills the block; no dataset is invented.
+- **`train.json` names no dataset.** A Darknet import writes a data block holding only the
+  `darknet` pipeline and its `jitter`, `hue`, `saturation` and `exposure`; the other importers
+  write `"data": null`. `sushiai train` refuses the file by name until a person names the
+  reader; no dataset is invented.
 - **A value with no key is a note the command prints**, with its line: `batch`,
-  `subdivisions`, `max_batches`, `jitter`, `random` and the augmentation keys.
+  `subdivisions`, `max_batches`, `angle` and `mosaic` of the first section, and `random`,
+  `resize` and `cls_normalizer` of a head.
 - **Heads whose training options differ are refused**, naming the two heads and the key.
 - **`sushiai inference` reports by the model's task type**; a model without a task takes the
   class report. Its score and suppression thresholds and its confidence floor default to constants of the

@@ -80,11 +80,13 @@ def test_import_writes_a_model_file_that_carries_the_anchor_task(imported: Path)
 
 
 @_needs_build
-def test_import_writes_a_training_file_with_the_anchor_objective_and_no_data(imported: Path):
-    """The train.json carries the anchor objective and `"data": null` for the user to fill."""
+def test_import_writes_a_training_file_with_the_anchor_objective_and_no_reader(imported: Path):
+    """The train.json carries the anchor objective and a data block of the darknet pipeline alone,
+    with no reader, for the user to fill."""
     training = json.loads((imported / "train.json").read_text(encoding="utf-8"))
     assert training["objective"]["type"] == "anchor"
-    assert training["data"] is None
+    assert training["data"]["pipeline"] == "darknet"
+    assert "reader" not in training["data"]
 
 
 @_needs_build
@@ -140,8 +142,8 @@ def test_import_replaces_a_file_with_force(small_cfg: Path, imported: Path):
 @_needs_build
 def test_an_unknown_format_lists_the_formats_the_build_has(small_cfg: Path, tmp_path: Path):
     """The C++ diagnostic reaches the caller and names `darknet`."""
-    completed = _run("import", "caffe", str(small_cfg), "--output", str(tmp_path / "none"))
+    completed = _run("import", "tflite", str(small_cfg), "--output", str(tmp_path / "none"))
 
     assert completed.returncode != 0
     combined = completed.stdout + completed.stderr
-    assert "'caffe'" in combined and "'darknet'" in combined, combined
+    assert "'tflite'" in combined and "'darknet'" in combined, combined

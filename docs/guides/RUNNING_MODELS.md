@@ -315,15 +315,17 @@ It writes three files into the directory:
 | --- | --- |
 | `model.json` | The architecture, with its task section |
 | `weights.sushi` | The weights, when the foreign files held any |
-| `train.json` | `model`, `weights`, `"data": null`, `"checkpoint": "trained.sushi"` and the training recipe the foreign files state |
+| `train.json` | `model`, `weights`, `data`, `"checkpoint": "trained.sushi"` and the training recipe the foreign files state |
 
 The run prints the format, each input file, the size of the model and the tensor count,
 one `wrote <file>` line per file, and then a list of notes. A note names each value of the
 foreign files that none of the three files holds; for Darknet these are `batch`,
-`subdivisions`, `max_batches` and the augmentation keys.
+`subdivisions`, `max_batches`, `angle`, `mosaic`, `random`, `resize` and `cls_normalizer`.
 
-`train.json` is not ready to run. No foreign file names a dataset, so the import writes
-`"data": null`, and `sushiai train` refuses the file until you fill the block. Without a
+`train.json` is not ready to run. No foreign file names a dataset. A Darknet import writes a
+`data` block that holds only the `darknet` pipeline and its `jitter`, `hue`, `saturation` and
+`exposure`; the other importers write `"data": null`. `sushiai train` refuses the file until you
+name the reader and its folder. Without a
 `.weights` file there is no `weights` key and a run initialises the model.
 
 The command creates no engine and needs no device.

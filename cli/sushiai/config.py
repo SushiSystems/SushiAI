@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from sushicore.errors import ProjectRootNotFoundError
 from sushicore.module_config import ModuleConfig
 from sushicore.profile import ModuleProfile
 from sushicore.stack_config import StackConfig
@@ -49,13 +50,13 @@ def find_project_root(start: Path | None = None,
     @param is_root Tells whether a folder is the project root. The default is the check of
         sushicore, which looks for the root marker on disk; a test passes its own to walk a
         tree it never writes.
-    @raise SystemExit when no ancestor is a root.
+    @raise ProjectRootNotFoundError when no ancestor is a root.
     """
     if is_root is None:
         return _MODULE.find_project_root(start)
     root = walk_up(start or Path.cwd(), is_root)
     if root is None:
-        raise SystemExit(PROFILE.not_a_project_message())
+        raise ProjectRootNotFoundError(PROFILE.not_a_project_message())
     return root
 
 #: Maps each field to its environment variable; `sa config` reads the reverse map.
