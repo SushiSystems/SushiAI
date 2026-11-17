@@ -58,7 +58,7 @@ A SushiRuntime `Error` keeps its text and maps by its code, one row per code:
 | `Unsupported` | `Unsupported` | a missing fp16 path |
 | `InvalidGraph` | `InvalidDescription` | buffers that span two device contexts |
 | `InvalidAccess` | `Unsupported` | a placement naming a device the machine lacks |
-| `InvalidState` | `Unsupported` | a second graph while another run is in flight |
+| `InvalidState` | `Busy` | a second graph while another run is in flight |
 | `ProtocolMismatch` | `Incompatible` | a peer that speaks another protocol version |
 | `CompileFailed` | `OutOfMemory` while allocating, `DeviceFailed` while executing | it names no cause, so the phase decides, as for a plain `std::runtime_error` |
 
@@ -71,6 +71,11 @@ size rule.
 `DanglingResource` stops the process and returns no Status, because a tensor freed before the
 step that names it breaks the contract of the pool. The case checks the report with
 `SA_EXPECT_FATAL`.
+
+### RuntimeStaleHandleIsFatal
+
+A death test, so `medium` like the case above. `StaleHandle` stops the process the same way:
+a handle whose slot was retired or reused names a tensor the pool already gave back.
 
 ### BadAllocIsOutOfMemoryInEveryPhase
 

@@ -56,8 +56,8 @@ namespace SushiAI
         /**
          * @brief Returns the Status of an Error SushiRuntime returned, by its code.
          *
-         * Stops the process for DanglingResource, which reports a tensor freed before the
-         * step that names it.
+         * Stops the process for DanglingResource and StaleHandle, which report a tensor freed
+         * before the step that names it.
          * @param phase Decides the code of CompileFailed, which names no cause.
          * @return A failure whose message is the Error's; never a success.
          */

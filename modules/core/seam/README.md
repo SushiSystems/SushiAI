@@ -29,8 +29,9 @@ runtime's message.
 | `KernelFailed`, `DeviceLost` | `DeviceFailed` | A kernel that faulted, or a device that went away |
 | `Unsupported` | `Unsupported` | A capability the runtime does not offer |
 | `InvalidAccess` | `Unsupported` | A placement on a device the machine lacks, or an external handle the runtime refused |
-| `InvalidState` | `Unsupported` | A run started while another graph's run is in flight on the same runtime |
+| `InvalidState` | `Busy` | A run started while another graph's run is in flight on the same runtime |
 | `InvalidGraph` | `InvalidDescription` | A graph the runtime cannot run as recorded: a count above capacity, buffers across device contexts, a launch past its handle, a cycle |
 | `ProtocolMismatch` | `Incompatible` | A peer that speaks another version of the wire protocol |
 | `CompileFailed` | `OutOfMemory` in the `Allocate` phase, `DeviceFailed` otherwise | A plan that could not be built, with no cause named |
 | `DanglingResource` | none; `SA_FATAL` | A tensor freed before the step that names it, which breaks the contract of the pool that owns it |
+| `StaleHandle` | none; `SA_FATAL` | A handle whose slot was retired or reused since it was minted, the same broken contract |

@@ -194,7 +194,7 @@ TEST(Small_Seam, RuntimeFailureThatTheUserCanActOnMapsByItsCode)
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::InvalidState, "another run is in flight"),
                         SeamPhase::Execute),
-        StatusCode::Unsupported, "another run is in flight");
+        StatusCode::Busy, "another run is in flight");
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::ProtocolMismatch, "peer speaks version 2"),
                         SeamPhase::Execute),
@@ -215,6 +215,14 @@ TEST(Medium_SeamFatal, RuntimeDanglingResourceIsFatal)
         (void)status_of_error(runtime_failure(ErrorCode::DanglingResource, "freed"),
                               SeamPhase::Execute),
         "SushiRuntime reported DanglingResource", "freed");
+}
+
+TEST(Medium_SeamFatal, RuntimeStaleHandleIsFatal)
+{
+    SA_EXPECT_FATAL(
+        (void)status_of_error(runtime_failure(ErrorCode::StaleHandle, "retired"),
+                              SeamPhase::Execute),
+        "SushiRuntime reported StaleHandle", "retired");
 }
 
 TEST(Small_Seam, BadAllocIsOutOfMemoryInEveryPhase)

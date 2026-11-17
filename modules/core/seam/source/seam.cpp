@@ -81,8 +81,10 @@ namespace SushiAI
 
                 case ErrorCode::Unsupported:
                 case ErrorCode::InvalidAccess:
-                case ErrorCode::InvalidState:
                     return failure_of(StatusCode::Unsupported, text);
+
+                case ErrorCode::InvalidState:
+                    return failure_of(StatusCode::Busy, text);
 
                 case ErrorCode::InvalidGraph:
                 case ErrorCode::InvalidArgument:
@@ -95,6 +97,7 @@ namespace SushiAI
                     return failure_of(untyped_code(phase), text);
 
                 case ErrorCode::DanglingResource:
+                case ErrorCode::StaleHandle:
                     SA_FATAL("SushiRuntime reported {}: {}",
                              SushiRuntime::to_string(error.code), text);
             }
