@@ -26,6 +26,13 @@ A `ModelGraph` holding a batch norm named `bn`, traced in training mode, lists `
 `bn.bias` as parameters. It then lists `bn.running_mean`, with constant initial value 0, and
 `bn.running_var`, with constant initial value 1, as buffers.
 
+## ListStateEntriesEqualsTheEntriesCreateProduces
+
+A batch-norm `ModelGraph` traced in training mode, listed with `list_state_entries` under the prefix
+"net", gives four entries. Their names, shapes, element types, kinds and identities equal, position
+by position, those of `ModelState::create` on the same model and prefix. The first is
+`net.bn.weight` of shape [3]; the third is the buffer `net.bn.running_mean`.
+
 ## AnUntracedModelGivesAnEmptyState
 
 A model that was never traced gives a valid state with no entries.

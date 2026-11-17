@@ -83,9 +83,10 @@ The value cases run LAYER_NORM and the `LayerNorm` layer on an engine with an ep
 compare with a host loop in double. The bounds are derived: `K_FLOAT32_TOLERANCE` is 32 rounded
 operations, times an amplification of 16 by the inverse deviation, times the float unit roundoff;
 `K_FLOAT64_TOLERANCE` is that count times 32 with the double unit roundoff. The gradient cases
-normalise a FLOAT64 [2, 3, 4] value, reshape it to [6, 4], and compare the analytic gradient of one
-leaf with central differences while the other leaves hold seeded noise. The `Probe` stops the test
-when its step does not compile, and `cycling_one_hot_targets` builds the targets.
+normalise a FLOAT64 [2, 3, 4] value, reshape it to [6, 4], take its log-softmax, and compare the
+analytic gradient of one leaf with central differences while the other leaves hold seeded noise.
+The shared `GradientProbe` of `tests/support/gradient_probe.hpp` builds the loss and the targets and
+stops the test when its step does not compile.
 
 ### EachRowIsNormalisedByItsOwnStatistics
 

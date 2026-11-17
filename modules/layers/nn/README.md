@@ -38,9 +38,10 @@ three trace forms, `Result<Shape> output_shape(const Shape&) const`, and one `st
 | `module.hpp` | `Parameter`, `ParameterRole`, `ParameterInit`, `field`, `buffer`, `child`, `StateVisitor`, `ParameterVisitor`, `walk_state`, `for_each_parameter`, `for_each_buffer`, `parameter_count`, `buffer_count`, `parameter_elements`, `Module`, `ModuleContainer` |
 | `buffer.hpp` | `Buffer` |
 | `module_list.hpp` | `ModuleList<T>` |
-| `model_state.hpp` | `StateKind`, `StateEntry`, `ModelState` |
+| `model_state.hpp` | `StateKind`, `StateEntry`, `list_state_entries`, `ModelState` |
 | `trace.hpp` | `TraceMode`, `BufferUpdate`, `BufferUpdateSink`, `BufferUpdateList`, `discard_updates`, `Trace`, `TraceModule`, `ModalModule`, `Traceable`, `trace_layer` |
 | `host_table.hpp` | `HostTable`, `HostTableSink`, `HostTableList` |
+| `input_leaves.hpp` | `ExtraInput`, `InputLeaf`, `InputLeafList` |
 | `layers.hpp` | `Linear`, `ReLU`, `GELU`, `Tanh`, `Sigmoid`, `Sequential` |
 | `leaky_relu.hpp` | `LeakyReLU` |
 | `silu.hpp` | `SiLU` |
@@ -70,6 +71,9 @@ three trace forms, `Result<Shape> output_shape(const Shape&) const`, and one `st
 | `layer_node.hpp` | `LayerNode` |
 | `concat.hpp` | `Concat`, `make_concat_node` |
 | `add.hpp` | `Add`, `make_add_node` |
+| `elementwise_binary.hpp` | `BinaryOperation`, `binary_row_name`, `ElementwiseBinary`, `make_binary_node`, `make_mul_node`, `make_maximum_node`, `make_sub_node`, `make_div_node` |
+| `softmax.hpp` | `Softmax`, `make_softmax_node` |
+| `transpose.hpp` | `Transpose`, `make_transpose_node` |
 | `model_outputs.hpp` | `ModelOutputs` |
 | `model_graph.hpp` | `NodeRef`, `ModelGraph` |
 | `node_registry.hpp` | `NodeRegistry`, `make_node`, `build_model` |
@@ -126,7 +130,9 @@ Source: MG 2.2, and its use in MG 2.10. PLAN unit U2.
 An entry is each declared parameter and each defined buffer. `ModelState::create` walks a traced
 model and describes every entry as a `StateEntry`: its dotted name, its `StateKind`, its
 identity, shape, dtype, `ParameterInit` and fans. The walk skips what no trace declared, so a
-model no trace has reached gives an empty state. `from_entries` allocates the tensors of a list
+model no trace has reached gives an empty state. `list_state_entries(model, prefix)` is that walk
+alone: it returns the `StateEntry` list without an engine or a tensor, and `create` lists through
+it, so a listing and a state agree in names, shapes, dtypes and order. `from_entries` allocates the tensors of a list
 of entries, in order, and refuses a repeated name or identity with `InvalidDescription`.
 `tensor()` returns an entry's tensor by name or by identity. `attach` binds the storage of every
 state leaf of a graph to a `TensorPool`, so the pool and the state read the same numbers; a leaf
@@ -143,6 +149,10 @@ refers to its builder and its sinks and owns none of them. It comes from one of 
 factories, `Trace::training(builder, updates)`, `Trace::evaluation(builder)` and
 `Trace::carrying(builder, fed, carried)`, and cannot be copied or moved. A layer that refuses its input calls `fail()` and returns its input; the
 caller reads `status()` afterwards, and `fail()` marks the graph refused.
+
+`Trace::provide_inputs(leaves)` names the `InputLeafList` a graph builder declared for the extra
+inputs of the model, and `extra_input(name)` returns the leaf of one, or `InvalidDescription` when no
+list was named or the list holds no such name. `ModelGraph::trace` is the reader.
 
 A `BufferUpdate` describes
 `target = (1 - momentum) * target + momentum * source_scale * source`. A training trace hands
@@ -256,11 +266,20 @@ Source: CV section 3.
 ### conv2d.hpp
 
 `Conv2d` convolves an NHWC activation with a bank of filters. The weight is rank 4,
-[out_channels, kernel_h, kernel_w, in_channels], and `GraphBuilder::conv2d` owns the node
+[out_channels, kernel_h, kernel_w, in_channels / groups], and `GraphBuilder::conv2d` owns the node
 sequence. `Conv2d::same_padded(in, out, kernel, stride)` builds a bias-free layer padded by
 kernel / 2 on every side. `bias_init` is the value every bias element starts from.
 `trailing_pad_h` and `trailing_pad_w` add zero rows below and zero columns right of the input, beyond
 the symmetric pad, and the layer traces `GraphBuilder::conv2d_with_extents` with the extents they give.
+
+`groups` splits the channels. It must divide both channel counts. A layer of several groups traces
+one convolution per group over `slice_channels` of the input and over the matching rows of the one
+weight and the one bias, which are views through `reshape` and `slice_channels`, then joins the
+results with `concat_channels`; the private unit `source/grouped_convolution.hpp` holds that trace.
+A layer whose `groups` equal both channel counts, above 1, is depthwise: it traces
+`GraphBuilder::depthwise_conv2d` over a weight of [kernel_h, kernel_w, channels], adds its bias per
+channel with `broadcast_add`, and refuses a trailing pad. The model-file row `conv2d` has no
+separate depthwise type; it states `groups`.
 
 Source: CV section 2, decisions 3 and 4. `same_padded` is MG 2.10 and `bias_init` is MG 2.8;
 both are PLAN unit U9.
@@ -279,10 +298,14 @@ Source: YOLO26 plan, `docs/agent/2026_10_07_YOLO26/PLAN.md`, unit U5.
 ### max_pool2d.hpp
 
 `MaxPool2d` takes the maximum of every window of an NHWC activation. The window is a
-`Graph::ConvGeometry` whose top and left pads apply to both sides of an axis. `trailing_pad_h` and
-`trailing_pad_w` add zero rows below and zero columns right of the input, beyond that pad. The three
-layers that take a trailing pad, `Conv2d`, `MaxPool2d` and `AvgPool2d`, read its window rule from one
-private unit, `source/trailing_window.hpp`.
+`Graph::ConvGeometry` whose top and left pads apply to both sides of an axis. `end_pad_h` and
+`end_pad_w` are the rows below and the columns right of the input by which the pad there exceeds
+the pad above and left; a negative value takes rows and columns off it, down to minus that pad. The
+row key `trailing_padding` sets them from zero or more, and the keys `leading_padding` and
+`end_padding` state both pads and set the difference. The three layers that pad the end of an axis,
+`Conv2d`, `MaxPool2d` and `AvgPool2d`, read their window rule from one private unit,
+`source/trailing_window.hpp`; `Conv2d` and `AvgPool2d` pass their `trailing_pad_h` and
+`trailing_pad_w` to it after it has checked them for 0 or more.
 
 Source: CV section 3.
 
@@ -302,8 +325,13 @@ Source: CV section 3.
 
 ### upsample2d.hpp
 
-`Upsample2d` repeats every pixel of an NHWC image over a scale-by-scale block. The scale
-applies to both axes and must be at least 1.
+`Upsample2d` scales an NHWC image by an integer factor. The scale applies to both axes and
+must be at least 1. `mode` is `Upsample2d::Mode::Nearest`, the default, which repeats every
+pixel over a scale-by-scale block through `K_UPSAMPLE2D`, or `Bilinear`, which interpolates each
+output pixel from the four input pixels around its half-pixel centre through
+`K_UPSAMPLE2D_BILINEAR`. A model file states the mode as the `mode` key of an `upsample` row,
+`"nearest"` when absent or `"bilinear"`; `Upsample2d::mode_from_name` reads the name, and any
+other string is `InvalidDescription`. Both modes give the same output shape.
 
 Source: CV section 3.
 
@@ -315,6 +343,37 @@ count, and `count` must be at least 1 and must not run past it. `output_shape` m
 [H, W, `count`].
 
 Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`, section 2.1.
+
+### elementwise_binary.hpp
+
+`ElementwiseBinary` applies one `BinaryOperation` (`Mul`, `Maximum`, `Sub` or `Div`) to its two
+inputs and holds no state; `make_mul_node`, `make_maximum_node`, `make_sub_node` and `make_div_node`
+build the nodes of the four rows, and none takes a key. The inputs share one per-sample shape of
+rank 1 or more, or the second is a leading prefix of the first and is broadcast along the axes it
+lacks through `K_BROADCAST_MUL`, `K_BROADCAST_SUB` or `K_BROADCAST_DIV`. A product also takes the
+prefix first and swaps the operands. A maximum takes equal shapes only, since the graph has no
+broadcast maximum. A trailing broadcast, a per-sample vector against a suffix, cannot be stated:
+a node input always carries the batch axis, which a suffix lacks.
+
+Source: `docs/design/MODEL_IMPORT/README.md`, the rows the Caffe `Eltwise` and the ONNX `Sub` and
+`Div` need.
+
+### softmax.hpp
+
+`Softmax` normalises the values along one per-sample axis, `axis`, last by default, and is a
+`TraceModule` with no state. Over the last axis it traces `GraphBuilder::softmax`. Over another it
+moves the axis last with a `K_TRANSPOSE` node, applies the softmax and moves it back with a second, so its
+result keeps the shape of the input. `make_softmax_node` builds the node of a `softmax` row, which
+has the optional key `axis` and reads a shape of rank 1 or more.
+
+### transpose.hpp
+
+`Transpose` gives output axis `i` the extent of input axis `permutation[i]` over the per-sample
+axes and keeps the batch axis first. It traces one `K_TRANSPOSE` node, which `GraphBuilder::transpose`
+emits, over a half, float32 or float64 value, and traces none for the identity permutation.
+`make_transpose_node` builds the node of a `transpose` row, whose key `perm` is required.
+
+Source: `docs/design/MODEL_IMPORT/README.md`, the rows the ONNX `Transpose` and `Softmax` need.
 
 ### batch_norm2d.hpp
 
@@ -381,12 +440,13 @@ of 0. A rate outside the interval fails the trace.
 Each emitted node is one random site. The layer asks the trace for the site's order with
 `Trace::claim_random_site()` and gives the node the seed
 `Graph::dropout_site_seed(trace.seed(), order)`, so two sites of one model draw different masks
-and a model traced twice with one seed draws the same ones. `Trace::training` takes the seed as
+and a model traced twice with one seed on engines whose streams are seeded alike draws the same
+ones. `Trace::training` takes the seed as
 its third argument, 0 when absent; `Train::GraphOptions::seed` carries it there. The mask has
-the element type of the operand: the host draws FLOAT32 ones and zeros and a converting copy
-carries them into a HALF or FLOAT64 graph. A step that is compiled again starts at run 0. A run
+the element type of the operand: a SushiBLAS Bernoulli fill draws the ones and zeros, in FLOAT32
+or FLOAT64 as the operand is, and a HALF graph draws FLOAT32 and converts. A step that is compiled again starts at run 0. A run
 resumed from a checkpoint compiles its step again and then restores the run count with
-`Graph::CompiledStep::restore_run_count`, so under the seed of the saved run it draws the masks
+`Graph::CompiledStep::restore_run_count`, so under the seeds of the saved run it draws the masks
 that run would have drawn next.
 
 `make_dropout_node` builds the node of a `dropout` row. The row reads one per-sample shape of
@@ -443,7 +503,7 @@ Source: CV section 3, the shape-typed layer seam.
 `register_layers` adds to a `NodeRegistry` the sixteen layer types a model file may name,
 `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`,
 `avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu`, `mish` and `slice_channels`, then the node types `batchnorm2d`, `concat`, `add`, `embedding`,
-`layernorm` and `dropout`. A `LayerFactory` takes the
+`layernorm`, `dropout`, `mul`, `maximum`, `sub`, `div`, `softmax` and `transpose`. A `LayerFactory` takes the
 per-sample input shape, the row's attributes and a context string, and refuses any key it
 does not know. `build_layer_stack` builds a chain: every row must read the row before it, row
 0 the model input, and `outputs` must be empty or publish the last row whole.
@@ -540,6 +600,16 @@ Source: MG 2.5. PLAN unit U5.
 added before it, so the nodes are in topological order and no cycle can be written. The graph
 has one input and owns its nodes. A `NodeRef` names one port of one node, or the input; it is
 an index pair, so it stays valid when its graph moves.
+
+`declare_input(name, sample, dtype)` declares an extra input beside the input: a value a node reads
+that the batch role of the same name feeds. It returns a `NodeRef` for which `is_named_input()` holds,
+whose `port()` is the index of the declaration in `extra_inputs()`, a span of `ExtraInput`. A name is
+not empty, holds no `.` and is declared once. `extra_input(name)` finds the ref of a name, and a node
+reads it as it reads a row. `trace` asks the trace for the leaf of each extra input, `Trace::extra_input`,
+and fails naming the input when the trace has none or the leaf has another shape or element type than
+the declaration. An extra input has no port, so `port` and `output_ports` refuse it; `output` publishes
+it. `NodeRegistry`'s `build_model` declares the `inputs` of a model file before its first row, and
+`Train`'s step builders declare the leaves and hand them to the trace with `provide_inputs`.
 
 `add` appends a node, or a `Traceable` layer wrapped in a `ModuleNode`, under a name. `port`
 selects a named port, `output` publishes one value and `output_ports` publishes every port of

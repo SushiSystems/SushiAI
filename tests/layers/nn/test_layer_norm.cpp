@@ -62,6 +62,7 @@
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/gradient_probe.hpp>
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
@@ -448,115 +449,14 @@ namespace
             EXPECT_NEAR(got[i], expected[i], absolute) << "at element " << i;
     }
 
-    /**
-     * @brief Returns the one-hot targets of an [N, C] value: row r names class r mod C, so every
-     * class is a target.
-     */
-    std::vector<double> cycling_one_hot_targets(const Shape& logit_shape)
-    {
-        std::vector<double> one_hot(static_cast<std::size_t>(logit_shape.num_elements()), 0.0);
-        for (int64_t row = 0; row < logit_shape[0]; ++row)
-            one_hot[static_cast<std::size_t>(row * logit_shape[1] + row % logit_shape[1])] = 1.0;
-
-        return one_hot;
-    }
-
-    /**
-     * @brief Holds a FLOAT64 graph whose loss and gradient can both be evaluated at a point.
-     *
-     * The loss is the cross-entropy of what the build function returns, an [N, C] value, and
-     * the variable is the one leaf the gradient is taken at.
-     */
-    class Probe
-    {
-        public:
-            /** @brief Builds the graph over a variable of @p variable_shape and compiles it. */
-            template<typename BuildFn>
-            Probe(SushiAI::ExecutionBackend& backend, Shape variable_shape, BuildFn&& build)
-                : pool_(backend.engine())
-            {
-                const GraphBuilder builder(graph_);
-                variable_ = builder.parameter(variable_shape, "variable", DType::Float64);
-
-                const ValueID logits = build(builder, variable_);
-                const Shape logit_shape = graph_.value(logits).shape;
-                targets_ = builder.input(logit_shape, "targets", DType::Float64);
-                // The extents are fixed here, so a refusal is a defect: value() stops the test.
-                loss_ = builder.nll_loss(builder.log_softmax(logits), targets_).value();
-
-                const std::vector<ValueID> wrt = {variable_};
-                // The graph is fixed here, so a refusal is a defect: value() stops the test.
-                gradient_ = Autograd::differentiate(
-                    graph_, loss_,
-                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value().at(0);
-                EXPECT_NE(gradient_, Graph::K_NO_VALUE);
-
-                SA_EXPECT_OK(pool_.materialise_leaves(graph_));
-
-                // The graph is fixed here, so a refusal is a defect: require_value stops the test.
-                step_ = SaTest::require_value(CompiledStep::compile(backend, graph_, pool_));
-
-                write_tensor(pool_.tensor(targets_), cycling_one_hot_targets(logit_shape));
-            }
-
-            /** @brief Writes the values of a leaf that is not the variable. */
-            void fill(ValueID id, const std::vector<double>& values)
-            {
-                write_tensor(pool_.tensor(id), values);
-            }
-
-            /** @brief Returns the loss at @p point. */
-            double value(SushiRuntime::span<const double> point)
-            {
-                write_tensor(pool_.tensor(variable_), point);
-                SA_EXPECT_OK(step_->run());
-                return read_tensor(pool_.tensor(loss_))[0];
-            }
-
-            /** @brief Writes the analytic gradient at @p point into @p out. */
-            void gradient(SushiRuntime::span<const double> point, SushiRuntime::span<double> out)
-            {
-                write_tensor(pool_.tensor(variable_), point);
-                SA_EXPECT_OK(step_->run());
-
-                const std::vector<double> values = read_tensor(pool_.tensor(gradient_));
-                ASSERT_EQ(values.size(), out.size());
-                std::copy(values.begin(), values.end(), out.begin());
-            }
-
-        private:
-            Graph::Graph graph_;
-            TensorPool pool_;
-            std::unique_ptr<CompiledStep> step_;
-            ValueID variable_ = Graph::K_NO_VALUE;
-            ValueID targets_ = Graph::K_NO_VALUE;
-            ValueID loss_ = Graph::K_NO_VALUE;
-            ValueID gradient_ = Graph::K_NO_VALUE;
-    };
-
-    /** @brief Runs the full-Jacobian check of @p probe at @p point and reports a failure. */
-    void expect_gradient_matches(Probe& probe, std::vector<double>& point)
-    {
-        const Autograd::GradCheckResult result = Autograd::check_full_jacobian(
-            [&probe](SushiRuntime::span<const double> at)
-            {
-                return probe.value(at);
-            },
-            [&probe](SushiRuntime::span<const double> at, SushiRuntime::span<double> out)
-            {
-                probe.gradient(at, out);
-            },
-            point);
-
-        EXPECT_TRUE(result.passed) << result.to_string();
-    }
-
-    /** @brief Returns the [K_ROWS, K_WIDTH] rows of a normalised [2, 3, K_WIDTH] value. */
-    ValueID normalised_rows(const GraphBuilder& builder, ValueID x, ValueID gamma, ValueID beta)
+    /** @brief Returns the log-softmax of the [K_ROWS, K_WIDTH] rows of a normalised value. */
+    ValueID normalised_log_probabilities(const GraphBuilder& builder, ValueID x, ValueID gamma,
+                                         ValueID beta)
     {
         // The extents are fixed here, so a refusal is a defect: value() stops the test.
         const Graph::LayerNormResult out = builder.layer_norm(x, gamma, beta, K_EPSILON).value();
-        return builder.reshape(out.output, Shape{K_ROWS, K_WIDTH}).value();
+        const ValueID rows = builder.reshape(out.output, Shape{K_ROWS, K_WIDTH}).value();
+        return builder.log_softmax(rows).value();
     }
 }
 
@@ -662,18 +562,19 @@ TEST_F(Medium_LayerNorm, TheInputGradientMatchesCentralDifferences)
     ValueID gamma = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
 
-    Probe probe(backend(), Shape{2, 3, K_WIDTH}, [&](const GraphBuilder& builder, ValueID x)
+    SaTest::GradientProbe probe(backend(), Shape{2, 3, K_WIDTH},
+                                [&](const GraphBuilder& builder, ValueID x)
     {
         gamma = builder.parameter(Shape{K_WIDTH}, "gamma", DType::Float64);
         beta = builder.parameter(Shape{K_WIDTH}, "beta", DType::Float64);
-        return normalised_rows(builder, x, gamma, beta);
+        return normalised_log_probabilities(builder, x, gamma, beta);
     });
 
     probe.fill(gamma, noise(K_WIDTH, 5201));
     probe.fill(beta, noise(K_WIDTH, 5202));
 
     std::vector<double> point = noise(K_ROWS * K_WIDTH, 5203);
-    expect_gradient_matches(probe, point);
+    SaTest::expect_gradient_matches(probe, point);
 }
 
 /** @brief Tests the gradient of the gain against central differences, in FLOAT64. */
@@ -682,18 +583,19 @@ TEST_F(Medium_LayerNorm, TheGainGradientMatchesCentralDifferences)
     ValueID x = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
 
-    Probe probe(backend(), Shape{K_WIDTH}, [&](const GraphBuilder& builder, ValueID gamma)
+    SaTest::GradientProbe probe(backend(), Shape{K_WIDTH},
+                                [&](const GraphBuilder& builder, ValueID gamma)
     {
         x = builder.input(Shape{2, 3, K_WIDTH}, "x", DType::Float64);
         beta = builder.parameter(Shape{K_WIDTH}, "beta", DType::Float64);
-        return normalised_rows(builder, x, gamma, beta);
+        return normalised_log_probabilities(builder, x, gamma, beta);
     });
 
     probe.fill(x, noise(K_ROWS * K_WIDTH, 5301));
     probe.fill(beta, noise(K_WIDTH, 5302));
 
     std::vector<double> point = noise(K_WIDTH, 5303);
-    expect_gradient_matches(probe, point);
+    SaTest::expect_gradient_matches(probe, point);
 }
 
 /** @brief Tests the gradient of the bias against central differences, in FLOAT64. */
@@ -702,18 +604,19 @@ TEST_F(Medium_LayerNorm, TheBiasGradientMatchesCentralDifferences)
     ValueID x = Graph::K_NO_VALUE;
     ValueID gamma = Graph::K_NO_VALUE;
 
-    Probe probe(backend(), Shape{K_WIDTH}, [&](const GraphBuilder& builder, ValueID beta)
+    SaTest::GradientProbe probe(backend(), Shape{K_WIDTH},
+                                [&](const GraphBuilder& builder, ValueID beta)
     {
         x = builder.input(Shape{2, 3, K_WIDTH}, "x", DType::Float64);
         gamma = builder.parameter(Shape{K_WIDTH}, "gamma", DType::Float64);
-        return normalised_rows(builder, x, gamma, beta);
+        return normalised_log_probabilities(builder, x, gamma, beta);
     });
 
     probe.fill(x, noise(K_ROWS * K_WIDTH, 5401));
     probe.fill(gamma, noise(K_WIDTH, 5402));
 
     std::vector<double> point = noise(K_WIDTH, 5403);
-    expect_gradient_matches(probe, point);
+    SaTest::expect_gradient_matches(probe, point);
 }
 
 /** @brief Tests that a LayerNorm layer over a [2, 3, 4] value yields the host's rows. */

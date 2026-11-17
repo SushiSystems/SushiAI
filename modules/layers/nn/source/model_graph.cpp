@@ -116,6 +116,52 @@ namespace SushiAI
             return NodeRef(NodeRef::K_INPUT, 0);
         }
 
+        Result<NodeRef> ModelGraph::declare_input(std::string name, Shape sample,
+                                                  DType dtype) noexcept
+        {
+            SA_FAIL_IF(name.empty() || name.find('.') != std::string::npos,
+                       StatusCode::InvalidDescription,
+                       "an extra input of a model graph needs a name without '.', but it was "
+                       "given '{}'", name);
+            const bool is_declared = std::any_of(extra_inputs_.begin(), extra_inputs_.end(),
+                                                 [&name](const ExtraInput& extra)
+            {
+                return extra.name == name;
+            });
+            SA_FAIL_IF(is_declared, StatusCode::InvalidDescription,
+                       "the model graph already declares an extra input named '{}'", name);
+
+            const std::size_t index = extra_inputs_.size();
+            extra_inputs_.push_back(ExtraInput{std::move(name), sample, dtype});
+
+            return NodeRef(NodeRef::K_NAMED_INPUT, index);
+        }
+
+        Result<NodeRef> ModelGraph::extra_input(std::string_view name) const noexcept
+        {
+            std::string declared;
+            for (std::size_t index = 0; index < extra_inputs_.size(); ++index)
+            {
+                if (extra_inputs_[index].name == name)
+                    return NodeRef(NodeRef::K_NAMED_INPUT, index);
+
+                declared += (declared.empty() ? "'" : ", '") + extra_inputs_[index].name + "'";
+            }
+
+            return Status::from_message(StatusCode::InvalidDescription, [&]()
+            {
+                return SushiLog::format_text("the model graph declares no extra input named "
+                                             "'{}'; it declares: {}",
+                                             name, declared.empty() ? "(none)" : declared);
+            });
+        }
+
+        SushiRuntime::span<const ExtraInput> ModelGraph::extra_inputs() const noexcept
+        {
+            return SushiRuntime::span<const ExtraInput>(extra_inputs_.data(),
+                                                        extra_inputs_.size());
+        }
+
         Result<NodeRef> ModelGraph::add(std::string name, std::unique_ptr<Node> node,
                                         SushiRuntime::span<const NodeRef> from) noexcept
         {
@@ -148,6 +194,9 @@ namespace SushiAI
         Result<NodeRef> ModelGraph::port(NodeRef of, std::string_view name) const noexcept
         {
             SA_TRY(SA_ANNOTATE(require_source(of), "the lookup of port '{}'", name));
+            SA_FAIL_IF(of.is_named_input(), StatusCode::InvalidDescription,
+                       "the extra input '{}' has no port named '{}'; only a node has named ports",
+                       extra_inputs_[of.port()].name, name);
             SA_FAIL_IF(of.is_input(), StatusCode::InvalidDescription,
                        "the model input has no port named '{}'; only a node has named ports",
                        name);
@@ -183,6 +232,9 @@ namespace SushiAI
         Status ModelGraph::output_ports(NodeRef of) noexcept
         {
             SA_TRY(SA_ANNOTATE(require_source(of), "the publication of a node's ports"));
+            SA_FAIL_IF(of.is_named_input(), StatusCode::InvalidDescription,
+                       "the extra input '{}' has no ports to publish; publish it with output()",
+                       extra_inputs_[of.port()].name);
             SA_FAIL_IF(of.is_input(), StatusCode::InvalidDescription,
                        "the model input has no ports to publish; publish it with output()");
 
@@ -241,6 +293,22 @@ namespace SushiAI
                        "among its {} nodes",
                        entries_.size());
 
+            // extras[i] is the leaf the graph builder declared for extra_inputs_[i].
+            std::vector<Graph::ValueID> extras;
+            extras.reserve(extra_inputs_.size());
+            for (const ExtraInput& extra : extra_inputs_)
+            {
+                SA_TRY_ASSIGN(const Graph::ValueID leaf, trace.extra_input(extra.name));
+                SA_FAIL_IF(!is_batch_of(graph.value(leaf).shape, extra.sample)
+                               || graph.value(leaf).dtype != extra.dtype,
+                           StatusCode::InvalidDescription,
+                           "the extra input '{}' is declared as {} {} per sample; the leaf is "
+                           "{} {}", extra.name, dtype_name(extra.dtype), extra.sample.to_string(),
+                           dtype_name(graph.value(leaf).dtype),
+                           graph.value(leaf).shape.to_string());
+                extras.push_back(leaf);
+            }
+
             // values[entry.first_value + port] is the traced id of that port.
             std::vector<Graph::ValueID> values;
             values.reserve(port_count());
@@ -248,6 +316,9 @@ namespace SushiAI
             {
                 if (ref.is_input())
                     return input;
+
+                if (ref.is_named_input())
+                    return extras[ref.port()];
 
                 return values[entries_[ref.node()].first_value + ref.port()];
             };
@@ -333,6 +404,9 @@ namespace SushiAI
             if (ref.is_input())
                 return input_sample_;
 
+            if (ref.is_named_input())
+                return extra_inputs_[ref.port()].sample;
+
             return entries_[ref.node()].node->ports()[ref.port()].shape;
         }
 
@@ -351,6 +425,14 @@ namespace SushiAI
             {
                 SA_FAIL_IF(ref.port() != 0, StatusCode::InvalidDescription,
                            "the model input has one port; port {} was named", ref.port());
+                return Status();
+            }
+
+            if (ref.is_named_input())
+            {
+                SA_FAIL_IF(ref.port() >= extra_inputs_.size(), StatusCode::InvalidDescription,
+                           "extra input {} is not declared; the graph declares {}", ref.port(),
+                           extra_inputs_.size());
                 return Status();
             }
 

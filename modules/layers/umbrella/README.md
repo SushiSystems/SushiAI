@@ -2,7 +2,7 @@
 
 ## Owns
 
-The umbrella module holds one header, `SushiAI.hpp`, which includes all 112 public headers of the
+The umbrella module holds one header, `SushiAI.hpp`, which includes all 270 public headers of the
 `log`, `failure`, `dtype`, `hash`, `shape`, `ops`, `seam`, `allocation` and `layers` tiers and declares
 nothing itself. `modules/CMakeLists.txt` names this header
 as the umbrella of the top-level `sushiai` library. The `vision` tier has its own umbrella and is

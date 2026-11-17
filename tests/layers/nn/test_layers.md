@@ -83,7 +83,7 @@ anywhere fails. Listing the proof beside the rule makes the omission visible: th
 loop, the one over `Ops::K_ALL`, fails when an operation gains a rule that nobody added a ledger
 line for.
 
-The named tests live in `tests/core/autograd/rules/test_all.cpp` and all run in
+The named tests live in the `tests/core/autograd/rules/test_<domain>/test_gradients.cpp` files and all run in
 FLOAT64, for the reason `modules/core/autograd/include/SushiAI/autograd/gradcheck.hpp` derives.
 
 The K_LOG_SOFTMAX entries name the cases of `tests/language/blocks/test_causal_self_attention.cpp`:

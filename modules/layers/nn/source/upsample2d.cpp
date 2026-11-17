@@ -23,7 +23,7 @@
 
 /**
  * @file upsample2d.cpp
- * @brief Implements the tracing and shape rule of the nearest-neighbour upsampling layer.
+ * @brief Implements the tracing and shape rule of the upsampling layer.
  * @author Mustafa Garip
  */
 
@@ -62,6 +62,18 @@ namespace SushiAI
             }
         } // namespace
 
+        Result<Upsample2d::Mode> Upsample2d::mode_from_name(std::string_view name) noexcept
+        {
+            if (name == K_NEAREST_NAME)
+                return Mode::Nearest;
+
+            SA_FAIL_IF(name != K_BILINEAR_NAME, StatusCode::InvalidDescription,
+                       "Upsample2d knows the modes '{}' and '{}'; got '{}'", K_NEAREST_NAME,
+                       K_BILINEAR_NAME, name);
+
+            return Mode::Bilinear;
+        }
+
         Graph::Traced Upsample2d::forward(const Graph::GraphBuilder& builder,
                                           const Graph::Traced& input) const noexcept
         {
@@ -72,6 +84,9 @@ namespace SushiAI
                          "Upsample2d needs a rank-4 [N, H, W, C] input; got {}",
                          image.to_string());
             SA_TRY(builder.observe(scale_extents(*this, Shape{image[1], image[2], image[3]})));
+
+            if (mode == Mode::Bilinear)
+                return builder.upsample2d_bilinear(x, scale, scale);
 
             return builder.upsample2d(x, scale, scale);
         }

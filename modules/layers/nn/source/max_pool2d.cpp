@@ -48,7 +48,7 @@ namespace SushiAI
                                                                    const Shape& sample) noexcept
             {
                 return Detail::trailing_window_extents("MaxPool2d", sample, layer.geometry,
-                                                       layer.trailing_pad_h, layer.trailing_pad_w);
+                                                       layer.end_pad_h, layer.end_pad_w);
             }
         } // namespace
 

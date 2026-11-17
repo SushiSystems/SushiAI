@@ -1,4 +1,4 @@
-# tests/layers/nn/test_max_pool2d.cpp
+# tests/layers/nn/test_max_pool2d/test_layer.cpp
 
 
 Suites: `Small_MaxPool2d`, `Small_MaxPool2dExtent`, `Small_MaxPool2dForwardRefusal`,
@@ -15,7 +15,7 @@ Two `static_assert` lines at file scope require `MaxPool2d` to be a `Module` and
 
 ## with_trailing and with_dilation
 
-Each returns a copy of a layer with a trailing pad of rows and columns, or a dilation per axis.
+Each returns a copy of a layer with an end pad of rows and columns (`end_pad_h`, `end_pad_w`), or a dilation per axis.
 
 ## make_pool
 
@@ -71,8 +71,8 @@ a trace over a batch of that sample is the extent with the batch in front. Ten r
 One row per input or geometry `forward()` refuses with `InvalidDescription`. Every row also checks
 that the graph gains no node. Eight rows: a rank-2 input, a window of 5x5 over 4x4, an NCHW input, an
 NCHW input narrower than the window (the message names "NHWC"), a zero vertical stride ("MaxPool2d",
-"stride 0,2"), a negative padding ("padding 0,-1"), a negative trailing pad ("non-negative trailing
-padding", "-2,0") and a trailing pad of 3 columns on a 2x2 window ("every window a tap inside the
+"stride 0,2"), a negative padding ("padding 0,-1"), a negative end pad under a leading pad of 0 ("end padding of 0
+or more", "-2,0") and a trailing pad of 3 columns on a 2x2 window ("every window a tap inside the
 input", "0,3").
 
 ## Small_MaxPool2dShapeRefusal.OutputShapeRefuses
@@ -80,8 +80,8 @@ input", "0,3").
 One row per shape or geometry `output_shape()` refuses with `InvalidDescription`. Ten rows: a zero
 vertical stride ("MaxPool2d", "stride 0,2"), a negative padding ("padding 0,-1"), a feature vector, a
 shape that still carries the batch axis, a window taller than the input, a window wider than the
-input, a [1, 4, 3] input without a trailing pad, a negative trailing pad ("non-negative trailing
-padding", "0,-1"), a trailing pad of `INT64_MAX` rows ("within 64 bits") and a trailing pad as tall as
+input, a [1, 4, 3] input without a trailing pad, a negative end pad under a leading pad of 0 ("end padding of 0
+or more", "0,-1"), a trailing pad of `INT64_MAX` rows ("within 64 bits") and a trailing pad as tall as
 the window ("every window a tap inside the input", "2,0").
 
 ## Medium_MaxPoolTrailing.TheElementIsTheMaximumOfItsTruncatedTaps

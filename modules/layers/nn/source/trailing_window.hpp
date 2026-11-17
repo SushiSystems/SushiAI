@@ -23,7 +23,7 @@
 
 /**
  * @file trailing_window.hpp
- * @brief Declares the window rule of the layers that pad an axis more at its end than at its start.
+ * @brief Declares the window rule of the layers whose pad at the end of an axis differs from the pad at its start.
  * @author Mustafa Garip
  */
 
@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/shape/shape.hpp>
 
@@ -42,16 +43,25 @@ namespace SushiAI
         namespace Detail
         {
             /**
-             * @brief Computes the window extents of a [H, W, C] sample under a trailing pad.
-             * @param layer Names the layer in a message.
+             * @brief Returns InvalidDescription unless a trailing pad is 0 or more on both axes.
+             * @param layer Names the layer in the refusal.
              * @param trailing_h The zero rows added below the input.
              * @param trailing_w The zero columns added right of the input.
+             */
+            [[nodiscard]] Status require_trailing_pad(std::string_view layer, int64_t trailing_h,
+                                                      int64_t trailing_w) noexcept;
+
+            /**
+             * @brief Computes the window extents of a [H, W, C] sample under a signed end pad.
+             * @param end_pad_h The rows the pad below has beyond the pad above; negative takes
+             *        rows off, down to minus the pad above.
+             * @param end_pad_w The same for the columns.
              * @return The window rows and columns; InvalidDescription for a sample that is no
              *         [H, W, C], a bad pad, an illegal window, or a window with no tap inside.
              */
             [[nodiscard]] Result<Graph::SpatialExtents> trailing_window_extents(
                 std::string_view layer, const Shape& sample, const Graph::ConvGeometry& geometry,
-                int64_t trailing_h, int64_t trailing_w) noexcept;
+                int64_t end_pad_h, int64_t end_pad_w) noexcept;
         } // namespace Detail
     } // namespace NN
 } // namespace SushiAI

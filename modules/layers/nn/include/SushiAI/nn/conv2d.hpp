@@ -50,6 +50,14 @@ namespace SushiAI
             /** @brief Holds the number of filters, which is the channel count of the result. */
             int64_t out_channels = 0;
 
+            /**
+             * @brief Holds the channel groups, which divide both channel counts; 1 is dense.
+             *
+             * Groups equal to both counts, above 1, make a depthwise layer: its weight is
+             * [kernel_h, kernel_w, channels], and it takes no trailing pad.
+             */
+            int64_t groups = 1;
+
             /** @brief Holds the window; its top and left pads apply to both sides of an axis. */
             Graph::ConvGeometry geometry{};
 
@@ -68,7 +76,10 @@ namespace SushiAI
              */
             double bias_init = 0.0;
 
-            /** @brief Holds the [out_channels, kernel_h, kernel_w, in_channels] filters. */
+            /**
+             * @brief Holds the filters: [out_channels, kernel_h, kernel_w, in_channels / groups],
+             *        or [kernel_h, kernel_w, channels] for a depthwise layer.
+             */
             Parameter weight{};
 
             /** @brief Holds the [out_channels] bias; undeclared when use_bias is false. */

@@ -293,6 +293,25 @@ namespace SushiAI
             tables_ = &tables;
         }
 
+        void Trace::provide_inputs(const InputLeafList& leaves) noexcept
+        {
+            inputs_ = &leaves;
+        }
+
+        Result<Graph::ValueID> Trace::extra_input(std::string_view name) const noexcept
+        {
+            SA_FAIL_IF(inputs_ == nullptr, StatusCode::InvalidDescription,
+                       "the extra input '{}' was read in a trace that no graph builder named "
+                       "leaves for; the builders of Train declare them with provide_inputs()",
+                       name);
+
+            const Graph::ValueID leaf = inputs_->find(name);
+            SA_FAIL_IF(leaf == Graph::K_NO_VALUE, StatusCode::InvalidDescription,
+                       "the graph builder declared no leaf for the extra input '{}'", name);
+
+            return leaf;
+        }
+
         Result<Graph::ValueID> Trace::host_table(Shape shape, std::string_view debug_name,
                                                  DType dtype, std::vector<double> values) const noexcept
         {

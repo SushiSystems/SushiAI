@@ -45,6 +45,7 @@
 #include <SushiAI/nn/concat.hpp>
 #include <SushiAI/nn/conv2d.hpp>
 #include <SushiAI/nn/dropout.hpp>
+#include <SushiAI/nn/elementwise_binary.hpp>
 #include <SushiAI/nn/embedding.hpp>
 #include <SushiAI/nn/flatten.hpp>
 #include <SushiAI/nn/global_avg_pool.hpp>
@@ -55,8 +56,11 @@
 #include <SushiAI/nn/mish.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/silu.hpp>
+#include <SushiAI/nn/softmax.hpp>
+#include <SushiAI/nn/transpose.hpp>
 #include <SushiAI/nn/unflatten.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
+#include "trailing_window.hpp"
 
 namespace SushiAI
 {
@@ -76,7 +80,7 @@ namespace SushiAI
             /** @brief Lists every key a "conv2d" layer accepts. */
             constexpr std::string_view K_CONV2D_KEYS[] = {
                 "filters", "kernel", "stride", "padding", "dilation", "use_bias",
-                "trailing_padding"};
+                "trailing_padding", "groups"};
 
             /** @brief Lists every key an "avgpool2d" layer accepts. */
             constexpr std::string_view K_AVGPOOL2D_KEYS[] = {"kernel", "stride", "padding",
@@ -84,10 +88,11 @@ namespace SushiAI
 
             /** @brief Lists every key a "maxpool2d" layer accepts, trailing padding included. */
             constexpr std::string_view K_MAXPOOL2D_KEYS[] = {"kernel", "stride", "padding",
-                                                             "trailing_padding"};
+                                                             "trailing_padding", "leading_padding",
+                                                             "end_padding"};
 
             /** @brief Lists every key an "upsample" layer accepts. */
-            constexpr std::string_view K_UPSAMPLE_KEYS[] = {"scale"};
+            constexpr std::string_view K_UPSAMPLE_KEYS[] = {"scale", "mode"};
 
             /** @brief Lists every key a "slice_channels" layer accepts. */
             constexpr std::string_view K_SLICE_CHANNELS_KEYS[] = {"offset", "count"};
@@ -273,6 +278,46 @@ namespace SushiAI
                 return make_geometry(kernel, stride, padding, AxisPair{1, 1});
             }
 
+            /**
+             * @brief Reads the leading and end paddings of a max-pooling row into @p layer.
+             *
+             * The two keys state the pad before and the pad after each axis, and take the place
+             * of "padding" and "trailing_padding", which a row that states them must not carry.
+             */
+            Status read_end_paddings(const Config::Value& attributes, std::string_view context,
+                                     MaxPool2d& layer)
+            {
+                const bool has_leading = attributes.has("leading_padding");
+                const bool has_end = attributes.has("end_padding");
+                if (!has_leading && !has_end)
+                    return Status();
+
+                SA_FAIL_IF(has_leading != has_end, StatusCode::InvalidDescription,
+                           "{} states one of 'leading_padding' and 'end_padding'; it needs both "
+                           "or neither",
+                           context);
+                SA_FAIL_IF(attributes.has("padding") || attributes.has("trailing_padding"),
+                           StatusCode::InvalidDescription,
+                           "{} states 'leading_padding' and 'end_padding' beside 'padding' or "
+                           "'trailing_padding'; it takes one form of the two",
+                           context);
+
+                SA_TRY_ASSIGN(const AxisPair leading,
+                              read_axis_pair(attributes, "leading_padding", context));
+                SA_TRY_ASSIGN(const AxisPair end, read_axis_pair(attributes, "end_padding", context));
+                SA_FAIL_IF(leading.h < 0 || leading.w < 0 || end.h < 0 || end.w < 0,
+                           StatusCode::InvalidDescription,
+                           "{} needs 'leading_padding' and 'end_padding' of 0 or more; got {},{} "
+                           "and {},{}",
+                           context, leading.h, leading.w, end.h, end.w);
+
+                layer.geometry.pad_top = leading.h;
+                layer.geometry.pad_left = leading.w;
+                layer.end_pad_h = end.h - leading.h;
+                layer.end_pad_w = end.w - leading.w;
+                return Status();
+            }
+
             /** @brief Reports whether row @p index reads port 0 of the row before it only. */
             bool reads_previous_row_only(const Config::LayerSpec& spec, std::size_t index)
             {
@@ -441,6 +486,8 @@ namespace SushiAI
             layer.trailing_pad_w = trailing.w;
             SA_TRY_ASSIGN(layer.use_bias,
                           read_bool_or(attributes, "use_bias", context, layer.use_bias));
+            SA_TRY_ASSIGN(layer.groups,
+                          read_int_or(attributes, "groups", context, layer.groups));
 
             return adapt(std::move(layer), input, context);
         }
@@ -457,8 +504,11 @@ namespace SushiAI
             SA_TRY_ASSIGN(const AxisPair trailing,
                           read_axis_pair_or(attributes, "trailing_padding", context,
                                             AxisPair{0, 0}));
-            layer.trailing_pad_h = trailing.h;
-            layer.trailing_pad_w = trailing.w;
+            SA_TRY(SA_ANNOTATE(Detail::require_trailing_pad("MaxPool2d", trailing.h, trailing.w),
+                               "{}", context));
+            layer.end_pad_h = trailing.h;
+            layer.end_pad_w = trailing.w;
+            SA_TRY(read_end_paddings(attributes, context, layer));
 
             return adapt(std::move(layer), input, context);
         }
@@ -504,6 +554,17 @@ namespace SushiAI
             Upsample2d layer{};
             SA_TRY_ASSIGN(layer.scale, read_int_or(attributes, "scale", context, layer.scale));
 
+            if (attributes.has("mode"))
+            {
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at("mode", context));
+                SA_FAIL_IF(stated.kind() != Config::Kind::String, StatusCode::InvalidDescription,
+                           "{} 'mode' names how the pixels are filled, but it is {}", context,
+                           Config::kind_name(stated.kind()));
+
+                SA_TRY_ASSIGN(const std::string& name, stated.as_string(context));
+                SA_TRY_ASSIGN(layer.mode, Upsample2d::mode_from_name(name));
+            }
+
             return adapt(layer, input, context);
         }
 
@@ -538,6 +599,12 @@ namespace SushiAI
             SA_TRY(registry.add(NodeEntry{"embedding", &make_embedding_node}));
             SA_TRY(registry.add(NodeEntry{"layernorm", &make_layer_norm_node}));
             SA_TRY(registry.add(NodeEntry{"dropout", &make_dropout_node}));
+            SA_TRY(registry.add(NodeEntry{"mul", &make_mul_node}));
+            SA_TRY(registry.add(NodeEntry{"maximum", &make_maximum_node}));
+            SA_TRY(registry.add(NodeEntry{"sub", &make_sub_node}));
+            SA_TRY(registry.add(NodeEntry{"div", &make_div_node}));
+            SA_TRY(registry.add(NodeEntry{"softmax", &make_softmax_node}));
+            SA_TRY(registry.add(NodeEntry{"transpose", &make_transpose_node}));
 
             return Status();
         }

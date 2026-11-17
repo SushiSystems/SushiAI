@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_conv2d.cpp                                                        */
+/* test_layer.cpp                                                        */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,7 +23,7 @@
 
 
 /**
- * @file test_conv2d.cpp
+ * @file test_layer.cpp
  * @brief Tests the 2-D convolution layer's trace, parameters, shape inference and rejections.
  * @author Mustafa Garip
  */

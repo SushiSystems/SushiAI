@@ -20,6 +20,7 @@ sushiai_add_module(NAME umbrella TIER layers
         execution
         failure
         graph
+        interchange
         io
         log
         nn

@@ -32,6 +32,7 @@
 #include <cmath>
 #include <cstddef>
 #include <SushiBLAS/random/random.hpp>
+#include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -179,8 +180,10 @@ namespace SushiAI
         Status initialize(ExecutionBackend& backend, ModelState& state,
                           const InitPolicy& policy) noexcept
         {
-            SushiBLAS::Engine& engine = backend.engine();
             const SushiRuntime::span<const StateEntry> entries = state.entries();
+
+            // A stream of its own leaves the engine's stream, which dropout keys on, untouched.
+            SushiBLAS::RNGStream stream;
 
             // The final weight is the last entry drawn from its fans; a buffer never is.
             std::size_t final_weight = entries.size();
@@ -190,7 +193,7 @@ namespace SushiAI
             return SushiAI::Detail::record_and_run(backend,
                                                    [&](SushiBLAS::TaskRecorder& recorder) -> Status
             {
-                SushiBLAS::RandomOps random(recorder, engine.rng());
+                SushiBLAS::RandomOps random(recorder, stream);
                 random.set_seed(policy.seed);
 
                 for (std::size_t i = 0; i < entries.size(); ++i)

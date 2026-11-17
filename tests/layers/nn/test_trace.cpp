@@ -44,6 +44,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/nn/buffer.hpp>
+#include <SushiAI/nn/input_leaves.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
@@ -883,6 +884,44 @@ TEST(Small_Trace, CarryRefusesANextValueOfAnotherShape)
     SA_EXPECT_FAILURE(trace.carry(leaf, other), StatusCode::InvalidDescription, "[4, 3]",
                       "[3, 4]");
     EXPECT_TRUE(carried.values().empty());
+}
+
+/** @brief Tests that extra_input returns the leaf of the list the builder named, by name. */
+TEST(Small_Trace, ProvidedInputsAreReadByName)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID lengths = builder.input(Shape{4, 1}, "lengths");
+    const Graph::ValueID options = builder.input(Shape{4, 2}, "options", DType::Int32);
+    NN::InputLeafList leaves;
+    leaves.add(NN::InputLeaf{"lengths", lengths});
+    leaves.add(NN::InputLeaf{"options", options});
+    Trace trace = Trace::evaluation(builder);
+    trace.provide_inputs(leaves);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID found_lengths, trace.extra_input("lengths"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID found_options, trace.extra_input("options"));
+
+    EXPECT_EQ(found_lengths, lengths);
+    EXPECT_EQ(found_options, options);
+    EXPECT_EQ(leaves.find("lengths"), lengths);
+    EXPECT_EQ(leaves.find("absent"), Graph::K_NO_VALUE);
+}
+
+/** @brief Tests that extra_input refuses a trace with no list and a name the list lacks. */
+TEST(Small_Trace, AnExtraInputTheListLacksIsRefusedByName)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    NN::InputLeafList empty;
+    Trace unnamed = Trace::training(builder, NN::discard_updates());
+    Trace named = Trace::evaluation(builder);
+    named.provide_inputs(empty);
+
+    SA_EXPECT_FAILURE(unnamed.extra_input("lengths"), StatusCode::InvalidDescription,
+                      "extra input 'lengths'", "provide_inputs");
+    SA_EXPECT_FAILURE(named.extra_input("lengths"), StatusCode::InvalidDescription,
+                      "no leaf for the extra input 'lengths'");
 }
 
 /** @brief Tests that a leaf carried_leaf() did not declare stops the process. */

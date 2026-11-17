@@ -116,7 +116,7 @@ namespace SushiAI
 
         /**
          * @brief Builds a @c Conv2d from "filters" and "kernel", with optional "stride",
-         *        "padding", "dilation" and "use_bias".
+         *        "padding", "dilation", "trailing_padding", "use_bias" and "groups".
          * @param input The predecessor's per-sample [H, W, C] shape; C becomes in_channels.
          * @param attributes "kernel", "stride", "padding" and "dilation" each hold an integer
          *        or a two-entry [h, w] array.
@@ -125,7 +125,8 @@ namespace SushiAI
             const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
-         * @brief Builds a @c MaxPool2d from "kernel", with optional "stride" and "padding".
+         * @brief Builds a @c MaxPool2d from "kernel", with optional "stride" and "padding", or
+         *        "trailing_padding", or the pair "leading_padding" and "end_padding".
          * @param input The predecessor's per-sample shape; must be rank 3, [H, W, C].
          * @param attributes "stride" defaults to "kernel"; each key holds an integer or a
          *        two-entry [h, w] array.
@@ -157,7 +158,8 @@ namespace SushiAI
             const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
-         * @brief Builds an @c Upsample2d from an optional "scale", 2 when absent.
+         * @brief Builds an @c Upsample2d from an optional "scale", 2 when absent, and an
+         *        optional "mode", "nearest" when absent, or "bilinear".
          * @param input The predecessor's per-sample shape; must be rank 3, [H, W, C].
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_upsample(
@@ -169,8 +171,9 @@ namespace SushiAI
 
         /**
          * @brief Adds the sixteen layer types, then the node types batchnorm2d, concat, add,
-         *        embedding, layernorm and dropout.
-         * @return InvalidDescription when @p registry already holds one of the twenty-two types.
+         *        embedding, layernorm, dropout, mul, maximum, sub, div, softmax and transpose.
+         * @return InvalidDescription when @p registry already holds one of the twenty-eight
+         *         types.
          */
         [[nodiscard]] Status register_layers(NodeRegistry& registry) noexcept;
 

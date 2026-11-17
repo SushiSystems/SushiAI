@@ -435,6 +435,150 @@ TEST(Small_ModelGraph, TheInputCanBePublishedAsAnOutput)
     EXPECT_EQ(graph.node_count(), leaves);
 }
 
+/** @brief Tests that an extra input is a named ref with its own shape, beside the input. */
+TEST(Small_ModelGraph, AnExtraInputIsANamedRefBesideTheInput)
+{
+    ModelGraph model(Shape{2, 2, 3});
+
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef mask,
+                            model.declare_input("mask", Shape{2, 2, 5}, DType::Float32));
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef again, model.extra_input("mask"));
+
+    EXPECT_TRUE(mask.is_named_input());
+    EXPECT_FALSE(mask.is_input());
+    EXPECT_EQ(mask.port(), 0u);
+    EXPECT_EQ(again, mask);
+    EXPECT_EQ(model.shape_of(mask), (Shape{2, 2, 5}));
+    ASSERT_EQ(model.extra_inputs().size(), 1u);
+    EXPECT_EQ(model.extra_inputs()[0].name, "mask");
+    EXPECT_EQ(model.extra_inputs()[0].dtype, DType::Float32);
+    EXPECT_NE(mask, model.input());
+}
+
+/** @brief Tests that a name that is empty, holds '.', repeats, or is unknown is refused. */
+TEST(Small_ModelGraph, AnExtraInputNameThatDoesNotFitIsRefused)
+{
+    ModelGraph model(Shape{6});
+    SA_EXPECT_OK(model.declare_input("mask", Shape{6}, DType::Float32));
+
+    SA_EXPECT_FAILURE(model.declare_input("", Shape{6}, DType::Float32),
+                      StatusCode::InvalidDescription, "needs a name without '.'");
+    SA_EXPECT_FAILURE(model.declare_input("a.b", Shape{6}, DType::Float32),
+                      StatusCode::InvalidDescription, "'a.b'");
+    SA_EXPECT_FAILURE(model.declare_input("mask", Shape{6}, DType::Float32),
+                      StatusCode::InvalidDescription, "already declares", "'mask'");
+    SA_EXPECT_FAILURE(model.extra_input("lengths"), StatusCode::InvalidDescription, "'lengths'",
+                      "'mask'");
+    EXPECT_EQ(model.extra_inputs().size(), 1u);
+}
+
+/** @brief Tests that a node reads an extra input as it reads a row, and the trace uses its leaf. */
+TEST(Small_ModelGraph, ANodeReadsAnExtraInputAndTheTraceUsesTheLeafOfTheBuilder)
+{
+    ModelGraph model(Shape{2, 2, 3});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef mask,
+                            model.declare_input("mask", Shape{2, 2, 5}, DType::Float32));
+    const NodeRef both[] = {model.input(), mask};
+    const Shape shapes[] = {model.shape_of(model.input()), model.shape_of(mask)};
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<NN::Concat> concat,
+                            NN::Concat::create(NN::ShapeSpan(shapes, 2)));
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef joined, model.add("join", std::move(concat), both));
+    SA_EXPECT_OK(model.output("joined", joined));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{4, 2, 2, 3}, "x");
+    const Graph::ValueID leaf = builder.input(Shape{4, 2, 2, 5}, "mask");
+    NN::InputLeafList leaves;
+    leaves.add(NN::InputLeaf{"mask", leaf});
+    Trace trace = Trace::evaluation(builder);
+    trace.provide_inputs(leaves);
+
+    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs, model.trace(trace, x));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID result, outputs.at("joined"));
+    EXPECT_EQ(graph.value(result).shape, (Shape{4, 2, 2, 8}));
+    SA_EXPECT_OK(trace.status());
+}
+
+/** @brief Tests that the trace of a model with an extra input refuses a trace with no leaf. */
+TEST(Small_ModelGraph, TraceRefusesAnExtraInputTheTraceHasNoLeafFor)
+{
+    ModelGraph model(Shape{6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef mask,
+                            model.declare_input("mask", Shape{6}, DType::Float32));
+    SA_EXPECT_OK(model.output("echo", mask));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
+
+    SA_EXPECT_FAILURE(model.trace(Trace::evaluation(builder), x), StatusCode::InvalidDescription,
+                      "extra input 'mask'", "provide_inputs");
+
+    NN::InputLeafList other;
+    other.add(NN::InputLeaf{"lengths", x});
+    Trace trace = Trace::evaluation(builder);
+    trace.provide_inputs(other);
+    SA_EXPECT_FAILURE(model.trace(trace, x), StatusCode::InvalidDescription, "extra input 'mask'");
+}
+
+/** @brief Tests that a leaf of another shape or element type than the declared one is refused. */
+TEST(Small_ModelGraph, TraceRefusesALeafThatDisagreesWithTheDeclaredExtraInput)
+{
+    ModelGraph model(Shape{6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef mask,
+                            model.declare_input("mask", Shape{3}, DType::Float32));
+    SA_EXPECT_OK(model.output("echo", mask));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID wide = builder.input(Shape{4, 4}, "wide");
+    const Graph::ValueID indices = builder.input(Shape{4, 3}, "indices", DType::Int32);
+
+    NN::InputLeafList wide_leaves;
+    wide_leaves.add(NN::InputLeaf{"mask", wide});
+    Trace wide_trace = Trace::evaluation(builder);
+    wide_trace.provide_inputs(wide_leaves);
+    NN::InputLeafList index_leaves;
+    index_leaves.add(NN::InputLeaf{"mask", indices});
+    Trace index_trace = Trace::evaluation(builder);
+    index_trace.provide_inputs(index_leaves);
+
+    SA_EXPECT_FAILURE(model.trace(wide_trace, x), StatusCode::InvalidDescription,
+                      "extra input 'mask'", "float32 [3]", "[4, 4]");
+    SA_EXPECT_FAILURE(model.trace(index_trace, x), StatusCode::InvalidDescription,
+                      "extra input 'mask'", "float32 [3]", "int32");
+}
+
+/** @brief Tests that an extra input has no port and may be published as an output. */
+TEST(Small_ModelGraph, AnExtraInputHasNoPortAndCanBePublished)
+{
+    ModelGraph model(Shape{6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef mask,
+                            model.declare_input("mask", Shape{6}, DType::Float32));
+
+    SA_EXPECT_FAILURE(model.port(mask, "output"), StatusCode::InvalidDescription,
+                      "extra input 'mask'", "'output'");
+    SA_EXPECT_FAILURE(model.output_ports(mask), StatusCode::InvalidDescription,
+                      "extra input 'mask'", "no ports to publish");
+    SA_EXPECT_OK(model.output("echo", mask));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID leaf = builder.input(Shape{4, 6}, "mask");
+    NN::InputLeafList leaves;
+    leaves.add(NN::InputLeaf{"mask", leaf});
+    Trace trace = Trace::evaluation(builder);
+    trace.provide_inputs(leaves);
+
+    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs, model.trace(trace, x));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID echoed, outputs.at("echo"));
+    EXPECT_EQ(echoed, leaf);
+}
+
 /** @brief Tests that the walk names state "<prefix>.<node name>.<member>" in the order added. */
 TEST(Small_ModelGraph, WalkNamesStateByNodeNameInTheOrderAdded)
 {

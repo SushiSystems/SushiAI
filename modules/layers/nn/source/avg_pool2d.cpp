@@ -47,6 +47,8 @@ namespace SushiAI
             [[nodiscard]] Result<Graph::SpatialExtents> fit_window(const AvgPool2d& layer,
                                                                    const Shape& sample) noexcept
             {
+                SA_TRY(Detail::require_trailing_pad("AvgPool2d", layer.trailing_pad_h,
+                                                    layer.trailing_pad_w));
                 return Detail::trailing_window_extents("AvgPool2d", sample, layer.geometry,
                                                        layer.trailing_pad_h, layer.trailing_pad_w);
             }

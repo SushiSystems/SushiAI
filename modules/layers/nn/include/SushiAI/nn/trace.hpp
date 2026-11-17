@@ -44,6 +44,7 @@
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/nn/host_table.hpp>
+#include <SushiAI/nn/input_leaves.hpp>
 #include <SushiAI/nn/module.hpp>
 
 namespace SushiAI
@@ -348,6 +349,20 @@ namespace SushiAI
                 void collect_tables(HostTableSink& tables) noexcept;
 
                 /**
+                 * @brief Names the leaves a graph builder declared for the extra inputs of the
+                 *        model, which extra_input() reads.
+                 * @param leaves Must outlive the trace.
+                 */
+                void provide_inputs(const InputLeafList& leaves) noexcept;
+
+                /**
+                 * @brief Returns the leaf the builder declared for the extra input @p name.
+                 * @return The leaf, or InvalidDescription for a trace no provide_inputs() named
+                 *         leaves for, or a name the builder declared no leaf for.
+                 */
+                [[nodiscard]] Result<Graph::ValueID> extra_input(std::string_view name) const noexcept;
+
+                /**
                  * @brief Declares a leaf the step fills once with @p values, no model state.
                  * @param debug_name A label for diagnostics; it must outlive the graph.
                  * @param values One number per element of @p shape, the last axis fastest.
@@ -392,6 +407,9 @@ namespace SushiAI
 
                 /** @brief Points at the sink of the host tables; null until one is named. */
                 HostTableSink* tables_ = nullptr;
+
+                /** @brief Points at the leaves of the extra inputs; null until they are named. */
+                const InputLeafList* inputs_ = nullptr;
         };
 
         namespace Detail

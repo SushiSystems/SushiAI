@@ -6,6 +6,7 @@
 # The test programs of the layers tier, one per module.
 
 add_subdirectory(classifier_objective)
+add_subdirectory(interchange)
 add_subdirectory(io)
 add_subdirectory(layer_rows)
 add_subdirectory(layer_traces)

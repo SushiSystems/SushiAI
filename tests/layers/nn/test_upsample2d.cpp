@@ -24,7 +24,7 @@
 
 /**
  * @file test_upsample2d.cpp
- * @brief Tests the shape, layout and rejections of the Upsample2d layer.
+ * @brief Tests the shape, layout, mode and rejections of the Upsample2d layer.
  * @author Mustafa Garip
  */
 
@@ -40,6 +40,7 @@
 #include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
 
 using namespace SushiAI;
@@ -252,3 +253,38 @@ TEST(Small_Upsample2d, ForwardReplicatesEachValueOverItsScaleBlock)
                                               3, 3, 4, 4,
                                               3, 3, 4, 4}));
 }
+
+/** @brief Tests that the nearest mode, the default, traces K_UPSAMPLE2D. */
+TEST(Small_Upsample2d, TheDefaultModeTracesTheNearestOperation)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, Upsample2d{2}.forward(builder, x));
+
+    EXPECT_EQ(graph.node(graph.value(y).producer).op, Ops::K_UPSAMPLE2D.id);
+}
+
+/** @brief Tests that the bilinear mode traces K_UPSAMPLE2D_BILINEAR to the same shape. */
+TEST(Small_Upsample2d, TheBilinearModeTracesTheBilinearOperationToTheNearestShape)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 3, 5, 7}, "x");
+    const Upsample2d layer{3, Upsample2d::Mode::Bilinear};
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
+
+    EXPECT_EQ(graph.node(graph.value(y).producer).op, Ops::K_UPSAMPLE2D_BILINEAR.id);
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 9, 15, 7}));
+    EXPECT_EQ(layer.output_shape(Shape{3, 5, 7}).value(), (Shape{9, 15, 7}));
+}
+
+/** @brief Tests that a mode name maps to its mode and any other name is refused. */
+TEST(Small_Upsample2d, ModeFromNameReadsTheTwoNamesAndRefusesAnother)
+{
+    EXPECT_EQ(Upsample2d::mode_from_name("nearest").value(), Upsample2d::Mode::Nearest);
+    EXPECT_EQ(Upsample2d::mode_from_name("bilinear").value(), Upsample2d::Mode::Bilinear);
+    SA_EXPECT_FAILURE(Upsample2d::mode_from_name("bicubic"), StatusCode::InvalidDescription,
+                      "'nearest'", "'bilinear'", "got 'bicubic'");
+}
+

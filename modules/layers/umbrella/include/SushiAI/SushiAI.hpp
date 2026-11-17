@@ -69,7 +69,9 @@
 #include <SushiAI/graph/lowering/unlowered.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 #include <SushiAI/graph/lowering/elementwise.hpp>
-#include <SushiAI/graph/lowering/linalg.hpp>
+#include <SushiAI/graph/lowering/matmul.hpp>
+#include <SushiAI/graph/lowering/row_index.hpp>
+#include <SushiAI/graph/lowering/mask.hpp>
 #include <SushiAI/graph/lowering/activation.hpp>
 #include <SushiAI/graph/lowering/loss.hpp>
 #include <SushiAI/graph/lowering/shape.hpp>
@@ -279,6 +281,42 @@
 #include <SushiAI/data/in_memory_dataset.hpp>
 #include <SushiAI/eager/trailing_ledger.hpp>
 #include <SushiAI/io/in_memory_importer.hpp>
+#include <SushiAI/autograd/rules/broadcast.hpp>
+#include <SushiAI/config/data_adapt.hpp>
+#include <SushiAI/config/data_normalise.hpp>
+#include <SushiAI/config/input_normalise.hpp>
+#include <SushiAI/eager/trailing_chain.hpp>
+#include <SushiAI/eager/trailing_spec.hpp>
+#include <SushiAI/graph/buffer_update_recorder.hpp>
+#include <SushiAI/graph/lowering/broadcast.hpp>
+#include <SushiAI/graph/permuted_copy.hpp>
+#include <SushiAI/interchange/axis_translation.hpp>
+#include <SushiAI/interchange/caffe_net.hpp>
+#include <SushiAI/interchange/constant_folding.hpp>
+#include <SushiAI/interchange/onnx_graph.hpp>
+#include <SushiAI/interchange/tensor_bytes.hpp>
+#include <SushiAI/io/inflate.hpp>
+#include <SushiAI/io/name_map.hpp>
+#include <SushiAI/io/npy_reader.hpp>
+#include <SushiAI/io/npz_weight_source.hpp>
+#include <SushiAI/io/protobuf_text.hpp>
+#include <SushiAI/io/protobuf_wire.hpp>
+#include <SushiAI/io/safetensors_reader.hpp>
+#include <SushiAI/io/safetensors_weight_source.hpp>
+#include <SushiAI/io/torch_weight_source.hpp>
+#include <SushiAI/io/weight_import.hpp>
+#include <SushiAI/io/weight_source.hpp>
+#include <SushiAI/nn/elementwise_binary.hpp>
+#include <SushiAI/nn/input_leaves.hpp>
+#include <SushiAI/nn/softmax.hpp>
+#include <SushiAI/nn/transpose.hpp>
+#include <SushiAI/train/extra_input_copy.hpp>
+#include <SushiAI/train/extra_inputs.hpp>
+#include <SushiAI/train/kept_rows.hpp>
+#include <SushiAI/train/leaf_writes.hpp>
+#include <SushiAI/train/loss_trace.hpp>
+#include <SushiAI/train/objective_output.hpp>
+#include <SushiAI/train/row_mask.hpp>
 
 /** @brief Short alias for the library's namespace, matching sb:: and sr::. */
 namespace sa = SushiAI;

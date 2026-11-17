@@ -101,6 +101,17 @@ namespace SushiAI
         } // namespace Detail
 
         /**
+         * @brief Walks @p model once and lists its parameters and buffers, allocating nothing;
+         *        ModelState::create() lists through it, so the two agree.
+         * @param model A model traced at least once; an untraced one gives no entries.
+         * @param prefix Dotted prefix joined to every entry name; empty for none.
+         * @return The entries in walk order, or the failure the walk raised.
+         */
+        template<typename M>
+        [[nodiscard]] Result<std::vector<StateEntry>> list_state_entries(
+            M& model, std::string_view prefix = {}) noexcept;
+
+        /**
          * @brief Owns one tensor per declared parameter and defined buffer of a model.
          *
          * Every tensor is allocated once. attach() binds the storage of a graph's state leaves
@@ -202,8 +213,8 @@ namespace SushiAI
         };
 
         template<typename M>
-        Result<ModelState> ModelState::create(SushiBLAS::Engine& engine, M& model,
-                                              std::string_view prefix) noexcept
+        Result<std::vector<StateEntry>> list_state_entries(M& model,
+                                                           std::string_view prefix) noexcept
         {
             std::vector<StateEntry> entries;
             auto on_parameter = [&entries](const std::string& name, Parameter& parameter)
@@ -222,6 +233,14 @@ namespace SushiAI
                 return Status();
             }));
 
+            return entries;
+        }
+
+        template<typename M>
+        Result<ModelState> ModelState::create(SushiBLAS::Engine& engine, M& model,
+                                              std::string_view prefix) noexcept
+        {
+            SA_TRY_ASSIGN(std::vector<StateEntry> entries, list_state_entries(model, prefix));
             return from_entries(engine, std::move(entries));
         }
 

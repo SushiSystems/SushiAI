@@ -100,3 +100,19 @@ After a trace the walk visits nothing and `parameter_count` is 0.
 An `Upsample2d` of scale 2 over the [1, 2, 2, 1] image 1, 2, 3, 4 gives a [1, 4, 4, 1] image in which each
 value fills a 2 by 2 block: rows 1 1 2 2, 1 1 2 2, 3 3 4 4 and 3 3 4 4, read from the `HostEvaluator`.
 The case runs on the host.
+
+## TheDefaultModeTracesTheNearestOperation
+
+`Upsample2d{2}` over a [1, 2, 2, 1] input produces a value whose producer node is `K_UPSAMPLE2D`.
+
+## TheBilinearModeTracesTheBilinearOperationToTheNearestShape
+
+`Upsample2d{3, Mode::Bilinear}` over a [2, 3, 5, 7] input produces a value of [2, 9, 15, 7] whose
+producer node is `K_UPSAMPLE2D_BILINEAR`, and `output_shape([3, 5, 7])` gives [9, 15, 7]. The host
+evaluator has no rule for the bilinear operation, so the values are not read here.
+
+## ModeFromNameReadsTheTwoNamesAndRefusesAnother
+
+"nearest" and "bilinear" map to `Mode::Nearest` and `Mode::Bilinear`. "bicubic" returns
+`InvalidDescription` naming both known modes and "got 'bicubic'".
+

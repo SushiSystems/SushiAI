@@ -256,6 +256,17 @@ the initial value 0.5, and `sources` holds the next value.
 `carry` of a [4, 3] leaf with a [3, 4] next value fails with `InvalidDescription`, "[4, 3]"
 and "[3, 4]", and records nothing.
 
+## ProvidedInputsAreReadByName
+
+After `provide_inputs` of a list that holds `lengths` and `options`, `extra_input` of each name returns
+the leaf the list holds for it, and the list's `find` returns `K_NO_VALUE` for a name it lacks.
+
+## AnExtraInputTheListLacksIsRefusedByName
+
+`extra_input` of a trace that was given no list fails with `InvalidDescription`, "extra input
+'lengths'" and "provide_inputs". Of a trace given an empty list it fails naming "no leaf for the extra
+input 'lengths'".
+
 ## CarryingAValueThatIsNoCarriedLeafIsFatal
 
 `carry` of a value that `carried_leaf` did not declare is fatal with "did not declare".

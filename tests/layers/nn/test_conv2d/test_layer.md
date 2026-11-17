@@ -1,4 +1,4 @@
-# tests/layers/nn/test_conv2d.cpp
+# tests/layers/nn/test_conv2d/test_layer.cpp
 
 
 Suites: `Small_Conv2d`, `Small_Conv2dShape`, `Small_Conv2dShapeRefusal`,

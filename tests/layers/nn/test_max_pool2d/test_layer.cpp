@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_max_pool2d.cpp                                                    */
+/* test_layer.cpp                                                    */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,7 +23,7 @@
 
 
 /**
- * @file test_max_pool2d.cpp
+ * @file test_layer.cpp
  * @brief Tests the 2-D max pooling layer: its trace and the values of a window that runs past the
  *        edge.
  * @author Mustafa Garip
@@ -162,11 +162,11 @@ namespace
         Shape expected;    /**< The per-sample shape output_shape() must return. */
     };
 
-    /** @brief Returns @p layer with a trailing pad of @p height rows and @p width columns. */
+    /** @brief Returns @p layer with an end pad of @p height rows and @p width columns. */
     MaxPool2d with_trailing(MaxPool2d layer, int64_t height, int64_t width)
     {
-        layer.trailing_pad_h = height;
-        layer.trailing_pad_w = width;
+        layer.end_pad_h = height;
+        layer.end_pad_w = width;
         return layer;
     }
 
@@ -282,8 +282,8 @@ INSTANTIATE_TEST_SUITE_P(
                           "MaxPool2d", "stride 0,2", ""},
         ForwardRefusalRow{"ANegativePadding", make_pool(2, 2, 2, 2, 0, -1), Shape{2, 8, 8, 3},
                           false, "MaxPool2d", "padding 0,-1", ""},
-        ForwardRefusalRow{"ANegativeTrailingPad", with_trailing(make_pool(2, 2, 1, 1), -2, 0),
-                          Shape{2, 8, 8, 3}, false, "MaxPool2d", "non-negative trailing padding",
+        ForwardRefusalRow{"ANegativeEndPad", with_trailing(make_pool(2, 2, 1, 1), -2, 0),
+                          Shape{2, 8, 8, 3}, false, "MaxPool2d", "end padding of 0 or more",
                           "-2,0"},
         ForwardRefusalRow{"ATrailingPadThatLeavesAWindowNoTap",
                           with_trailing(make_pool(2, 2, 2, 2), 0, 3), Shape{1, 4, 4, 2}, false,
@@ -336,8 +336,8 @@ INSTANTIATE_TEST_SUITE_P(
                         ""},
         ShapeRefusalRow{"AShortInputWithoutATrailingPad", make_pool(2, 2, 1, 1), Shape{1, 4, 3},
                         "", "", ""},
-        ShapeRefusalRow{"ANegativeTrailingPad", with_trailing(make_pool(2, 2, 1, 1), 0, -1),
-                        Shape{8, 8, 3}, "MaxPool2d", "non-negative trailing padding", "0,-1"},
+        ShapeRefusalRow{"ANegativeEndPad", with_trailing(make_pool(2, 2, 1, 1), 0, -1),
+                        Shape{8, 8, 3}, "MaxPool2d", "end padding of 0 or more", "0,-1"},
         ShapeRefusalRow{"ATrailingPadThatOverflows",
                         with_trailing(make_pool(2, 2, 1, 1), std::numeric_limits<int64_t>::max(),
                                       0),

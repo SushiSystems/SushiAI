@@ -688,6 +688,22 @@ TEST(Small_LayerRegistry, UpsampleReadsItsOptionalScale)
     EXPECT_EQ(triple_upsample->output_shape(), (Shape{12, 12, 2}));
 }
 
+/** @brief Tests that upsample reads its optional mode and refuses a name it does not know. */
+TEST(Small_LayerRegistry, UpsampleReadsItsOptionalMode)
+{
+    const std::unique_ptr<NN::Layer> default_upsample =
+        make_layer("upsample", "{}", Shape{4, 4, 2});
+    const std::unique_ptr<NN::Layer> blended =
+        make_layer("upsample", R"({"mode": "bilinear"})", Shape{4, 4, 2});
+
+    ASSERT_NE(wrapped<NN::Upsample2d>(default_upsample), nullptr);
+    ASSERT_NE(wrapped<NN::Upsample2d>(blended), nullptr);
+    EXPECT_EQ(wrapped<NN::Upsample2d>(default_upsample)->mode, NN::Upsample2d::Mode::Nearest);
+    EXPECT_EQ(wrapped<NN::Upsample2d>(blended)->mode, NN::Upsample2d::Mode::Bilinear);
+    SA_EXPECT_FAILURE(try_make_layer("upsample", R"({"mode": "bicubic"})", Shape{4, 4, 2}),
+                      StatusCode::InvalidDescription, "'nearest'", "'bilinear'", "got 'bicubic'");
+}
+
 /** @brief Tests that unflatten refuses an input whose element count its image does not hold. */
 TEST(Small_LayerRegistry, UnflattenRefusesAnInputOfAnotherSize)
 {

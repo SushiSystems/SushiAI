@@ -47,11 +47,19 @@ namespace SushiAI
             /** @brief Holds the window; its top and left pads apply to both sides of an axis. */
             Graph::ConvGeometry geometry{};
 
-            /** @brief Holds the zero rows added below the input, beyond the symmetric pad. */
-            int64_t trailing_pad_h = 0;
+            /**
+             * @brief Holds the rows by which the pad below the input exceeds the pad above it.
+             *
+             * A negative value takes rows off the pad below, so that the pad below is
+             * geometry.pad_top + end_pad_h; it is at least -geometry.pad_top.
+             */
+            int64_t end_pad_h = 0;
 
-            /** @brief Holds the zero columns added right of the input, beyond the symmetric pad. */
-            int64_t trailing_pad_w = 0;
+            /**
+             * @brief Holds the columns by which the pad right of the input exceeds the pad left
+             *        of it; the rule of end_pad_h applies along the width.
+             */
+            int64_t end_pad_w = 0;
 
             /** @brief Lists this layer's parameters, of which there are none. */
             static constexpr auto fields() noexcept

@@ -7,6 +7,7 @@
 
 sushiai_add_test_program(OWNER sample_models
     SOURCES
+        test_extra_input_model.cpp
         test_two_output_model.cpp
     DEPENDS
         sample_models

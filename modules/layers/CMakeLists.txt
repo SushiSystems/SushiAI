@@ -8,6 +8,7 @@
 
 add_subdirectory(nn)
 add_subdirectory(io)
+add_subdirectory(interchange)
 add_subdirectory(train)
 add_subdirectory(umbrella)
 

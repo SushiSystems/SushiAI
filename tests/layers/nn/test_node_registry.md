@@ -23,7 +23,8 @@ row reads and the per-sample shape of the node's one port.
 ## K_MINIMAL_CASES
 
 `K_MINIMAL_CASES` has one `MinimalCase` per node row of `registered()`, in row order:
-batchnorm2d, concat, add, embedding, layernorm and dropout.
+batchnorm2d, concat, add, embedding, layernorm, dropout, mul, maximum, sub, div, softmax and
+transpose.
 
 ## LayerCase
 
@@ -85,8 +86,8 @@ row under a name.
 
 `register_layers` gives the layer rows linear, gelu, relu, tanh, sigmoid, leaky_relu,
 unflatten, conv2d, maxpool2d, avgpool2d, global_avgpool, flatten, upsample, silu, mish and
-slice_channels, and the node rows batchnorm2d, concat, add, embedding, layernorm and dropout,
-each list in that order.
+slice_channels, and the node rows batchnorm2d, concat, add, embedding, layernorm, dropout, mul,
+maximum, sub, div, softmax and transpose, each list in that order.
 
 ## ATypeAddedTwiceIsRefused
 
@@ -176,8 +177,8 @@ Over [4, 4, 64], the slice_channels row with `offset` 32 and `count` 32 gives a 
 
 `make_node("conv3d", ...)` fails with a message containing "layer 5 'conv3d'", "the type
 'conv3d'", "does not have", "node types" and "layer types". The message also names, in quotes and
-written out in the test, the six node types (batchnorm2d, concat, add, embedding, layernorm,
-dropout) and the sixteen layer types.
+written out in the test, the twelve node types (batchnorm2d, concat, add, embedding, layernorm,
+dropout, mul, maximum, sub, div, softmax, transpose) and the sixteen layer types.
 
 ## AFileAndAHandBuiltGraphAgree
 
@@ -209,6 +210,18 @@ A source that names the port `K_SINGLE_PORT_NAME` of the row above builds. A sou
 
 Row 2 of `K_INPUT_JOINING_MODEL` parses with `Config::K_MODEL_INPUT` as its first source. The
 built node 2 declares [8, 8, 7]: the input's 3 channels and then row 1's 4.
+
+## ARowReadsANamedInputTheModelDeclares
+
+`K_NAMED_INPUT_MODEL` declares the extra input `flags` of [8, 8, 2] and a `concat` row that reads the
+model input and `inputs.flags`. The parsed first row has `K_NAMED_INPUT` as its second source. The
+built graph lists one extra input named `flags` of [8, 8, 2], and node 0 declares [8, 8, 5]: the
+input's 3 channels and then the extra input's 2.
+
+## ASourceThatNamesAnUndeclaredInputIsRefused
+
+A spec built by hand whose source names `mask` while the model declares `flags` fails with
+`InvalidDescription`, "layer 0 'concat'", "'mask'" and "'flags'".
 
 ## ASourceCannotNameAPortOfTheModelInput
 

@@ -152,6 +152,44 @@ TEST_F(Small_ModelState, CreateListsBuffersAfterATrainingTrace)
     EXPECT_EQ(entries[3].init.constant, 1.0);
 }
 
+/**
+ * @brief Tests that listing a traced model gives the names, shapes, element types and kinds that
+ *        create() gives, parameters and buffers alike, with no engine involved.
+ */
+TEST_F(Small_ModelState, ListStateEntriesEqualsTheEntriesCreateProduces)
+{
+    NN::ModelGraph model(Shape{4, 4, 3});
+    SA_ASSERT_OK_AND_ASSIGN(const auto norm,
+                            model.add("bn", NN::BatchNorm2d(3, NN::NormOptions{}), model.input()));
+    SA_EXPECT_OK(model.output("normalised", norm));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
+    NN::BufferUpdateList list;
+    SA_EXPECT_OK(model.trace(NN::Trace::training(builder, list), x));
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<NN::StateEntry> listed,
+                            NN::list_state_entries(model, "net"));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
+                            NN::ModelState::create(backend.engine(), model, "net"));
+    const auto created = state.entries();
+    ASSERT_EQ(listed.size(), 4u);
+    ASSERT_EQ(listed.size(), created.size());
+    for (std::size_t i = 0; i < listed.size(); ++i)
+    {
+        EXPECT_EQ(listed[i].name, created[i].name);
+        EXPECT_EQ(listed[i].shape, created[i].shape);
+        EXPECT_EQ(listed[i].dtype, created[i].dtype);
+        EXPECT_EQ(listed[i].kind, created[i].kind);
+        EXPECT_EQ(listed[i].state, created[i].state);
+    }
+    EXPECT_EQ(listed[0].name, "net.bn.weight");
+    EXPECT_EQ(listed[0].shape, (Shape{3}));
+    EXPECT_EQ(listed[2].name, "net.bn.running_mean");
+    EXPECT_EQ(listed[2].kind, NN::StateKind::Buffer);
+}
+
 /** @brief Tests that a model never traced gives a valid state with no entries. */
 TEST_F(Small_ModelState, AnUntracedModelGivesAnEmptyState)
 {

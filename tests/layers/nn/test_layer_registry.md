@@ -194,6 +194,12 @@ has 0.25.
 An `upsample` built from an empty object maps [4, 4, 2] to [8, 8, 2], and one built
 with `"scale": 3` maps it to [12, 12, 2].
 
+## UpsampleReadsItsOptionalMode
+
+An `upsample` built from an empty object holds `Mode::Nearest`, and one built with
+`"mode": "bilinear"` holds `Mode::Bilinear`. `"mode": "bicubic"` fails with `InvalidDescription`
+naming "'nearest'", "'bilinear'" and "got 'bicubic'".
+
 ## UnflattenRefusesAnInputOfAnotherSize
 
 A 28 x 28 x 1 `unflatten` given [783] returns `InvalidDescription` with a message containing the context, "[783]"

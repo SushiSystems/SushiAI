@@ -41,7 +41,9 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/nn/input_leaves.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/module_node.hpp>
@@ -63,14 +65,17 @@ namespace SushiAI
             public:
                 /**
                  * @brief Returns the index of the node in the order it was added.
-                 * @pre !is_input(); the input is not a node and has no index.
+                 * @pre !is_input() and !is_named_input(); an input is not a node and has no index.
                  */
                 [[nodiscard]] constexpr std::size_t node() const noexcept
                 {
                     return node_;
                 }
 
-                /** @brief Returns the index of the port in the node's ports(); 0 for the input. */
+                /**
+                 * @brief Returns the index of the port in the node's ports(), the index of the
+                 *        extra input in extra_inputs(), or 0 for the input.
+                 */
                 [[nodiscard]] constexpr std::size_t port() const noexcept
                 {
                     return port_;
@@ -80,6 +85,12 @@ namespace SushiAI
                 [[nodiscard]] constexpr bool is_input() const noexcept
                 {
                     return node_ == K_INPUT;
+                }
+
+                /** @brief Reports whether this ref names an extra input of the graph. */
+                [[nodiscard]] constexpr bool is_named_input() const noexcept
+                {
+                    return node_ == K_NAMED_INPUT;
                 }
 
                 /** @brief Reports whether @p left and @p right name the same port. */
@@ -102,6 +113,9 @@ namespace SushiAI
                 /** @brief Marks the ref of the graph's input; no node has this index. */
                 static constexpr std::size_t K_INPUT = static_cast<std::size_t>(-1);
 
+                /** @brief Marks the ref of an extra input; no node has this index. */
+                static constexpr std::size_t K_NAMED_INPUT = static_cast<std::size_t>(-2);
+
                 /** @brief Binds the two indices. */
                 constexpr NodeRef(std::size_t node, std::size_t port) noexcept
                     : node_(node), port_(port)
@@ -120,7 +134,8 @@ namespace SushiAI
          * @brief Holds named nodes that read earlier nodes, and the outputs the model publishes.
          *
          * A node reads only what was added before it, so the nodes are in topological order
-         * and no cycle can be written. The graph has one input and owns its nodes.
+         * and no cycle can be written. The graph has one input, any extra inputs it declares,
+         * and owns its nodes.
          */
         class ModelGraph final
         {
@@ -148,6 +163,26 @@ namespace SushiAI
 
                 /** @brief Returns the ref of the graph's input. */
                 [[nodiscard]] NodeRef input() const noexcept;
+
+                /**
+                 * @brief Declares an input the nodes may read beside the graph's input.
+                 * @param name Non-empty, without '.', and not yet declared; a step feeds the
+                 *             input from the batch role of that name.
+                 * @param sample The per-sample shape, batch axis excluded.
+                 * @return The ref of the input, or InvalidDescription for a refused name; the
+                 *         graph is unchanged then.
+                 */
+                [[nodiscard]] Result<NodeRef> declare_input(std::string name, Shape sample,
+                                                            DType dtype) noexcept;
+
+                /**
+                 * @brief Returns the ref of the extra input @p name.
+                 * @return InvalidDescription listing the declared names when none has that name.
+                 */
+                [[nodiscard]] Result<NodeRef> extra_input(std::string_view name) const noexcept;
+
+                /** @brief Lists the extra inputs in the order they were declared. */
+                [[nodiscard]] SushiRuntime::span<const ExtraInput> extra_inputs() const noexcept;
 
                 /**
                  * @brief Appends @p node under @p name, reading @p from in that order.
@@ -315,6 +350,9 @@ namespace SushiAI
 
                 /** @brief Holds the per-sample shape of the input. */
                 Shape input_sample_;
+
+                /** @brief Holds the extra inputs in the order they were declared. */
+                std::vector<ExtraInput> extra_inputs_;
 
                 /** @brief Holds the nodes in the order added; each reads earlier entries only. */
                 std::vector<Entry> entries_;

@@ -118,6 +118,41 @@ and a GELU as "tail". `shape_of` is [8] and [4], the output is [4, 4], and the w
 A model with no node that publishes its input returns the input id from `forward` and emits no
 node.
 
+## AnExtraInputIsANamedRefBesideTheInput
+
+`declare_input("mask", [2, 2, 5], float32)` over a graph whose input is [2, 2, 3] returns a ref that
+`is_named_input()` and is not `is_input()`, with port 0. `extra_input("mask")` returns an equal ref,
+`shape_of` the declared [2, 2, 5], and `extra_inputs()` lists the one declaration with its name and
+element type. The ref differs from the ref of the input.
+
+## AnExtraInputNameThatDoesNotFitIsRefused
+
+After one `mask` is declared, `declare_input` refuses "", "a.b" and a second "mask" with
+`InvalidDescription` and the text "needs a name without '.'", "'a.b'" and "already declares". A lookup
+of `lengths` names it and lists `'mask'`. The graph still holds one extra input.
+
+## ANodeReadsAnExtraInputAndTheTraceUsesTheLeafOfTheBuilder
+
+A `Concat` of the input [2, 2, 3] and the extra input [2, 2, 5] is traced over a graph that holds a
+[4, 2, 2, 3] input and a [4, 2, 2, 5] leaf named in an `InputLeafList` and handed to the trace with
+`provide_inputs`. The published `joined` is [4, 2, 2, 8], and the trace holds no failure.
+
+## TraceRefusesAnExtraInputTheTraceHasNoLeafFor
+
+A trace with no `provide_inputs`, and one whose list holds `lengths` only, each fail with
+`InvalidDescription` naming "extra input 'mask'"; the first also names `provide_inputs`.
+
+## TraceRefusesALeafThatDisagreesWithTheDeclaredExtraInput
+
+An extra input declared float32 [3] whose leaf is [4, 4] fails with "extra input 'mask'", "float32
+[3]" and "[4, 4]"; a leaf of int32 [4, 3] fails with the same two first texts and "int32".
+
+## AnExtraInputHasNoPortAndCanBePublished
+
+`port` of an extra input fails with "extra input 'mask'" and "'output'"; `output_ports` fails with
+"no ports to publish". `output("echo", mask)` succeeds, and the trace publishes the leaf of the
+builder under `echo`.
+
 ## WalkNamesStateByNodeNameInTheOrderAdded
 
 After a trace of the branching model, the walk under "model" yields "model.stem.weight:[4, 3,

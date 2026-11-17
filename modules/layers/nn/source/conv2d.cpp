@@ -34,6 +34,7 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiLog/text/text_format.hpp>
+#include "grouped_convolution.hpp"
 #include "trailing_window.hpp"
 
 namespace SushiAI
@@ -42,6 +43,13 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Tells whether @p layer filters each channel with its own taps. */
+            [[nodiscard]] bool is_depthwise(const Conv2d& layer) noexcept
+            {
+                return layer.groups > 1 && layer.groups == layer.in_channels &&
+                       layer.groups == layer.out_channels;
+            }
+
             /**
              * @brief Computes the extents the window of @p layer yields over @p sample.
              * @param sample A per-sample shape.
@@ -56,6 +64,18 @@ namespace SushiAI
                            StatusCode::InvalidDescription,
                            "Conv2d needs positive channel counts; got in={} out={}",
                            layer.in_channels, layer.out_channels);
+                SA_FAIL_IF(layer.groups < 1 || layer.in_channels % layer.groups != 0 ||
+                               layer.out_channels % layer.groups != 0,
+                           StatusCode::InvalidDescription,
+                           "Conv2d({}, {}) needs groups that divide both channel counts; got {}",
+                           layer.in_channels, layer.out_channels, layer.groups);
+                SA_FAIL_IF(is_depthwise(layer) &&
+                               (layer.trailing_pad_h != 0 || layer.trailing_pad_w != 0),
+                           StatusCode::InvalidDescription,
+                           "Conv2d({}, {}) with {} groups is depthwise, which has no trailing "
+                           "padding; got {},{}",
+                           layer.in_channels, layer.out_channels, layer.groups,
+                           layer.trailing_pad_h, layer.trailing_pad_w);
                 SA_FAIL_IF(sample.rank() != 3 || sample[2] != layer.in_channels,
                            StatusCode::InvalidDescription,
                            "Conv2d({}, {}) needs a per-sample shape of [H, W, {}]; got {}",
@@ -64,8 +84,40 @@ namespace SushiAI
 
                 const std::string name = SushiLog::format_text(
                     "Conv2d({}, {})", layer.in_channels, layer.out_channels);
+                SA_TRY(Detail::require_trailing_pad(name, layer.trailing_pad_h,
+                                                    layer.trailing_pad_w));
                 return Detail::trailing_window_extents(name, sample, layer.geometry,
                                                        layer.trailing_pad_h, layer.trailing_pad_w);
+            }
+
+            /**
+             * @brief Traces the depthwise form of @p layer: the taps over @p x, then the bias.
+             * @param window The taps of one channel, which is both fan of the weight.
+             */
+            [[nodiscard]] Graph::Traced trace_depthwise(Conv2d& layer,
+                                                        const Graph::GraphBuilder& builder,
+                                                        Graph::ValueID x, DType dtype,
+                                                        int64_t window) noexcept
+            {
+                // Each channel reads and writes only its own taps, so both fans are the window.
+                SA_TRY_ASSIGN(const Graph::ValueID w,
+                              layer.weight.declare(builder,
+                                                   Shape{layer.geometry.kernel_h,
+                                                         layer.geometry.kernel_w,
+                                                         layer.in_channels},
+                                                   ParameterRole::Weight, window, window, "weight",
+                                                   dtype));
+                SA_TRY_ASSIGN(const Graph::ValueID filtered,
+                              builder.depthwise_conv2d(x, w, layer.geometry));
+                if (!layer.use_bias)
+                    return filtered;
+
+                SA_TRY_ASSIGN(const Graph::ValueID b,
+                              layer.bias.declare(builder, Shape{layer.out_channels},
+                                                 ParameterRole::Bias,
+                                                 ParameterInit::constant_value(layer.bias_init),
+                                                 window, window, "bias", dtype));
+                return builder.broadcast_add(filtered, b, Graph::BroadcastSide::Trailing);
             }
         } // namespace
 
@@ -106,13 +158,17 @@ namespace SushiAI
                           builder.observe(fit_window(*this, Shape{image[1], image[2], image[3]})));
 
             const int64_t window = geometry.kernel_h * geometry.kernel_w;
-            const int64_t fan_in = window * in_channels;
-            const int64_t fan_out = window * out_channels;
+            if (is_depthwise(*this))
+                return trace_depthwise(*this, builder, x, dtype, window);
+
+            const int64_t group_inputs = in_channels / groups;
+            const int64_t fan_in = window * group_inputs;
+            const int64_t fan_out = window * out_channels / groups;
 
             SA_TRY_ASSIGN(const Graph::ValueID w,
                           weight.declare(builder,
                                          Shape{out_channels, geometry.kernel_h, geometry.kernel_w,
-                                               in_channels},
+                                               group_inputs},
                                          ParameterRole::Weight, fan_in, fan_out, "weight",
                                          dtype));
 
@@ -123,6 +179,10 @@ namespace SushiAI
                                               ParameterInit::constant_value(bias_init), fan_in,
                                               fan_out, "bias", dtype));
             }
+
+            if (groups > 1)
+                return Detail::trace_grouped_convolution(builder, x, w, b, geometry, out.height,
+                                                         out.width, groups);
 
             return builder.conv2d_with_extents(x, w, b, geometry, out.height, out.width);
         }

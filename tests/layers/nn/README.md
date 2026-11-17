@@ -10,7 +10,7 @@ Each test file has a page beside it that says what its cases pin.
 | --- | --- |
 | `test_layer_stack.cpp` | [`test_layer_stack.md`](test_layer_stack.md) |
 | `test_leaky_relu.cpp` | [`test_leaky_relu.md`](test_leaky_relu.md) |
-| `test_max_pool2d.cpp` | [`test_max_pool2d.md`](test_max_pool2d.md) |
+| `test_max_pool2d/test_layer.cpp` | [`test_max_pool2d/test_layer.md`](test_max_pool2d/test_layer.md) |
 | `test_mish.cpp` | [`test_mish.md`](test_mish.md) |
 | `test_model_graph.cpp` | [`test_model_graph.md`](test_model_graph.md) |
 | `test_model_outputs.cpp` | [`test_model_outputs.md`](test_model_outputs.md) |
@@ -23,13 +23,18 @@ Each test file has a page beside it that says what its cases pin.
 | `test_unflatten.cpp` | [`test_unflatten.md`](test_unflatten.md) |
 | `test_upsample2d.cpp` | [`test_upsample2d.md`](test_upsample2d.md) |
 | `test_built_rows.cpp` | [`test_built_rows.md`](test_built_rows.md) |
-| `test_conv2d.cpp` | [`test_conv2d.md`](test_conv2d.md) |
+| `test_conv2d/test_layer.cpp` | [`test_conv2d/test_layer.md`](test_conv2d/test_layer.md) |
 | `test_layer_registry.cpp` | [`test_layer_registry.md`](test_layer_registry.md) |
 | `test_embedding.cpp` | [`test_embedding.md`](test_embedding.md) |
 | `test_init.cpp` | [`test_init.md`](test_init.md) |
 | `test_layer_norm.cpp` | [`test_layer_norm.md`](test_layer_norm.md) |
 | `test_model_state.cpp` | [`test_model_state.md`](test_model_state.md) |
 | `test_add.cpp` | [`test_add.md`](test_add.md) |
+| `test_elementwise_binary.cpp` | [`test_elementwise_binary.md`](test_elementwise_binary.md) |
+| `test_softmax.cpp` | [`test_softmax.md`](test_softmax.md) |
+| `test_transpose.cpp` | [`test_transpose.md`](test_transpose.md) |
+| `test_conv2d/test_groups.cpp` | [`test_conv2d/test_groups.md`](test_conv2d/test_groups.md) |
+| `test_max_pool2d/test_end_padding.cpp` | [`test_max_pool2d/test_end_padding.md`](test_max_pool2d/test_end_padding.md) |
 | `test_avg_pool2d.cpp` | [`test_avg_pool2d.md`](test_avg_pool2d.md) |
 | `test_batch_norm2d.cpp` | [`test_batch_norm2d.md`](test_batch_norm2d.md) |
 | `test_buffer.cpp` | [`test_buffer.md`](test_buffer.md) |
@@ -44,5 +49,6 @@ Each test file has a page beside it that says what its cases pin.
 | `test_host_table.cpp` | [`test_host_table.md`](test_host_table.md) |
 | `test_identity.cpp` | [`test_identity.md`](test_identity.md) |
 | `test_layer_norm.cpp` | [`test_layer_norm.md`](test_layer_norm.md) |
+| `test_input_leaves.cpp` | [`test_input_leaves.md`](test_input_leaves.md) |
 | `test_layers.cpp, tests/core/autograd/test_backward.cpp` | [`test_layers.md`](test_layers.md) |
 | `test_layers.cpp, tests/core/autograd/test_backward.cpp` | [`test_layers.md`](test_layers.md) |

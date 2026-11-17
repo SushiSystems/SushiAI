@@ -16,9 +16,11 @@ sushiai_add_module(NAME nn TIER layers
         source/conv2d.cpp
         source/depthwise_conv2d.cpp
         source/dropout.cpp
+        source/elementwise_binary.cpp
         source/embedding.cpp
         source/flatten.cpp
         source/global_avg_pool.cpp
+        source/grouped_convolution.cpp
         source/identity.cpp
         source/init.cpp
         source/layer_node.cpp
@@ -35,8 +37,10 @@ sushiai_add_module(NAME nn TIER layers
         source/node_attributes.cpp
         source/node_registry.cpp
         source/silu.cpp
+        source/softmax.cpp
         source/trace.cpp
         source/trailing_window.cpp
+        source/transpose.cpp
         source/unflatten.cpp
         source/upsample2d.cpp
     PUBLIC_DEPENDS config dtype failure graph seam shape

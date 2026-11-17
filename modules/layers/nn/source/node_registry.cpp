@@ -158,6 +158,14 @@ namespace SushiAI
                                                          const Config::SourceSpec& source,
                                                          std::string_view context)
             {
+                if (source.node == Config::K_NAMED_INPUT)
+                {
+                    Result<NodeRef> extra = graph.extra_input(source.input);
+                    SA_TRY(SA_ANNOTATE(extra.status(), "{}", context));
+
+                    return extra;
+                }
+
                 const bool reads_input = source.node == Config::K_MODEL_INPUT;
                 SA_FAIL_IF(!reads_input &&
                                (source.node < 0 ||
@@ -337,6 +345,8 @@ namespace SushiAI
                        "the model declares no layers, so it describes no model");
 
             ModelGraph graph(model.input_shape);
+            for (const Config::NamedInputSpec& input : model.inputs)
+                SA_TRY(graph.declare_input(input.name, input.shape, input.dtype));
 
             std::vector<NodeRef> rows;
             rows.reserve(model.layers.size());

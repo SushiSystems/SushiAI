@@ -91,6 +91,12 @@ namespace
         {"embedding", R"({"num_embeddings": 7, "embedding_dim": 3})", {Shape{5}}, Shape{5, 3}},
         {"layernorm", "{}", {Shape{5, 3}}, Shape{5, 3}},
         {"dropout", R"({"rate": 0.1})", {Shape{5, 3}}, Shape{5, 3}},
+        {"mul", "{}", {Shape{4, 4, 3}, Shape{4, 4, 3}}, Shape{4, 4, 3}},
+        {"maximum", "{}", {Shape{4, 4, 3}, Shape{4, 4, 3}}, Shape{4, 4, 3}},
+        {"sub", "{}", {Shape{4, 4, 3}, Shape{4, 4, 3}}, Shape{4, 4, 3}},
+        {"div", "{}", {Shape{4, 4, 3}, Shape{4, 4, 3}}, Shape{4, 4, 3}},
+        {"softmax", "{}", {Shape{5, 3}}, Shape{5, 3}},
+        {"transpose", R"({"perm": [1, 0]})", {Shape{5, 3}}, Shape{3, 5}},
     };
 
     /** @brief Describes one layer row's minimal object and the shape it reads. */
@@ -120,6 +126,16 @@ namespace
         {"mish", "{}", Shape{8, 8, 2}},
         {"slice_channels", R"({"offset": 0, "count": 1})", Shape{8, 8, 2}},
     };
+
+    /** @brief Holds a model whose row 0 joins the model input with an extra input. */
+    constexpr std::string_view K_NAMED_INPUT_MODEL = R"({
+        "format_version": 2,
+        "input": {"shape": [8, 8, 3]},
+        "inputs": {"flags": {"shape": [8, 8, 2]}},
+        "layers": [
+            {"type": "concat", "from": ["input", "inputs.flags"]}
+        ]
+    })";
 
     /** @brief Holds a model whose row 2 joins the model input with the row above it. */
     constexpr std::string_view K_INPUT_JOINING_MODEL = R"({
@@ -204,7 +220,7 @@ namespace
 
 /**
  * @brief Tests that register_layers adds the 16 layer types, then batchnorm2d, concat, add,
- *        embedding, layernorm and dropout.
+ *        embedding, layernorm, dropout, mul, maximum, sub, div, softmax and transpose.
  */
 TEST(Small_NodeRegistry, RegisterLayersAddsTheRowsInOrder)
 {
@@ -213,8 +229,9 @@ TEST(Small_NodeRegistry, RegisterLayersAddsTheRowsInOrder)
         "unflatten", "conv2d",   "maxpool2d", "avgpool2d", "global_avgpool",
         "flatten",   "upsample", "silu",      "mish",      "slice_channels",
     };
-    const std::vector<std::string_view> expected_nodes = {"batchnorm2d", "concat",    "add",
-                                                         "embedding",   "layernorm", "dropout"};
+    const std::vector<std::string_view> expected_nodes = {
+        "batchnorm2d", "concat", "add",     "embedding", "layernorm", "dropout",
+        "mul",         "maximum", "sub",    "div",       "softmax",   "transpose"};
 
     NN::NodeRegistry registry;
     SA_EXPECT_OK(NN::register_layers(registry));
@@ -517,7 +534,8 @@ TEST(Small_NodeRegistry, AnUnknownTypeListsBothTables)
     SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "layer 5 'conv3d'",
                       "the type 'conv3d'", "does not have", "node types", "layer types");
     SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "'batchnorm2d'", "'concat'", "'add'",
-                      "'embedding'", "'layernorm'", "'dropout'");
+                      "'embedding'", "'layernorm'", "'dropout'", "'mul'", "'maximum'", "'sub'",
+                      "'div'", "'softmax'", "'transpose'");
     SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "'linear'", "'gelu'", "'relu'",
                       "'tanh'", "'sigmoid'", "'leaky_relu'", "'unflatten'", "'conv2d'");
     SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "'maxpool2d'", "'avgpool2d'",
@@ -624,6 +642,33 @@ TEST(Small_NodeRegistry, ALaterRowMayReadTheModelInput)
     EXPECT_EQ(model.node(2).ports()[0].shape, (Shape{8, 8, 7}));
 }
 
+/** @brief Tests that build_model declares the extra inputs, and a row reads one by name. */
+TEST(Small_NodeRegistry, ARowReadsANamedInputTheModelDeclares)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    const Config::ModelSpec spec = model_from(K_NAMED_INPUT_MODEL);
+    ASSERT_EQ(spec.layers[0].from[1].node, Config::K_NAMED_INPUT);
+
+    SA_ASSERT_OK_AND_ASSIGN(const ModelGraph model, NN::build_model(registry, spec));
+
+    // Row 0 joins the input's 3 channels and then the extra input's 2.
+    ASSERT_EQ(model.extra_inputs().size(), 1u);
+    EXPECT_EQ(model.extra_inputs()[0].name, "flags");
+    EXPECT_EQ(model.extra_inputs()[0].sample, (Shape{8, 8, 2}));
+    EXPECT_EQ(model.node(0).ports()[0].shape, (Shape{8, 8, 5}));
+}
+
+/** @brief Tests that a spec built by hand that names an undeclared input is refused with the row. */
+TEST(Small_NodeRegistry, ASourceThatNamesAnUndeclaredInputIsRefused)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    Config::ModelSpec spec = model_from(K_NAMED_INPUT_MODEL);
+    spec.layers[0].from[1].input = "mask";
+
+    SA_EXPECT_FAILURE(NN::build_model(registry, spec), StatusCode::InvalidDescription,
+                      "layer 0 'concat'", "'mask'", "'flags'");
+}
+
 /** @brief Tests that a source naming a port of the model input is refused and names the row. */
 TEST(Small_NodeRegistry, ASourceCannotNameAPortOfTheModelInput)
 {
@@ -656,9 +701,9 @@ TEST(Small_NodeRegistry, ARowThatReadsARowNotAboveItIsRefused)
                       "layer 1 'conv2d'", "row 3", "not above");
 
     Config::ModelSpec negative = model_from(K_BRANCHING_MODEL);
-    negative.layers[2].from[0].node = -2;
+    negative.layers[2].from[0].node = -3;
     SA_EXPECT_FAILURE(NN::build_model(registry, negative), StatusCode::InvalidDescription,
-                      "layer 2 'upsample'", "row -2");
+                      "layer 2 'upsample'", "row -3");
 
     Config::ModelSpec sourceless = model_from(K_BRANCHING_MODEL);
     sourceless.layers[2].from.clear();
