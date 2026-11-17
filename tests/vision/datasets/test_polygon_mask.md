@@ -26,3 +26,8 @@ An empty label set over the background 3 gives sixteen bytes of 3.
 One row each: an object with a box and no polygon fails with `InvalidDescription`,
 "paint_polygon_mask", "object 0" and "no polygon"; an object of class 255 fails with
 `InvalidDescription`, "the class 255" and "0 to 254".
+
+## EveryPartOfAnOutlineIsPainted
+
+One object of class 2 whose outline holds the unit squares at (0, 0) and (3, 3) paints the pixel
+(0, 0) and the pixel (3, 3) of a 4 by 4 mask with 2, and the 14 others take the background 255.

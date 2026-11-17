@@ -65,7 +65,7 @@ namespace SushiAI::Vision::Imaging
         };
 
         /**
-         * @brief Loads one image, resizes its long side, makes it RGB and converts its labels.
+         * @brief Loads one image within the training size, as RGB, with its labels converted.
          * @param loaded Receives the resized image with K_RGB_CHANNELS.
          * @param owner Names the calling function at the start of the message.
          * @return The labels and the decoded size; the failure of the load or the resize;
@@ -74,7 +74,7 @@ namespace SushiAI::Vision::Imaging
          */
         [[nodiscard]] Result<LoadedLabels> load_resized(const SampleSource& source,
                                                         std::size_t index,
-                                                        std::int32_t image_size,
+                                                        ImageSize image_size,
                                                         LoadScratch scratch, Image& loaded,
                                                         std::string_view owner)
         {
@@ -96,12 +96,12 @@ namespace SushiAI::Vision::Imaging
 
             if (channels == K_GRAY_CHANNELS)
             {
-                SA_TRY(resize_long_side(scratch.decoded.view(), image_size, scratch.gray));
+                SA_TRY(resize_within(scratch.decoded.view(), image_size, scratch.gray));
                 SA_TRY(expand_gray(scratch.gray.view(), loaded));
             }
             else
             {
-                SA_TRY(resize_long_side(scratch.decoded.view(), image_size, loaded));
+                SA_TRY(resize_within(scratch.decoded.view(), image_size, loaded));
             }
 
             LoadedLabels result;
@@ -114,7 +114,7 @@ namespace SushiAI::Vision::Imaging
         /**
          * @brief Loads the three partners in draw order and composes the mosaic of one sample.
          * @param own_labels Pixel labels of patches[0], which already holds the sample's image.
-         * @param canvas Receives the 2s by 2s mosaic.
+         * @param canvas Receives the mosaic, mosaic_canvas(image_size).
          * @param owner Names the calling function at the start of the message.
          * @return The joined labels in canvas coordinates, or the first failure of a partner's
          *         load, of the plan or of the canvas.
@@ -122,7 +122,7 @@ namespace SushiAI::Vision::Imaging
         [[nodiscard]] Result<Labels> compose_mosaic(const SampleSource& source,
                                                     const MosaicSettings& settings,
                                                     const MosaicDraw& draw,
-                                                    std::int32_t image_size, Labels own_labels,
+                                                    ImageSize image_size, Labels own_labels,
                                                     LoadScratch scratch,
                                                     std::array<Image, K_MOSAIC_PATCHES>& patches,
                                                     Image& canvas, std::string_view owner)
@@ -225,10 +225,10 @@ namespace SushiAI::Vision::Imaging
         SA_FATAL_IF(epoch < 0 || epoch >= settings_.epochs,
                     "{}: epoch {} is outside a run of {} epochs", owner, epoch, settings_.epochs);
 
-        const std::int32_t side = settings_.image_size;
+        const ImageSize size = settings_.image_size;
         const LoadScratch scratch{decoded_, gray_};
         SA_TRY_ASSIGN(LoadedLabels own,
-                      load_resized(*source_, index, side, scratch, patches_[0], owner));
+                      load_resized(*source_, index, size, scratch, patches_[0], owner));
         sample.original_size = own.original_size;
         sample.loaded_size = patches_[0].size();
 
@@ -239,7 +239,7 @@ namespace SushiAI::Vision::Imaging
         if (!trace.is_mosaic_closed)
         {
             SA_TRY_ASSIGN(trace.mosaic,
-                          draw_mosaic(settings_.mosaic, side, index, *partners_, random));
+                          draw_mosaic(settings_.mosaic, size, index, *partners_, random));
         }
 
         Labels labels = std::move(own.labels);
@@ -247,13 +247,13 @@ namespace SushiAI::Vision::Imaging
         if (trace.mosaic.is_enabled)
         {
             SA_TRY_ASSIGN(labels,
-                          compose_mosaic(*source_, settings_.mosaic, trace.mosaic, side,
+                          compose_mosaic(*source_, settings_.mosaic, trace.mosaic, size,
                                          std::move(labels), scratch, patches_, first_, owner));
             warp_source = first_.view();
         }
 
         SA_TRY_ASSIGN(trace.affine, plan_affine(settings_.affine, warp_source.size(),
-                                                ImageSize{side, side}, random));
+                                                size, random));
         apply_affine(warp_source, trace.affine, second_);
         labels = apply_affine(labels, trace.affine);
 
@@ -269,9 +269,9 @@ namespace SushiAI::Vision::Imaging
 
     Status validate_validation(const ValidationSettings& settings) noexcept
     {
-        SA_FAIL_IF(!is_valid_side(settings.image_size), StatusCode::InvalidDescription,
-                   "validate_validation: an image_size of {} is outside [1, {}]",
-                   settings.image_size, K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(!is_valid_size(settings.image_size), StatusCode::InvalidDescription,
+                   "validate_validation: an image_size of {}x{} has a side outside [1, {}]",
+                   settings.image_size.height, settings.image_size.width, K_MAX_IMAGE_SIDE);
 
         validate_letterbox(settings.letterbox);
         return Status();

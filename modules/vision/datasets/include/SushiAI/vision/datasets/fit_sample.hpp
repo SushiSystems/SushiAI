@@ -45,6 +45,7 @@ namespace SushiAI::Vision::Datasets
     {
         Resize,    /**< Each axis is scaled on its own, so the aspect ratio may change. */
         Letterbox, /**< Both axes take one scale and the rest of the input is padding. */
+        DarknetLetterbox, /**< Darknet's letterbox_image: truncated sides, grey padding. */
     };
 
     /** @brief Holds what the caller chooses about a fit. */
@@ -56,7 +57,7 @@ namespace SushiAI::Vision::Datasets
         /** @brief Selects the fit. */
         SampleFit fit = SampleFit::Resize;
 
-        /** @brief Holds the settings of the letterbox; SampleFit::Resize does not read them. */
+        /** @brief Holds the settings of the letterbox; Resize and DarknetLetterbox ignore them. */
         Imaging::LetterboxSettings letterbox{};
     };
 

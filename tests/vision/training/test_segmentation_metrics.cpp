@@ -62,7 +62,7 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Holds the extents of the logits of the cases: one 2 by 2 map of three classes. */
+    /** @brief Holds the extents of the cases: one 2 by 2 map of three classes. */
     constexpr PixelExtents K_EXTENTS{1, 2, 2, 3};
 
     /** @brief Holds the mask value of a pixel of no class. */
@@ -78,7 +78,13 @@ namespace
     /** @brief Stands for a metric the step did not report; no ratio equals it. */
     constexpr double K_ABSENT = -1.0;
 
-    /** @brief Provides an engine and the batch and the logits of one step. */
+    /** @brief Returns the one value of a step, named as the objectives name it. */
+    Train::StepOutput class_value(const SushiBLAS::Tensor& classes)
+    {
+        return Train::StepOutput{std::string(Vision::Training::K_PIXEL_CLASSES_VALUE), &classes};
+    }
+
+    /** @brief Provides an engine and the batch and the class values of one step. */
     class Medium_VisionTrainingSegmentationMetrics : public SaTest::EngineTest
     {
         protected:
@@ -98,16 +104,19 @@ namespace
                 return batch;
             }
 
-            /** @brief Returns float32 [1, 2, 2, 3] logits holding @p values. */
-            SushiBLAS::Tensor make_logits(const std::vector<double>& values)
+            /** @brief Returns the INT64 [4] class values a device writes, holding @p classes. */
+            SushiBLAS::Tensor make_classes(const std::vector<std::int64_t>& classes)
             {
                 Result<SushiBLAS::Tensor> made =
-                    allocate_tensor(*engine, Shape{1, 2, 2, 3}, DType::Float32);
+                    allocate_tensor(*engine, Shape{static_cast<std::int64_t>(classes.size())},
+                                    DType::Int64);
                 EXPECT_TRUE(made.status().is_ok());
-                SaTest::write_tensor(made.value(), values);
+                for (std::size_t i = 0; i < classes.size(); ++i)
+                    made.value().data_as<std::int64_t>()[i] = classes[i];
 
                 return std::move(made).value();
             }
+
     };
 
     /**
@@ -143,12 +152,11 @@ namespace
 TEST_F(Medium_VisionTrainingSegmentationMetrics, TheMetricsEqualTheHandCount)
 {
     // Picks 0, 1, 0 and 1 against 0, 2, ignored and 1: two of three right.
-    const SushiBLAS::Tensor logits = make_logits(
-        {2.0, 1.0, 0.0, 0.0, 3.0, 1.0, 5.0, 0.0, 0.0, -1.0, 0.5, 0.0});
+    const SushiBLAS::Tensor classes = make_classes({0, 1, 0, 1});
     const Data::Batch batch = make_batch({0, 2, K_IGNORE, 1});
-    const Train::StepOutput output{"output", &logits};
-    const Train::StepView step{batch, 0.0,
-                               SushiRuntime::span<const Train::StepOutput>(&output, 1)};
+    const Train::StepOutput value = class_value(classes);
+    const Train::StepView step{batch, 0.0, {},
+                               SushiRuntime::span<const Train::StepOutput>(&value, 1)};
     Train::Metrics metrics;
 
     SA_EXPECT_OK(measure_segmentation(step, K_EXTENTS, K_IGNORE, metrics));
@@ -162,98 +170,123 @@ TEST_F(Medium_VisionTrainingSegmentationMetrics, TheMetricsEqualTheHandCount)
     EXPECT_TRUE(mean_iou->is_fraction);
 }
 
-/** @brief Tests that a step that published two outputs is refused, naming the count. */
-TEST_F(Small_VisionTrainingSegmentationMetrics, AStepOfTwoOutputsIsRefused)
+/**
+ * @brief Tests the metrics over 4100 classes.
+ *
+ * Four pixels, so the matrix holds almost every count at zero.
+ */
+TEST_F(Medium_VisionTrainingSegmentationMetrics, MoreThan4096ClassesAreCounted)
 {
-    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 3}, DType::Float32);
-    const Data::Batch batch = described_batch();
-    const std::vector<Train::StepOutput> two{{"a", &logits}, {"b", &logits}};
+    constexpr PixelExtents extents{1, 2, 2, 4100};
+    // Classes 0, 4099, 0 and 2 against 0, 4099, 4099 and 2: three of four right.
+    const SushiBLAS::Tensor classes = make_classes({0, 4099, 0, 2});
+    const Data::Batch batch = make_batch({0, 4099, 4099, 2});
+    const Train::StepOutput value = class_value(classes);
+    const Train::StepView step{batch, 0.0, {},
+                               SushiRuntime::span<const Train::StepOutput>(&value, 1)};
     Train::Metrics metrics;
 
-    SA_EXPECT_FAILURE(
-        measure_segmentation(
-            Train::StepView{batch, 0.0,
-                            SushiRuntime::span<const Train::StepOutput>(two.data(), two.size())},
-            K_EXTENTS, K_IGNORE, metrics),
-        StatusCode::InvalidDescription, "published 2");
+    SA_EXPECT_OK(measure_segmentation(step, extents, K_IGNORE, metrics));
+
+    // Class 0 has IoU 1 / 2, class 4099 has 1 / 2 and class 2 has 1.
+    EXPECT_NEAR(metrics.value_or("mean_iou", K_ABSENT), 2.0 / 3.0, K_TOLERANCE);
+    EXPECT_NEAR(metrics.value_or("pixel_accuracy", K_ABSENT), 3.0 / 4.0, K_TOLERANCE);
+}
+
+/** @brief Tests that a step that holds no class value is refused, naming the value. */
+TEST_F(Small_VisionTrainingSegmentationMetrics, AStepWithNoClassValueIsRefused)
+{
+    const Data::Batch batch = described_batch();
+    const Train::StepView step{batch, 0.0, {}, {}};
+    Train::Metrics metrics;
+
+    SA_EXPECT_FAILURE(measure_segmentation(step, K_EXTENTS, K_IGNORE, metrics),
+                      StatusCode::InvalidDescription, "'pixel_classes'",
+                      "holds no objective value");
     EXPECT_TRUE(metrics.all().empty());
 }
 
 /** @brief Tests that a batch with no mask role is refused, naming the role. */
 TEST_F(Small_VisionTrainingSegmentationMetrics, ABatchWithNoMaskIsRefused)
 {
-    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 3}, DType::Float32);
+    const SushiBLAS::Tensor classes = described(Shape{4}, DType::Int64);
     const Data::Batch no_mask;
-    const Train::StepOutput output{"output", &logits};
+    const Train::StepOutput value = class_value(classes);
     Train::Metrics metrics;
 
     SA_EXPECT_FAILURE(
         measure_segmentation(
-            Train::StepView{no_mask, 0.0, SushiRuntime::span<const Train::StepOutput>(&output, 1)},
+            Train::StepView{no_mask, 0.0, {},
+                            SushiRuntime::span<const Train::StepOutput>(&value, 1)},
             K_EXTENTS, K_IGNORE, metrics),
         StatusCode::InvalidDescription, "'mask'");
     EXPECT_TRUE(metrics.all().empty());
 }
 
-/** @brief Tests that logits of another element count than the extents state are refused. */
-TEST_F(Small_VisionTrainingSegmentationMetrics, LogitsOfAnotherCountAreRefused)
+/** @brief Tests that a class value of another count than the extents state is refused. */
+TEST_F(Small_VisionTrainingSegmentationMetrics, AClassValueOfAnotherCountIsRefused)
 {
-    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 3}, DType::Float32);
+    const SushiBLAS::Tensor classes = described(Shape{3}, DType::Int64);
     const Data::Batch batch = described_batch();
-    const Train::StepOutput output{"output", &logits};
+    const Train::StepOutput value = class_value(classes);
     Train::Metrics metrics;
 
     SA_EXPECT_FAILURE(
         measure_segmentation(
-            Train::StepView{batch, 0.0, SushiRuntime::span<const Train::StepOutput>(&output, 1)},
-            PixelExtents{1, 2, 2, 4}, K_IGNORE, metrics),
-        StatusCode::Incompatible, "the logits");
-    EXPECT_TRUE(metrics.all().empty());
-}
-
-/** @brief Tests that more classes than the confusion matrix counts are refused. */
-TEST_F(Small_VisionTrainingSegmentationMetrics, MoreThanTheMostClassesTheMatrixCountsIsRefused)
-{
-    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 4097}, DType::Float32);
-    const Data::Batch batch = described_batch();
-    const Train::StepOutput output{"output", &logits};
-    Train::Metrics metrics;
-
-    SA_EXPECT_FAILURE(
-        measure_segmentation(
-            Train::StepView{batch, 0.0, SushiRuntime::span<const Train::StepOutput>(&output, 1)},
-            PixelExtents{1, 2, 2, 4097}, K_IGNORE, metrics),
-        StatusCode::InvalidDescription, "4097 classes", "at most 4096");
-    EXPECT_TRUE(metrics.all().empty());
-}
-
-/** @brief Tests that logits the host cannot read back are refused. */
-TEST_F(Small_VisionTrainingSegmentationMetrics, LogitsTheHostCannotReadAreRefused)
-{
-    const SushiBLAS::Tensor logits = described(Shape{1, 2, 2, 3}, DType::Int32);
-    const Data::Batch batch = described_batch();
-    const Train::StepOutput output{"output", &logits};
-    Train::Metrics metrics;
-
-    SA_EXPECT_FAILURE(
-        measure_segmentation(
-            Train::StepView{batch, 0.0, SushiRuntime::span<const Train::StepOutput>(&output, 1)},
+            Train::StepView{batch, 0.0, {},
+                            SushiRuntime::span<const Train::StepOutput>(&value, 1)},
             K_EXTENTS, K_IGNORE, metrics),
-        StatusCode::InvalidDescription, "the logits", "can be read back");
+        StatusCode::Incompatible, "class value holds 3 elements");
+    EXPECT_TRUE(metrics.all().empty());
+}
+
+/** @brief Tests that a class value that is not INT64 is refused. */
+TEST_F(Small_VisionTrainingSegmentationMetrics, AClassValueOfAnotherTypeIsRefused)
+{
+    const SushiBLAS::Tensor classes = described(Shape{4}, DType::Int32);
+    const Data::Batch batch = described_batch();
+    const Train::StepOutput value = class_value(classes);
+    Train::Metrics metrics;
+
+    SA_EXPECT_FAILURE(
+        measure_segmentation(
+            Train::StepView{batch, 0.0, {},
+                            SushiRuntime::span<const Train::StepOutput>(&value, 1)},
+            K_EXTENTS, K_IGNORE, metrics),
+        StatusCode::Incompatible, "class value holds 4 elements of int32");
     EXPECT_TRUE(metrics.all().empty());
 }
 
 /** @brief Tests that a label at the class count is refused, naming its pixel. */
 TEST_F(Medium_VisionTrainingSegmentationMetrics, ALabelOutOfBoundsIsRefused)
 {
-    const SushiBLAS::Tensor logits = make_logits(std::vector<double>(12, 0.0));
+    const SushiBLAS::Tensor classes = make_classes({0, 0, 0, 0});
     const Data::Batch bad_label = make_batch({0, 3, K_IGNORE, 1});
-    const Train::StepOutput output{"output", &logits};
-    const SushiRuntime::span<const Train::StepOutput> one(&output, 1);
+    const Train::StepOutput value = class_value(classes);
     Train::Metrics metrics;
 
     SA_EXPECT_FAILURE(
-        measure_segmentation(Train::StepView{bad_label, 0.0, one}, K_EXTENTS, K_IGNORE, metrics),
+        measure_segmentation(
+            Train::StepView{bad_label, 0.0, {},
+                            SushiRuntime::span<const Train::StepOutput>(&value, 1)},
+            K_EXTENTS, K_IGNORE, metrics),
         StatusCode::Incompatible, "true class of pixel 1", "is 3");
+    EXPECT_TRUE(metrics.all().empty());
+}
+
+/** @brief Tests that a class the device wrote beyond the class count is refused. */
+TEST_F(Medium_VisionTrainingSegmentationMetrics, AClassValueOutOfBoundsIsRefused)
+{
+    const SushiBLAS::Tensor classes = make_classes({0, 3, 0, 0});
+    const Data::Batch batch = make_batch({0, 2, K_IGNORE, 1});
+    const Train::StepOutput value = class_value(classes);
+    Train::Metrics metrics;
+
+    SA_EXPECT_FAILURE(
+        measure_segmentation(
+            Train::StepView{batch, 0.0, {},
+                            SushiRuntime::span<const Train::StepOutput>(&value, 1)},
+            K_EXTENTS, K_IGNORE, metrics),
+        StatusCode::Incompatible, "predicted class of pixel 1", "is 3");
     EXPECT_TRUE(metrics.all().empty());
 }

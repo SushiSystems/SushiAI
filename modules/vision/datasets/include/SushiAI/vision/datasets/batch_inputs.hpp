@@ -23,7 +23,7 @@
 
 /**
  * @file batch_inputs.hpp
- * @brief Declares the copy of the fitted images of one batch into its input tensor.
+ * @brief Declares the conversion of the fitted images of one batch into its input tensor.
  * @author Mustafa Garip
  */
 
@@ -32,22 +32,22 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/fitted_sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
 namespace SushiAI::Vision::Datasets
 {
-    /** @brief Holds the divisor that takes a byte to a float in [0, 1]. */
-    inline constexpr float K_BYTE_SCALE = 255.0f;
-
     /**
-     * @brief Writes each image, divided by K_BYTE_SCALE, into one row of an NHWC tensor.
+     * @brief Writes each image into one row of an NHWC tensor as (level * scale - mean) / deviation.
      * @param inputs A float32 tensor of [N, H, W, C] in host-readable storage.
-     * @return Incompatible when the tensor is not float32 of rank 4, when N is not the
-     *         sample count, or when an image is not H by W of C channels; the message gives
-     *         the position of the image in the batch.
+     * @param normalise The conversion; the default gives the byte divided by 255, bit for bit.
+     * @return Incompatible when the tensor is not float32 of rank 4, when N is not the sample
+     *         count, when an image is not H by W of C channels, or when C is not 3 and
+     *         @p normalise states an order, a mean or a deviation; the message names the image.
      */
-    [[nodiscard]] Status write_batch_inputs(SushiRuntime::span<const FittedSample> samples,
-                                            SushiBLAS::Tensor& inputs) noexcept;
+    [[nodiscard]] Status write_batch_inputs(
+        SushiRuntime::span<const FittedSample> samples, SushiBLAS::Tensor& inputs,
+        const Config::InputNormalise& normalise = Config::InputNormalise()) noexcept;
 } // namespace SushiAI::Vision::Datasets

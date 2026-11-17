@@ -44,8 +44,9 @@
 #include <SushiAI/vision/detect/free/free_task.hpp>
 #include <SushiAI/vision/training/free_assignment_stage.hpp>
 #include <SushiAI/vision/training/free_branch_weights.hpp>
-#include <SushiAI/vision/training/free_detection_loss_host.hpp>
+#include <SushiAI/vision/training/free_detection_loss.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
+#include <SushiAI/vision/training/free_loss_terms.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 
 namespace SushiAI::Vision::Training
@@ -61,6 +62,18 @@ namespace SushiAI::Vision::Training
 
     /** @brief Holds the role of the `[1]` weight of the one-to-one loss, with a one-to-one copy. */
     inline constexpr std::string_view K_FREE_ONE_TO_ONE_WEIGHT_ROLE = "free.one_to_one_weight";
+
+    /** @brief Names the value that holds the box term of the loss, before its gain. */
+    inline constexpr std::string_view K_FREE_BOX_VALUE = "free.box";
+
+    /** @brief Names the value that holds the class term of the loss, before its gain. */
+    inline constexpr std::string_view K_FREE_CLASSES_VALUE = "free.classes";
+
+    /** @brief Names the value that holds the distribution term; absent at reg_max 1. */
+    inline constexpr std::string_view K_FREE_DISTRIBUTION_VALUE = "free.distribution";
+
+    /** @brief Names the value that holds the L1 term; absent at l1_gain 0. */
+    inline constexpr std::string_view K_FREE_L1_VALUE = "free.l1";
 
     /**
      * @brief Trains the one-to-many ports of an anchor-free head, and its one-to-one ports when
@@ -94,13 +107,27 @@ namespace SushiAI::Vision::Training
             /**
              * @brief Emits emit_free_detection_loss() over the one-to-many ports and, with a
              *        one-to-one copy, over its ports too, each total times its weight leaf.
-             * @return The id of the `[1]` total.
+             * @return The `[1]` total, with each term the gains leave on under its name; with a
+             *         one-to-one copy also the copy's terms under the name and ".one_to_one",
+             *         beside the two weight leaves.
              * @pre @p outputs are the outputs the facts were derived from.
              */
-            [[nodiscard]] Result<Graph::ValueID> loss(
+            [[nodiscard]] Result<Train::LossTrace> loss(
                 const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                 const NN::ModelOutputs& outputs,
                 const Train::ObjectiveLeaves& leaves) const override;
+
+            /**
+             * @brief Publishes the box, class, distribution and L1 terms that loss() kept in
+             *        @p trace, each a `[1]` the step computes; a one-to-one copy adds its terms
+             *        times its weight leaf, and a term the gains switch off is not published.
+             * @return The values by K_FREE_BOX_VALUE, K_FREE_CLASSES_VALUE,
+             *         K_FREE_DISTRIBUTION_VALUE and K_FREE_L1_VALUE; none for an empty trace;
+             *         or the failure of an emission.
+             */
+            [[nodiscard]] Result<NN::ModelOutputs> declare_metric_values(
+                const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+                const Train::LossTrace& trace) const override;
 
             /** @brief Returns K_FREE_OBJECTIVE_TYPE. */
             std::string_view name() const noexcept override;
@@ -134,10 +161,10 @@ namespace SushiAI::Vision::Training
 
             /**
              * @brief Emits the loss of one copy of the head over its ports and its leaves.
-             * @return The id of the copy's `[1]` total; the failure of an emission the builder
-             *         refuses.
+             * @return The ids of the copy's `[1]` total and terms; the failure of an emission the
+             *         builder refuses.
              */
-            [[nodiscard]] Result<Graph::ValueID> branch_loss(
+            [[nodiscard]] Result<FreeLossTermIDs> branch_loss(
                 const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                 const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves,
                 FreeBranch branch) const;

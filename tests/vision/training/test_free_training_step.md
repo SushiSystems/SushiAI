@@ -42,14 +42,25 @@ Every run's total is finite.
 A truth of one image against a batch of 2 makes `run` fail and counts no run. The reason of the
 refusal belongs to `check_truth_layout`.
 
+### TheInputDescriptionIsTheLeafPastItsBatchAxis
+
+`input_description` of the two-level step is `[8, 8, 3]` of `Float32`: the extents of the batch leaf past its batch axis and its element type, which `run_free_training` matches a dataset against.
+
 ### MakeRefusesAPoolWithoutTheInputLeaf
 
 `make` over an empty pool, whose input leaf has no tensor, fails with `InvalidDescription` naming
 "input leaf" and "bind_parameters". The case is in `Small_FreeTrainingStep`, on a
 `HostExecutionBackend`, because the refusal comes before any task.
 
+### TheTotalIsTheGainedTermsTimesTheBatch
+
+With and without a one-to-one copy, one run reports a box and a class term above 0 and an L1 term of
+0, since the default `l1_gain` is 0. The total equals the batch times the sum of each reported term
+times its gain, to 16 float32 unit roundoffs of that sum. Both sides are linear in the two copies'
+weights, so the relation holds with the copy as well. The terms are the graph's own values.
+
 ### AStepPutsReadbackAssignAndLossInItsPeriod
 
 Only in a profiled build of level 1 or above. One step's `copy.input`, `device.run`,
-`host.assign`, `host.loss` and `host.readback` zones fall in the period that opened it, in the
-groups `copy`, `device` and `host`.
+`host.assign` and `host.readback` zones fall in the period that opened it, in the groups `copy`,
+`device` and `host`. The loss is read from the step's own graph, so no `host.loss` zone exists.

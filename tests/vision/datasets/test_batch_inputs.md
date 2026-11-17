@@ -18,6 +18,32 @@ the second of level 255 from `second.png`, and allocate a batch of two such imag
 `write_batch_inputs` writes 0.2, 0.2, 1.0, 1.0, each within the typed tolerance of a byte divided by
 255 in float, 32 times the float unit roundoff.
 
+## TheDefaultNormalisationIsTheByteDividedBy255ForEveryLevel
+
+One gray image holds each level 0 to 255 once. With a default `Config::InputNormalise`,
+`write_batch_inputs` writes for every level the float of `level / 255.0f`, equal bit for bit; the
+oracle is the division the writer made before a normalisation could be stated.
+
+## ABlueFirstPixelTakesTheScaleTheMeanAndTheDeviation
+
+One RGB pixel of the bytes 2, 4, 8 with `bgr`, scale 0.5, mean (1, 0.5, 0.25) and std (2, 0.5,
+0.25) gives 1.5, 3, 3: the bytes read 8, 4, 2, halve to 4, 2, 1, lose the mean to 3, 1.5, 0.75 and
+divide by the std. Every number is a power of two, so each value is exact.
+
+## ARedFirstPixelKeepsEachByteOnItsChannel
+
+The same pixel and numbers with the default order give 0, 3, 15: 1, 2, 4 less the mean 0, 1.5,
+3.75 over the std.
+
+## ANormalisationOfColoursIsRefusedForAGrayInput
+
+With `bgr` on a one-channel input, `write_batch_inputs` fails with `Incompatible`,
+"write_batch_inputs", "1 channels" and "stated for 3".
+
+## AScaleAloneAppliesToAGrayInput
+
+With only scale 0.5 on the gray levels 51 and 255, the inputs 25.5 and 127.5 are exact in float.
+
 ## AnImageOfAnotherSizeIsRefused
 
 With the second image 2 by 2, `write_batch_inputs` fails with `Incompatible`,
@@ -42,6 +68,10 @@ A collator of 7 classes reports the task `K_TASK_CLASSIFICATION` and one target:
 
 With the class indices 6 and 0, `collate` writes the labels 6 and 0, and the third input value
 is 1.0 within the typed tolerance of a byte divided by 255.
+
+## ClassificationWritesTheInputsByItsNormalisation
+
+A collator built with scale 0.5 writes 25.5 and 127.5 for the gray levels 51 and 255.
 
 ## ClassificationNamesTheFileOfASampleWithoutAClass
 

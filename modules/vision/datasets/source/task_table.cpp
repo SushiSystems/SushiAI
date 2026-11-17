@@ -88,7 +88,7 @@ namespace SushiAI::Vision::Datasets
             SA_TRY_ASSIGN(const std::int32_t max_objects,
                           Detail::read_section_count(stated, K_MAX_OBJECTS_KEY, context, 1));
             SA_TRY_ASSIGN(std::unique_ptr<DetectionCollator> collator,
-                          DetectionCollator::make(request.class_count, max_objects));
+                          DetectionCollator::make(request.class_count, max_objects, request.normalise));
 
             return std::unique_ptr<const Collator>(std::move(collator));
         }
@@ -98,7 +98,7 @@ namespace SushiAI::Vision::Datasets
             const Config::Value&, std::string_view, const CollatorRequest& request)
         {
             SA_TRY_ASSIGN(std::unique_ptr<ClassificationCollator> collator,
-                          ClassificationCollator::make(request.class_count));
+                          ClassificationCollator::make(request.class_count, request.normalise));
 
             return std::unique_ptr<const Collator>(std::move(collator));
         }
@@ -154,7 +154,7 @@ namespace SushiAI::Vision::Datasets
             SA_TRY_ASSIGN(const std::int32_t positive,
                           read_positive_class(section, context, request.list));
             SA_TRY_ASSIGN(std::unique_ptr<BinaryCollator> collator,
-                          BinaryCollator::make(positive));
+                          BinaryCollator::make(positive, request.normalise));
 
             return std::unique_ptr<const Collator>(std::move(collator));
         }
@@ -164,7 +164,7 @@ namespace SushiAI::Vision::Datasets
             const Config::Value&, std::string_view, const CollatorRequest& request)
         {
             SA_TRY_ASSIGN(std::unique_ptr<MultiLabelCollator> collator,
-                          MultiLabelCollator::make(request.class_count));
+                          MultiLabelCollator::make(request.class_count, request.normalise));
 
             return std::unique_ptr<const Collator>(std::move(collator));
         }
@@ -213,6 +213,7 @@ namespace SushiAI::Vision::Datasets
             SegmentationOptions options;
             options.class_count = request.class_count;
             options.size = request.input;
+            options.normalise = request.normalise;
             options.ignore_index = static_cast<std::int32_t>(ignore);
             options.origin = has_polygons_only(request.list) ? MaskOrigin::Polygons
                                                              : MaskOrigin::File;

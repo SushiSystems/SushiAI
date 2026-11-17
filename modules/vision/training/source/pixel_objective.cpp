@@ -31,9 +31,12 @@
 
 #include <limits>
 #include <string>
+#include <utility>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/vision/segment/ignore_index.hpp>
+#include <SushiAI/vision/training/segmentation_metrics.hpp>
 
 namespace SushiAI::Vision::Training::Detail
 {
@@ -45,24 +48,10 @@ namespace SushiAI::Vision::Training::Detail
         /** @brief Names the rank of the [H, W, channels] sample of an image model. */
         constexpr std::int32_t K_IMAGE_SAMPLE_RANK = 3;
 
-        /**
-         * @brief Reports whether N * H * W * C is at most @p largest.
-         * @pre Every extent is at least 1.
-         */
-        [[nodiscard]] bool fits(const PixelExtents& extents, std::int64_t largest) noexcept
-        {
-            // Dividing first keeps each product below what int64 holds.
-            std::int64_t room = largest / extents.batch;
-            room /= extents.height;
-            room /= extents.width;
-
-            return extents.classes <= room;
-        }
     } // namespace
 
     Status validate_pixel_objective(const PixelExtents& extents, std::int32_t ignore_index,
-                                    DType dtype, std::int64_t largest,
-                                    std::string_view objective)
+                                    DType dtype, std::string_view objective)
     {
         SA_FAIL_IF(extents.batch < 1 || extents.height < 1 || extents.width < 1
                    || extents.classes < 1,
@@ -70,11 +59,6 @@ namespace SushiAI::Vision::Training::Detail
                    "A {} objective needs a batch, a height, a width and a class count of at "
                    "least 1; got {}, {}, {} and {}",
                    objective, extents.batch, extents.height, extents.width, extents.classes);
-        SA_FAIL_IF(!fits(extents, largest), StatusCode::InvalidDescription,
-                   "A {} objective holds batch * height * width * classes scores; "
-                   "{} * {} * {} * {} is above {}",
-                   objective, extents.batch, extents.height, extents.width, extents.classes,
-                   largest);
         SA_FAIL_IF(ignore_index >= 0 && ignore_index < extents.classes,
                    StatusCode::InvalidDescription,
                    "A {} objective was given the ignore index {}, which is one of its {} "
@@ -96,9 +80,10 @@ namespace SushiAI::Vision::Training::Detail
     }
 
     Graph::Traced emit_pixel_rows(const Graph::GraphBuilder& builder,
-                                  const Graph::Graph& graph, const NN::ModelOutputs& outputs,
-                                  const PixelExtents& extents, std::string_view objective)
+                                  const NN::ModelOutputs& outputs, const PixelExtents& extents,
+                                  std::string_view objective)
     {
+        const Graph::Graph& graph = builder.graph();
         const Result<Graph::ValueID> single = outputs.only();
         SA_FATAL_IF(!single.has_value(), "The {} objective reads one output: {}", objective,
                     single.status().message());
@@ -115,6 +100,27 @@ namespace SushiAI::Vision::Training::Detail
                     objective);
 
         return builder.reshape(single.value(), Shape{extents.pixels(), extents.classes});
+    }
+
+    Result<NN::ModelOutputs> declare_pixel_classes(const Graph::GraphBuilder& builder,
+                                                   const NN::ModelOutputs& outputs,
+                                                   const Train::LossTrace& trace,
+                                                   const PixelExtents& extents,
+                                                   std::string_view objective)
+    {
+        // The loss kept its rows; a graph without a loss, such as an evaluation graph, has none.
+        const Graph::Traced rows = trace.has(K_PIXEL_ROWS_VALUE)
+            ? Graph::Traced(trace.at(K_PIXEL_ROWS_VALUE))
+            : emit_pixel_rows(builder, outputs, extents, objective);
+        SA_TRY_ASSIGN(const Graph::ValueID classes, builder.argmax_rows(rows));
+
+        NN::ModelOutputs values;
+        SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
+        {
+            return values.add(std::string(K_PIXEL_CLASSES_VALUE), classes);
+        }));
+
+        return Result<NN::ModelOutputs>(std::move(values));
     }
 
     Result<PixelExtents> read_pixel_extents(const Train::ObjectiveContext& given,

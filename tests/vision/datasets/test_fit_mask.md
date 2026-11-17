@@ -51,3 +51,10 @@ A target size of 0 by 4 fails with `InvalidDescription`, "fit_mask" and "0 by 4 
 
 `Medium_DatasetsLoadSampleMask`, since it reaches a path on disk: a mask file that does not exist
 fails with `FileNotFound` and "absent.png".
+
+## ADarknetLetterboxPlacesTheMaskAsItsImage
+
+A mask of 2 rows and 3 columns, 0 to 5, fitted to 6 by 6 with `SampleFit::DarknetLetterbox`, becomes
+4 rows of 6 columns between a row of `K_MASK_VOID` above and one below. Each destination column
+takes the source column its centre falls in, 0, 0, 1, 1, 2, 2, and each destination row the source
+row 0, 0, 1, 1, so the rows are 0 0 1 1 2 2 twice, then 3 3 4 4 5 5 twice.

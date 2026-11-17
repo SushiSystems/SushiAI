@@ -96,7 +96,7 @@ namespace SushiAI::Vision::Training
              * @return The id of the [1] root, whose value carries no meaning; or the failure
              *         when @p outputs lacks a head or a head differs from its leaf.
              */
-            [[nodiscard]] Result<Graph::ValueID> loss(
+            [[nodiscard]] Result<Train::LossTrace> loss(
                 const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                 const NN::ModelOutputs& outputs,
                 const Train::ObjectiveLeaves& leaves) const override;

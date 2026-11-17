@@ -41,14 +41,14 @@ and counts 0 pixels after `clear()`.
 
 ### MakeRefusesAClassCountOutsideItsBounds
 
-Rows over 0 and `K_MAX_CONFUSION_CLASSES + 1`. `ConfusionMatrix::make(0)` fails with
-`InvalidDescription`, "ConfusionMatrix" and "0 classes". `make(K_MAX_CONFUSION_CLASSES + 1)` fails
-with "4097 classes" and "4096".
+Rows over 0 and `INT32_MAX`. `ConfusionMatrix::make(0)` fails with `InvalidDescription`,
+"ConfusionMatrix" and "0 classes". `make(INT32_MAX)` needs 2^31 - 1 squared counts, more than a
+vector of int64 can address, and fails with "2147483647 classes" and "host can address".
 
 ### TheCheckAcceptsAClassCountAtTheEdgeOfItsBounds
 
-Rows over 1 and `K_MAX_CONFUSION_CLASSES`: `check_confusion_class_count` succeeds. The check allocates
-nothing, so the largest count does not build the 128 MiB matrix in a `Small_` case.
+Rows over 1, 4096, 4097 and 2^29: `check_confusion_class_count` succeeds. The check allocates
+nothing, so no `Small_` case builds a matrix of 2^29 classes. The rows 4096 and 4097 show that no count is capped at either.
 
 ### MakeBuildsAMatrixOverTheGivenClassCount
 
@@ -61,6 +61,18 @@ three pixels ("2 predicted", "3 true"), for a truth of 2 at pixel 1 ("true class
 "is 2", "below 2", "255") and for a prediction of -1 at pixel 1 ("predicted class of pixel 1",
 "is -1"). The pixel count stays 0 after each call.
 
+### Int64PredictionsCountByTruthAndPrediction
+
+The `int64` overload of `add` takes the predictions 0, 1, 1, 2, 2, 2 against the truth 0, 0, 1, 2,
+1, 255. `count(truth, predicted)` is 1 at (0, 0), (0, 1), (1, 1), (1, 2) and (2, 2), and
+`pixel_count` is 5, as the `int32` overload counts the same pixels.
+
+### AnInt64PredictionAboveInt32IsRefusedNotWrapped
+
+The prediction 2^32 + 1 would wrap to 1 in an `int32`, a class of a matrix of 2 classes. `add`
+fails with `Incompatible`, "predicted class of pixel 1" and "4294967297", and the pixel count
+stays 0.
+
 ### MergeRefusesAnotherClassCount
 
 Merging a matrix of 3 classes into one of 2 fails with `Incompatible`, "2 classes" and "of 3".
@@ -70,17 +82,16 @@ Merging a matrix of 3 classes into one of 2 fails with `Incompatible`, "2 classe
 A matrix of 2 classes that counted the predictions 0, 1, 1 against the truth 0, 0, 1 refuses a
 matrix of 3 classes, and then still holds 1 at (0, 0), (0, 1) and (1, 1), 0 at (1, 0) and 3 pixels.
 
-## test_intersection_over_union.cpp, test_pixel_accuracy.cpp, test_argmax_classes.cpp
+## test_intersection_over_union.cpp, test_pixel_accuracy.cpp
 
-IoU per class and its mean over the classes that occur, pixel accuracy, an empty matrix, and the class pick with its tie.
+IoU per class and its mean over the classes that occur, pixel accuracy and an empty matrix.
 
 Suites: `Small_SegmentMetrics`.
 
 Tests `class_iou`, `class_occurs` and `mean_iou` in
 `modules/vision/segment/include/SushiAI/vision/segment/intersection_over_union.hpp`,
-`pixel_accuracy` in `modules/vision/segment/include/SushiAI/vision/segment/pixel_accuracy.hpp`
-and `argmax_classes` in
-`modules/vision/segment/include/SushiAI/vision/segment/argmax_classes.hpp`. Each ratio is
+and `pixel_accuracy` in
+`modules/vision/segment/include/SushiAI/vision/segment/pixel_accuracy.hpp`. Each ratio is
 compared to the rounding of one division (a class ratio or the pixel accuracy) or of six rounded
 operations (a mean), through `TestSupport::measure_relative_error<double>`, and the matrices count
 with the ignore index 255.
@@ -110,15 +121,6 @@ For seven pixels, the last with the truth 255, `pixel_accuracy` is 4/6.
 ### AnEmptyMatrixGivesZero
 
 A matrix whose one pixel was ignored gives 0 for `mean_iou` and for `pixel_accuracy`.
-
-### ArgmaxPicksTheLargestScore
-
-Over two pixels of three scores each, (0.1, 0.9, 0.0) and (-3.0, -2.0, -1.0), `argmax_classes`
-writes 1, 2.
-
-### ArgmaxGivesTheLowestClassOnATie
-
-For the one pixel (2.0, -1.0, 2.0), `argmax_classes` writes 0.
 
 ## test_rasterise_outlines.cpp, test_fill_outline.cpp
 

@@ -125,7 +125,7 @@ namespace
     TrainingSettings identity_settings(std::int32_t side)
     {
         TrainingSettings settings;
-        settings.image_size = side;
+        settings.image_size = square_size(side);
         settings.seed = K_SEED;
         settings.mosaic.probability = 0.0f;
         settings.affine.scale = 0.0f;
@@ -193,7 +193,7 @@ TEST(Small_ImagingMaskPipeline, AMosaicMaskFollowsTheBoxesOfItsSample)
     }
 
     TrainingSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = square_size(K_SIDE);
     settings.seed = K_SEED;
 
     TrainingPipeline pipeline =

@@ -33,6 +33,13 @@ A run with no schedule reports the optimizer's made rate as its last rate and le
 A dataset of another batch size, a run of no epoch and a first batch past the end each make the
 call fail, and after it the optimizer has taken no step and the step has counted no run.
 
+### ADatasetOfAnotherInputSizeIsRefusedNamingTheInput
+
+A dataset whose images are twice the side the step was compiled for makes the call fail with
+Incompatible, and the message holds "publishes its input as" and "the step was compiled for".
+The run takes no step: the optimizer's step count and the step's run count stay 0. This is the
+`Train::match_input` check, which the loop runs before the role check.
+
 ### ARunStartsAtTheEpochAndTheBatchItsOptionsState
 
 With a first epoch of 3 and a first batch of 2 over 2 epochs, the dataset is read at the epochs 3

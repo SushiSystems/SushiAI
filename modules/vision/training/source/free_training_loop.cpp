@@ -37,6 +37,7 @@
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/profile/profile.hpp>
 #include <SushiAI/profile/timelines.hpp>
+#include <SushiAI/train/input_match.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/free_branch_weights.hpp>
 #include <SushiAI/vision/training/detection_run_check.hpp>
@@ -51,6 +52,9 @@ namespace SushiAI::Vision::Training
         [[nodiscard]] Status check_run(const FreeTrainingStep& step, const Data::Dataset& dataset,
                                        const FreeLoopOptions& options)
         {
+            SA_TRY_ASSIGN(const Data::InputDescription required, step.input_description());
+            SA_TRY(Train::match_input(required, dataset));
+
             const FreeObjective& objective = step.objective();
 
             DetectionRunSubject subject;

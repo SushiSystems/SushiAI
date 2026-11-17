@@ -13,7 +13,7 @@ per pixel, or the status of what kept it from being read.
 `TrainingPipeline::make_sample` made for `index`. It draws nothing; every decision comes from
 the `TrainingTrace` and the settings.
 
-1. `load(index)`, then `resize_nearest` to `fit_long_side` of the mask's size, the size the
+1. `load(index)`, then `resize_nearest` to `fit_within` of the mask's size, the size the
    image was loaded at. The result must be `loaded_size`, which is `Sample::loaded_size`.
 2. When `trace.mosaic.is_enabled`: load and resize the masks of the three partners the same
    way, `plan_mosaic` with the trace's draw and the four mask sizes, and `apply_mosaic` with

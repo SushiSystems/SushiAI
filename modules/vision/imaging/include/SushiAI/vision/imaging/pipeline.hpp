@@ -95,8 +95,8 @@ namespace SushiAI::Vision::Imaging
     /** @brief Holds what the caller chooses about the training pipeline. */
     struct TrainingSettings
     {
-        /** @brief Holds the side s of the square output, in pixels (cfg/default.yaml:16). */
-        std::int32_t image_size = 640;
+        /** @brief Holds the height and width of the output, in pixels (cfg/default.yaml:16). */
+        ImageSize image_size{640, 640};
 
         /** @brief Counts the epochs of the run (cfg/default.yaml:12). */
         std::int32_t epochs = 100;
@@ -258,8 +258,8 @@ namespace SushiAI::Vision::Imaging
     /** @brief Holds what the caller chooses about the validation pipeline. */
     struct ValidationSettings
     {
-        /** @brief Holds the long side an image is loaded at, in pixels (cfg/default.yaml:16). */
-        std::int32_t image_size = 640;
+        /** @brief Holds the size an image is loaded to fit within (cfg/default.yaml:16). */
+        ImageSize image_size{640, 640};
 
         /** @brief Holds the letterbox settings. */
         LetterboxSettings letterbox{};
@@ -268,7 +268,7 @@ namespace SushiAI::Vision::Imaging
     /**
      * @brief Returns InvalidDescription for a validation setting outside its range.
      *
-     * image_size must pass is_valid_side; then validate_letterbox.
+     * image_size must pass is_valid_size; then validate_letterbox.
      */
     [[nodiscard]] Status validate_validation(const ValidationSettings& settings) noexcept;
 

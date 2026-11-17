@@ -39,10 +39,16 @@ The written section states the type `K_ANCHOR_TASK_TYPE` and 3 classes.
 The written section has the keys `type`, `classes`, `anchors`, `heads`, `suppression` in that
 order, and a head has the keys `output`, `anchors`, `coding`, `scale_xy`.
 
-## WritesEachFloatAsItsDouble
+## WritesEachFloatAsItsShortestDecimal
 
-The second head's scale equals `double(1.05f)` and the third anchor's sides equal
-`double(0.09f)` and `double(0.14f)`.
+The second head's scale equals the double 1.05 and the third anchor's sides equal the doubles
+0.09 and 0.14, the values `Config::float32_value` gives, not the widenings of the floats.
+
+## AWrittenSevenTenthsReadsAsSevenTenths
+
+A section whose first anchor is [0.7, 0.3] and whose first head has a `scale_xy` of 1.7 is read
+and written back. The written first anchor holds the doubles 0.7 and 0.3 and the first head the
+double 1.7, not the widenings 0.699999988...  of the floats.
 
 ## ReadsAndWritesSquaredSigmoidAsTheSizeOfALogitHead
 

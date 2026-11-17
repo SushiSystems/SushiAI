@@ -7,6 +7,12 @@ A polygon is the vertices of one object's outline in order, closed from the last
 first. An empty polygon means the object has none. The coordinates are fractions in a
 `FileLabels` set and pixels in a `Labels` set.
 
+## Outline
+
+An outline is the polygons of one object, one per part. An object whose region falls in several
+pieces holds one polygon per piece. An outline of no polygon means the object has none, and no
+part is empty.
+
 ## resampled_point_count, resample_polygon
 
 The reference resamples every polygon of an image to 1000 points each time it loads the image,
@@ -31,6 +37,7 @@ curve; it has more points so that the per-point clamp of the mosaic follows the 
 
 `map_polygon` is `x * scale_x + offset_x`, `y * scale_y + offset_y` in `float`, multiply first.
 Every transform moves a polygon through it. `clamp_polygon` clamps each vertex to a box.
+`map_outline` and `clamp_outline` apply them to every part of an outline.
 
 ## is_point_inside
 
@@ -53,3 +60,10 @@ The reference's `segment2box` (`utils/ops.py:78-124`), in `float`:
 
 An edge parallel to a line is skipped; the reference divides by zero there and discards the
 result.
+
+## visible_outline_box
+
+The box around the part of an outline an image shows: the union of `visible_polygon_box` of every
+part whose box is not four zeros. An outline whose parts all show nothing, or that has no part,
+gives four zeros. The reference's `segment2box` takes one segment, so the union over parts is
+this module's own rule.

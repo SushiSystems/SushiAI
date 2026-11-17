@@ -50,6 +50,10 @@ sushiai_add_module(NAME detect TIER vision
         source/iou.cpp
         source/iou_gradient.cpp
         source/suppression_criterion.cpp
+        source/suppression_section.cpp
         source/top_k.cpp
+        source/yolox/yolox_decode.cpp
+        source/yolox/yolox_head_contract.cpp
+        source/yolox/yolox_task.cpp
     PUBLIC_DEPENDS config failure
     EXTERNAL_PUBLIC SushiRuntime::core)

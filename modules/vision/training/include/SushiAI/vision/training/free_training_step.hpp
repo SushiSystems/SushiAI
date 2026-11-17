@@ -37,6 +37,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -46,7 +47,7 @@
 #include <SushiAI/train/training_step.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/free_assignment_stage.hpp>
-#include <SushiAI/vision/training/free_detection_loss_host.hpp>
+#include <SushiAI/vision/training/free_loss_terms.hpp>
 #include <SushiAI/vision/training/free_objective.hpp>
 
 namespace SushiAI::Vision::Training
@@ -85,9 +86,9 @@ namespace SushiAI::Vision::Training
              * @brief Runs the step up to the ports, assigns @p truth, writes every leaf, then
              *        runs the rest.
              * @pre The engine holds no recorded task.
-             * @return The loss terms the host evaluates over the leaves fed; Incompatible for
-             *         a truth of another batch or size; InvalidDescription for a label that
-             *         names no class; or the failure of a feed, the stage or a replay.
+             * @return The loss terms the graph computed, before their gains; Incompatible for a
+             *         truth of another batch or size; InvalidDescription for a label that names
+             *         no class; or the failure of a feed, the stage or a replay.
              */
             [[nodiscard]] Result<FreeLossTerms> run(const SushiBLAS::Tensor& inputs,
                                                     const Detect::GroundTruthBatch& truth) noexcept;
@@ -117,6 +118,13 @@ namespace SushiAI::Vision::Training
              */
             [[nodiscard]] Status restore_run_count(std::size_t count) noexcept;
 
+            /**
+             * @brief Returns the input a dataset must publish to feed the step's input leaf.
+             * @return The extents of the leaf past its batch axis and its element type, or
+             *         InvalidDescription for a leaf of rank 0.
+             */
+            [[nodiscard]] Result<Data::InputDescription> input_description() const noexcept;
+
             /** @brief Returns the objective that describes the ports and the leaves. */
             [[nodiscard]] const FreeObjective& objective() const noexcept;
 
@@ -124,22 +132,6 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] Optim::Optimizer& optimizer() noexcept;
 
         private:
-            /** @brief Holds one level's ports and leaves in double, as the host loss reads. */
-            struct LevelDoubles
-            {
-                std::vector<double> boxes;                /**< `4 * reg_max` per row. */
-                std::vector<double> scores;               /**< C per row. */
-                std::vector<double> target_scores;        /**< C per row. */
-                std::vector<double> box_mask;             /**< 4 per row. */
-                std::vector<double> normalized_weight;    /**< 1 per row. */
-                std::vector<double> target_boxes;         /**< 4 per row. */
-                std::vector<double> target_distances;     /**< 4 per row; l1_gain above 0. */
-                std::vector<double> l1_scale;             /**< 4 per row; l1_gain above 0. */
-                std::vector<double> safe_boxes;           /**< 4 per row. */
-                std::vector<double> distribution_weights; /**< `4 * reg_max`; reg_max above 1. */
-                std::vector<double> anchor_points;        /**< 2 per row. */
-            };
-
             /** @brief Holds one copy of the head: its stage, its ports and its leaves. */
             struct Branch
             {
@@ -187,14 +179,8 @@ namespace SushiAI::Vision::Training
              */
             [[nodiscard]] Status feed_leaves(const Detect::GroundTruthBatch& truth);
 
-            /**
-             * @brief Evaluates the loss terms over the ports and the leaves just written, each
-             *        copy's terms times its weight.
-             */
-            [[nodiscard]] Result<FreeLossTerms> measure_terms();
-
-            /** @brief Evaluates the loss terms of one copy over its ports and leaves. */
-            [[nodiscard]] Result<FreeLossTerms> measure_branch(const Branch& branch);
+            /** @brief Reads the loss and its terms the last replay left in the pool. */
+            [[nodiscard]] FreeLossTerms read_terms() const noexcept;
 
             /// @brief Records and runs the copy of the input; not owned.
             ExecutionBackend* backend_;
@@ -223,8 +209,11 @@ namespace SushiAI::Vision::Training
             /// @brief Holds the weight of the one-to-many loss the next run() writes.
             float one_to_many_weight_ = 1.0f;
 
-            /// @brief Holds one level at a time in double for measure_terms().
-            LevelDoubles doubles_;
+            /// @brief Points at the `[1]` loss of the training graph; set by resolve_tensors().
+            const SushiBLAS::Tensor* loss_ = nullptr;
+
+            /// @brief Points at the box, class, distribution and L1 terms; null for one absent.
+            const SushiBLAS::Tensor* terms_[4] = {nullptr, nullptr, nullptr, nullptr};
     };
 
 } // namespace SushiAI::Vision::Training

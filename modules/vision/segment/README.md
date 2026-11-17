@@ -33,10 +33,9 @@ depend on it.
 | `<SushiAI/vision/segment/ignore_index.hpp>` | `K_DEFAULT_IGNORE_INDEX` |
 | `<SushiAI/vision/segment/fill_outline.hpp>` | `fill_outline` |
 | `<SushiAI/vision/segment/rasterise_outlines.hpp>` | `ClassOutline`, `rasterise_outlines` |
-| `<SushiAI/vision/segment/confusion_matrix.hpp>` | `K_MAX_CONFUSION_CLASSES`, `check_confusion_class_count`, `ConfusionMatrix` |
+| `<SushiAI/vision/segment/confusion_matrix.hpp>` | `check_confusion_class_count`, `ConfusionMatrix` |
 | `<SushiAI/vision/segment/intersection_over_union.hpp>` | `class_occurs`, `class_iou`, `mean_iou` |
 | `<SushiAI/vision/segment/pixel_accuracy.hpp>` | `pixel_accuracy` |
-| `<SushiAI/vision/segment/argmax_classes.hpp>` | `argmax_classes` |
 
 ## Mask geometry
 
@@ -87,11 +86,14 @@ The nearest-neighbour resize of an index image is `Imaging::resize_nearest`.
 
 `ConfusionMatrix::make(classes)` builds `C * C` int64 counts, the row being the true class.
 `add(predicted, truth, ignore_index)` counts each pixel whose true class is not the ignore
-index, and `merge` adds another matrix, so a matrix kept across batches holds exact sums. A
-predicted class is not checked where the pixel is ignored. `add` checks every pixel before it
-counts one, so a refused batch leaves the matrix unchanged. The class count is at most
-`K_MAX_CONFUSION_CLASSES`, 4096, which is a matrix of 128 MiB; `check_confusion_class_count(classes)`
-says so without allocating, and `make` runs it first.
+index, with the predicted classes as int32 or as the int64 a device writes, and `merge` adds
+another matrix, so a matrix kept across batches holds exact sums. A predicted class is not
+checked where the pixel is ignored; an int64 one is checked before it is narrowed, so a value
+above the int32 range is refused and not wrapped. `add` checks every pixel before it counts
+one, so a refused batch leaves the matrix unchanged. The matrix costs `8 * C * C` bytes, 134 MB
+for 4100 classes. No class count is capped; `check_confusion_class_count(classes)` refuses, without
+allocating, a count below 1 and one whose matrix no host can address, and `make` runs it first
+and reports `OutOfMemory` when the allocation fails.
 
 ### intersection_over_union.hpp
 
@@ -110,11 +112,6 @@ classes they were taken from. A matrix that counted no pixel gives 0.
 ### pixel_accuracy.hpp
 
 `pixel_accuracy` is the sum of the diagonal over the counted pixels, and 0 for none.
-
-### argmax_classes.hpp
-
-`argmax_classes(scores, classes, picked)` writes the class of the largest of each pixel's
-`classes` scores, the lowest class on a tie. It is a template over `float` and `double`.
 
 ## A training file
 
@@ -146,7 +143,7 @@ hold it. Both default to 255. `"type": "dice"` takes the same key. The file has 
 | File | Suite | Covers |
 | --- | --- | --- |
 | `tests/vision/segment/test_confusion_matrix.cpp` | `Small_SegmentConfusionMatrix` | Counts by truth and prediction, an ignored pixel, sums over batches, merge and clear, the refusals and that a refused batch counts nothing |
-| `tests/vision/segment/test_intersection_over_union.cpp`, `test_pixel_accuracy.cpp`, `test_argmax_classes.cpp` | `Small_SegmentMetrics` | IoU per class and its mean by hand, a class that does not occur, pixel accuracy, an empty matrix, the class pick and its tie |
+| `tests/vision/segment/test_intersection_over_union.cpp`, `test_pixel_accuracy.cpp` | `Small_SegmentMetrics` | IoU per class and its mean by hand, a class that does not occur, pixel accuracy and an empty matrix |
 | `tests/vision/segment/test_rasterise_outlines.cpp` | `Small_SegmentRasterise` | A rectangle on pixel edges, the centre rule, a shared edge, a triangle, two parts, a hole, clipping, an outline without area, the later outline winning, the refusals |
 
 Every expected value in these files was worked by hand. None has been run.

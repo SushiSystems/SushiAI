@@ -1,9 +1,10 @@
 # modules/vision/imaging/include/SushiAI/vision/imaging/image.hpp
 
 
-## ImageSize, is_valid_side, is_valid_size, is_valid_channel_count
+## ImageSize, square_size, is_valid_side, is_valid_size, is_valid_channel_count
 
-Height first, then width, the order of the reference's `shape[:2]`. `K_MAX_IMAGE_SIDE` is 16384
+Height first, then width, the order of the reference's `shape[:2]`. `square_size(s)` is the size
+of height and width `s`, the reference's training size. `K_MAX_IMAGE_SIDE` is 16384
 and `K_MAX_CHANNELS` is 4. Both are this module's bounds, not the reference's. They let the raw
 image reader refuse a header before it allocates. `K_RGB_CHANNELS` is 3.
 

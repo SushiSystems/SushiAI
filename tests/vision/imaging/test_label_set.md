@@ -98,3 +98,23 @@ each. An empty polygon stays empty, and classes and boxes are unchanged.
 ## ResamplePolygonsLeavesASetWithoutPolygonsAlone
 
 A set whose one polygon is empty comes back with the polygon empty and the box unchanged.
+
+## AnOutlineOfSeveralPartsKeepsEveryPart
+
+An object added with an outline of a three-vertex and a two-vertex part holds both parts in order.
+
+## ToPixelLabelsScalesEveryPartOfAnOutline
+
+Two one-vertex parts at (0.25, 0.25) and (0.5, 0.75) in `K_SIZE` become (160, 120) and (320, 360).
+
+## ToNormalizedLabelsDividesEveryPartOfAnOutline
+
+Two one-vertex parts at (80, 120) and (240, 360) in `K_SIZE` become (0.125, 0.25) and (0.375, 0.75).
+
+## ClipLabelsClampsEveryPartOfAnOutline
+
+A part at (-10, 20) goes to (0, 20) and a part at (700, 500) to (640, 480).
+
+## ResamplePolygonsGivesEveryPartTheSameCount
+
+A three-vertex part and a forty-vertex part of one object both end with `K_POLYGON_POINTS` points.

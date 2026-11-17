@@ -40,6 +40,9 @@
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 #include <SushiAI/vision/imaging/labels.hpp>
+#include <SushiAI/vision/imaging/darknet_augment.hpp>
+#include <SushiAI/vision/imaging/darknet_letterbox.hpp>
+#include <SushiAI/vision/imaging/darknet_resize.hpp>
 #include <SushiAI/vision/imaging/fit_transform.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 #include <SushiAI/vision/imaging/mosaic.hpp>
@@ -178,7 +181,6 @@
 #include <SushiAI/vision/blocks/segment_head.hpp>
 #include <SushiAI/vision/blocks/c2f.hpp>
 #include <SushiAI/vision/blocks/c3.hpp>
-#include <SushiAI/vision/segment/argmax_classes.hpp>
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
 #include <SushiAI/vision/segment/fill_outline.hpp>
 #include <SushiAI/vision/segment/ignore_index.hpp>
@@ -205,8 +207,8 @@
 #include <SushiAI/vision/training/free_bias_init.hpp>
 #include <SushiAI/vision/training/free_branch_weights.hpp>
 #include <SushiAI/vision/training/free_detection_loss.hpp>
-#include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
+#include <SushiAI/vision/training/free_loss_terms.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include <SushiAI/vision/training/free_objective.hpp>
 #include <SushiAI/vision/training/free_objective_factory.hpp>
@@ -218,6 +220,7 @@
 #include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
 
 #include <SushiAI/vision/datasets/augment_pipeline.hpp>
+#include <SushiAI/vision/datasets/darknet_pipeline.hpp>
 #include <SushiAI/vision/datasets/fit_pipeline.hpp>
 #include <SushiAI/vision/datasets/pipeline_table.hpp>
 #include <SushiAI/vision/datasets/polygon_mask.hpp>
@@ -232,3 +235,11 @@
 #include <SushiAI/vision/imaging/in_memory_mask_source.hpp>
 #include <SushiAI/vision/imaging/in_memory_partner_source.hpp>
 #include <SushiAI/vision/imaging/in_memory_sample_source.hpp>
+#include <SushiAI/vision/blocks/decoupled_head.hpp>
+#include <SushiAI/vision/blocks/focus.hpp>
+#include <SushiAI/vision/detect/suppression_section.hpp>
+#include <SushiAI/vision/detect/yolox/yolox_decode.hpp>
+#include <SushiAI/vision/detect/yolox/yolox_head_contract.hpp>
+#include <SushiAI/vision/detect/yolox/yolox_task.hpp>
+#include <SushiAI/vision/importers/caffe_import.hpp>
+#include <SushiAI/vision/importers/onnx_import.hpp>

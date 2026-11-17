@@ -39,7 +39,7 @@
 namespace SushiAI::Vision::Datasets
 {
     /**
-     * @brief Paints the polygon of each object with the object's class, in the set's order.
+     * @brief Paints every polygon of each object with the object's class, in the set's order.
      *
      * The later of two objects that overlap wins; a pixel no polygon holds, by the rule
      * of Segment::fill_outline, takes @p background.

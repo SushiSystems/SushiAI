@@ -38,7 +38,6 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/vision/segment/argmax_classes.hpp>
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
 #include <SushiAI/vision/segment/intersection_over_union.hpp>
 #include <SushiAI/vision/segment/pixel_accuracy.hpp>

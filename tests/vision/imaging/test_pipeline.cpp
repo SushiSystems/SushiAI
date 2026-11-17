@@ -64,6 +64,9 @@ namespace
     /** @brief Holds the training size of the tests; a mosaic canvas is 64 by 64. */
     constexpr std::int32_t K_SIDE = 32;
 
+    /** @brief Holds the square training size of side K_SIDE. */
+    constexpr ImageSize K_SIZE = square_size(K_SIDE);
+
     /**
      * @brief Holds one step of the 24-bit uniform over the default scale range of width 1: 2^-24.
      */
@@ -111,7 +114,7 @@ namespace
     TrainingSettings make_settings()
     {
         TrainingSettings settings;
-        settings.image_size = K_SIDE;
+        settings.image_size = K_SIZE;
         return settings;
     }
 
@@ -169,11 +172,17 @@ namespace
             EXPECT_EQ(actual.boxes()[i].y1, expected.boxes()[i].y1);
             EXPECT_EQ(actual.boxes()[i].x2, expected.boxes()[i].x2);
             EXPECT_EQ(actual.boxes()[i].y2, expected.boxes()[i].y2);
-            ASSERT_EQ(actual.polygons()[i].size(), expected.polygons()[i].size());
-            for (std::size_t j = 0; j < expected.polygons()[i].size(); ++j)
+            ASSERT_EQ(actual.outlines()[i].size(), expected.outlines()[i].size());
+            for (std::size_t part = 0; part < expected.outlines()[i].size(); ++part)
             {
-                EXPECT_EQ(actual.polygons()[i][j].x, expected.polygons()[i][j].x);
-                EXPECT_EQ(actual.polygons()[i][j].y, expected.polygons()[i][j].y);
+                const Polygon& want = expected.outlines()[i][part];
+                const Polygon& got = actual.outlines()[i][part];
+                ASSERT_EQ(got.size(), want.size());
+                for (std::size_t j = 0; j < want.size(); ++j)
+                {
+                    EXPECT_EQ(got[j].x, want[j].x);
+                    EXPECT_EQ(got[j].y, want[j].y);
+                }
             }
         }
     }
@@ -282,12 +291,12 @@ namespace
         if (decoded.channels() == K_GRAY_CHANNELS)
         {
             Image gray;
-            SA_EXPECT_OK(resize_long_side(decoded.view(), K_SIDE, gray));
+            SA_EXPECT_OK(resize_within(decoded.view(), K_SIZE, gray));
             SA_EXPECT_OK(expand_gray(gray.view(), patch));
         }
         else
         {
-            SA_EXPECT_OK(resize_long_side(decoded.view(), K_SIDE, patch));
+            SA_EXPECT_OK(resize_within(decoded.view(), K_SIZE, patch));
         }
 
         return to_pixel_labels(resample_polygons(file_labels), patch.size());
@@ -477,7 +486,7 @@ TEST(Small_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHSVThenFlip)
         require_value(DatasetPartners::make(source.size()));
     DatasetPartners& partners = *partners_owner;
     const MosaicDraw mosaic =
-        require_value(draw_mosaic(settings.mosaic, K_SIDE, 2, partners, replica));
+        require_value(draw_mosaic(settings.mosaic, K_SIZE, 2, partners, replica));
     const AffinePlan affine =
         require_value(plan_affine(settings.affine, ImageSize{2 * K_SIDE, 2 * K_SIDE},
                                   ImageSize{K_SIDE, K_SIDE}, replica));
@@ -585,6 +594,25 @@ TEST(Small_ImagingPipeline, TrainingProducesTheTrainingSizeAndTheSizesOfItsOwnIm
     EXPECT_EQ(sample.loaded_size, (ImageSize{16, 32}));
     EXPECT_EQ(trace.affine.source, (ImageSize{2 * K_SIDE, 2 * K_SIDE}));
     EXPECT_EQ(trace.affine.output, (ImageSize{K_SIDE, K_SIDE}));
+}
+
+/** @brief Tests that a rectangular training size gives a sample of that size from twice it. */
+TEST(Small_ImagingPipeline, TrainingOnARectangleProducesTheRectangle)
+{
+    InMemorySampleSource source;
+    fill_source(source);
+    TrainingSettings settings = make_settings();
+    settings.image_size = ImageSize{K_SIDE / 2, K_SIDE};
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, settings));
+    Sample sample;
+
+    const TrainingTrace trace = require_value(pipeline.make_sample(0, 0, sample));
+
+    EXPECT_EQ(sample.image.size(), (ImageSize{K_SIDE / 2, K_SIDE}));
+    // 32 by 64 fits 16 by 32 at half size on both axes.
+    EXPECT_EQ(sample.loaded_size, (ImageSize{K_SIDE / 2, K_SIDE}));
+    EXPECT_EQ(trace.affine.source, (ImageSize{K_SIDE, 2 * K_SIDE}));
+    EXPECT_EQ(trace.affine.output, (ImageSize{K_SIDE / 2, K_SIDE}));
 }
 
 /** @brief Tests that the quadrant of at least 16 by 16 pixels keeps its box in the output. */
@@ -833,11 +861,20 @@ TEST_P(Small_ImagingPipelineSetting, TrainingRejectsASettingOutOfRangeAtConstruc
 INSTANTIATE_TEST_SUITE_P(
     Rows, Small_ImagingPipelineSetting,
     ::testing::Values(
-        SettingRow{"NoImageSize", [](TrainingSettings& s) { s.image_size = 0; },
+        SettingRow{"NoImageSize", [](TrainingSettings& s) { s.image_size = square_size(0); },
                    "validate_mosaic_size", "image_size of 0", ""},
         SettingRow{"ImageSizeWhoseCanvasIsTooLarge",
-                   [](TrainingSettings& s) { s.image_size = K_MAX_IMAGE_SIDE / 2 + 1; },
+                   [](TrainingSettings& s)
+                   {
+                       s.image_size = square_size(K_MAX_IMAGE_SIDE / 2 + 1);
+                   },
                    "validate_mosaic_size", "image_size of 8193", "[1, 8192]"},
+        SettingRow{"ImageSizeWithOneSideTooLarge",
+                   [](TrainingSettings& s)
+                   {
+                       s.image_size = ImageSize{640, K_MAX_IMAGE_SIDE / 2 + 1};
+                   },
+                   "validate_mosaic_size", "image_size of 640x8193", "[1, 8192]"},
         SettingRow{"NoEpochs", [](TrainingSettings& s) { s.epochs = 0; }, "validate_training",
                    "epoch count", ""},
         SettingRow{"NegativeCloseMosaic", [](TrainingSettings& s) { s.close_mosaic = -1; },
@@ -880,7 +917,7 @@ TEST(Small_ImagingPipeline, TrainingRejectedAtConstructionLoadsNoImage)
     InMemorySampleSource source;
     fill_source(source);
     TrainingSettings no_size = make_settings();
-    no_size.image_size = 0;
+    no_size.image_size = square_size(0);
 
     static_cast<void>(TrainingPipeline::make(source, no_size));
 
@@ -1012,9 +1049,9 @@ TEST(Small_ImagingPipeline, TrainingCarriesAPolygonAndTakesTheBoxFromIt)
     ASSERT_EQ(sample.labels.size(), 1u);
     EXPECT_EQ(sample.labels.classes()[0], 5);
     expect_box(sample.labels.boxes()[0], 8.0f, 8.0f, 24.0f, 24.0f);
-    ASSERT_EQ(sample.labels.polygons()[0].size(), K_POLYGON_POINTS);
-    EXPECT_EQ(sample.labels.polygons()[0][0].x, 8.0f);
-    EXPECT_EQ(sample.labels.polygons()[0][0].y, 8.0f);
+    ASSERT_EQ(sample.labels.outlines()[0][0].size(), K_POLYGON_POINTS);
+    EXPECT_EQ(sample.labels.outlines()[0][0][0].x, 8.0f);
+    EXPECT_EQ(sample.labels.outlines()[0][0][0].y, 8.0f);
 }
 
 /** @brief Tests that validation resizes the long side and then only pads. */
@@ -1024,7 +1061,7 @@ TEST(Small_ImagingPipeline, ValidationResizesTheLongSideThenOnlyPads)
     source.add(make_constant(ImageSize{8, 16}, 10, 200, 30),
                one_object(4, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f}));
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
     ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
@@ -1049,6 +1086,24 @@ TEST(Small_ImagingPipeline, ValidationResizesTheLongSideThenOnlyPads)
     EXPECT_EQ(source.loads(), std::vector<std::size_t>{0});
 }
 
+/** @brief Tests that validation loads an image to fit within a rectangular size. */
+TEST(Small_ImagingPipeline, ValidationLoadsAnImageWithinARectangularSize)
+{
+    InMemorySampleSource source;
+    source.add(make_constant(ImageSize{8, 16}, 10, 200, 30), FileLabels{});
+    ValidationSettings settings;
+    settings.image_size = ImageSize{K_SIDE / 2, K_SIDE};
+    ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
+    Sample sample;
+
+    static_cast<void>(
+        require_value(pipeline.make_sample(0, ImageSize{K_SIDE / 2, K_SIDE}, sample)));
+
+    // 16 / 8 and 32 / 16 are both 2, so the image doubles to the size itself.
+    EXPECT_EQ(sample.loaded_size, (ImageSize{K_SIDE / 2, K_SIDE}));
+    EXPECT_EQ(sample.image.size(), (ImageSize{K_SIDE / 2, K_SIDE}));
+}
+
 /** @brief Tests that validation moves a box by the padding and clips nothing. */
 TEST(Small_ImagingPipeline, ValidationMovesBoxesByThePaddingWithoutClipping)
 {
@@ -1056,7 +1111,7 @@ TEST(Small_ImagingPipeline, ValidationMovesBoxesByThePaddingWithoutClipping)
     source.add(make_constant(ImageSize{8, 16}, 10, 200, 30),
                one_object(4, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f}));
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
     ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
@@ -1074,7 +1129,7 @@ TEST(Small_ImagingPipeline, ValidationIntoARectangularTargetAddsNoPadding)
     InMemorySampleSource source;
     source.add(make_textured(ImageSize{16, 32}, 17), FileLabels{});
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
     ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
@@ -1091,7 +1146,7 @@ TEST(Small_ImagingPipeline, ValidationRepeatsItsSampleAfterAnotherIndex)
     InMemorySampleSource source;
     fill_source(source);
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
     ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample first;
     Sample between;
@@ -1112,7 +1167,7 @@ TEST(Small_ImagingPipeline, ValidationExpandsAGreyImageToRGB)
     InMemorySampleSource source;
     source.add(make_flat_image(ImageSize{8, 16}, 1, 61), FileLabels{});
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
     ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
@@ -1138,7 +1193,7 @@ TEST(Small_ImagingPipeline, ValidationCarriesAPolygonThroughTheLetterbox)
                Polygon{Point{0.25f, 0.25f}, Point{0.75f, 0.25f}, Point{0.5f, 0.75f}});
     source.add(make_constant(ImageSize{8, 16}, 10, 200, 30), labels);
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
     ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
@@ -1146,9 +1201,9 @@ TEST(Small_ImagingPipeline, ValidationCarriesAPolygonThroughTheLetterbox)
 
     // On the loaded 16 by 32 image the first vertex is (8, 4); the top padding adds 8 to y.
     ASSERT_EQ(sample.labels.size(), 1u);
-    ASSERT_EQ(sample.labels.polygons()[0].size(), K_POLYGON_POINTS);
-    EXPECT_EQ(sample.labels.polygons()[0][0].x, 8.0f);
-    EXPECT_EQ(sample.labels.polygons()[0][0].y, 12.0f);
+    ASSERT_EQ(sample.labels.outlines()[0][0].size(), K_POLYGON_POINTS);
+    EXPECT_EQ(sample.labels.outlines()[0][0][0].x, 8.0f);
+    EXPECT_EQ(sample.labels.outlines()[0][0][0].y, 12.0f);
 }
 
 /** @brief Tests that validation checks its settings at construction. */
@@ -1157,9 +1212,9 @@ TEST(Small_ImagingPipeline, ValidationRejectsSettingsOutsideTheirRange)
     InMemorySampleSource source;
     fill_source(source);
     ValidationSettings no_size;
-    no_size.image_size = 0;
+    no_size.image_size = square_size(0);
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
 
     SA_EXPECT_FAILURE(ValidationPipeline::make(source, no_size), StatusCode::InvalidDescription,
                       "validate_validation", "image_size of 0");
@@ -1171,7 +1226,7 @@ TEST(Small_ImagingPipeline, ValidationRejectsAnEmptySource)
 {
     InMemorySampleSource empty;
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
 
     SA_EXPECT_FAILURE(ValidationPipeline::make(empty, settings), StatusCode::InvalidDescription,
                       "ValidationPipeline", "no image");
@@ -1183,7 +1238,7 @@ TEST(Medium_ImagingPipeline, ValidationRejectsAnIndexOutsideTheSource)
     InMemorySampleSource source;
     fill_source(source);
     ValidationSettings settings;
-    settings.image_size = K_SIDE;
+    settings.image_size = K_SIZE;
     ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 

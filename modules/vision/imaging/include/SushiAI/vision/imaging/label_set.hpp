@@ -42,19 +42,19 @@
 namespace SushiAI::Vision::Imaging::Detail
 {
     /** @brief Stops the process unless a label set has one box and one polygon entry per class. */
-    void check_label_counts(std::size_t classes, std::size_t boxes, std::size_t polygons);
+    void check_label_counts(std::size_t classes, std::size_t boxes, std::size_t outlines);
 } // namespace SushiAI::Vision::Imaging::Detail
 
 /** @brief Holds the host-side 8-bit image transforms of the detection data pipeline. */
 namespace SushiAI::Vision::Imaging
 {
     /**
-     * @brief Holds the labels of one image: a class, a box and a polygon per object.
+     * @brief Holds the labels of one image: a class, a box and an outline per object.
      *
      * The three lists always have the same length, so index i names one object in all of
-     * them. An object without a polygon has an entry of no vertex. No member lets a caller
-     * change one list's length alone.
-     * @tparam Box NormalizedBox or PixelBox; the polygons are in the same units as the boxes.
+     * them. An outline holds one polygon per part of the object; an object without a polygon
+     * has an outline of no part. No member lets a caller change one list's length alone.
+     * @tparam Box NormalizedBox or PixelBox; the outlines are in the same units as the boxes.
      */
     template <typename Box>
     class LabelSet final
@@ -68,23 +68,23 @@ namespace SushiAI::Vision::Imaging
              * @param boxes One per class; another count is fatal.
              */
             LabelSet(std::vector<std::int32_t> classes, std::vector<Box> boxes) noexcept
-                : classes_(std::move(classes)), boxes_(std::move(boxes)), polygons_(boxes_.size())
+                : classes_(std::move(classes)), boxes_(std::move(boxes)), outlines_(boxes_.size())
             {
-                Detail::check_label_counts(classes_.size(), boxes_.size(), polygons_.size());
+                Detail::check_label_counts(classes_.size(), boxes_.size(), outlines_.size());
             }
 
             /**
-             * @brief Constructs a set of objects with their polygons.
+             * @brief Constructs a set of objects with their outlines.
              * @param boxes One per class; another count is fatal.
-             * @param polygons One per class, empty for an object without one; another count
+             * @param outlines One per class, empty for an object without one; another count
              *        is fatal.
              */
             LabelSet(std::vector<std::int32_t> classes, std::vector<Box> boxes,
-                     std::vector<Polygon> polygons) noexcept
+                     std::vector<Outline> outlines) noexcept
                 : classes_(std::move(classes)), boxes_(std::move(boxes)),
-                  polygons_(std::move(polygons))
+                  outlines_(std::move(outlines))
             {
-                Detail::check_label_counts(classes_.size(), boxes_.size(), polygons_.size());
+                Detail::check_label_counts(classes_.size(), boxes_.size(), outlines_.size());
             }
 
             /** @brief Reserves room for a number of objects in all three lists. */
@@ -92,18 +92,31 @@ namespace SushiAI::Vision::Imaging
             {
                 classes_.reserve(count);
                 boxes_.reserve(count);
-                polygons_.reserve(count);
+                outlines_.reserve(count);
+            }
+
+            /**
+             * @brief Appends one object whose outline is one polygon.
+             * @param polygon The object's polygon; leave it empty for an object without one.
+             */
+            void add(std::int32_t class_id, const Box& box, Polygon polygon = Polygon{}) noexcept
+            {
+                Outline outline;
+                if (!polygon.empty())
+                    outline.push_back(std::move(polygon));
+
+                add(class_id, box, std::move(outline));
             }
 
             /**
              * @brief Appends one object.
-             * @param polygon The object's outline; leave it empty for an object without one.
+             * @param outline The object's polygons, one per part; empty for an object without one.
              */
-            void add(std::int32_t class_id, const Box& box, Polygon polygon = Polygon{}) noexcept
+            void add(std::int32_t class_id, const Box& box, Outline outline) noexcept
             {
                 classes_.push_back(class_id);
                 boxes_.push_back(box);
-                polygons_.push_back(std::move(polygon));
+                outlines_.push_back(std::move(outline));
             }
 
             /**
@@ -125,7 +138,7 @@ namespace SushiAI::Vision::Imaging
                     {
                         classes_[kept] = classes_[i];
                         boxes_[kept] = boxes_[i];
-                        polygons_[kept] = std::move(polygons_[i]);
+                        outlines_[kept] = std::move(outlines_[i]);
                     }
 
                     ++kept;
@@ -133,7 +146,7 @@ namespace SushiAI::Vision::Imaging
 
                 classes_.resize(kept);
                 boxes_.resize(kept);
-                polygons_.resize(kept);
+                outlines_.resize(kept);
             }
 
             /** @brief Returns the object count. */
@@ -151,10 +164,10 @@ namespace SushiAI::Vision::Imaging
             /** @brief Returns one box per object. */
             [[nodiscard]] const std::vector<Box>& boxes() const noexcept { return boxes_; }
 
-            /** @brief Returns one polygon per object, of no vertex where the object has none. */
-            [[nodiscard]] const std::vector<Polygon>& polygons() const noexcept
+            /** @brief Returns one outline per object, of no part where the object has none. */
+            [[nodiscard]] const std::vector<Outline>& outlines() const noexcept
             {
-                return polygons_;
+                return outlines_;
             }
 
             /**
@@ -164,10 +177,10 @@ namespace SushiAI::Vision::Imaging
             [[nodiscard]] Box& box(std::size_t index) noexcept { return boxes_[index]; }
 
             /**
-             * @brief Returns one object's polygon for writing.
+             * @brief Returns one object's outline for writing.
              * @param index In [0, size()); not checked.
              */
-            [[nodiscard]] Polygon& polygon(std::size_t index) noexcept { return polygons_[index]; }
+            [[nodiscard]] Outline& outline(std::size_t index) noexcept { return outlines_[index]; }
 
         private:
             /// @brief Holds one class id per object, each in [0, class count).
@@ -176,8 +189,8 @@ namespace SushiAI::Vision::Imaging
             /// @brief Holds one box per object.
             std::vector<Box> boxes_;
 
-            /// @brief Holds one polygon per object.
-            std::vector<Polygon> polygons_;
+            /// @brief Holds one outline per object.
+            std::vector<Outline> outlines_;
     };
 
     /** @brief Names the label set a label file parses into, in fractions of the image. */
@@ -189,8 +202,8 @@ namespace SushiAI::Vision::Imaging
     /**
      * @brief Resamples every polygon of one image to one point count.
      *
-     * The count is resampled_point_count of the longest polygon, and each polygon goes
-     * through resample_polygon, as the reference does on every load
+     * The count is resampled_point_count of the longest polygon of any part of any object, and
+     * each polygon goes through resample_polygon, as the reference does on every load
      * (data/dataset.py:416-422). Boxes, classes and objects without a polygon are unchanged.
      */
     [[nodiscard]] FileLabels resample_polygons(FileLabels labels);

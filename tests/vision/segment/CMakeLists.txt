@@ -7,7 +7,6 @@
 
 sushiai_add_test_program(OWNER vision/segment
     SOURCES
-        test_argmax_classes.cpp
         test_confusion_matrix.cpp
         test_fill_outline.cpp
         test_ignore_index.cpp

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_argmax_classes.cpp                                                */
+/* test_yolox_head_contract.cpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,58 +21,46 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
- * @file test_argmax_classes.cpp
- * @brief Tests the class pick of each pixel.
+ * @file test_yolox_head_contract.cpp
+ * @brief Tests the port names and the objectness prior of the YOLOX head contract.
  * @author Mustafa Garip
  */
 
-#include <cstdint>
-#include <utility>
-#include <vector>
-#include <gtest/gtest.h>
-#include <SushiRuntime/core/span.hpp>
-#include <SushiAI/failure/result.hpp>
-#include <SushiAI/failure/status.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/vision/segment/argmax_classes.hpp>
-#include <SushiAI/vision/segment/confusion_matrix.hpp>
-#include <SushiAI/vision/segment/intersection_over_union.hpp>
-#include <SushiAI/vision/segment/pixel_accuracy.hpp>
+#include <cmath>
 
-using namespace SushiAI;
-using Vision::Segment::ConfusionMatrix;
+#include <gtest/gtest.h>
+
+#include <SushiAI/vision/detect/yolox/yolox_head_contract.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
-    /** @brief Names a list of class indices, one per pixel. */
-    using Classes = std::vector<std::int32_t>;
-
+    using SushiAI::Vision::Detect::Yolox::K_YOLOX_BOXES;
+    using SushiAI::Vision::Detect::Yolox::K_YOLOX_CLASSES;
+    using SushiAI::Vision::Detect::Yolox::K_YOLOX_OBJECTNESS;
+    using SushiAI::Vision::Detect::Yolox::yolox_port_name;
+    using SushiAI::Vision::Detect::Yolox::yolox_prior_bias;
 } // namespace
 
-/** @brief Tests that the pick is the class of the largest score of each pixel. */
-TEST(Small_SegmentMetrics, ArgmaxPicksTheLargestScore)
+/** @brief Tests that a port name is "level<level>.<role>". */
+TEST(Small_DetectYoloxHeadContract, APortNameIsTheLevelAndTheRole)
 {
-    const std::vector<float> scores{0.1f, 0.9f, 0.0f, -3.0f, -2.0f, -1.0f};
-    Classes picked(2, -1);
-
-    Vision::Segment::argmax_classes(
-        SushiRuntime::span<const float>(scores.data(), scores.size()), 3,
-        SushiRuntime::span<std::int32_t>(picked.data(), picked.size()));
-
-    EXPECT_EQ(picked, (Classes{1, 2}));
+    EXPECT_EQ(yolox_port_name(0, K_YOLOX_CLASSES), "level0.classes");
+    EXPECT_EQ(yolox_port_name(2, K_YOLOX_BOXES), "level2.boxes");
+    EXPECT_EQ(yolox_port_name(11, K_YOLOX_OBJECTNESS), "level11.objectness");
 }
 
-/** @brief Tests that equal scores give the lowest class. */
-TEST(Small_SegmentMetrics, ArgmaxGivesTheLowestClassOnATie)
+/**
+ * @brief Tests that the prior bias is the logit of 0.01, -log(99), as the reference writes it
+ *        -log((1 - 0.01) / 0.01). The bound is two double roundings: the quotient's and the
+ *        logarithm's.
+ */
+TEST(Small_DetectYoloxHeadContract, ThePriorBiasIsTheLogitOfOneHundredth)
 {
-    const std::vector<float> scores{2.0f, -1.0f, 2.0f};
-    Classes picked(1, -1);
+    const double reference = -std::log((1.0 - 0.01) / 0.01);
 
-    Vision::Segment::argmax_classes(
-        SushiRuntime::span<const float>(scores.data(), scores.size()), 3,
-        SushiRuntime::span<std::int32_t>(picked.data(), picked.size()));
-
-    EXPECT_EQ(picked, (Classes{0}));
+    EXPECT_NEAR(yolox_prior_bias(), reference,
+                (2.0 + std::fabs(reference)) * TestSupport::unit_roundoff<double>());
+    EXPECT_LT(yolox_prior_bias(), 0.0);
 }

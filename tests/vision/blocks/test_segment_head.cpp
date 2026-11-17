@@ -47,6 +47,7 @@
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
+#include <SushiAI/nn/upsample2d.hpp>
 #include <SushiAI/vision/blocks/segment_head.hpp>
 
 using namespace SushiAI;
@@ -168,11 +169,11 @@ TEST(Small_BlockSegmentHead, TheFactoryRefusesAnUnknownKey)
 {
     const Shape input{4, 4, 16};
     const Config::Value unknown =
-        require_value(Config::parse_json(R"({"classes": 5, "mode": 1})", "<test>"));
+        require_value(Config::parse_json(R"({"classes": 5, "dilation": 1})", "<test>"));
 
     SA_EXPECT_FAILURE(
         Vision::Blocks::make_segment_head_node(one_input(input), unknown, K_CONTEXT),
-        StatusCode::InvalidDescription, "layer 3 'segment_head'", "'mode'");
+        StatusCode::InvalidDescription, "layer 3 'segment_head'", "'dilation'");
 }
 
 /** @brief Tests that the factory refuses a row without its class count. */
@@ -196,4 +197,68 @@ TEST(Small_BlockSegmentHead, TheFactoryRefusesAScaleOfZero)
     SA_EXPECT_FAILURE(
         Vision::Blocks::make_segment_head_node(one_input(input), zero_scale, K_CONTEXT),
         StatusCode::InvalidDescription, "'scale'", "positive");
+}
+
+/** @brief Tests that the head traces the upsample of the mode it is built with. */
+TEST(Small_BlockSegmentHead, TheTraceUsesTheUpsampleOfItsMode)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
+    SegmentHead head(16, 8, 5, 2, K_NORM, NN::Upsample2d::Mode::Bilinear);
+    BufferUpdateList list;
+
+    const Graph::ValueID y = head.forward(Trace::training(builder, list), x);
+
+    EXPECT_EQ(graph.node(graph.value(y).producer).op, Ops::K_UPSAMPLE2D_BILINEAR.id);
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 8, 5}));
+}
+
+/** @brief Tests that the factory reads "mode" and that "nearest" is the default. */
+TEST(Small_BlockSegmentHead, TheFactoryReadsTheMode)
+{
+    const Shape input{4, 4, 16};
+    const Config::Value bilinear = require_value(
+        Config::parse_json(R"({"classes": 5, "scale": 2, "mode": "bilinear"})", "<test>"));
+    const Config::Value bare =
+        require_value(Config::parse_json(R"({"classes": 5, "scale": 2})", "<test>"));
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> blended,
+                            Vision::Blocks::make_segment_head_node(one_input(input), bilinear,
+                                                                   K_CONTEXT));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> repeated,
+                            Vision::Blocks::make_segment_head_node(one_input(input), bare,
+                                                                   K_CONTEXT));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
+    std::vector<Graph::ValueID> blended_out;
+    std::vector<Graph::ValueID> repeated_out;
+    SA_EXPECT_OK(blended->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), blended_out));
+    SA_EXPECT_OK(
+        repeated->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), repeated_out));
+
+    ASSERT_EQ(blended_out.size(), 1u);
+    ASSERT_EQ(repeated_out.size(), 1u);
+    EXPECT_EQ(graph.node(graph.value(blended_out.front()).producer).op,
+              Ops::K_UPSAMPLE2D_BILINEAR.id);
+    EXPECT_EQ(graph.node(graph.value(repeated_out.front()).producer).op, Ops::K_UPSAMPLE2D.id);
+}
+
+/** @brief Tests that the factory refuses a mode it does not know and a mode that is no string. */
+TEST(Small_BlockSegmentHead, TheFactoryRefusesAnUnknownMode)
+{
+    const Shape input{4, 4, 16};
+    const Config::Value unknown =
+        require_value(Config::parse_json(R"({"classes": 5, "mode": "bicubic"})", "<test>"));
+    const Config::Value number =
+        require_value(Config::parse_json(R"({"classes": 5, "mode": 1})", "<test>"));
+
+    SA_EXPECT_FAILURE(
+        Vision::Blocks::make_segment_head_node(one_input(input), unknown, K_CONTEXT),
+        StatusCode::InvalidDescription, "'nearest'", "'bilinear'", "got 'bicubic'");
+    SA_EXPECT_FAILURE(
+        Vision::Blocks::make_segment_head_node(one_input(input), number, K_CONTEXT),
+        StatusCode::InvalidDescription, "layer 3 'segment_head' 'mode'", "string");
 }

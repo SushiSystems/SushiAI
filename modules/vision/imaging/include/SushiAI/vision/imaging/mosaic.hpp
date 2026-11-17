@@ -109,8 +109,8 @@ namespace SushiAI::Vision::Imaging
     /** @brief Holds everything apply_mosaic needs. */
     struct MosaicPlan
     {
-        /** @brief Holds the training size s; the canvas is 2s by 2s. */
-        std::int32_t image_size = 0;
+        /** @brief Holds the training size h by w; the canvas is 2h by 2w. */
+        ImageSize image_size;
 
         /** @brief Holds one placement per patch: top left, top right, bottom left, bottom right. */
         std::array<MosaicPlacement, K_MOSAIC_PATCHES> placements{};
@@ -119,25 +119,31 @@ namespace SushiAI::Vision::Imaging
         std::uint8_t fill_value = 114;
     };
 
-    /** @brief Holds the largest training size whose canvas of twice that side is an image. */
+    /** @brief Holds the largest training side whose canvas of twice that side is an image. */
     inline constexpr std::int32_t K_MAX_MOSAIC_IMAGE_SIZE = K_MAX_IMAGE_SIDE / 2;
 
     /** @brief Returns InvalidDescription unless the probability is in [0, 1]. */
     [[nodiscard]] Status validate_mosaic(const MosaicSettings& settings) noexcept;
 
-    /** @brief Returns InvalidDescription unless image_size is in [1, K_MAX_MOSAIC_IMAGE_SIZE]. */
-    [[nodiscard]] Status validate_mosaic_size(std::int32_t image_size) noexcept;
+    /** @brief Returns the canvas of a mosaic at @p image_size: twice each side. */
+    [[nodiscard]] constexpr ImageSize mosaic_canvas(ImageSize image_size) noexcept
+    {
+        return ImageSize{2 * image_size.height, 2 * image_size.width};
+    }
+
+    /** @brief Returns InvalidDescription unless each side is in [1, K_MAX_MOSAIC_IMAGE_SIZE]. */
+    [[nodiscard]] Status validate_mosaic_size(ImageSize image_size) noexcept;
 
     /**
      * @brief Draws the three partners, the gate and the centre of one mosaic.
      *
      * Three draws in partners.choose(index, random), made whatever the gate says; then
-     * is_enabled = random.bernoulli(settings.probability). When enabled, center_y and center_x,
-     * each random.uniform(b, 2s - b) truncated toward zero, s = image_size, b = (s + 1) / 2.
+     * is_enabled = random.bernoulli(settings.probability). When enabled, center_y then center_x,
+     * each random.uniform(b, 2s - b) truncated, s the height or the width, b = (s + 1) / 2.
      * @return The draw, or what validate_mosaic and validate_mosaic_size return.
      */
     [[nodiscard]] Result<MosaicDraw> draw_mosaic(const MosaicSettings& settings,
-                                                 std::int32_t image_size, std::size_t index,
+                                                 ImageSize image_size, std::size_t index,
                                                  PartnerSource& partners, Random& random) noexcept;
 
     /**
@@ -149,11 +155,11 @@ namespace SushiAI::Vision::Imaging
      * @pre @p draw is enabled and its centre lies inside the canvas, as draw_mosaic leaves it.
      */
     [[nodiscard]] Result<MosaicPlan> plan_mosaic(
-        const MosaicSettings& settings, const MosaicDraw& draw, std::int32_t image_size,
+        const MosaicSettings& settings, const MosaicDraw& draw, ImageSize image_size,
         const std::array<ImageSize, K_MOSAIC_PATCHES>& patch_sizes) noexcept;
 
     /**
-     * @brief Composes four patches on a canvas of 2s by 2s.
+     * @brief Composes four patches on the canvas mosaic_canvas(plan.image_size).
      *
      * The canvas is filled with plan.fill_value, then each patch's rectangle is copied to
      * its canvas rectangle, patch 0 first. Nothing is resampled; each patch passes check_source.

@@ -48,6 +48,7 @@
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
 using Vision::Imaging::ImageSize;
+using Vision::Imaging::square_size;
 
 namespace
 {
@@ -61,6 +62,9 @@ namespace
 
     /** @brief Holds the training side of the image pipelines the contract builds. */
     constexpr std::int32_t K_SIDE = 16;
+
+    /** @brief Holds the square training size of side K_SIDE. */
+    constexpr ImageSize K_SIZE = square_size(K_SIDE);
 
     /** @brief Returns a list of three samples of the classes 0, 1 and 2 in the files 0 to 2. */
     SampleList three_samples()
@@ -107,7 +111,7 @@ namespace
         if (implementation == Implementation::Augment)
         {
             AugmentOptions options;
-            options.image_size = K_SIDE;
+            options.image_size = K_SIZE;
             auto made = AugmentPipeline::make(options);
             EXPECT_TRUE(made.status().is_ok());
             return std::move(made).value();

@@ -77,6 +77,12 @@ namespace SushiAI::Vision::Datasets
         /** @brief Names the key of what the stem of a mask of mask_png ends in. */
         constexpr std::string_view K_MASK_SUFFIX_KEY = "mask_suffix";
 
+        /** @brief Names the key of the image file of idx. */
+        constexpr std::string_view K_IDX_IMAGE_FILE_KEY = "image_file";
+
+        /** @brief Names the key of the label file of idx. */
+        constexpr std::string_view K_IDX_LABEL_FILE_KEY = "label_file";
+
         /** @brief Names the key of the file of csv. */
         constexpr std::string_view K_FILE_KEY = "file";
 
@@ -139,19 +145,6 @@ namespace SushiAI::Vision::Datasets
                 options.split = request.split;
                 return request.storage.source != nullptr ? read_image_folder(options, *request.storage.source)
                                                  : read_image_folder(options);
-            });
-        }
-
-        /** @brief Reads a split kept as an IDX image file and an IDX label file. */
-        [[nodiscard]] Result<SampleList> read_idx_request(const ReaderRequest& request)
-        {
-            return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
-            {
-                IDXOptions options;
-                options.root = request.root;
-                options.split = request.split;
-                return request.storage.source != nullptr ? read_idx(options, *request.storage.source)
-                                                 : read_idx(options);
             });
         }
 
@@ -240,6 +233,28 @@ namespace SushiAI::Vision::Datasets
         /** @brief Lists the keys the mask_png row reads. */
         constexpr std::string_view K_MASK_PNG_KEYS[] = {K_IMAGES_KEY, K_MASKS_KEY,
                                                        K_IMAGE_SUFFIX_KEY, K_MASK_SUFFIX_KEY};
+
+        /** @brief Lists the keys the idx row reads. */
+        constexpr std::string_view K_IDX_KEYS[] = {K_IDX_IMAGE_FILE_KEY, K_IDX_LABEL_FILE_KEY};
+
+        /**
+         * @brief Reads a split kept as an IDX image file and an IDX label file.
+         * @return The list; InvalidDescription when "image_file" or "label_file" is no string.
+         */
+        [[nodiscard]] Result<SampleList> read_idx_request(const ReaderRequest& request)
+        {
+            IDXOptions options;
+            options.root = request.root;
+            options.split = request.split;
+            SA_TRY_ASSIGN(options.image_file, text_of(request, K_IDX_IMAGE_FILE_KEY));
+            SA_TRY_ASSIGN(options.label_file, text_of(request, K_IDX_LABEL_FILE_KEY));
+
+            return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
+            {
+                return request.storage.source != nullptr ? read_idx(options, *request.storage.source)
+                                                 : read_idx(options);
+            });
+        }
 
         /** @brief Lists the keys the image_file row reads. */
         constexpr std::string_view K_IMAGE_FILE_KEYS[] = {K_FILE_KEY};
@@ -374,7 +389,7 @@ namespace SushiAI::Vision::Datasets
             ReaderEntry{"yolo_txt", &read_yolo_txt_request, {}},
             ReaderEntry{"image_folder", &read_image_folder_request, {}},
             ReaderEntry{"image_file", &read_image_file_request, keys_of(K_IMAGE_FILE_KEYS)},
-            ReaderEntry{"idx", &read_idx_request, {}},
+            ReaderEntry{"idx", &read_idx_request, keys_of(K_IDX_KEYS)},
             ReaderEntry{"cifar", &read_cifar_request, {}},
             ReaderEntry{"coco_json", &read_coco_json_request, keys_of(K_COCO_JSON_KEYS)},
             ReaderEntry{"voc_xml", &read_voc_xml_request, keys_of(K_VOC_XML_KEYS)},

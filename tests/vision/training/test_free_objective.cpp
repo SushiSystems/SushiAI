@@ -44,8 +44,8 @@
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/vision/detect/free/free_task.hpp>
-#include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
+#include <SushiAI/vision/training/free_loss_terms.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include <SushiAI/vision/training/free_objective.hpp>
 
@@ -162,11 +162,58 @@ TEST(Small_FreeObjective, TheLossIsAOneElementRoot)
     NN::ModelOutputs outputs;
     add_ports(builder, outputs);
 
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID root,
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace root_trace,
                             objective.loss(builder, graph, outputs, leaves));
+    const Graph::ValueID root = root_trace.loss();
 
     ASSERT_NE(root, Graph::K_NO_VALUE);
     EXPECT_EQ(graph.value(root).shape, (Shape{1}));
+}
+
+/** @brief Tests that the loss keeps each term the gains leave on under the term's name. */
+TEST(Small_FreeObjective, TheLossKeepsEachTermUnderItsName)
+{
+    const FreeObjective objective = make_objective(FreeLossGains{});
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    Train::ObjectiveLeaves leaves;
+    objective.declare(builder, leaves);
+    NN::ModelOutputs outputs;
+    add_ports(builder, outputs);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace trace,
+                            objective.loss(builder, graph, outputs, leaves));
+
+    EXPECT_TRUE(trace.has(Vision::Training::K_FREE_BOX_VALUE));
+    EXPECT_TRUE(trace.has(Vision::Training::K_FREE_CLASSES_VALUE));
+    EXPECT_TRUE(trace.has(Vision::Training::K_FREE_DISTRIBUTION_VALUE));
+    EXPECT_FALSE(trace.has(Vision::Training::K_FREE_L1_VALUE));
+}
+
+/** @brief Tests that the metric values are the terms of the trace, and none for an empty one. */
+TEST(Small_FreeObjective, TheMetricValuesAreTheTermsOfTheTrace)
+{
+    const FreeObjective objective = make_objective(FreeLossGains{});
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    Train::ObjectiveLeaves leaves;
+    objective.declare(builder, leaves);
+    NN::ModelOutputs outputs;
+    add_ports(builder, outputs);
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace trace,
+                            objective.loss(builder, graph, outputs, leaves));
+
+    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs published,
+                            objective.declare_metric_values(builder, outputs, trace));
+    SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs from_empty,
+                            objective.declare_metric_values(builder, outputs, Train::LossTrace()));
+
+    EXPECT_EQ(published.all().size(), 3u);
+    EXPECT_EQ(published.at(Vision::Training::K_FREE_BOX_VALUE).value(),
+              trace.at(Vision::Training::K_FREE_BOX_VALUE));
+    EXPECT_TRUE(from_empty.all().empty());
 }
 
 /** @brief Tests that outputs without a port the facts name stop the process naming the port. */

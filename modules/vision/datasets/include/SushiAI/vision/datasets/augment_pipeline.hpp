@@ -48,8 +48,8 @@ namespace SushiAI::Vision::Datasets
     /** @brief Holds what the caller chooses about the training transforms. */
     struct AugmentOptions
     {
-        /** @brief Holds the side of the square input, in [1, Imaging::K_MAX_MOSAIC_IMAGE_SIZE]. */
-        std::int32_t image_size = 640;
+        /** @brief Holds the input's height and width, each in [1, K_MAX_MOSAIC_IMAGE_SIZE]. */
+        Imaging::ImageSize image_size{640, 640};
 
         /** @brief Holds the seed every sample's draws derive from, with its epoch and index. */
         std::uint64_t seed = 0;
@@ -63,6 +63,9 @@ namespace SushiAI::Vision::Datasets
          * @pre The source, when given, outlives the pipeline.
          */
         const ByteSource* source = nullptr;
+
+        /** @brief False leaves FittedSample::mask empty and opens no mask file. */
+        bool decode_masks = true;
     };
 
     /**
@@ -98,12 +101,15 @@ namespace SushiAI::Vision::Datasets
         private:
             /** @brief Holds the settings make() derived. */
             AugmentPipeline(const Imaging::TrainingSettings& settings,
-                            const ByteSource& source) noexcept;
+                            const ByteSource& source, bool decode_masks) noexcept;
 
             /// @brief Holds the settings of every Imaging::TrainingPipeline produce() builds.
             Imaging::TrainingSettings settings_;
 
             /// @brief Points at the source the files are read through, never null.
             const ByteSource* source_;
+
+            /// @brief Tells whether the mask of a sample that has one is made.
+            bool decode_masks_;
     };
 } // namespace SushiAI::Vision::Datasets

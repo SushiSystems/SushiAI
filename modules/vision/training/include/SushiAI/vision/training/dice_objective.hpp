@@ -47,17 +47,15 @@
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/vision/segment/ignore_index.hpp>
 #include <SushiAI/vision/training/pixel_extents.hpp>
+#include <SushiAI/vision/training/segmentation_metrics.hpp>
 
 namespace SushiAI::Vision::Training
 {
     /** @brief Holds the "type" a training file states for the soft Dice objective. */
     inline constexpr std::string_view K_DICE_TYPE = "dice";
 
-    /** @brief Holds the role of the INT32 [R] leaf that indexes each pixel's own probability. */
-    inline constexpr std::string_view K_DICE_SCORE_INDICES_LEAF = "score_indices";
-
-    /** @brief Holds the role of the INT32 [R] leaf with the class of each pixel. */
-    inline constexpr std::string_view K_DICE_CLASS_INDICES_LEAF = "class_indices";
+    /** @brief Holds the role of the INT32 [R] leaf with the label of each pixel. */
+    inline constexpr std::string_view K_DICE_LABELS_LEAF = "labels";
 
     /** @brief Holds the role of the [R, 1] leaf with a 1 for each kept pixel. */
     inline constexpr std::string_view K_DICE_KEPT_LEAF = "kept";
@@ -73,7 +71,7 @@ namespace SushiAI::Vision::Training
      *        [N, H, W] mask, averaged over the classes a kept pixel holds.
      *
      * The loss is emit_soft_dice(). It reads one probability per pixel through
-     * K_GATHER_ROWS, so no one-hot leaf is held. README.md states what the leaves cost.
+     * K_TAKE_ALONG, so no one-hot leaf is held. README.md states what the leaves cost.
      */
     class DiceObjective final : public Train::Objective
     {
@@ -81,16 +79,15 @@ namespace SushiAI::Vision::Training
             /**
              * @brief Builds the objective over the logits @p extents describe.
              * @param dtype The element type of the three real leaves, float32 or float64.
-             * @return The objective, or InvalidDescription for an extent below 1, for
-             *         N * H * W * C above what INT32 indexes, for an ignore index that names
-             *         a class, or for another element type.
+             * @return The objective, or InvalidDescription for an extent below 1, for an
+             *         ignore index that names a class, or for another element type.
              */
             [[nodiscard]] static Result<std::unique_ptr<DiceObjective>> make(
                 const PixelExtents& extents,
                 std::int32_t ignore_index = Segment::K_DEFAULT_IGNORE_INDEX,
                 DType dtype = DType::Float32) noexcept;
 
-            /** @brief Declares the five leaves and requires the INT32 [H, W] mask role. */
+            /** @brief Declares the four leaves and requires the INT32 [H, W] mask role. */
             void declare(const Graph::GraphBuilder& builder,
                          Train::ObjectiveLeaves& leaves) const override;
 
@@ -99,13 +96,25 @@ namespace SushiAI::Vision::Training
              * @pre @p outputs holds one NHWC value of the extents make() was given; anything
              *      else stops the process.
              */
-            [[nodiscard]] Result<Graph::ValueID> loss(
+            [[nodiscard]] Result<Train::LossTrace> loss(
                 const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                 const NN::ModelOutputs& outputs,
                 const Train::ObjectiveLeaves& leaves) const override;
 
             /**
-             * @brief Writes the five leaves from the mask role with fill_dice_targets().
+             * @brief Emits the class of each pixel on the device with declare_pixel_classes(),
+             *        over the rows loss() kept in @p trace, or over rows of its own when the
+             *        trace holds none.
+             * @pre @p outputs holds one NHWC value of the extents make() was given; anything
+             *      else stops the process.
+             * @return The INT64 [N * H * W] value under K_PIXEL_CLASSES_VALUE.
+             */
+            [[nodiscard]] Result<NN::ModelOutputs> declare_metric_values(
+                const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+                const Train::LossTrace& trace) const override;
+
+            /**
+             * @brief Writes the four leaves from the mask role with fill_dice_targets().
              * @return InvalidDescription for a batch with no mask role, or what the fill
              *         refuses.
              */
@@ -119,6 +128,13 @@ namespace SushiAI::Vision::Training
             /** @brief Appends "mean_iou" and "pixel_accuracy" with measure_segmentation(). */
             [[nodiscard]] Status measure(const Train::StepView& step,
                                          Train::Metrics& metrics) const override;
+
+            /** @brief Returns the names measure_segmentation() appends. */
+            [[nodiscard]] SushiRuntime::span<const std::string_view> metric_names()
+                const noexcept override
+            {
+                return segmentation_metric_names();
+            }
 
             /** @brief Returns "dice". */
             std::string_view name() const noexcept override { return K_DICE_TYPE; }

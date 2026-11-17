@@ -255,7 +255,7 @@ Tests `validate_pixel_labels` in
 `fill_dice_targets` in
 `modules/vision/training/include/SushiAI/vision/training/dice_targets.hpp`. The fixture is an
 `EngineTest`. The masks hold 6 pixels over 3 classes with the ignore index 255. Before a fill
-every index leaf holds -7 and every real leaf -7.0, and reals are compared within 1e-7.
+every label leaf holds -7 and every real leaf -7.0, and reals are compared within 1e-7.
 
 ### TheLabelCheckNamesThePixelOutOfBounds
 
@@ -264,57 +264,48 @@ every index leaf holds -7 and every real leaf -7.0, and reals are compared withi
 ("holds -1 at pixel 4"), an expected count of 7 ("6 pixels", "expects 7") and a `Float32` mask
 ("mask is").
 
-### AKeptPixelIndexesItsClassAndSharesTheWeight
+### AKeptPixelHoldsItsLabelAndSharesTheWeight
 
-For the mask 0, 2, 255, 1, 1, 255, `fill_pixel_targets` writes the indices 0, 5, 6, 10, 13, 15
+For the mask 0, 2, 255, 1, 1, 255, `fill_pixel_targets` writes the labels 0, 2, 255, 1, 1, 255
 and the weights 0.25, 0.25, 0, 0.25, 0.25, 0.
 
 ### AMaskWithNoKeptPixelGivesZeroWeights
 
-For a mask of six 255s, the indices are 0, 3, 6, 9, 12, 15 and the six weights are 0.
+For a mask of six 255s, the labels are six 255s and the six weights are 0.
 
 ### ARefusedPixelFillChangesNothing
 
 `fill_pixel_targets` fails with `Incompatible` for a mask with a 9 at pixel 4
-("holds 9 at pixel 4"), for a weights leaf of five elements ("6 pixel indices",
-"5 pixel weights") and for a `Float32` indices leaf ("pixel indices are"). Afterwards the
-indices still hold -7 and the weights -7.0.
+("holds 9 at pixel 4"), for a weights leaf of five elements ("6 pixel labels",
+"5 pixel weights") and for a `Float32` labels leaf ("pixel labels are"). Afterwards the
+labels still hold -7 and the weights -7.0.
+
+### AClassCountBelowOneIsRefusedWithoutReadingTheMask
+
+Header-only mask, label and weight tensors of six elements and 0 classes fail with `Incompatible`
+("at least one class", "got 0"), without a read of the missing storage.
 
 ### TheDiceLeavesCountTheKeptPixelsOfEachClass
 
-For the mask 0, 2, 255, 0, 2, 0, `fill_dice_targets` writes `score_indices` 0, 5, 6, 9, 14,
-15, `class_indices` 0, 2, 0, 0, 2, 0, `kept` 1, 1, 0, 1, 1, 1, `class_pixels` 3, 0, 2 and
-`class_weights` 0.5, 0, 0.5.
+For the mask 0, 2, 255, 0, 2, 0, `fill_dice_targets` writes `labels` 0, 2, 255, 0, 2, 0, `kept`
+1, 1, 0, 1, 1, 1, `class_pixels` 3, 0, 2 and `class_weights` 0.5, 0, 0.5.
 
 ### ARefusedDiceFillChangesNothing
 
 `fill_dice_targets` fails with `Incompatible` for a mask with a 3 at pixel 4
 ("holds 3 at pixel 4"), for a `class_weights` leaf of two elements ("'class_weights'",
-"2 elements") and for a `Float32` `class_indices` leaf ("'class_indices'", "int32").
-Afterwards `score_indices` and `class_indices` still hold -7, and `kept` and `class_pixels`
--7.0.
+"2 elements") and for a `Float32` `labels` leaf ("'labels'", "int32").
+Afterwards `labels` still holds -7, and `kept` and `class_pixels` -7.0.
 
 ## test_segmentation_metrics.cpp
 
-Suites: `Medium_VisionTrainingSegmentationMetrics`.
+Suites: `Small_VisionTrainingSegmentationMetrics` and `Medium_VisionTrainingSegmentationMetrics`.
 
 Tests `measure_segmentation` in
-`modules/vision/training/include/SushiAI/vision/training/segmentation_metrics.hpp`. The
-fixture is an `EngineTest`. A step holds one output of `Float32` logits of [1, 2, 2, 3] and a
-batch whose `mask` role is `Int32` of [1, 2, 2], with the ignore index 255.
-
-### TheMetricsEqualTheHandCount
-
-The logits pick the classes 0, 1, 0, 1 against the mask 0, 2, 255, 1. `measure_segmentation`
-reports two metrics: `mean_iou` 0.5 and `pixel_accuracy` 2/3, each within 1e-15. The
-`mean_iou` metric has `is_fraction` set.
-
-### AStepThatDoesNotFitIsRefused
-
-`measure_segmentation` fails with `InvalidDescription` for a step of two outputs
-("published 2") and for a batch without a mask ("'mask'"). It fails with `Incompatible` for a
-mask with a 3 at pixel 1 ("true class of pixel 1", "is 3") and for extents of 4 classes over
-logits of 3 ("the logits"). No metric is reported by the four calls.
+`modules/vision/training/include/SushiAI/vision/training/segmentation_metrics.hpp`: the mean IoU
+and the pixel accuracy from the INT64 class value a step holds under `pixel_classes`, with a
+batch whose `mask` role is `Int32` of [1, 2, 2] and the ignore index 255. The cases are in
+[`test_segmentation_metrics.md`](test_segmentation_metrics.md).
 
 ## test_truth_from_roles.cpp
 
@@ -457,11 +448,18 @@ the work is not called and the run count stays 0.
 Suites: `Medium_SegmentOverfit`, in `sushiai_vision_tests`.
 
 The model, `TinySegmenter`, is a 3x3 convolution of stride 2, a second 3x3 convolution and a
-`SegmentHead` that upsamples by 2, all 8 channels wide, over two classes. The dataset is one batch
+`SegmentHead` that upsamples by 2, all 8 channels wide, over two classes. The head is built nearest
+or bilinear, and each mode has its own cases. The dataset is one batch
 of two 16 by 16 images with three channels: sample 0 is split left and right, sample 1 above and
 below, and two corners of each mask hold the ignore value 255. `Train::Trainer` fits it with
 `PixelCrossEntropyObjective` and SGD at a rate of 0.1 for 80 epochs. The source marks the epoch
 count, the rate and both thresholds as not yet confirmed by a run.
+
+### TheLossFallsOnOneBatchWithABilinearHead, TheMeanIouRisesOnOneBatchWithABilinearHead
+
+The same segmenter and batch with `SegmentHead` in `Upsample2d::Mode::Bilinear`: the last loss is
+below half the first and `mean_iou` of the last step is above 0.8. Both thresholds are the
+unconfirmed ones of the nearest cases, and the run that confirms them is the owner's.
 
 ### TwoConvolutionsAndAHeadFitOneBatch
 
@@ -470,7 +468,7 @@ last step is above 0.8, and `pixel_accuracy` is at least `mean_iou`.
 
 ## test_pixel_cross_entropy_objective.cpp, test_dice_objective.cpp, test_pixel_extents.cpp
 
-What the two per-pixel objectives keep and refuse, the INT32 bound at 54 and 55 images of 512 by 512 over 150 classes, their leaves, the nodes of both losses, and both factories.
+What the two per-pixel objectives keep and refuse, that 54 and 55 images of 512 by 512 over 150 classes are both accepted, their leaves, the nodes of both losses, and both factories.
 
 Suites: `Unit_VisionTrainingPixelObjectives`.
 
@@ -495,10 +493,10 @@ Over 3 classes the cross entropy fails with `InvalidDescription` for the ignore 
 ignore index 0 ("ignore index 0"). The cross entropy with `DType::Int32` fails with
 `InvalidDescription` and "float32".
 
-### MakeRefusesWhatInt32CannotIndex
+### MakeAcceptsAProductOfExtentsPastInt32
 
-Both objectives are made for the extents 54, 512, 512, 150. For a batch of 55 both fail with
-`InvalidDescription`, "55 * 512 * 512 * 150" and "2147483647".
+Both objectives are made for the extents 54, 512, 512, 150 and for 55, 512, 512, 150, whose
+product is above 2147483647.
 
 ### TheCrossEntropyDeclaresIndicesAndWeights
 
@@ -506,9 +504,9 @@ Both objectives are made for the extents 54, 512, 512, 150. For a batch of 55 bo
 and `Float32`. It requires one role, `K_ROLE_MASK`, with the sample shape [4, 4], `Int32` and
 0 classes.
 
-### TheDiceDeclaresTwoIndexLeavesAndNoOneHot
+### TheDiceDeclaresOneLabelLeafAndNoOneHot
 
-`declare` adds five leaves and none named `one_hot`. `score_indices` and `class_indices` are
+`declare` adds four leaves and none named `one_hot`. `labels` is
 [32] and `Int32`, `kept` is [32, 1], and `class_pixels` and `class_weights` are [3]. No leaf
 has more than 32 elements. The one required role is `K_ROLE_MASK`.
 
@@ -712,7 +710,6 @@ The files below have a page beside them that says what each case pins.
 | `test_shape_ratio_head_delta_rule.cpp` | [`test_shape_ratio_head_delta_rule.md`](test_shape_ratio_head_delta_rule.md) |
 | `test_head_delta_rule_choice.cpp` | [`test_head_delta_rule_choice.md`](test_head_delta_rule_choice.md) |
 | `test_free_objective_factory.cpp` | [`test_free_objective_factory.md`](test_free_objective_factory.md) |
-| `test_free_detection_loss_host.cpp` | [`test_free_detection_loss_host.md`](test_free_detection_loss_host.md) |
 | `test_free_training_loop.cpp` | [`test_free_training_loop.md`](test_free_training_loop.md) |
 | `test_anchor_objective.cpp` | [`test_anchor_objective.md`](test_anchor_objective.md) |
 | `test_anchor_objective_factory.cpp` | [`test_anchor_objective_factory.md`](test_anchor_objective_factory.md) |
@@ -738,3 +735,4 @@ The files below have a page beside them that says what each case pins.
 | `test_anchor_training_step.cpp` | [`test_anchor_training_step.md`](test_anchor_training_step.md) |
 | `test_pixel_cross_entropy_objective.cpp` | [`test_pixel_cross_entropy_objective.md`](test_pixel_cross_entropy_objective.md) |
 | `test_pixel_labels.cpp` | [`test_pixel_labels.md`](test_pixel_labels.md) |
+| `compile_free_loss_terms.cpp` | [`compile_free_loss_terms.md`](compile_free_loss_terms.md) |

@@ -44,8 +44,8 @@ namespace SushiAI::Vision::Datasets
     /**
      * @brief Fits a mask with the geometry fit_sample gives the image it belongs to.
      *
-     * A fitted pixel takes the source pixel its centre falls in. SampleFit::Letterbox fills
-     * what the mask does not cover with K_MASK_VOID.
+     * A fitted pixel takes the source pixel its centre falls in. SampleFit::Letterbox and
+     * SampleFit::DarknetLetterbox fill what the mask does not cover with K_MASK_VOID.
      * @param mask One channel of the size of the image; must not be the pixels of @p fitted.
      * @return Incompatible for a mask of several channels or of another size than @p image.
      */

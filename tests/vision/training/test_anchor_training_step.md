@@ -17,6 +17,11 @@ forward-only output, element for element, with the assignment counts of the fixt
 cost is the sum of the squared deltas and the total is that sum over the batch, each to 16777216
 double unit roundoffs of the sum.
 
+### TheInputDescriptionIsTheLeafPastItsBatchAxis
+
+`input_description` of the two-head step is `[8, 8, 3]` of `Float32`: the extents of the batch leaf
+`[2, 8, 8, 3]` without the batch axis, and its element type.
+
 ### TheShapeRatioRuleFeedsItsDeltasAndItsLoss
 
 Under the shape-ratio rule, with squared sigmoid sides and a stretch of 2, each leaf equals the

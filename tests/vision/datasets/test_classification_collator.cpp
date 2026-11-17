@@ -32,6 +32,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "datasets_test_support.hpp"
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -94,6 +95,27 @@ TEST_F(Small_ClassificationCollator, ClassificationWritesTheClassOfEachSample)
 
     EXPECT_EQ(SaTest::read_tensor(batch.targets[0].values), (std::vector<double>{6.0, 0.0}));
     EXPECT_NEAR(SaTest::read_tensor(batch.inputs)[2], 1.0, K_SCALE_TOLERANCE);
+}
+
+/**
+ * @brief Tests that the normalisation a collator is built with converts its inputs. The samples
+ *        are gray of levels 51 and 255, and halving them gives 25.5 and 127.5 exactly.
+ */
+TEST_F(Small_ClassificationCollator, ClassificationWritesTheInputsByItsNormalisation)
+{
+    samples[0].class_index = 6;
+    samples[1].class_index = 0;
+    Config::InputNormalise normalise;
+    normalise.scale = 0.5;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ClassificationCollator> collator,
+                            ClassificationCollator::make(7, normalise));
+    Data::Batch batch = allocate_images(collator->targets());
+
+    SA_EXPECT_OK(collator->collate(list, span(), batch));
+
+    const std::vector<double> inputs = SaTest::read_tensor(batch.inputs);
+    EXPECT_EQ(inputs[0], 25.5);
+    EXPECT_EQ(inputs[2], 127.5);
 }
 
 /** @brief Tests that classification names the file of a sample with no class index. */

@@ -94,3 +94,12 @@ TEST_F(Small_DatasetsCollator, ASampleTheTaskCanUseIsCollated)
 
     SA_EXPECT_OK(collator->collate(list, span(), batch));
 }
+
+/** @brief Tests that a collator that does not override reads_mask says it reads no mask. */
+TEST(Small_DatasetsCollatorBase, ACollatorReadsNoMaskUnlessItSaysSo)
+{
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BinaryCollator> made, BinaryCollator::make(1));
+    const std::unique_ptr<const Collator> collator = std::move(made);
+
+    EXPECT_FALSE(collator->reads_mask());
+}

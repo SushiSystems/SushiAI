@@ -36,6 +36,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
@@ -60,6 +61,9 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Holds the input height and width; no size for a task that fits no image. */
         Imaging::ImageSize input;
+
+        /** @brief Holds how the byte levels of an image become input values. */
+        Config::InputNormalise normalise{};
     };
 
     /**

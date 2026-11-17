@@ -175,12 +175,12 @@ namespace SushiAI::Vision::Imaging
 
         for (std::size_t i = 0; i < labels.size(); ++i)
         {
-            Polygon polygon = labels.polygons()[i];
-            map_polygon(polygon, ratio, ratio, offset_x, offset_y);
+            Outline outline = labels.outlines()[i];
+            map_outline(outline, ratio, ratio, offset_x, offset_y);
             moved.add(labels.classes()[i],
                       translate_box(scale_box(labels.boxes()[i], ratio, ratio), offset_x,
                                     offset_y),
-                      std::move(polygon));
+                      std::move(outline));
         }
 
         return moved;

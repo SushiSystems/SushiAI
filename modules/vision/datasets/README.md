@@ -33,7 +33,26 @@ ahead. `TableDataset` collates a list of rows of numbers, which has no image to 
 `make_reader_dataset` builds one of the two datasets from the data section of a training file.
 The section names a reader and a task; the reader table gives the function that lists the
 samples, the task table gives the collator, the fit and the dataset class, and the pipeline
-table gives the pipeline. A section's `fit`, `resize` or `letterbox`, replaces the task's.
+table gives the pipeline. A section's `fit`, `resize`, `letterbox` or `darknet_letterbox`,
+replaces the task's. With the `letterbox` fit, `letterbox_padding`, a byte in [0, 255] that is 114 by
+default, and `letterbox_scale_up`, a boolean that is false by default, set the padding and whether
+an image smaller than the input is scaled up; stated beside another fit they are an error. A
+section's `normalise` object (`channels`, `scale`, `mean`, `std`) states how the
+byte levels become input values; `sushiai train` and `sushiai inference` copy it from the model
+file's `input`, and every image task's collator applies it in `write_batch_inputs`.
+
+The pipeline table has three rows. `none` fits each sample; `default` runs the Ultralytics
+training transforms; `darknet` crops each sample by Darknet's jitter, resizes the crop to the
+input with Darknet's kernel and distorts its colour, and takes the keys `jitter`, `hue`,
+`saturation` and `exposure` of the section, each a float32 that defaults to the identity (0, 0, 1,
+1). A row lists the keys it reads in `PipelineEntry::keys`, and `make_reader_dataset` refuses a
+key that no section, reader, task or pipeline row lists, so `jitter` beside `"pipeline": "default"`
+is an error. A row reads its keys from `PipelineRequest::section`, and a row with a
+`PipelineEntry::check` has those keys checked before any file is listed, so a `jitter` of 1 is
+refused by name before the reader opens the split. The `darknet` row makes no
+mask: a sample with a mask is refused. `darknet_letterbox` is the fit of a model imported with
+`letter_box=1`; the fit and the pipeline are independent, since Darknet trains on a stretched crop
+and runs on a letterboxed image.
 
 ## Depends on
 
@@ -71,7 +90,8 @@ a CSV library: `source/xml_element.cpp` and `source/csv.cpp` parse their formats
 | `<SushiAI/vision/datasets/in_memory_collator.hpp>` | `InMemoryCollator` |
 | `<SushiAI/vision/datasets/fit_pipeline.hpp>` | `K_PIPELINE_NONE`, `FitPipeline` |
 | `<SushiAI/vision/datasets/augment_pipeline.hpp>` | `K_PIPELINE_DEFAULT`, `AugmentOptions`, `AugmentPipeline` |
-| `<SushiAI/vision/datasets/pipeline_table.hpp>` | `PipelineRequest`, `PipelineFactory`, `PipelineEntry`, `pipeline_table`, `find_pipeline` |
+| `<SushiAI/vision/datasets/darknet_pipeline.hpp>` | `K_PIPELINE_DARKNET`, `K_DARKNET_JITTER_KEY`, `K_DARKNET_HUE_KEY`, `K_DARKNET_SATURATION_KEY`, `K_DARKNET_EXPOSURE_KEY`, `DarknetOptions`, `validate_darknet_settings`, `DarknetPipeline` |
+| `<SushiAI/vision/datasets/pipeline_table.hpp>` | `PipelineRequest`, `PipelineFactory`, `PipelineCheck`, `PipelineEntry`, `pipeline_table`, `find_pipeline` |
 | `<SushiAI/vision/datasets/polygon_mask.hpp>` | `paint_polygon_mask` |
 | `<SushiAI/vision/datasets/csv.hpp>` | `CSVOptions`, `read_csv` |
 | `<SushiAI/vision/datasets/load_sample_mask.hpp>` | `load_sample_mask` |
@@ -94,7 +114,7 @@ a CSV library: `source/xml_element.cpp` and `source/csv.cpp` parse their formats
 | `<SushiAI/vision/datasets/load_sample_image.hpp>` | `load_sample_image` |
 | `<SushiAI/vision/datasets/fitted_sample.hpp>` | `FittedSample` |
 | `<SushiAI/vision/datasets/fit_sample.hpp>` | `SampleFit`, `SampleFitOptions`, `fit_sample` |
-| `<SushiAI/vision/datasets/batch_inputs.hpp>` | `K_BYTE_SCALE`, `write_batch_inputs` |
+| `<SushiAI/vision/datasets/batch_inputs.hpp>` | `write_batch_inputs` |
 | `<SushiAI/vision/datasets/collator.hpp>` | `Collator` |
 | `<SushiAI/vision/datasets/classification_collator.hpp>` | `K_TASK_CLASSIFICATION`, `ClassificationCollator` |
 | `<SushiAI/vision/datasets/detection_collator.hpp>` | `K_TASK_DETECTION`, `K_BOX_COORDINATES`, `K_FIT_VALUES`, `DetectionCollator` |
@@ -261,18 +281,18 @@ of the trace with nearest sampling; where no mask lands it holds `K_MASK_VOID`.
 
 | `AugmentOptions` field | Default | Meaning |
 | --- | --- | --- |
-| `image_size` | `640` | The side of the square sample |
+| `image_size` | `640` by `640` | The height and width of the sample; each side in [1, 8192] |
 | `seed` | `0` | The seed of every draw |
 | `mosaic_epochs` | the largest int32 | The first epochs that compose mosaics; from that epoch on a sample is its own image |
 
-The row `default` takes `image_size` from `input`, which must be square, and `seed` from the
+The row `default` takes `image_size` from `input`, square or not, and `seed` from the
 section. It makes three channels, so `channels` must be 3. No key sets `mosaic_epochs`: the data
 section does not know how many epochs the run has.
 
 | Code | From | When |
 | --- | --- | --- |
 | `InvalidDescription` | `FitPipeline::make` | An input size outside the bounds of an image |
-| `InvalidDescription` | `AugmentPipeline::make`, the row `default` | A training size outside [1, 8192]; a negative `mosaic_epochs`; an input that is not square or not of three channels |
+| `InvalidDescription` | `AugmentPipeline::make`, the row `default` | A training size with a side outside [1, 8192]; a negative `mosaic_epochs`; an input not of three channels |
 | `InvalidDescription` | `produce` | Another count of samples than of fitted samples; for `AugmentPipeline`, an epoch outside [0, the largest int32) and a list of no sample |
 | `Incompatible` | `produce` | A mask of several channels or of another size than its image; the message opens with the mask file |
 | Any other | `produce` | What `load_sample_image` or `load_sample_mask` returns; what a transform of `vision/imaging` returns |
@@ -314,8 +334,7 @@ exception's text for anything else. A transform of `vision/imaging` returns its 
 
 - Nothing in the readers has run. The sources and the tests pass `clang -fsyntax-only`; no test
   has been executed.
-- `make_reader_dataset` has not run. The `idx` row cannot name its two files, and no row sets
-  the letterbox settings; both take their defaults.
+- `make_reader_dataset` has not run.
 - Nothing in the collators, `fit_sample` or `ReaderDataset` has run either.
 - No trainer has read a `ReaderDataset`. `Train::match_roles` and `Trainer::fit` take a
   `const Data::Dataset&`, which it now is.
@@ -336,8 +355,8 @@ exception's text for anything else. A transform of `vision/imaging` returns its 
   once seeked to each label. A CIFAR-10 batch file is about 30 MB.
 - Nothing of `read_coco_json`, `read_voc_xml`, `parse_xml`, `read_mask_png`, `read_csv`,
   `fit_mask`, `load_sample_mask`, `TableDataset` or the four newer collators has run either.
-- `read_coco_json` keeps one outline per object, the part of the largest area, because a
-  `LabelSet` holds one polygon per object. It decodes no run-length mask, keeps no crowd
+- `read_coco_json` keeps every part of an object's outline, in file order, because a `LabelSet`
+  holds an `Imaging::Outline` per object. It decodes no run-length mask, keeps no crowd
   annotation and does not check that an image file exists.
 - `read_voc_xml` takes every box as counted from 1. An annotation written by a tool that counts
   from 0 gives boxes one pixel narrower on the left and the top. `truncated`, `occluded`, `pose`
@@ -362,8 +381,6 @@ exception's text for anything else. A transform of `vision/imaging` returns its 
 - `read_csv` keeps the whole file and the whole table in memory, fills in no missing cell and
   scales no column. No row makes a class index of a column, so the `binary` and `classification`
   tasks do not read a CSV file.
-- A mask painted from polygons has one part per object: `read_coco_json` keeps the largest part
-  of an outline, and a label holds one polygon.
 - `SegmentationCollator` takes at most 255 classes.
 - Paths are sorted with the order of `std::filesystem::path`, which compares native characters. A
   folder name outside ASCII can sort differently on Windows and on Linux.

@@ -371,6 +371,20 @@ TEST_F(Medium_AnchorTrainingLoop, ADatasetTheStepCannotReadIsRefusedBeforeAnyUpd
     EXPECT_EQ(step_->run_count(), 0u);
 }
 
+/** @brief Tests that a dataset whose input the step was not compiled for is refused. */
+TEST_F(Medium_AnchorTrainingLoop, ADatasetOfAnotherInputSizeIsRefusedNamingTheInput)
+{
+    ASSERT_NE(step_, nullptr);
+    const Data::MaterialisedDataset larger = make_truth_dataset(
+        *engine, K_BATCHES, K_BATCH, truth_roles(), K_NETWORK_SIDE * 2, K_INPUT_SEED, K_BATCH);
+
+    SA_EXPECT_FAILURE(run_anchor_training(*step_, larger), StatusCode::Incompatible,
+                      "publishes its input as", "the step was compiled for");
+
+    EXPECT_EQ(optimizer_->step_count(), 0u);
+    EXPECT_EQ(step_->run_count(), 0u);
+}
+
 /** @brief Tests that refused options run no update; check_detection_run owns the reasons. */
 TEST_F(Medium_AnchorTrainingLoop, OptionsARunCannotUseAreRefused)
 {

@@ -627,9 +627,9 @@ TEST(Small_ImagingLetterbox, PolygonMovesByTheRatioThenTheLeftAndTopPadding)
     const Labels moved = Vision::Imaging::apply_letterbox(labels, tall);
 
     ASSERT_EQ(moved.size(), 2u);
-    ASSERT_EQ(moved.polygons()[0].size(), 3u);
-    expect_point(moved.polygons()[0][0], 42.0f, 10.0f);
-    expect_point(moved.polygons()[0][1], 52.0f, 20.0f);
-    expect_point(moved.polygons()[0][2], 35.0f, 105.0f);
-    EXPECT_TRUE(moved.polygons()[1].empty());
+    ASSERT_EQ(moved.outlines()[0][0].size(), 3u);
+    expect_point(moved.outlines()[0][0][0], 42.0f, 10.0f);
+    expect_point(moved.outlines()[0][0][1], 52.0f, 20.0f);
+    expect_point(moved.outlines()[0][0][2], 35.0f, 105.0f);
+    EXPECT_TRUE(moved.outlines()[1].empty());
 }

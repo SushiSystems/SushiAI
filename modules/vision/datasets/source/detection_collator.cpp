@@ -52,8 +52,9 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_COLLATOR = "DetectionCollator";
     } // namespace
 
-    Result<std::unique_ptr<DetectionCollator>> DetectionCollator::make(std::int32_t class_count,
-                                                                       std::int32_t max_objects) noexcept
+    Result<std::unique_ptr<DetectionCollator>> DetectionCollator::make(
+        std::int32_t class_count, std::int32_t max_objects,
+        const Config::InputNormalise& normalise) noexcept
     {
         SA_FAIL_IF(class_count < 1, StatusCode::InvalidDescription,
                    "{}: {} classes; there must be at least 1", K_COLLATOR, class_count);
@@ -65,12 +66,13 @@ namespace SushiAI::Vision::Datasets
             K_COLLATOR, [&]() -> Result<std::unique_ptr<DetectionCollator>>
         {
             return std::unique_ptr<DetectionCollator>(
-                new DetectionCollator(class_count, max_objects));
+                new DetectionCollator(class_count, max_objects, normalise));
         });
     }
 
-    DetectionCollator::DetectionCollator(std::int32_t class_count, std::int32_t max_objects)
-        : class_count_(class_count), max_objects_(max_objects),
+    DetectionCollator::DetectionCollator(std::int32_t class_count, std::int32_t max_objects,
+                                     const Config::InputNormalise& normalise)
+        : class_count_(class_count), max_objects_(max_objects), normalise_(normalise),
           targets_{
               Data::TargetDescription{std::string(Data::K_ROLE_BOXES),
                                       Shape{max_objects, K_BOX_COORDINATES}, DType::Float32, 0},
@@ -101,7 +103,7 @@ namespace SushiAI::Vision::Datasets
         const std::size_t slots = static_cast<std::size_t>(max_objects_);
         const std::int64_t rows = static_cast<std::int64_t>(samples.size()) * max_objects_;
 
-        SA_TRY(write_batch_inputs(samples, batch.inputs));
+        SA_TRY(write_batch_inputs(samples, batch.inputs, normalise_));
         SA_TRY_ASSIGN(SushiBLAS::Tensor* const boxes,
                       Detail::role_tensor(batch, Data::K_ROLE_BOXES, DType::Float32,
                                           rows * K_BOX_COORDINATES, K_COLLATOR));

@@ -1,7 +1,7 @@
 # tests/vision/training/test_pixel_targets.cpp
 
 
-Suites: `Medium_VisionTrainingPixelTargets` and `Small_VisionTrainingPixelTargetsOverflow`.
+Suites: `Medium_VisionTrainingPixelTargets` and `Small_VisionTrainingPixelTargetsClasses`.
 
 Tests `validate_pixel_labels`, `fill_pixel_targets` and the refusals of `fill_dice_targets`. The
 cases allocate INT32 and float32 tensors on the CPU SYCL device through `EngineTest`, so the suite
@@ -31,34 +31,30 @@ A six-pixel mask checked for seven fails with `Incompatible` naming "6 pixels" a
 
 A float mask fails with `Incompatible` naming "mask is".
 
-### AKeptPixelIndexesItsClassAndSharesTheWeight
+### AKeptPixelHoldsItsLabelAndSharesTheWeight
 
-The mask 0, 2, 255, 1, 1, 255 gives the indices 0, 5, 6, 10, 13, 15 and the weights 0.25, 0.25, 0,
-0.25, 0.25, 0. Pixel r of class l indexes r * 3 + l and weighs 1 over the four kept pixels; an
-ignored pixel points at the first score of its own row with a weight of 0.
+The mask 0, 2, 255, 1, 1, 255 gives the labels 0, 2, 255, 1, 1, 255 and the weights 0.25, 0.25, 0,
+0.25, 0.25, 0. A kept pixel weighs 1 over the four kept pixels; an ignored pixel keeps the ignore
+index, which names no class, with a weight of 0.
 
 ### AMaskWithNoKeptPixelGivesZeroWeights
 
-A mask of ignored pixels alone gives the indices 0, 3, 6, 9, 12, 15 and six weights of 0.
+A mask of ignored pixels alone gives six labels of 255 and six weights of 0.
 
 ### ARefusedPixelFillChangesNothing
 
 A label of 9, a weight leaf of five pixels and a real tensor given as the indices each fail with
-`Incompatible`, and after the three calls the indices are still -7 and the weights still -7.
+`Incompatible` ("6 pixel labels", "5 pixel weights", "pixel labels are"), and after the three calls
+the labels are still -7 and the weights still -7.
 
-### APixelCountPastInt32IsRefusedWithoutAllocation
+### AClassCountBelowOneIsRefusedWithoutReadingTheMask
 
-Suite `Small_VisionTrainingPixelTargetsOverflow`. Mask, index and weight tensors that are headers
-alone, each claiming 2147483648 elements (INT32_MAX + 1) and holding no storage, give
-`fill_pixel_targets` over one class and over three classes an `Incompatible` failure naming
-"cannot be indexed". A refusal that read a label would dereference the missing storage.
-
-### APixelsTimesClassesPastInt32IsRefused
-
-Suite `Small_VisionTrainingPixelTargetsOverflow`. 2^20 pixels over 2048 classes make 2^31
-indices, one more than INT32 holds, and fail with `Incompatible` naming "cannot be indexed".
+Suite `Small_VisionTrainingPixelTargetsClasses`. Mask, label and weight tensors that are headers
+alone, each claiming six elements and holding no storage, give `fill_pixel_targets` over 0 classes
+an `Incompatible` failure naming "at least one class" and "got 0". A refusal that read a label
+would dereference the missing storage.
 
 ### ARefusedDiceFillChangesNothing
 
-A label of 3, a `class_weights` leaf of two elements and a real `class_indices` leaf each fail with
-`Incompatible`, and after the three calls the indices, `kept` and `class_pixels` are still -7.
+A label of 3, a `class_weights` leaf of two elements and a real `labels` leaf each fail with
+`Incompatible`, and after the three calls `labels`, `kept` and `class_pixels` are still -7.

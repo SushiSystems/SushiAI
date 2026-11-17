@@ -8,9 +8,10 @@ input size, the objects as pixel boxes of that image, and the class index and fi
 | --- | --- | --- |
 | `Resize` | `Imaging::resize_bilinear` to the input size; each axis has its own scale | `Imaging::to_pixel_labels` on the input size |
 | `Letterbox` | `Imaging::plan_letterbox` and `Imaging::apply_letterbox` with `SampleFitOptions::letterbox` | `Imaging::to_pixel_labels` on the source size, then `Imaging::apply_letterbox` with the same plan |
+| `DarknetLetterbox` | `Imaging::plan_darknet_letterbox` and `Imaging::apply_darknet_letterbox`: truncated sides, offsets `(input - side) / 2` truncated, padding 128, scaled up and resized by `Imaging::resize_darknet`; `SampleFitOptions::letterbox` is not read | `Imaging::to_pixel_labels` on the source size, then `Imaging::apply_darknet_letterbox` with the same plan |
 
-After either fit the objects go through `Imaging::clip_labels` and `Imaging::remove_empty_boxes`,
-so a box lies inside the input and has an area above zero. The two fits are the table `K_FITS`
+After each fit the objects go through `Imaging::clip_labels` and `Imaging::remove_empty_boxes`,
+so a box lies inside the input and has an area above zero. The three fits are the table `K_FITS`
 in `source/fit_sample.cpp`.
 
 | Code | When |

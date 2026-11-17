@@ -41,14 +41,14 @@ namespace SushiAI::Vision::Imaging
     inline constexpr std::int32_t K_BILINEAR_WEIGHT_BITS = 11;
 
     /**
-     * @brief Returns the size an image is loaded at so that its long side is image_size.
+     * @brief Returns the size an image is loaded at so that it just fits inside @p target.
      *
-     * With r = image_size / max(height, width) in double: when r == 1 the size is returned
-     * as it is; otherwise each side becomes min(ceil(side * r), image_size). Small images
-     * are enlarged, as in the reference (data/base.py:297-299).
-     * @pre Both sides of original and image_size are positive.
+     * With r = min(target.height / height, target.width / width) in double: when r == 1 the
+     * size is returned as it is; otherwise each side becomes min(ceil(side * r), its target
+     * side). A square target is the reference's long-side rule (data/base.py:297-299).
+     * @pre Both sides of original and of target are positive.
      */
-    [[nodiscard]] ImageSize fit_long_side(ImageSize original, std::int32_t image_size) noexcept;
+    [[nodiscard]] ImageSize fit_within(ImageSize original, ImageSize target) noexcept;
 
     /**
      * @brief Resizes an image by bilinear interpolation between pixel centres.
@@ -71,12 +71,12 @@ namespace SushiAI::Vision::Imaging
     void resize_nearest(ImageView source, ImageSize size, Image& destination) noexcept;
 
     /**
-     * @brief Resizes an image to fit_long_side(source.size(), image_size).
+     * @brief Resizes an image to fit_within(source.size(), target).
      *
      * When that size equals the source's, the pixels are copied unchanged.
      * @param destination Reset to the fitted size; must pass check_source.
-     * @return InvalidDescription unless @p image_size passes is_valid_side.
+     * @return InvalidDescription unless @p target passes is_valid_size.
      */
-    [[nodiscard]] Status resize_long_side(ImageView source, std::int32_t image_size,
-                                          Image& destination) noexcept;
+    [[nodiscard]] Status resize_within(ImageView source, ImageSize target,
+                                       Image& destination) noexcept;
 } // namespace SushiAI::Vision::Imaging

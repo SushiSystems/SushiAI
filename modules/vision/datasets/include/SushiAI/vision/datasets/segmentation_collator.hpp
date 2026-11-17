@@ -35,6 +35,7 @@
 #include <string_view>
 #include <vector>
 
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
@@ -72,6 +73,9 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Holds the class of a pixel no polygon holds; K_MASK_VOID when absent. */
         std::optional<std::int32_t> background;
+
+        /** @brief Holds how the byte levels of an image become input values. */
+        Config::InputNormalise normalise;
     };
 
     /**
@@ -96,6 +100,9 @@ namespace SushiAI::Vision::Datasets
             [[nodiscard]] std::string_view task() const noexcept override;
             [[nodiscard]] const std::vector<Data::TargetDescription>& targets()
                 const noexcept override;
+
+            /** @brief Returns true when the mask comes from the mask file, not the polygons. */
+            [[nodiscard]] bool reads_mask() const noexcept override;
 
             /**
              * @brief Writes the inputs and the mask of each sample.

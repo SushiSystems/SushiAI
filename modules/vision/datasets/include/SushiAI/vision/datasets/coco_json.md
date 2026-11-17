@@ -12,7 +12,7 @@ joined with `file_name`. No image is checked to exist.
 | `categories[].id` | A class index: the rank of the id among all ids, in rising order. `class_names` holds `name` in that order |
 | `annotations[].bbox` | `[x, y, width, height]` in pixels becomes a centre and an extent as fractions of `width` and `height` of its image, computed in double |
 | `annotations[].iscrowd` | A whole number other than 0 leaves the annotation out |
-| `annotations[].segmentation` | Not read with `COCOSegmentation::Ignored`. With `Polygons`, a list of flat `[x1, y1, x2, y2, ...]` parts gives the part of the largest area as the object's polygon, in fractions of the image |
+| `annotations[].segmentation` | Not read with `COCOSegmentation::Ignored`. With `Polygons`, a list of flat `[x1, y1, x2, y2, ...]` parts gives every part, in file order, as one polygon of the object's outline, in fractions of the image |
 
 An annotation is left out when its box has a width or a height that is not positive. A crowd
 annotation is checked for its image and its category before it is left out, and its

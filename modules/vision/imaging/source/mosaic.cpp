@@ -116,27 +116,36 @@ namespace SushiAI::Vision::Imaging
             return static_cast<std::int32_t>(drawn);
         }
 
-        /** @brief Reports whether the canvas of twice @p image_size is an image. */
-        [[nodiscard]] bool is_valid_mosaic_size(std::int32_t image_size) noexcept
+        /** @brief Reports whether the canvas of twice each side of @p image_size is an image. */
+        [[nodiscard]] bool is_valid_mosaic_size(ImageSize image_size) noexcept
         {
-            return is_valid_side(2 * static_cast<std::int64_t>(image_size));
+            return is_valid_side(image_size.height) && is_valid_side(image_size.width) &&
+                   is_valid_side(2 * static_cast<std::int64_t>(image_size.height)) &&
+                   is_valid_side(2 * static_cast<std::int64_t>(image_size.width));
+        }
+
+        /** @brief Draws one centre coordinate of a canvas axis twice @p side long. */
+        [[nodiscard]] std::int32_t draw_axis_center(std::int32_t side, Random& random) noexcept
+        {
+            const std::int32_t border = (side + 1) / 2;
+            return draw_center(border, 2 * side - border, random);
         }
 
         /** @brief Stops the process unless a placement stays inside its patch and the canvas. */
         void check_placement(const MosaicPlacement& placement, ImageSize patch,
-                             std::int32_t canvas_side, std::size_t patch_index)
+                             ImageSize canvas, std::size_t patch_index)
         {
             const std::int32_t canvas_width = placement.canvas_x2 - placement.canvas_x1;
             const std::int32_t canvas_height = placement.canvas_y2 - placement.canvas_y1;
             const bool is_canvas_inside =
                 placement.canvas_x1 >= 0 && placement.canvas_y1 >= 0 && canvas_width >= 0 &&
-                canvas_height >= 0 && placement.canvas_x2 <= canvas_side &&
-                placement.canvas_y2 <= canvas_side;
+                canvas_height >= 0 && placement.canvas_x2 <= canvas.width &&
+                placement.canvas_y2 <= canvas.height;
             SA_FATAL_IF(!is_canvas_inside,
                         "apply_mosaic: patch {} writes canvas columns [{}, {}) and rows [{}, {}), "
-                        "outside a canvas of side {}",
+                        "outside a canvas of {}x{}",
                         patch_index, placement.canvas_x1, placement.canvas_x2,
-                        placement.canvas_y1, placement.canvas_y2, canvas_side);
+                        placement.canvas_y1, placement.canvas_y2, canvas.height, canvas.width);
 
             const bool is_patch_inside =
                 placement.patch_x1 >= 0 && placement.patch_y1 >= 0 &&
@@ -186,16 +195,16 @@ namespace SushiAI::Vision::Imaging
         return Status();
     }
 
-    Status validate_mosaic_size(std::int32_t image_size) noexcept
+    Status validate_mosaic_size(ImageSize image_size) noexcept
     {
         SA_FAIL_IF(!is_valid_mosaic_size(image_size), StatusCode::InvalidDescription,
-                   "validate_mosaic_size: an image_size of {} is outside [1, {}]; the canvas "
-                   "has twice that side",
-                   image_size, K_MAX_MOSAIC_IMAGE_SIZE);
+                   "validate_mosaic_size: an image_size of {}x{} has a side outside [1, {}]; "
+                   "the canvas has twice each side",
+                   image_size.height, image_size.width, K_MAX_MOSAIC_IMAGE_SIZE);
         return Status();
     }
 
-    Result<MosaicDraw> draw_mosaic(const MosaicSettings& settings, std::int32_t image_size,
+    Result<MosaicDraw> draw_mosaic(const MosaicSettings& settings, ImageSize image_size,
                                    std::size_t index, PartnerSource& partners, Random& random) noexcept
     {
         SA_TRY(validate_mosaic(settings));
@@ -211,14 +220,14 @@ namespace SushiAI::Vision::Imaging
 
         draw.partners = chosen;
 
-        const std::int32_t border = (image_size + 1) / 2;
-        draw.center_y = draw_center(border, 2 * image_size - border, random);
-        draw.center_x = draw_center(border, 2 * image_size - border, random);
+        // The row is drawn before the column, as the reference draws them.
+        draw.center_y = draw_axis_center(image_size.height, random);
+        draw.center_x = draw_axis_center(image_size.width, random);
         return Result<MosaicDraw>(draw);
     }
 
     Result<MosaicPlan> plan_mosaic(const MosaicSettings& settings, const MosaicDraw& draw,
-                                   std::int32_t image_size,
+                                   ImageSize image_size,
                                    const std::array<ImageSize, K_MOSAIC_PATCHES>& patch_sizes) noexcept
     {
         SA_FATAL_IF(!draw.is_enabled,
@@ -226,12 +235,12 @@ namespace SushiAI::Vision::Imaging
                     "no placement");
         SA_TRY(validate_mosaic_size(image_size));
 
-        const std::int32_t canvas_side = 2 * image_size;
-        const bool is_center_inside = draw.center_x >= 0 && draw.center_x <= canvas_side &&
-                                      draw.center_y >= 0 && draw.center_y <= canvas_side;
+        const ImageSize canvas = mosaic_canvas(image_size);
+        const bool is_center_inside = draw.center_x >= 0 && draw.center_x <= canvas.width &&
+                                      draw.center_y >= 0 && draw.center_y <= canvas.height;
         SA_FATAL_IF(!is_center_inside,
-                    "plan_mosaic: the centre ({}, {}) (x, y) is outside the canvas of side {}",
-                    draw.center_x, draw.center_y, canvas_side);
+                    "plan_mosaic: the centre ({}, {}) (x, y) is outside the canvas of {}x{}",
+                    draw.center_x, draw.center_y, canvas.height, canvas.width);
 
         MosaicPlan plan;
         plan.image_size = image_size;
@@ -244,9 +253,9 @@ namespace SushiAI::Vision::Imaging
                        patch.height, patch.width, K_MAX_IMAGE_SIDE);
 
             const AxisSpan columns =
-                place_axis(K_QUADRANTS[i].is_left, draw.center_x, patch.width, canvas_side);
+                place_axis(K_QUADRANTS[i].is_left, draw.center_x, patch.width, canvas.width);
             const AxisSpan rows =
-                place_axis(K_QUADRANTS[i].is_top, draw.center_y, patch.height, canvas_side);
+                place_axis(K_QUADRANTS[i].is_top, draw.center_y, patch.height, canvas.height);
 
             MosaicPlacement& placement = plan.placements[i];
             placement.canvas_x1 = columns.canvas_begin;
@@ -268,10 +277,10 @@ namespace SushiAI::Vision::Imaging
                         const MosaicPlan& plan, Image& destination) noexcept
     {
         SA_FATAL_IF(!is_valid_mosaic_size(plan.image_size),
-                    "apply_mosaic: the plan holds an image_size of {}, outside [1, {}]",
-                    plan.image_size, K_MAX_MOSAIC_IMAGE_SIZE);
+                    "apply_mosaic: the plan holds an image_size of {}x{}, outside [1, {}]",
+                    plan.image_size.height, plan.image_size.width, K_MAX_MOSAIC_IMAGE_SIZE);
 
-        const std::int32_t canvas_side = 2 * plan.image_size;
+        const ImageSize canvas = mosaic_canvas(plan.image_size);
         const std::int32_t channels = patches[0].channels();
         for (std::size_t i = 0; i < K_MOSAIC_PATCHES; ++i)
         {
@@ -280,10 +289,10 @@ namespace SushiAI::Vision::Imaging
                        "apply_mosaic: patch {} has {} channels but patch 0 has {}; a mosaic "
                        "needs one channel count",
                        i, patches[i].channels(), channels);
-            check_placement(plan.placements[i], patches[i].size(), canvas_side, i);
+            check_placement(plan.placements[i], patches[i].size(), canvas, i);
         }
 
-        destination.reset(ImageSize{canvas_side, canvas_side}, channels);
+        destination.reset(canvas, channels);
         destination.fill(plan.fill_value);
         for (std::size_t i = 0; i < K_MOSAIC_PATCHES; ++i)
             copy_patch(patches[i], plan.placements[i], destination);
@@ -294,8 +303,8 @@ namespace SushiAI::Vision::Imaging
     Labels apply_mosaic(const std::array<Labels, K_MOSAIC_PATCHES>& labels, const MosaicPlan& plan) noexcept
     {
         SA_FATAL_IF(!is_valid_mosaic_size(plan.image_size),
-                    "apply_mosaic: the plan holds an image_size of {}, outside [1, {}]",
-                    plan.image_size, K_MAX_MOSAIC_IMAGE_SIZE);
+                    "apply_mosaic: the plan holds an image_size of {}x{}, outside [1, {}]",
+                    plan.image_size.height, plan.image_size.width, K_MAX_MOSAIC_IMAGE_SIZE);
 
         std::size_t total = 0;
         for (const Labels& patch : labels)
@@ -309,16 +318,15 @@ namespace SushiAI::Vision::Imaging
             const float offset_y = static_cast<float>(plan.placements[i].offset_y);
             for (std::size_t j = 0; j < labels[i].size(); ++j)
             {
-                Polygon polygon = labels[i].polygons()[j];
-                map_polygon(polygon, 1.0f, 1.0f, offset_x, offset_y);
+                Outline outline = labels[i].outlines()[j];
+                map_outline(outline, 1.0f, 1.0f, offset_x, offset_y);
                 joined.add(labels[i].classes()[j],
                            translate_box(labels[i].boxes()[j], offset_x, offset_y),
-                           std::move(polygon));
+                           std::move(outline));
             }
         }
 
-        const std::int32_t canvas_side = 2 * plan.image_size;
-        clip_labels(joined, ImageSize{canvas_side, canvas_side});
+        clip_labels(joined, mosaic_canvas(plan.image_size));
         remove_empty_boxes(joined);
         return joined;
     }

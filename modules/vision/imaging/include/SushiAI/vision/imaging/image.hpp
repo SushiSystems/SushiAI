@@ -80,6 +80,12 @@ namespace SushiAI::Vision::Imaging
         }
     };
 
+    /** @brief Returns the size whose height and width are both @p side. */
+    [[nodiscard]] constexpr ImageSize square_size(std::int32_t side) noexcept
+    {
+        return ImageSize{side, side};
+    }
+
     /** @brief Reports whether both sides of a size are in [1, K_MAX_IMAGE_SIDE]. */
     [[nodiscard]] constexpr bool is_valid_size(ImageSize size) noexcept
     {

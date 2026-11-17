@@ -119,8 +119,11 @@ namespace
                 const NormalizedBox& box = objects.boxes()[object];
                 line << " | class " << objects.classes()[object] << " box " << box.x_center << ' '
                      << box.y_center << ' ' << box.width << ' ' << box.height << " outline";
-                for (const auto& vertex : objects.polygons()[object])
-                    line << ' ' << vertex.x << ',' << vertex.y;
+                for (const auto& part : objects.outlines()[object])
+                {
+                    for (const auto& vertex : part)
+                        line << ' ' << vertex.x << ',' << vertex.y;
+                }
             }
             lines.push_back(line.str());
         }
@@ -220,7 +223,7 @@ TEST(Small_DatasetsCocoJson, ACrowdAnnotationAndABoxOfNoWidthAreLeftOut)
     EXPECT_TRUE(list.samples[0].objects.is_empty());
     ASSERT_EQ(list.samples[1].objects.size(), 1u);
     EXPECT_EQ(list.samples[1].objects.classes()[0], 2);
-    EXPECT_TRUE(list.samples[1].objects.polygons()[0].empty());
+    EXPECT_TRUE(list.samples[1].objects.outlines()[0].empty());
 }
 
 /** @brief Tests that each image resolves to its file in the image folder, in id order. */
@@ -259,15 +262,16 @@ TEST(Small_DatasetsCocoJson, APolygonIsKeptOnlyWhenAskedFor)
     COCOJSONOptions options = options_of();
 
     SA_ASSERT_OK_AND_ASSIGN(const SampleList ignored, read_coco_json(options, source));
-    EXPECT_TRUE(ignored.samples[0].objects.polygons()[0].empty());
+    EXPECT_TRUE(ignored.samples[0].objects.outlines()[0].empty());
 
     options.segmentation = COCOSegmentation::Polygons;
     SA_ASSERT_OK_AND_ASSIGN(const SampleList kept, read_coco_json(options, source));
-    EXPECT_EQ(kept.samples[0].objects.polygons()[0].size(), 4u);
+    ASSERT_EQ(kept.samples[0].objects.outlines()[0].size(), 2u);
+    EXPECT_EQ(kept.samples[0].objects.outlines()[0][1].size(), 4u);
 }
 
-/** @brief Tests that the largest part of a multi-part polygon is taken. */
-TEST(Small_DatasetsCocoJson, TheLargestPartOfAPolygonIsTaken)
+/** @brief Tests that every part of a multi-part polygon is kept, in file order. */
+TEST(Small_DatasetsCocoJson, EveryPartOfAPolygonIsKept)
 {
     const MemorySource source = split_of(
         R"({"id": 1, "image_id": 9, "category_id": 1, "bbox": [0, 0, 100, 50],
@@ -278,10 +282,14 @@ TEST(Small_DatasetsCocoJson, TheLargestPartOfAPolygonIsTaken)
     SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options, source));
 
     ASSERT_EQ(list.samples[0].objects.size(), 1u);
-    const auto& polygon = list.samples[0].objects.polygons()[0];
-    ASSERT_EQ(polygon.size(), 4u);
-    EXPECT_NEAR(polygon[2].x, 100.0f / 200.0f, K_FRACTION_TOLERANCE);
-    EXPECT_NEAR(polygon[2].y, 50.0f / 100.0f, K_FRACTION_TOLERANCE);
+    const auto& outline = list.samples[0].objects.outlines()[0];
+    ASSERT_EQ(outline.size(), 2u);
+    ASSERT_EQ(outline[0].size(), 3u);
+    EXPECT_NEAR(outline[0][2].x, 2.0f / 200.0f, K_FRACTION_TOLERANCE);
+    EXPECT_NEAR(outline[0][2].y, 2.0f / 100.0f, K_FRACTION_TOLERANCE);
+    ASSERT_EQ(outline[1].size(), 4u);
+    EXPECT_NEAR(outline[1][2].x, 100.0f / 200.0f, K_FRACTION_TOLERANCE);
+    EXPECT_NEAR(outline[1][2].y, 50.0f / 100.0f, K_FRACTION_TOLERANCE);
 }
 
 /** @brief Tests that a run-length mask is accepted when polygons are not asked for. */
@@ -480,7 +488,8 @@ TEST(Small_DatasetsCocoJson, AnAnnotationListedBeforeItsImageStillReachesIt)
     SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options, source));
 
     EXPECT_EQ(list.samples[1].objects.classes()[0], 2);
-    EXPECT_EQ(list.samples[1].objects.polygons()[0].size(), 4u);
+    ASSERT_EQ(list.samples[1].objects.outlines()[0].size(), 2u);
+    EXPECT_EQ(list.samples[1].objects.outlines()[0][1].size(), 4u);
     EXPECT_TRUE(list.samples[0].objects.is_empty());
 }
 

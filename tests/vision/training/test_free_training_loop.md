@@ -20,6 +20,10 @@ A dataset of another batch size, a run of no epoch and a first batch past the en
 
 With 2 epochs from epoch 3 and batch 2, the first pass reads one batch and the second reads three, and the dataset begins the epochs 3 and 4.
 
+### ADatasetOfAnotherInputSizeIsRefusedNamingTheInput
+
+A dataset whose images are twice the side the step was compiled for makes the call fail with Incompatible, and the message holds "publishes its input as" and "the step was compiled for". The run takes no step: the optimizer's step count and the step's run count stay 0. This is the `Train::match_input` check, which the loop runs before the run check.
+
 ### TheOneToManyWeightFallsOverTheEpochsOfTheRun
 
 Over 3 epochs the weight is the start of the objective at the first epoch, the mean of start and end at the second and the end at the third.

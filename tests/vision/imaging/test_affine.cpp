@@ -816,13 +816,13 @@ TEST(Small_ImagingAffine, PolygonVerticesAreScaledThenTranslated)
     ASSERT_EQ(warped.size(), 1u);
     EXPECT_EQ(warped.classes()[0], 6);
     expect_box(warped.boxes()[0], PixelBox{20.0f, 15.0f, 60.0f, 55.0f});
-    ASSERT_EQ(warped.polygons()[0].size(), 3u);
-    EXPECT_EQ(warped.polygons()[0][0].x, 20.0f);
-    EXPECT_EQ(warped.polygons()[0][0].y, 15.0f);
-    EXPECT_EQ(warped.polygons()[0][1].x, 60.0f);
-    EXPECT_EQ(warped.polygons()[0][1].y, 19.0f);
-    EXPECT_EQ(warped.polygons()[0][2].x, 40.0f);
-    EXPECT_EQ(warped.polygons()[0][2].y, 55.0f);
+    ASSERT_EQ(warped.outlines()[0][0].size(), 3u);
+    EXPECT_EQ(warped.outlines()[0][0][0].x, 20.0f);
+    EXPECT_EQ(warped.outlines()[0][0][0].y, 15.0f);
+    EXPECT_EQ(warped.outlines()[0][0][1].x, 60.0f);
+    EXPECT_EQ(warped.outlines()[0][0][1].y, 19.0f);
+    EXPECT_EQ(warped.outlines()[0][0][2].x, 40.0f);
+    EXPECT_EQ(warped.outlines()[0][0][2].y, 55.0f);
 }
 
 /** @brief Tests that an object with a polygon takes the box of the polygon's visible part. */
@@ -856,7 +856,7 @@ TEST(Small_ImagingAffine, WarpedPolygonIsClampedToItsNewBox)
     const Labels warped = apply_affine(labels, plan);
 
     ASSERT_EQ(warped.size(), 1u);
-    const Polygon& polygon = warped.polygons()[0];
+    const Polygon& polygon = warped.outlines()[0][0];
     ASSERT_EQ(polygon.size(), 3u);
     EXPECT_EQ(polygon[0].x, 0.0f);
     EXPECT_EQ(polygon[0].y, 0.0f);
@@ -881,10 +881,10 @@ TEST(Small_ImagingAffine, WarpedPolygonStaysInsideTheOutputWhenACrossingRoundsOu
     ASSERT_EQ(warped.size(), 1u);
     const PixelBox& box = warped.boxes()[0];
     EXPECT_EQ(box.x1, 0.0f);
-    ASSERT_EQ(warped.polygons()[0].size(), 3u);
-    expect_vertex_inside(warped.polygons()[0][0], output, box);
-    expect_vertex_inside(warped.polygons()[0][1], output, box);
-    expect_vertex_inside(warped.polygons()[0][2], output, box);
+    ASSERT_EQ(warped.outlines()[0][0].size(), 3u);
+    expect_vertex_inside(warped.outlines()[0][0][0], output, box);
+    expect_vertex_inside(warped.outlines()[0][0][1], output, box);
+    expect_vertex_inside(warped.outlines()[0][0][2], output, box);
 }
 
 namespace
@@ -941,4 +941,24 @@ TEST(Small_ImagingAffine, PolygonOutsideTheOutputDropsItsObject)
     ASSERT_EQ(warped.size(), 1u);
     EXPECT_EQ(warped.classes()[0], 1);
     expect_box(warped.boxes()[0], PixelBox{40.0f, 10.0f, 80.0f, 50.0f});
+}
+
+/** @brief Tests that the box of an object with two parts spans both warped parts. */
+TEST(Small_ImagingAffine, AnOutlineOfTwoPartsTakesTheBoxOfBothParts)
+{
+    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 2.0f, 10.0f, -5.0f);
+    Labels labels;
+    labels.add(6, PixelBox{5.0f, 10.0f, 25.0f, 30.0f},
+               Outline{Polygon{Point{5.0f, 10.0f}, Point{10.0f, 10.0f}, Point{10.0f, 15.0f}},
+                       Polygon{Point{20.0f, 25.0f}, Point{25.0f, 25.0f}, Point{25.0f, 30.0f}}});
+
+    const Labels warped = apply_affine(labels, plan);
+
+    ASSERT_EQ(warped.size(), 1u);
+    expect_box(warped.boxes()[0], PixelBox{20.0f, 15.0f, 60.0f, 55.0f});
+    ASSERT_EQ(warped.outlines()[0].size(), 2u);
+    EXPECT_EQ(warped.outlines()[0][0][0].x, 20.0f);
+    EXPECT_EQ(warped.outlines()[0][0][0].y, 15.0f);
+    EXPECT_EQ(warped.outlines()[0][1][2].x, 60.0f);
+    EXPECT_EQ(warped.outlines()[0][1][2].y, 55.0f);
 }

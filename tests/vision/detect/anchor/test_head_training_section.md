@@ -42,9 +42,10 @@ The written section has the keys `type`, `match_threshold`, `ignore_threshold`, 
 `box_gradient`, `objectness_target`, `box_weight`, `object_weight`, `max_delta`, `class_gate`,
 `box_gain`, `class_gain`, `objectness_gain` in that order.
 
-## WritesAFloatAsItsDouble
+## WritesAFloatAsItsShortestDecimal
 
-The match threshold equals `double(0.213f)` and the box weight `double(0.07f)`.
+The match threshold equals `0.213` and the box weight `0.07`, the shortest decimals of the
+floats `0.213f` and `0.07f`.
 
 ## ReadsAndWritesEachBoxLossString
 

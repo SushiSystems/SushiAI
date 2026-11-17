@@ -82,7 +82,7 @@ namespace SushiAI::Vision::Imaging
              * @brief Produces the mask of the sample TrainingPipeline::make_sample made.
              * @param trace What make_sample returned for @p index.
              * @param loaded_size Sample::loaded_size of that sample.
-             * @param mask Receives image_size by image_size pixels of one channel.
+             * @param mask Receives image_size pixels of one channel.
              * @return The failure of a load; Incompatible for a mask of several channels or
              *         of another size than its image; OutOfMemory.
              */

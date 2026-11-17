@@ -47,6 +47,7 @@ using namespace SushiAI::Vision::Datasets;
 using Vision::Imaging::Image;
 using Vision::Imaging::ImageSize;
 using Vision::Imaging::Labels;
+using Vision::Imaging::Outline;
 using Vision::Imaging::PixelBox;
 using Vision::Imaging::Polygon;
 
@@ -158,3 +159,18 @@ INSTANTIATE_TEST_SUITE_P(
         RefusalRow{"ObjectWithoutAPolygon", add_boxed, "paint_polygon_mask", "object 0", "no polygon"},
         RefusalRow{"ClassNoByteNames", add_class_255, "the class 255", "0 to 254", ""}),
     refusal_row_name);
+
+/** @brief Tests that every part of one object's outline is painted with the object's class. */
+TEST(Small_DatasetsPolygonMask, EveryPartOfAnOutlineIsPainted)
+{
+    Labels labels;
+    labels.add(2, PixelBox{0.0f, 0.0f, 4.0f, 4.0f},
+               Outline{Polygon{{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}},
+                       Polygon{{3.0f, 3.0f}, {4.0f, 3.0f}, {4.0f, 4.0f}, {3.0f, 4.0f}}});
+
+    Image mask;
+    SA_EXPECT_OK(paint_polygon_mask(labels, K_SIZE, K_MASK_VOID, mask));
+
+    EXPECT_EQ(bytes_of(mask), (std::vector<int>{2, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+                                                255, 255, 255, 255, 255, 2}));
+}

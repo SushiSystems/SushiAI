@@ -36,7 +36,7 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/optim/rate_schedule.hpp>
-#include <SushiAI/vision/training/free_detection_loss_host.hpp>
+#include <SushiAI/vision/training/free_loss_terms.hpp>
 #include <SushiAI/vision/training/free_training_step.hpp>
 
 namespace SushiAI::Vision::Training

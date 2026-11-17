@@ -11,6 +11,9 @@ sushiai_add_module(NAME imaging TIER vision
         source/affine_nearest.cpp
         source/bilinear.cpp
         source/boxes.cpp
+        source/darknet_augment.cpp
+        source/darknet_letterbox.cpp
+        source/darknet_resize.cpp
         source/dataset_partners.cpp
         source/flip.cpp
         source/gray.cpp

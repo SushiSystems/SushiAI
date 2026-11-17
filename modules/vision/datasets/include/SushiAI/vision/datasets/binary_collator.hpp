@@ -34,6 +34,7 @@
 #include <string_view>
 #include <vector>
 
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 
@@ -52,11 +53,12 @@ namespace SushiAI::Vision::Datasets
         public:
             /**
              * @brief Builds the collator that writes 1 for the class @p positive_class.
+             * @param normalise How the byte levels of an image become input values.
              * @return The collator, never null; InvalidDescription for a class that is
              *         neither 0 nor 1.
              */
             [[nodiscard]] static Result<std::unique_ptr<BinaryCollator>> make(
-                std::int32_t positive_class) noexcept;
+                std::int32_t positive_class, const Config::InputNormalise& normalise = Config::InputNormalise()) noexcept;
 
             [[nodiscard]] std::string_view task() const noexcept override;
             [[nodiscard]] const std::vector<Data::TargetDescription>& targets()
@@ -73,10 +75,13 @@ namespace SushiAI::Vision::Datasets
 
         private:
             /** @brief Holds the description of labels and the class that is written as 1. */
-            explicit BinaryCollator(std::int32_t positive_class);
+            BinaryCollator(std::int32_t positive_class, const Config::InputNormalise& normalise);
 
             /// @brief Holds the class index written as 1.
             std::int32_t positive_class_;
+
+            /// @brief Holds how the byte levels of an image become input values.
+            Config::InputNormalise normalise_;
 
             /// @brief Holds the description of the labels role.
             std::vector<Data::TargetDescription> targets_;

@@ -96,6 +96,24 @@ TEST(Small_DetectAnchorAssignmentSection, AShapeRatioSectionRoundTrips)
     EXPECT_EQ(written_text, section_text);
 }
 
+/** @brief Tests that a shape-ratio section is written with the decimals it was read from. */
+TEST(Small_DetectAnchorAssignmentSection, AShapeRatioSectionIsWrittenAsShortestDecimals)
+{
+    const Value section = section_with(
+        R"({"rule": "shape_ratio", "ratio_limit": 3.7, "neighbour_offset": 0.3})");
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorTask task, read_anchor_task(section));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(task));
+
+    const Value& assignment = require_value(written.at("assignment", "task"));
+    EXPECT_EQ(require_value(require_value(assignment.at("ratio_limit", "assignment"))
+                                .as_real("ratio_limit")),
+              3.7);
+    EXPECT_EQ(require_value(require_value(assignment.at("neighbour_offset", "assignment"))
+                                .as_real("neighbour_offset")),
+              0.3);
+}
+
 /** @brief Tests that an unknown rule is refused naming the key and the known rule. */
 TEST(Small_DetectAnchorAssignmentSection, RefusesAnUnknownRule)
 {

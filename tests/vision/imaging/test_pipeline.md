@@ -72,7 +72,7 @@ vertices exactly.
 
 ## load_patch
 
-`load_patch` loads one image the way a pipeline does: `resize_long_side` to `K_SIDE`,
+`load_patch` loads one image the way a pipeline does: `resize_within` to `K_SIZE`,
 `expand_gray` when the image has one channel, and `to_pixel_labels` of the resampled polygons.
 
 ## compose_from_trace
@@ -117,6 +117,11 @@ each other, pixel for pixel. The flipped sample also equals `compose_from_trace`
 The sample is 32 by 32 with `K_RGB_CHANNELS` channels. `original_size` is 32 by 64, the stored
 size of image 0, and `loaded_size` is 16 by 32, its size after the long-side resize. The affine
 plan maps 64 by 64 to 32 by 32.
+
+## TrainingOnARectangleProducesTheRectangle
+
+At a training size of 16 by 32, image 0 (32 by 64) loads at 16 by 32, the warp reads the 32 by 64
+canvas, and the sample is 16 by 32.
 
 ## MosaicSampleKeepsItsLargestQuadrantBoxInsideTheTrainingSize
 
@@ -171,7 +176,7 @@ With `FixedPartners` of 4, 4, 0 the trace holds those partners and the source re
 
 ## TrainingRejectsASettingOutOfRangeAtConstruction
 
-Suite `Small_ImagingPipelineSetting`. Constructing a `TrainingPipeline` returns `InvalidDescription` for an image size of 0 or 8193, 0 epochs, a `close_mosaic` of -1, a batch size of 0, a mosaic probability of 1.5, an affine scale range of 1, a negative HSV gain and a NaN flip probability, each under the name of the validator that found it.
+Suite `Small_ImagingPipelineSetting`. Constructing a `TrainingPipeline` returns `InvalidDescription` for an image size of 0 or 8193, a size of 640 by 8193, 0 epochs, a `close_mosaic` of -1, a batch size of 0, a mosaic probability of 1.5, an affine scale range of 1, a negative HSV gain and a NaN flip probability, each under the name of the validator that found it.
 
 ## TrainingRejectsASettingOutOfRangeWithAGivenPartnerSource
 
@@ -222,6 +227,10 @@ starts at (8, 8).
 An 8 by 16 image of one colour is loaded as 16 by 32 and letterboxed into 32 by 32 with ratio 1
 and 8 rows above and below. The sample's rows 8 to 23 hold the colour and the other rows hold
 114. The source records one load.
+
+## ValidationLoadsAnImageWithinARectangularSize
+
+At a size of 16 by 32, an 8 by 16 image doubles on both axes and loads at 16 by 32.
 
 ## ValidationMovesBoxesByThePaddingWithoutClipping
 

@@ -34,6 +34,7 @@
 #include <string_view>
 #include <vector>
 
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 
@@ -49,10 +50,11 @@ namespace SushiAI::Vision::Datasets
         public:
             /**
              * @brief Builds the collator of a set of @p class_count classes.
+             * @param normalise How the byte levels of an image become input values.
              * @return The collator, never null; InvalidDescription for a count below 1.
              */
             [[nodiscard]] static Result<std::unique_ptr<ClassificationCollator>> make(
-                std::int32_t class_count) noexcept;
+                std::int32_t class_count, const Config::InputNormalise& normalise = Config::InputNormalise()) noexcept;
 
             [[nodiscard]] std::string_view task() const noexcept override;
             [[nodiscard]] const std::vector<Data::TargetDescription>& targets()
@@ -69,10 +71,13 @@ namespace SushiAI::Vision::Datasets
 
         private:
             /** @brief Holds the description of labels over @p class_count classes. */
-            explicit ClassificationCollator(std::int32_t class_count);
+            ClassificationCollator(std::int32_t class_count, const Config::InputNormalise& normalise);
 
             /// @brief Counts the classes a label may name.
             std::int32_t class_count_;
+
+            /// @brief Holds how the byte levels of an image become input values.
+            Config::InputNormalise normalise_;
 
             /// @brief Holds the description of the labels role.
             std::vector<Data::TargetDescription> targets_;

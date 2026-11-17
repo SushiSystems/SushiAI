@@ -379,14 +379,14 @@ TEST(Small_ImagingFlip, FlippedPolygonMirrorsEveryVertexAboutTheWidth)
     const Labels mirrored = Vision::Imaging::apply_flip(labels, plan);
 
     ASSERT_EQ(mirrored.size(), 2u);
-    ASSERT_EQ(mirrored.polygons()[0].size(), 3u);
-    EXPECT_EQ(mirrored.polygons()[0][0].x, 540.0f);
-    EXPECT_EQ(mirrored.polygons()[0][0].y, 50.0f);
-    EXPECT_EQ(mirrored.polygons()[0][1].x, 340.0f);
-    EXPECT_EQ(mirrored.polygons()[0][1].y, 60.0f);
-    EXPECT_EQ(mirrored.polygons()[0][2].x, 489.5f);
-    EXPECT_EQ(mirrored.polygons()[0][2].y, 200.0f);
-    EXPECT_TRUE(mirrored.polygons()[1].empty());
+    ASSERT_EQ(mirrored.outlines()[0][0].size(), 3u);
+    EXPECT_EQ(mirrored.outlines()[0][0][0].x, 540.0f);
+    EXPECT_EQ(mirrored.outlines()[0][0][0].y, 50.0f);
+    EXPECT_EQ(mirrored.outlines()[0][0][1].x, 340.0f);
+    EXPECT_EQ(mirrored.outlines()[0][0][1].y, 60.0f);
+    EXPECT_EQ(mirrored.outlines()[0][0][2].x, 489.5f);
+    EXPECT_EQ(mirrored.outlines()[0][0][2].y, 200.0f);
+    EXPECT_TRUE(mirrored.outlines()[1].empty());
 }
 
 /** @brief Tests that an unflipped plan returns the polygons as they were. */
@@ -400,9 +400,9 @@ TEST(Small_ImagingFlip, UnflippedPolygonIsReturnedUnchanged)
 
     const Labels same = Vision::Imaging::apply_flip(labels, plan);
 
-    ASSERT_EQ(same.polygons()[0].size(), 2u);
-    EXPECT_EQ(same.polygons()[0][1].x, 300.0f);
-    EXPECT_EQ(same.polygons()[0][1].y, 60.0f);
+    ASSERT_EQ(same.outlines()[0][0].size(), 2u);
+    EXPECT_EQ(same.outlines()[0][0][1].x, 300.0f);
+    EXPECT_EQ(same.outlines()[0][0][1].y, 60.0f);
 }
 
 /** @brief Tests that validate_flip accepts both ends of the probability range. */
@@ -416,4 +416,25 @@ TEST(Small_ImagingFlip, ValidateAcceptsZeroAndOne)
     SA_EXPECT_OK(Vision::Imaging::validate_flip(never));
     SA_EXPECT_OK(Vision::Imaging::validate_flip(always));
     SA_EXPECT_OK(Vision::Imaging::validate_flip(FlipSettings{}));
+}
+
+/** @brief Tests that a flip mirrors every part of an outline. */
+TEST(Small_ImagingFlip, FlippedOutlineMirrorsEveryPart)
+{
+    using Vision::Imaging::Outline;
+    using Vision::Imaging::Point;
+    using Vision::Imaging::Polygon;
+
+    const FlipPlan plan{ImageSize{480, 640}, true};
+    Labels labels;
+    labels.add(2, PixelBox{100.0f, 50.0f, 400.0f, 200.0f},
+               Outline{Polygon{Point{100.0f, 50.0f}}, Polygon{Point{400.0f, 200.0f}}});
+
+    const Labels mirrored = Vision::Imaging::apply_flip(labels, plan);
+
+    ASSERT_EQ(mirrored.outlines()[0].size(), 2u);
+    EXPECT_EQ(mirrored.outlines()[0][0][0].x, 540.0f);
+    EXPECT_EQ(mirrored.outlines()[0][0][0].y, 50.0f);
+    EXPECT_EQ(mirrored.outlines()[0][1][0].x, 240.0f);
+    EXPECT_EQ(mirrored.outlines()[0][1][0].y, 200.0f);
 }

@@ -53,7 +53,11 @@ sushiai_add_test_program(OWNER vision/detect
         test_iou.cpp
         test_iou_gradient.cpp
         test_suppression_criterion.cpp
+        test_suppression_section.cpp
         test_top_k.cpp
+        yolox/test_yolox_decode.cpp
+        yolox/test_yolox_head_contract.cpp
+        yolox/test_yolox_task.cpp
     DEPENDS
         failure_expectations
         reference_files)

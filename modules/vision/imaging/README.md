@@ -38,15 +38,16 @@ refused.
 
 **Where float begins.** Outside the module. A pipeline returns `uint8` RGB in HWC, which is
 already the layout of the model's NHWC input. The caller that assembles a batch stacks the
-images and divides by 255, with no mean and no standard deviation, as the reference does at
+images and converts them with the model file's `normalise` (`write_batch_inputs` in
+`vision/datasets`), which defaults to a division by 255, as the reference does at
 `models/yolo/detect/train.py:119`.
 
 **Coordinates.** Pixel (x, y) is the point (x, y), and an image of width W spans [0, W]. The
 warp, the boxes and the polygons use the same convention, so a box edge at x maps where pixel x
 maps. The resize alone uses pixel centres at x + 0.5.
 
-**Labels.** One object is a class, a box and a polygon; `LabelSet` holds the three lists and
-keeps them the same length. `NormalizedBox` is the file form, centre and extent as fractions of
+**Labels.** One object is a class, a box and an outline, which is one polygon per part of the
+object; `LabelSet` holds the three lists and keeps them the same length. `NormalizedBox` is the file form, centre and extent as fractions of
 the image. `PixelBox` is two corners in pixels. Every transform takes and returns `Labels`, the
 pixel form, in the coordinates of its own input and output image. The reference carries
 normalised boxes into its first transform and converts there (`data/augment.py:722-723`,
@@ -131,6 +132,22 @@ static `make` that returns a `Result`, because a constructor cannot return a sta
 ## letterbox.hpp
 
 [`include/SushiAI/vision/imaging/letterbox.md`](include/SushiAI/vision/imaging/letterbox.md) describes it.
+
+## darknet_resize.hpp
+
+[`include/SushiAI/vision/imaging/darknet_resize.md`](include/SushiAI/vision/imaging/darknet_resize.md) describes it.
+
+## darknet_letterbox.hpp
+
+[`include/SushiAI/vision/imaging/darknet_letterbox.md`](include/SushiAI/vision/imaging/darknet_letterbox.md) describes it.
+
+## darknet_augment.hpp
+
+[`include/SushiAI/vision/imaging/darknet_augment.md`](include/SushiAI/vision/imaging/darknet_augment.md) describes it.
+The three darknet units follow the Darknet C code, not the Ultralytics reference: its corner-to-corner
+resize, its `letterbox_image` and the crop jitter and colour distortion of its detector training. They
+share nothing with `resize_bilinear`, `plan_letterbox` or the HSV jitter of `plan_hsv`, except that
+the colour distortion draws an `HSVPlan` and applies it with `apply_hsv`.
 
 ## fit_transform.hpp
 

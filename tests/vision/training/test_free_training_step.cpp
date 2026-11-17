@@ -40,15 +40,19 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 
+#include <SushiAI/data/input.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/profile/profile_config.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
-#include <SushiAI/vision/training/free_detection_loss_host.hpp>
+#include <SushiAI/vision/training/free_loss_gains.hpp>
+#include <SushiAI/vision/training/free_loss_terms.hpp>
 #include <SushiAI/vision/training/free_objective.hpp>
 #include <SushiAI/vision/training/free_training_step.hpp>
+#include <support/tolerance.hpp>
 
 #include "free_two_level_case.hpp"
 
@@ -92,6 +96,13 @@ namespace
 
     /** @brief Holds the least change of a weight that counts as having moved. */
     constexpr double K_MOVED = 1e-9;
+
+    /**
+     * @brief Holds the relative bound of a total rebuilt from the terms: the total and each term
+     *        are float32 values off by at most one unit roundoff, and the gained sum adds three
+     *        products and two additions, so 16 unit roundoffs of the total bound it.
+     */
+    constexpr double K_REBUILT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Runs two steps of @p model on the seeded inputs and the fixture truth. */
     void run_two_steps(TwoLevelCase& model, SushiBLAS::Engine& engine,
@@ -191,6 +202,33 @@ TEST_F(Medium_FreeTrainingStep, TwoRunsOfOneSeedEndWithEqualWeights)
     EXPECT_EQ(first.step->run_count(), 2u);
 }
 
+/** @brief Tests that the total of a step is its terms, each times its gain and the batch. */
+TEST_F(Medium_FreeTrainingStep, TheTotalIsTheGainedTermsTimesTheBatch)
+{
+    for (const bool has_one_to_one : {false, true})
+    {
+        TwoLevelCase model;
+        model.prepare(backend(), has_one_to_one);
+        ASSERT_TRUE(model.ready);
+        SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
+
+        SA_ASSERT_OK_AND_ASSIGN(const FreeLossTerms terms,
+                                model.step->run(inputs, make_truth()));
+
+        const Vision::Training::FreeLossGains gains = model.objective->gains();
+        const double batch = static_cast<double>(model.objective->batch());
+        const double rebuilt = batch * (static_cast<double>(gains.box_gain) * terms.box +
+                                        static_cast<double>(gains.class_gain) * terms.classes +
+                                        static_cast<double>(gains.distribution_gain) *
+                                            terms.distribution);
+        EXPECT_GT(terms.box, 0.0) << "one-to-one copy " << has_one_to_one;
+        EXPECT_GT(terms.classes, 0.0) << "one-to-one copy " << has_one_to_one;
+        EXPECT_EQ(terms.l1, 0.0) << "one-to-one copy " << has_one_to_one;
+        EXPECT_NEAR(terms.total, rebuilt, K_REBUILT_TOLERANCE * rebuilt)
+            << "one-to-one copy " << has_one_to_one;
+    }
+}
+
 /** @brief Tests that the sum leaf holds the stage's target score sum, at least 1. */
 TEST_F(Medium_FreeTrainingStep, TheSumLeafHoldsTheStagesTargetSum)
 {
@@ -277,6 +315,20 @@ TEST_F(Medium_FreeTrainingStep, ARefusedTruthCountsNoRun)
     EXPECT_EQ(model.step->run_count(), 0u);
 }
 
+/** @brief Tests that the step names the input its leaf holds, past the batch axis. */
+TEST_F(Medium_FreeTrainingStep, TheInputDescriptionIsTheLeafPastItsBatchAxis)
+{
+    TwoLevelCase model;
+    model.prepare(backend());
+    ASSERT_TRUE(model.ready);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Data::InputDescription described,
+                            model.step->input_description());
+
+    EXPECT_EQ(described.sample_shape, (Shape{K_NETWORK_SIDE, K_NETWORK_SIDE, 3}));
+    EXPECT_EQ(described.dtype, DType::Float32);
+}
+
 /** @brief Tests that make refuses an empty pool, whose input leaf has no tensor. */
 TEST_F(Small_FreeTrainingStep, MakeRefusesAPoolWithoutTheInputLeaf)
 {
@@ -320,8 +372,8 @@ TEST_F(Medium_FreeTrainingZones, AStepPutsReadbackAssignAndLossInItsPeriod)
     const std::map<std::string, std::string> groups =
         SaTest::sushiai_zones_of(stopped.record, stopped.record.periods[0]);
     const std::map<std::string, std::string> expected = {
-        {"copy.input", "copy"},     {"device.run", "device"}, {"host.assign", "host"},
-        {"host.loss", "host"},      {"host.readback", "host"}};
+        {"copy.input", "copy"}, {"device.run", "device"}, {"host.assign", "host"},
+        {"host.readback", "host"}};
     EXPECT_EQ(groups, expected);
 }
 #endif

@@ -50,7 +50,8 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_COLLATOR = "BinaryCollator";
     } // namespace
 
-    Result<std::unique_ptr<BinaryCollator>> BinaryCollator::make(std::int32_t positive_class) noexcept
+    Result<std::unique_ptr<BinaryCollator>> BinaryCollator::make(
+        std::int32_t positive_class, const Config::InputNormalise& normalise) noexcept
     {
         SA_FAIL_IF(positive_class < 0 || positive_class >= K_BINARY_CLASSES,
                    StatusCode::InvalidDescription,
@@ -59,12 +60,13 @@ namespace SushiAI::Vision::Datasets
 
         return Detail::at_boundary(K_COLLATOR, [&]() -> Result<std::unique_ptr<BinaryCollator>>
         {
-            return std::unique_ptr<BinaryCollator>(new BinaryCollator(positive_class));
+            return std::unique_ptr<BinaryCollator>(new BinaryCollator(positive_class, normalise));
         });
     }
 
-    BinaryCollator::BinaryCollator(std::int32_t positive_class)
-        : positive_class_(positive_class),
+    BinaryCollator::BinaryCollator(std::int32_t positive_class,
+                               const Config::InputNormalise& normalise)
+        : positive_class_(positive_class), normalise_(normalise),
           targets_{Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{},
                                            DType::Float32, 0}}
     {
@@ -85,7 +87,7 @@ namespace SushiAI::Vision::Datasets
                                    SushiRuntime::span<const FittedSample> samples,
                                    Data::Batch& batch) const
     {
-        SA_TRY(write_batch_inputs(samples, batch.inputs));
+        SA_TRY(write_batch_inputs(samples, batch.inputs, normalise_));
         SA_TRY_ASSIGN(SushiBLAS::Tensor* const labels,
                       Detail::role_tensor(batch, Data::K_ROLE_LABELS, DType::Float32,
                                           static_cast<std::int64_t>(samples.size()),

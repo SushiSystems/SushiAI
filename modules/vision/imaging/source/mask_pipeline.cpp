@@ -65,14 +65,14 @@ namespace SushiAI::Vision::Imaging
                    "{}: the mask of image {} is {}x{} of {} channels; a mask holds one class "
                    "index per pixel",
                    K_PIPELINE, index, decoded_.height(), decoded_.width(), decoded_.channels());
-        SA_FAIL_IF(!is_valid_side(settings_.image_size), StatusCode::InvalidDescription,
-                   "{}: an image_size of {} is outside [1, {}]", K_PIPELINE,
-                   settings_.image_size, K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(!is_valid_size(settings_.image_size), StatusCode::InvalidDescription,
+                   "{}: an image_size of {}x{} has a side outside [1, {}]", K_PIPELINE,
+                   settings_.image_size.height, settings_.image_size.width, K_MAX_IMAGE_SIDE);
 
         return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
         {
             resize_nearest(decoded_.view(),
-                           fit_long_side(decoded_.size(), settings_.image_size), loaded);
+                           fit_within(decoded_.size(), settings_.image_size), loaded);
             return Status();
         });
     }

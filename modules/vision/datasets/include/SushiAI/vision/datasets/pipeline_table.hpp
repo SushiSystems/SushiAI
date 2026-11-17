@@ -31,11 +31,14 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/fit_sample.hpp>
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
@@ -59,6 +62,15 @@ namespace SushiAI::Vision::Datasets
          * @pre The source, when given, outlives the pipeline.
          */
         const ByteSource* source = nullptr;
+
+        /** @brief False when the task's collator reads no mask, so none is decoded. */
+        bool decode_masks = true;
+
+        /** @brief Holds the data section, from which a row reads the keys it lists. */
+        Config::Value section;
+
+        /** @brief Names the section in a message. */
+        std::string context;
     };
 
     /**
@@ -68,6 +80,12 @@ namespace SushiAI::Vision::Datasets
     using PipelineFactory =
         Result<std::unique_ptr<const SamplePipeline>> (*)(const PipelineRequest& request);
 
+    /**
+     * @brief Checks the keys a row reads of a data section, before any file is read.
+     * @return Ok; InvalidDescription for a key value the row's factory would refuse.
+     */
+    using PipelineCheck = Status (*)(const Config::Value& section, std::string_view context);
+
     /** @brief Holds one row of the pipeline table. */
     struct PipelineEntry
     {
@@ -76,12 +94,24 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Points at what builds the pipeline; never null. */
         PipelineFactory make;
+
+        /**
+         * @brief Lists the keys the row reads of PipelineRequest::section.
+         *
+         * The section reader refuses a key that no section, reader, task or pipeline row lists.
+         */
+        SushiRuntime::span<const std::string_view> keys;
+
+        /** @brief Points at the check of those keys; null for a row that reads none. */
+        PipelineCheck check = nullptr;
     };
 
     /**
      * @brief Returns the rows of the table.
      *
-     * They are none, which only fits, and default, the training transforms of imaging.
+     * They are none, which only fits; default, the training transforms of imaging; and darknet,
+     * the crop and colour distortion of Darknet's detector training, which reads the keys
+     * jitter, hue, saturation and exposure of the section.
      */
     [[nodiscard]] SushiRuntime::span<const PipelineEntry> pipeline_table() noexcept;
 

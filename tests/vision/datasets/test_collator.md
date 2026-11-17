@@ -25,3 +25,8 @@ with InvalidDescription, and the message holds "second.png" and then "no class i
 ## ASampleTheTaskCanUseIsCollated
 
 With the classes 1 and 0, `collate` through the base succeeds.
+
+## ACollatorReadsNoMaskUnlessItSaysSo
+
+Through a `const Collator` pointer to a `BinaryCollator`, `reads_mask` is false. The base returns
+false, so a pipeline decodes no mask file for a task that does not override it.

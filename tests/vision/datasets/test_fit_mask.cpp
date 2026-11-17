@@ -238,3 +238,23 @@ TEST(Medium_DatasetsLoadSampleMask, AnAbsentMaskFileIsReported)
     Image mask;
     SA_EXPECT_FAILURE(load_sample_mask(list, 0, mask), StatusCode::FileNotFound, "absent.png");
 }
+
+/** @brief Tests that the Darknet letterbox places the mask where it places the image. */
+TEST(Small_DatasetsFitMask, ADarknetLetterboxPlacesTheMaskAsItsImage)
+{
+    // A 2 by 3 mask into 6 by 6 is 4 by 6 with a void row each side; columns 0, 0, 1, 1, 2, 2.
+    const Image mask = Support::gray_image(ImageSize{2, 3}, {0, 1, 2, 3, 4, 5});
+
+    Image fitted;
+    SA_EXPECT_OK(fit_mask(mask.view(), mask.size(),
+                          options_of(SampleFit::DarknetLetterbox, ImageSize{6, 6}), fitted));
+
+    const std::uint8_t v = K_MASK_VOID;
+    EXPECT_EQ(bytes_of(fitted),
+              (std::vector<std::uint8_t>{v, v, v, v, v, v,
+                                         0, 0, 1, 1, 2, 2,
+                                         0, 0, 1, 1, 2, 2,
+                                         3, 3, 4, 4, 5, 5,
+                                         3, 3, 4, 4, 5, 5,
+                                         v, v, v, v, v, v}));
+}

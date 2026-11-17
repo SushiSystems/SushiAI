@@ -59,6 +59,14 @@ namespace SushiAI::Vision::Imaging
     using Polygon = std::vector<Point>;
 
     /**
+     * @brief Names the outline of one object: its polygons, one per part.
+     *
+     * An object whose region falls in several pieces holds one polygon per piece. An outline of
+     * no polygon means the object has none; no part is empty.
+     */
+    using Outline = std::vector<Polygon>;
+
+    /**
      * @brief Returns the point count every polygon of one image is resampled to.
      * @param longest The largest vertex count among the image's polygons.
      * @return K_POLYGON_POINTS, or longest + 1 when longest exceeds it (data/dataset.py:420).
@@ -87,6 +95,13 @@ namespace SushiAI::Vision::Imaging
     /** @brief Clamps every vertex's x to [bounds.x1, bounds.x2] and y to [bounds.y1, bounds.y2]. */
     void clamp_polygon(Polygon& polygon, const PixelBox& bounds) noexcept;
 
+    /** @brief Applies map_polygon to every part of @p outline. */
+    void map_outline(Outline& outline, float scale_x, float scale_y, float offset_x,
+                     float offset_y) noexcept;
+
+    /** @brief Applies clamp_polygon to every part of @p outline. */
+    void clamp_outline(Outline& outline, const PixelBox& bounds) noexcept;
+
     /**
      * @brief Reports whether a point lies inside a polygon or on its outline.
      *
@@ -103,4 +118,12 @@ namespace SushiAI::Vision::Imaging
      * nothing, or has no vertex, gives a box of four zeros.
      */
     [[nodiscard]] PixelBox visible_polygon_box(const Polygon& polygon, ImageSize size) noexcept;
+
+    /**
+     * @brief Returns the box around the part of an outline an image shows.
+     *
+     * The union of visible_polygon_box of every part that shows something. An outline whose
+     * parts all show nothing, or that has no part, gives a box of four zeros.
+     */
+    [[nodiscard]] PixelBox visible_outline_box(const Outline& outline, ImageSize size) noexcept;
 } // namespace SushiAI::Vision::Imaging

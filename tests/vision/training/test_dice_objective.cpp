@@ -119,8 +119,8 @@ namespace
 
 } // namespace
 
-/** @brief Tests the five leaves of the Dice objective, none of them [R, C]. */
-TEST(Small_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
+/** @brief Tests the four leaves of the Dice objective, none of them [R, C]. */
+TEST(Small_DiceObjective, TheDiceDeclaresOneLabelLeafAndNoOneHot)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DiceObjective> objective,
                             DiceObjective::make(K_EXTENTS));
@@ -130,12 +130,10 @@ TEST(Small_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
 
     objective->declare(builder, leaves);
 
-    ASSERT_EQ(leaves.all().size(), 5u);
+    ASSERT_EQ(leaves.all().size(), 4u);
     EXPECT_FALSE(leaves.has("one_hot"));
-    EXPECT_EQ(graph.value(leaves.at("score_indices")).shape, (Shape{K_PIXELS}));
-    EXPECT_EQ(graph.value(leaves.at("score_indices")).dtype, DType::Int32);
-    EXPECT_EQ(graph.value(leaves.at("class_indices")).shape, (Shape{K_PIXELS}));
-    EXPECT_EQ(graph.value(leaves.at("class_indices")).dtype, DType::Int32);
+    EXPECT_EQ(graph.value(leaves.at("labels")).shape, (Shape{K_PIXELS}));
+    EXPECT_EQ(graph.value(leaves.at("labels")).dtype, DType::Int32);
     EXPECT_EQ(graph.value(leaves.at("kept")).shape, (Shape{K_PIXELS, 1}));
     EXPECT_EQ(graph.value(leaves.at("class_pixels")).shape, (Shape{3}));
     EXPECT_EQ(graph.value(leaves.at("class_weights")).shape, (Shape{3}));

@@ -107,10 +107,10 @@ namespace SushiAI
                 return Status();
             }
 
-            /** @brief Builds the real of equal value to @p field. */
+            /** @brief Builds the real whose shortest decimal reads back as the float @p field. */
             Value number_value(float field)
             {
-                return Value::real(static_cast<double>(field));
+                return Config::float32_value(field);
             }
 
             /**

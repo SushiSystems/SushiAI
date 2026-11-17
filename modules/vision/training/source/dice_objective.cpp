@@ -29,7 +29,6 @@
 
 #include <SushiAI/vision/training/dice_objective.hpp>
 
-#include <limits>
 #include <utility>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -44,18 +43,11 @@
 
 namespace SushiAI::Vision::Training
 {
-    namespace
-    {
-        /** @brief Holds the largest index K_GATHER_ROWS addresses a table row by. */
-        constexpr std::int64_t K_LARGEST_INDEX = std::numeric_limits<std::int32_t>::max();
-    } // namespace
-
     Result<std::unique_ptr<DiceObjective>> DiceObjective::make(const PixelExtents& extents,
                                                                std::int32_t ignore_index,
                                                                DType dtype) noexcept
     {
-        SA_TRY(Detail::validate_pixel_objective(extents, ignore_index, dtype, K_LARGEST_INDEX,
-                                                K_DICE_TYPE));
+        SA_TRY(Detail::validate_pixel_objective(extents, ignore_index, dtype, K_DICE_TYPE));
 
         return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
         {
@@ -76,10 +68,8 @@ namespace SushiAI::Vision::Training
     {
         const std::int64_t pixels = extents_.pixels();
         const std::int64_t classes = extents_.classes;
-        leaves.add(K_DICE_SCORE_INDICES_LEAF,
-                   builder.input(Shape{pixels}, K_DICE_SCORE_INDICES_LEAF, DType::Int32));
-        leaves.add(K_DICE_CLASS_INDICES_LEAF,
-                   builder.input(Shape{pixels}, K_DICE_CLASS_INDICES_LEAF, DType::Int32));
+        leaves.add(K_DICE_LABELS_LEAF,
+                   builder.input(Shape{pixels}, K_DICE_LABELS_LEAF, DType::Int32));
         leaves.add(K_DICE_KEPT_LEAF, builder.input(Shape{pixels, 1}, K_DICE_KEPT_LEAF, dtype_));
         leaves.add(K_DICE_CLASS_PIXELS_LEAF,
                    builder.input(Shape{classes}, K_DICE_CLASS_PIXELS_LEAF, dtype_));
@@ -88,21 +78,30 @@ namespace SushiAI::Vision::Training
         leaves.require(Detail::describe_mask_role(extents_));
     }
 
-    Result<Graph::ValueID> DiceObjective::loss(
+    Result<Train::LossTrace> DiceObjective::loss(
         const Graph::GraphBuilder& builder, const Graph::Graph& graph,
         const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
         SA_TRY_ASSIGN(const Graph::ValueID rows,
-                      Detail::emit_pixel_rows(builder, graph, outputs, extents_, K_DICE_TYPE));
-        const DiceOperands operands{leaves.at(K_DICE_SCORE_INDICES_LEAF),
-                                    leaves.at(K_DICE_CLASS_INDICES_LEAF),
+                      Detail::emit_pixel_rows(builder, outputs, extents_, K_DICE_TYPE));
+        const DiceOperands operands{leaves.at(K_DICE_LABELS_LEAF),
                                     leaves.at(K_DICE_KEPT_LEAF),
                                     leaves.at(K_DICE_CLASS_PIXELS_LEAF),
                                     leaves.at(K_DICE_CLASS_WEIGHTS_LEAF)};
 
         SA_TRY_ASSIGN(const Graph::ValueID loss, emit_soft_dice(builder, graph, rows, operands));
 
-        return loss;
+        Train::LossTrace trace(loss);
+        trace.add(Detail::K_PIXEL_ROWS_VALUE, rows);
+
+        return trace;
+    }
+
+    Result<NN::ModelOutputs> DiceObjective::declare_metric_values(
+        const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+        const Train::LossTrace& trace) const
+    {
+        return Detail::declare_pixel_classes(builder, outputs, trace, extents_, K_DICE_TYPE);
     }
 
     Status DiceObjective::feed(const Data::Batch& batch, const Train::ObjectiveLeaves& leaves,
@@ -112,10 +111,7 @@ namespace SushiAI::Vision::Training
                       Train::require_batch_role(batch, Data::K_ROLE_MASK));
 
         DiceLeaves tensors;
-        SA_TRY_ASSIGN(tensors.score_indices,
-                      Train::find_leaf_tensor(leaves, K_DICE_SCORE_INDICES_LEAF, pool));
-        SA_TRY_ASSIGN(tensors.class_indices,
-                      Train::find_leaf_tensor(leaves, K_DICE_CLASS_INDICES_LEAF, pool));
+        SA_TRY_ASSIGN(tensors.labels, Train::find_leaf_tensor(leaves, K_DICE_LABELS_LEAF, pool));
         SA_TRY_ASSIGN(tensors.kept, Train::find_leaf_tensor(leaves, K_DICE_KEPT_LEAF, pool));
         SA_TRY_ASSIGN(tensors.class_pixels,
                       Train::find_leaf_tensor(leaves, K_DICE_CLASS_PIXELS_LEAF, pool));

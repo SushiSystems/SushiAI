@@ -48,7 +48,7 @@ namespace SushiAI
 {
     namespace Vision::Blocks
     {
-        /** @brief Scores every class at every position, then repeats each score over a block. */
+        /** @brief Scores every class at every position, then upsamples the scores. */
         struct SegmentHead
         {
             /** @brief Holds the 3x3 convolution with its normalisation and its SiLU. */
@@ -57,16 +57,18 @@ namespace SushiAI
             /** @brief Holds the biased, unpadded 1x1 convolution to one channel per class. */
             NN::Conv2d cv2;
 
-            /** @brief Holds the nearest-neighbour upsample by the factor given. */
+            /** @brief Holds the upsample by the factor and in the mode given. */
             NN::Upsample2d up;
 
             /**
              * @brief Builds the two convolutions and the upsample.
              * @param hidden The width between the two convolutions.
              * @param scale How many times larger H and W leave than they enter; at least 1.
+             * @param mode How the upsample fills the pixels it adds; nearest by default.
              */
             SegmentHead(int64_t in_channels, int64_t hidden, int64_t classes, int64_t scale,
-                        NN::NormOptions norm) noexcept;
+                        NN::NormOptions norm,
+                        NN::Upsample2d::Mode mode = NN::Upsample2d::Mode::Nearest) noexcept;
 
             /** @brief Lists the two children that hold state, under "cv1" and "cv2". */
             static constexpr auto fields() noexcept
@@ -96,7 +98,8 @@ namespace SushiAI
 
         /**
          * @brief Builds a SegmentHead node from "classes", with optional "hidden", the input
-         *        width when absent, "scale", 1 when absent, "bn_epsilon" and "bn_momentum".
+         *        width when absent, "scale", 1 when absent, "mode", "nearest" when absent or
+         *        "bilinear", "bn_epsilon" and "bn_momentum".
          * @param inputs One per-sample [H, W, C] shape; C becomes the input width.
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */

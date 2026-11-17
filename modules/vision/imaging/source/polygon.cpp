@@ -247,6 +247,19 @@ namespace SushiAI::Vision::Imaging
         }
     }
 
+    void map_outline(Outline& outline, float scale_x, float scale_y, float offset_x,
+                     float offset_y) noexcept
+    {
+        for (Polygon& part : outline)
+            map_polygon(part, scale_x, scale_y, offset_x, offset_y);
+    }
+
+    void clamp_outline(Outline& outline, const PixelBox& bounds) noexcept
+    {
+        for (Polygon& part : outline)
+            clamp_polygon(part, bounds);
+    }
+
     bool is_point_inside(const Polygon& polygon, Point point) noexcept
     {
         const double x = point.x;
@@ -314,6 +327,24 @@ namespace SushiAI::Vision::Imaging
         {
             if (is_point_inside(polygon, corner))
                 extent.include(corner.x, corner.y);
+        }
+
+        return extent.has_point ? extent.box : PixelBox{};
+    }
+
+    PixelBox visible_outline_box(const Outline& outline, ImageSize size) noexcept
+    {
+        Extent extent;
+        for (const Polygon& part : outline)
+        {
+            const PixelBox shown = visible_polygon_box(part, size);
+            const bool is_nothing = shown.x1 == 0.0f && shown.y1 == 0.0f && shown.x2 == 0.0f
+                                    && shown.y2 == 0.0f;
+            if (is_nothing)
+                continue;
+
+            extent.include(shown.x1, shown.y1);
+            extent.include(shown.x2, shown.y2);
         }
 
         return extent.has_point ? extent.box : PixelBox{};

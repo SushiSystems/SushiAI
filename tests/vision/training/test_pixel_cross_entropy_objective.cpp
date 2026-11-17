@@ -64,6 +64,8 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
+#include <SushiAI/nn/upsample2d.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
@@ -142,6 +144,23 @@ namespace
     Config::Value keys(std::string_view text)
     {
         return SaTest::require_value(Config::parse_json(text, "<test>"));
+    }
+
+    /** @brief Counts the RESHAPE nodes of @p built that read the model's only output. */
+    std::size_t count_reshapes_of_the_output(const Train::TrainingGraph& built)
+    {
+        const Result<Graph::ValueID> output = built.outputs.only();
+        EXPECT_TRUE(output.has_value());
+
+        std::size_t reshapes = 0;
+        for (const Graph::Node& node : built.graph.nodes())
+        {
+            if (node.op == Ops::K_RESHAPE.id && node.inputs.size() == 1
+                && node.inputs.front() == output.value())
+                ++reshapes;
+        }
+
+        return reshapes;
     }
 
     /** @brief Provides the extents with a zero extent. */
@@ -281,6 +300,34 @@ TEST(Small_PixelCrossEntropyObjective, TheCrossEntropyIsOneElementWithGradients)
     ASSERT_EQ(built.parameters.size(), 2u);
     EXPECT_NE(built.parameters[0].gradient, Graph::K_NO_VALUE);
     EXPECT_NE(built.parameters[1].gradient, Graph::K_NO_VALUE);
+}
+
+/** @brief Tests that the cross entropy and its metric values share one reshape of the output. */
+TEST(Small_PixelCrossEntropyObjective, TheLossAndTheMetricValuesShareOneReshapeOfTheOutput)
+{
+    NN::Conv2d model = make_model();
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PixelCrossEntropyObjective> objective,
+                            PixelCrossEntropyObjective::make(K_EXTENTS));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
+                            Train::build_training_graph(model, *objective, input_shape()));
+
+    EXPECT_EQ(built.metric_values.all().size(), 1u);
+    EXPECT_EQ(count_reshapes_of_the_output(built), 1u);
+}
+
+/** @brief Tests that the Dice loss and its metric values share one reshape of the output. */
+TEST(Small_PixelCrossEntropyObjective, TheDiceLossAndTheMetricValuesShareOneReshapeOfTheOutput)
+{
+    NN::Conv2d model = make_model();
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DiceObjective> objective,
+                            DiceObjective::make(K_EXTENTS));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
+                            Train::build_training_graph(model, *objective, input_shape()));
+
+    EXPECT_EQ(built.metric_values.all().size(), 1u);
+    EXPECT_EQ(count_reshapes_of_the_output(built), 1u);
 }
 
 /** @brief Tests that the cross entropy factory reads N, H, W and C from the model's output. */
@@ -786,11 +833,14 @@ namespace
         /** @brief Holds the head, which upsamples by the stride of the stem. */
         Vision::Blocks::SegmentHead head;
 
-        /** @brief Builds the three blocks over K_CHANNELS, K_WIDTH and K_OVERFIT_CLASSES. */
-        TinySegmenter()
+        /**
+         * @brief Builds the three blocks over K_CHANNELS, K_WIDTH and K_OVERFIT_CLASSES.
+         * @param mode How the head upsamples.
+         */
+        explicit TinySegmenter(NN::Upsample2d::Mode mode = NN::Upsample2d::Mode::Nearest)
             : stem(K_CHANNELS, K_WIDTH, 3, K_STRIDE, K_NORM),
               body(K_WIDTH, K_WIDTH, 3, 1, K_NORM),
-              head(K_WIDTH, K_WIDTH, K_OVERFIT_CLASSES, K_STRIDE, K_NORM)
+              head(K_WIDTH, K_WIDTH, K_OVERFIT_CLASSES, K_STRIDE, K_NORM, mode)
         {
 
         }
@@ -888,10 +938,14 @@ namespace
     class Medium_SegmentOverfit : public SaTest::EngineTest
     {
         protected:
-            /** @brief Fits the tiny segmenter to one batch and returns the report of the run. */
-            void fit(Train::RunReport& report)
+            /**
+             * @brief Fits the tiny segmenter to one batch and returns the report of the run.
+             * @param mode How the head of the segmenter upsamples.
+             */
+            void fit(Train::RunReport& report,
+                     NN::Upsample2d::Mode mode = NN::Upsample2d::Mode::Nearest)
             {
-        TinySegmenter model;
+        TinySegmenter model(mode);
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
             Vision::Training::PixelCrossEntropyObjective::make(
@@ -940,6 +994,26 @@ TEST_F(Medium_SegmentOverfit, TheMeanIouRisesOnOneBatch)
 {
     Train::RunReport report;
     ASSERT_NO_FATAL_FAILURE(fit(report));
+
+    const Train::Metric* const mean_iou = report.last_metrics.find("mean_iou");
+    ASSERT_NE(mean_iou, nullptr);
+    EXPECT_GT(mean_iou->value, K_MEAN_IOU) << report.to_string();
+}
+
+/** @brief Tests that the loss falls below a fraction of its start with a bilinear head. */
+TEST_F(Medium_SegmentOverfit, TheLossFallsOnOneBatchWithABilinearHead)
+{
+    Train::RunReport report;
+    ASSERT_NO_FATAL_FAILURE(fit(report, NN::Upsample2d::Mode::Bilinear));
+
+    EXPECT_LT(report.last_loss, K_LOSS_FRACTION * report.first_loss) << report.to_string();
+}
+
+/** @brief Tests that the mean IoU of the last step rises above the bound with a bilinear head. */
+TEST_F(Medium_SegmentOverfit, TheMeanIouRisesOnOneBatchWithABilinearHead)
+{
+    Train::RunReport report;
+    ASSERT_NO_FATAL_FAILURE(fit(report, NN::Upsample2d::Mode::Bilinear));
 
     const Train::Metric* const mean_iou = report.last_metrics.find("mean_iou");
     ASSERT_NE(mean_iou, nullptr);

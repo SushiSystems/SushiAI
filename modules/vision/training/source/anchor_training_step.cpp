@@ -45,6 +45,7 @@
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/profile/profile.hpp>
+#include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/training/detection_truth_check.hpp>
@@ -304,6 +305,18 @@ namespace SushiAI::Vision::Training
     Status AnchorTrainingStep::restore_run_count(std::size_t count) noexcept
     {
         return training_->restore_run_count(count);
+    }
+
+    Result<Data::InputDescription> AnchorTrainingStep::input_description() const noexcept
+    {
+        SA_TRY_ASSIGN(const Shape full, checked_shape_of(*input_));
+        SA_FAIL_IF(full.rank() == 0, StatusCode::InvalidDescription,
+                   "The input leaf of the anchor step has no batch extent");
+
+        const SushiRuntime::span<const std::int64_t> sample(
+            full.data() + 1, static_cast<std::size_t>(full.rank()) - 1);
+
+        return Data::InputDescription{Shape(sample), input_->dtype};
     }
 
     const AnchorObjective& AnchorTrainingStep::objective() const noexcept

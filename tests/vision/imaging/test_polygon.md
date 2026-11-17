@@ -106,3 +106,17 @@ and bottom edges gives (90, 70, 100, 80).
 
 A triangle that contains the image's origin gives (0, 0, 36.666664, 33), and a square around
 the whole image gives the image, (0, 0, 100, 80).
+
+## VisibleBoxOfAnOutlineIsTheUnionOfItsParts
+
+Two triangles with bounds (10, 10, 20, 20) and (60, 50, 90, 70) in `K_IMAGE` give (10, 10, 90, 70).
+
+## VisibleBoxOfAnOutlineIgnoresAPartOutsideTheImage
+
+A triangle inside the image and one wholly above and left of it give the box of the first, and an
+outline of no part gives four zeros.
+
+## MapAndClampOutlineMoveEveryPart
+
+`map_outline` with scales 2 and 3 and offsets 1 and -1 moves (1, 2) to (3, 5) and (3, 4) to (7, 11);
+`clamp_outline` to (0, 0, 5, 8) then leaves the first and moves the second to (5, 8).

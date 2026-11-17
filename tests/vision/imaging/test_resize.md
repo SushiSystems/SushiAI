@@ -1,12 +1,12 @@
 # tests/vision/imaging/test_resize.cpp
 
 
-Suites: `Small_ImagingResize`, `Medium_ImagingResize` and the parameterised `Small_ImagingResizeConstant`, `Small_ImagingResizeLongSide` and `Medium_ImagingResizeAliasing`.
+Suites: `Small_ImagingResize`, `Medium_ImagingResize` and the parameterised `Small_ImagingResizeConstant`, `Small_ImagingResizeWithin` and `Medium_ImagingResizeAliasing`.
 
-Tests the bilinear resize and the fit of an image's long side.
+Tests the bilinear resize and the fit of an image within a square or a rectangular size.
 
 This file needs no device. The `Medium_` suites hold the death tests, since each starts a child process. The `Small_` suites cover `modules/vision/imaging/include/SushiAI/vision/imaging/resize.hpp`:
-`resize_bilinear`, `fit_long_side` and `resize_long_side`. The kernel samples at pixel centres
+`resize_bilinear`, `fit_within` and `resize_within`. The kernel samples at pixel centres
 with weights rounded to `K_BILINEAR_WEIGHT_BITS` bits and rounds its result half up. The first
 cases compare whole images with values a comment derives.
 
@@ -102,59 +102,69 @@ Suite `Medium_ImagingResize`. A source view of five channels stops the process w
 
 Suite `Medium_ImagingResize`. `resize_bilinear` with the image as source and destination stops the process with "destination holds the source's pixels".
 
-## FitLongSideLeavesAnImageWhoseLongSideAlreadyFits
+## FitWithinASquareLeavesAnImageWhoseLongSideAlreadyFits
 
-`fit_long_side` at 640 returns 480 by 640, 640 by 427 and 640 by 640 unchanged.
+`fit_within` at 640 returns 480 by 640, 640 by 427 and 640 by 640 unchanged.
 
-## FitLongSideReducesALargeImage
+## FitWithinASquareReducesALargeImage
 
 1080 by 1920 becomes 360 by 640, and 1920 by 1080 becomes 640 by 360.
 
-## FitLongSideEnlargesASmallImage
+## FitWithinASquareEnlargesASmallImage
 
 100 by 50 becomes 640 by 320, and 500 by 375 becomes 640 by 480.
 
-## FitLongSideRoundsTheShortSideUp
+## FitWithinASquareRoundsTheShortSideUp
 
 333 by 500 becomes 427 by 640, 7 by 3 becomes 640 by 275 and 3 by 1000 becomes 2 by 640: the
 short side is the ceiling of 426.24, 274.29 and 1.92.
 
-## FitLongSideCapsBothSidesAtTheImageSize
+## FitWithinASquareCapsBothSidesAtTheImageSize
 
 1281 by 1280 becomes 640 by 640. The short side would be the ceiling of 639.5.
 
-## FitLongSideAlwaysPutsTheLongSideAtTheImageSize
+## FitWithinASquareAlwaysPutsTheLongSideAtTheImageSize
 
 Over heights and widths from 1 to 1499 in steps of 7 and 11, the long side of the result is 640
 and the short side lies in [1, 640]. The loop is in `expect_long_side_at_image_size`.
 
-## ResizeLongSideCopiesAnImageThatAlreadyFits
+## FitWithinARectangleTakesTheSmallerRatio
+
+Into 800 by 1440, 1600 by 900 halves to 800 by 450 and 400 by 360 doubles to 800 by 720: the
+ratio of the height is the smaller one in both.
+
+## FitWithinARectangleCapsTheFilledSideAtItsTarget
+
+Into 800 by 1440, 1080 by 1920 becomes 800 by 1423: the width is the ceiling of 1422.2 and the
+height, 800 within rounding, is held at its target.
+
+## ResizeWithinCopiesAnImageThatAlreadyFits
 
 A 2 by 4 image with image size 4 comes out as a 2 by 4 image with the same bytes under another
 data pointer. The destination, which was 3 by 3 with three channels, takes the source's one
 channel.
 
-## ResizeLongSideGivesTheResizeToTheFittedSize
+## ResizeWithinGivesTheResizeToTheFittedSize
 
-Suite `Small_ImagingResizeLongSide`. A 1 by 2 image with image size 4 becomes 2 by 4, and both rows are 0, 25, 75, 100. The 4 by 4 image of the block-average case with image size 2 becomes the 2 by 2 image 36, 55, 115, 135.
+Suite `Small_ImagingResizeWithin`. A 1 by 2 image with image size 4 becomes 2 by 4, and both rows are 0, 25, 75, 100. The 4 by 4 image of the block-average case with image size 2 becomes the 2 by 2 image 36, 55, 115, 135.
 
-## ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds
+## ResizeWithinRejectsAnImageSizeOutsideTheImageBounds
 
-Image sizes of 0 and 16385 fail with "resize_long_side" and the value.
+Square sizes of 0 and 16385 fail with "resize_within" and the value.
 
-## ResizeLongSideRejectsASourceWithoutPixels
+## ResizeWithinRejectsASourceWithoutPixels
 
-Suite `Medium_ImagingResize`. A default view stops the process with "resize_long_side" and "no pixels".
+Suite `Medium_ImagingResize`. A default view stops the process with "resize_within" and "no pixels".
 
 ## ResizeRejectsAViewOfTheDestination
 
-Suite `Medium_ImagingResizeAliasing`. `resize_long_side` of the whole image into itself, `resize_bilinear` of a view of its two lower rows and `resize_long_side` of that view each stop the process with "destination holds the source's pixels".
+Suite `Medium_ImagingResizeAliasing`. `resize_within` of the whole image into itself, `resize_bilinear` of a view of its two lower rows and `resize_within` of that view each stop the process with "destination holds the source's pixels".
 
-## ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds
+## ResizeWithinRejectsASourceWithExtentsOutsideTheImageBounds
 
 Suite `Medium_ImagingResize`. A source view of 0 by 2 stops the process with "source size".
 
-## ResizeLongSideRejectsASourceWithAnUnsupportedChannelCount
+## ResizeWithinRejectsASourceWithAnUnsupportedChannelCount
 
 Suite `Medium_ImagingResize`. A source view of five channels stops the process with "source channel count".
 

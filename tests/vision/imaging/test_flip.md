@@ -133,3 +133,8 @@ An unflipped plan returns the polygon's vertices as they are.
 ## ValidateAcceptsZeroAndOne
 
 `validate_flip` does not throw for probability 0, 1 or the default.
+
+## FlippedOutlineMirrorsEveryPart
+
+In a 640-pixel-wide image, the one-vertex parts (100, 50) and (400, 200) of one object become
+(540, 50) and (240, 200).

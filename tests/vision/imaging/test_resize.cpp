@@ -37,16 +37,17 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
-#include <SushiAI/vision/imaging/resize.hpp>
+#include <SushiAI/vision/imaging/resize.hpp>
 #include <support/test_names.hpp>
 
-using SushiAI::Vision::Imaging::fit_long_side;
+using SushiAI::Vision::Imaging::fit_within;
 using SushiAI::Vision::Imaging::Image;
 using SushiAI::Vision::Imaging::ImageSize;
+using SushiAI::Vision::Imaging::square_size;
 using SushiAI::Vision::Imaging::ImageView;
 using SushiAI::Vision::Imaging::K_MAX_IMAGE_SIDE;
 using SushiAI::Vision::Imaging::resize_bilinear;
-using SushiAI::Vision::Imaging::resize_long_side;
+using SushiAI::Vision::Imaging::resize_within;
 using SushiAI::Vision::Imaging::resize_nearest;
 
 namespace
@@ -172,7 +173,8 @@ namespace
         {
             for (std::int32_t width = 1; width < 1500; width += 11)
             {
-                const ImageSize fitted = fit_long_side(ImageSize{height, width}, image_size);
+                const ImageSize fitted =
+                    fit_within(ImageSize{height, width}, square_size(image_size));
                 const std::int32_t long_side = height >= width ? fitted.height : fitted.width;
                 const std::int32_t short_side = height >= width ? fitted.width : fitted.height;
 
@@ -219,15 +221,15 @@ namespace
         /** @brief Holds the long side asked for. */
         std::int32_t long_side;
 
-        /** @brief Holds the size fit_long_side gives. */
+        /** @brief Holds the size fit_within gives. */
         ImageSize fitted;
 
         /** @brief Holds the bytes of the resized image. */
         Bytes expected;
     };
 
-    /** @brief Runs each resize_long_side case. */
-    class Small_ImagingResizeLongSide : public ::testing::TestWithParam<LongSideRow>
+    /** @brief Runs each resize_within case. */
+    class Small_ImagingResizeWithin : public ::testing::TestWithParam<LongSideRow>
     {
     };
 
@@ -466,60 +468,77 @@ TEST(Medium_ImagingResize, ResizeRejectsADestinationThatHoldsTheSource)
                     "destination holds the source's pixels");
 }
 
-TEST(Small_ImagingResize, FitLongSideLeavesAnImageWhoseLongSideAlreadyFits)
+TEST(Small_ImagingResize, FitWithinASquareLeavesAnImageWhoseLongSideAlreadyFits)
 {
-    EXPECT_EQ(fit_long_side(ImageSize{480, 640}, 640), (ImageSize{480, 640}));
-    EXPECT_EQ(fit_long_side(ImageSize{640, 427}, 640), (ImageSize{640, 427}));
-    EXPECT_EQ(fit_long_side(ImageSize{640, 640}, 640), (ImageSize{640, 640}));
+    EXPECT_EQ(fit_within(ImageSize{480, 640}, square_size(640)), (ImageSize{480, 640}));
+    EXPECT_EQ(fit_within(ImageSize{640, 427}, square_size(640)), (ImageSize{640, 427}));
+    EXPECT_EQ(fit_within(ImageSize{640, 640}, square_size(640)), (ImageSize{640, 640}));
 }
 
-TEST(Small_ImagingResize, FitLongSideReducesALargeImage)
+TEST(Small_ImagingResize, FitWithinASquareReducesALargeImage)
 {
     // 640 / 1920 is one third, and 1080 / 3 is 360.
-    EXPECT_EQ(fit_long_side(ImageSize{1080, 1920}, 640), (ImageSize{360, 640}));
-    EXPECT_EQ(fit_long_side(ImageSize{1920, 1080}, 640), (ImageSize{640, 360}));
+    EXPECT_EQ(fit_within(ImageSize{1080, 1920}, square_size(640)), (ImageSize{360, 640}));
+    EXPECT_EQ(fit_within(ImageSize{1920, 1080}, square_size(640)), (ImageSize{640, 360}));
 }
 
-TEST(Small_ImagingResize, FitLongSideEnlargesASmallImage)
+TEST(Small_ImagingResize, FitWithinASquareEnlargesASmallImage)
 {
     // 640 / 100 is 6.4, and 50 * 6.4 is 320.
-    EXPECT_EQ(fit_long_side(ImageSize{100, 50}, 640), (ImageSize{640, 320}));
+    EXPECT_EQ(fit_within(ImageSize{100, 50}, square_size(640)), (ImageSize{640, 320}));
 
     // 640 / 500 is 1.28, and 375 * 1.28 is 480.
-    EXPECT_EQ(fit_long_side(ImageSize{500, 375}, 640), (ImageSize{640, 480}));
+    EXPECT_EQ(fit_within(ImageSize{500, 375}, square_size(640)), (ImageSize{640, 480}));
 }
 
-TEST(Small_ImagingResize, FitLongSideRoundsTheShortSideUp)
+TEST(Small_ImagingResize, FitWithinASquareRoundsTheShortSideUp)
 {
     // 333 * 1.28 is 426.24, which the ceiling takes to 427.
-    EXPECT_EQ(fit_long_side(ImageSize{333, 500}, 640), (ImageSize{427, 640}));
+    EXPECT_EQ(fit_within(ImageSize{333, 500}, square_size(640)), (ImageSize{427, 640}));
 
     // 3 * 640 / 7 is 274.29, which the ceiling takes to 275.
-    EXPECT_EQ(fit_long_side(ImageSize{7, 3}, 640), (ImageSize{640, 275}));
+    EXPECT_EQ(fit_within(ImageSize{7, 3}, square_size(640)), (ImageSize{640, 275}));
 
     // 3 * 0.64 is 1.92, which the ceiling takes to 2.
-    EXPECT_EQ(fit_long_side(ImageSize{3, 1000}, 640), (ImageSize{2, 640}));
+    EXPECT_EQ(fit_within(ImageSize{3, 1000}, square_size(640)), (ImageSize{2, 640}));
 }
 
-TEST(Small_ImagingResize, FitLongSideCapsBothSidesAtTheImageSize)
+TEST(Small_ImagingResize, FitWithinASquareCapsBothSidesAtTheImageSize)
 {
     // 1280 * 640 / 1281 is 639.5, whose ceiling is the image size itself.
-    EXPECT_EQ(fit_long_side(ImageSize{1281, 1280}, 640), (ImageSize{640, 640}));
+    EXPECT_EQ(fit_within(ImageSize{1281, 1280}, square_size(640)), (ImageSize{640, 640}));
 }
 
 /** @brief Tests that, over a grid of sizes, the long side is the image size and the short fits. */
-TEST(Small_ImagingResize, FitLongSideAlwaysPutsTheLongSideAtTheImageSize)
+TEST(Small_ImagingResize, FitWithinASquareAlwaysPutsTheLongSideAtTheImageSize)
 {
     expect_long_side_at_image_size(640);
 }
 
-TEST(Small_ImagingResize, ResizeLongSideCopiesAnImageThatAlreadyFits)
+/** @brief Tests that a rectangular target scales both sides by the smaller of its two ratios. */
+TEST(Small_ImagingResize, FitWithinARectangleTakesTheSmallerRatio)
+{
+    // 800 / 1600 is 0.5 and 1440 / 900 is 1.6, so 0.5 halves both sides.
+    EXPECT_EQ(fit_within(ImageSize{1600, 900}, ImageSize{800, 1440}), (ImageSize{800, 450}));
+
+    // 800 / 400 is 2 and 1440 / 360 is 4, so 2 doubles both sides.
+    EXPECT_EQ(fit_within(ImageSize{400, 360}, ImageSize{800, 1440}), (ImageSize{800, 720}));
+}
+
+/** @brief Tests that the side the smaller ratio fills is capped at its target, not above. */
+TEST(Small_ImagingResize, FitWithinARectangleCapsTheFilledSideAtItsTarget)
+{
+    // 800 / 1080 is the smaller ratio: 1920 becomes ceil(1422.2) = 1423, and 1080 is capped at 800.
+    EXPECT_EQ(fit_within(ImageSize{1080, 1920}, ImageSize{800, 1440}), (ImageSize{800, 1423}));
+}
+
+TEST(Small_ImagingResize, ResizeWithinCopiesAnImageThatAlreadyFits)
 {
     const Bytes bytes{0, 255, 17, 114, 1, 254, 63, 128};
     const Image source = make_image(ImageSize{2, 4}, 1, bytes);
     Image destination(ImageSize{3, 3}, 3);
 
-    SA_EXPECT_OK(resize_long_side(source.view(), 4, destination));
+    SA_EXPECT_OK(resize_within(source.view(), square_size(4), destination));
 
     EXPECT_EQ(destination.size(), (ImageSize{2, 4}));
     EXPECT_EQ(destination.channels(), 1);
@@ -527,23 +546,23 @@ TEST(Small_ImagingResize, ResizeLongSideCopiesAnImageThatAlreadyFits)
     EXPECT_EQ(bytes_of(destination), bytes);
 }
 
-/** @brief Tests that resize_long_side gives the bilinear resize to the fitted size. */
-TEST_P(Small_ImagingResizeLongSide, ResizeLongSideGivesTheResizeToTheFittedSize)
+/** @brief Tests that resize_within gives the bilinear resize to the fitted size. */
+TEST_P(Small_ImagingResizeWithin, ResizeWithinGivesTheResizeToTheFittedSize)
 {
     const LongSideRow& row = GetParam();
     const Image source = make_image(row.source, 1, row.bytes);
     Image destination;
 
-    SA_EXPECT_OK(resize_long_side(source.view(), row.long_side, destination));
+    SA_EXPECT_OK(resize_within(source.view(), square_size(row.long_side), destination));
 
     EXPECT_EQ(destination.size(), row.fitted);
     EXPECT_EQ(bytes_of(destination), row.expected);
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    Rows, Small_ImagingResizeLongSide,
+    Rows, Small_ImagingResizeWithin,
     ::testing::Values(
-        // fit_long_side gives 2 by 4, and both rows are the enlarged row 0, 25, 75, 100.
+        // fit_within gives 2 by 4, and both rows are the enlarged row 0, 25, 75, 100.
         LongSideRow{"Enlarges", ImageSize{1, 2}, Bytes{0, 100}, 4, ImageSize{2, 4},
                     Bytes{0, 25, 75, 100, 0, 25, 75, 100}},
         LongSideRow{"Reduces", ImageSize{4, 4},
@@ -554,24 +573,24 @@ INSTANTIATE_TEST_SUITE_P(
         return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
-TEST(Small_ImagingResize, ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds)
+TEST(Small_ImagingResize, ResizeWithinRejectsAnImageSizeOutsideTheImageBounds)
 {
     const Image source(ImageSize{2, 2}, 1);
     Image destination;
 
-    SA_EXPECT_FAILURE(resize_long_side(source.view(), 0, destination),
-                      StatusCode::InvalidDescription, "resize_long_side", "0");
-    SA_EXPECT_FAILURE(resize_long_side(source.view(), K_MAX_IMAGE_SIDE + 1, destination),
-                      StatusCode::InvalidDescription, "resize_long_side", "16385");
+    SA_EXPECT_FAILURE(resize_within(source.view(), square_size(0), destination),
+                      StatusCode::InvalidDescription, "resize_within", "0x0");
+    SA_EXPECT_FAILURE(resize_within(source.view(), square_size(K_MAX_IMAGE_SIDE + 1), destination),
+                      StatusCode::InvalidDescription, "resize_within", "16385");
 }
 
-/** @brief Tests that resize_long_side refuses a source without pixels. */
-TEST(Medium_ImagingResize, ResizeLongSideRejectsASourceWithoutPixels)
+/** @brief Tests that resize_within refuses a source without pixels. */
+TEST(Medium_ImagingResize, ResizeWithinRejectsASourceWithoutPixels)
 {
     Image destination;
 
-    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(ImageView(), 640, destination)),
-                    "resize_long_side",
+    SA_EXPECT_FATAL(static_cast<void>(resize_within(ImageView(), square_size(640), destination)),
+                    "resize_within",
                     "no pixels");
 }
 
@@ -593,9 +612,9 @@ INSTANTIATE_TEST_SUITE_P(
         AliasRow{"LongSideOfTheWholeImage", ImageSize{2, 4}, 0, ImageSize{2, 4},
                  [](const ImageView& view, Image& image)
                  {
-                     static_cast<void>(resize_long_side(view, 4, image));
+                     static_cast<void>(resize_within(view, square_size(4), image));
                  },
-                 "resize_long_side"},
+                 "resize_within"},
         AliasRow{"BilinearOfTheLowerRows", ImageSize{3, 2}, 1, ImageSize{2, 2},
                  [](const ImageView& view, Image& image)
                  {
@@ -605,34 +624,34 @@ INSTANTIATE_TEST_SUITE_P(
         AliasRow{"LongSideOfTheLowerRows", ImageSize{3, 2}, 1, ImageSize{2, 2},
                  [](const ImageView& view, Image& image)
                  {
-                     static_cast<void>(resize_long_side(view, 8, image));
+                     static_cast<void>(resize_within(view, square_size(8), image));
                  },
-                 "resize_long_side"}),
+                 "resize_within"}),
     [](const ::testing::TestParamInfo<AliasRow>& info)
     {
         return ::SushiAI::Test::parameter_name(info.param.name);
     });
 
-/** @brief Tests that resize_long_side refuses a source size outside the image bounds. */
-TEST(Medium_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds)
+/** @brief Tests that resize_within refuses a source size outside the image bounds. */
+TEST(Medium_ImagingResize, ResizeWithinRejectsASourceWithExtentsOutsideTheImageBounds)
 {
     const std::array<std::uint8_t, 20> bytes{};
     Image destination;
 
-    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(ImageView(bytes.data(), ImageSize{0, 2}, 1),
-                                                       4, destination)),
-                    "resize_long_side", "source size", "0x2");
+    SA_EXPECT_FATAL(static_cast<void>(resize_within(ImageView(bytes.data(), ImageSize{0, 2}, 1),
+                                                       square_size(4), destination)),
+                    "resize_within", "source size", "0x2");
 }
 
-/** @brief Tests that resize_long_side refuses a source with a channel count it cannot read. */
-TEST(Medium_ImagingResize, ResizeLongSideRejectsASourceWithAnUnsupportedChannelCount)
+/** @brief Tests that resize_within refuses a source with a channel count it cannot read. */
+TEST(Medium_ImagingResize, ResizeWithinRejectsASourceWithAnUnsupportedChannelCount)
 {
     const std::array<std::uint8_t, 20> bytes{};
     Image destination;
 
-    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(ImageView(bytes.data(), ImageSize{2, 2}, 5),
-                                                       4, destination)),
-                    "resize_long_side", "source channel count", "5");
+    SA_EXPECT_FATAL(static_cast<void>(resize_within(ImageView(bytes.data(), ImageSize{2, 2}, 5),
+                                                       square_size(4), destination)),
+                    "resize_within", "source channel count", "5");
 }
 
 /** @brief Tests that an enlargement repeats each source pixel over its block. */

@@ -185,8 +185,9 @@ TEST(Small_AnchorObjective, TheRootIsTheDeltaLossSummedOverTheHeads)
     SA_EXPECT_OK(outputs.add("head.1", coarse));
     SA_EXPECT_OK(outputs.add("head.0", fine));
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID root,
+    SA_ASSERT_OK_AND_ASSIGN(const Train::LossTrace root_trace,
                             objective.loss(builder, graph, outputs, leaves));
+    const Graph::ValueID root = root_trace.loss();
 
     EXPECT_EQ(graph.value(root).shape, (Shape{1}));
 

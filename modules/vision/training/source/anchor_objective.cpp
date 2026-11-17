@@ -148,7 +148,7 @@ namespace SushiAI::Vision::Training
         }
     }
 
-    Result<Graph::ValueID> AnchorObjective::loss(
+    Result<Train::LossTrace> AnchorObjective::loss(
         const Graph::GraphBuilder& builder, const Graph::Graph&, const NN::ModelOutputs& outputs,
         const Train::ObjectiveLeaves& leaves) const
     {
@@ -170,7 +170,7 @@ namespace SushiAI::Vision::Training
             SA_TRY_ASSIGN(total, builder.add(total, term));
         }
 
-        return total;
+        return Train::LossTrace(total);
     }
 
     std::string_view AnchorObjective::name() const noexcept

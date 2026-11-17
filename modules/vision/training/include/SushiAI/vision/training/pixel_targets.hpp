@@ -36,16 +36,15 @@
 namespace SushiAI::Vision::Training
 {
     /**
-     * @brief Writes, for each of the R pixels, the index of its log-probability and its weight.
-     *
-     * A kept pixel r gets r * classes + mask[r] and 1 / kept; an ignored one r * classes and 0.
-     * @param indices The INT32 [R] leaf; @p weights The float32 or float64 leaf of R elements.
-     * @return Success, or Incompatible, with both leaves unchanged, for a refused label, a
-     *         leaf that does not fit, or an R * classes that INT32 cannot index.
+     * @brief Writes each of the R pixels' label and weight: a kept pixel r gets mask[r] and
+     *        1 / kept; an ignored one keeps the ignore index, which TAKE_ALONG reads as zero.
+     * @param labels The INT32 [R] leaf; @p weights The float32 or float64 leaf of R elements.
+     * @return Success, or Incompatible, with both leaves unchanged, for a refused label or a
+     *         leaf that does not fit.
      */
     [[nodiscard]] Status fill_pixel_targets(const SushiBLAS::Tensor& mask, std::int64_t classes,
                                             std::int32_t ignore_index,
-                                            SushiBLAS::Tensor& indices,
+                                            SushiBLAS::Tensor& labels,
                                             SushiBLAS::Tensor& weights) noexcept;
 
 } // namespace SushiAI::Vision::Training

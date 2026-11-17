@@ -38,7 +38,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/labels.hpp>
-#include <support/tolerance.hpp>
+#include <support/tolerance.hpp>
 #include <support/test_names.hpp>
 
 using namespace SushiAI::Vision::Imaging;
@@ -523,8 +523,8 @@ TEST(Small_ImagingLabels, KeepsThePointsOfAPolygonRowInFileOrder)
         "2 0.5 0.125 0.875 0.5 0.5 0.625 0.125 0.5 0.25 0.25", K_CLASS_COUNT));
 
     ASSERT_EQ(labels.size(), 1u);
-    ASSERT_EQ(labels.polygons().size(), 1u);
-    expect_polygon_points(labels.polygons()[0],
+    ASSERT_EQ(labels.outlines().size(), 1u);
+    expect_polygon_points(labels.outlines()[0][0],
                           {{0.5f, 0.125f},
                            {0.875f, 0.5f},
                            {0.5f, 0.625f},
@@ -540,9 +540,9 @@ TEST(Small_ImagingLabels, GivesABoxRowNoPolygon)
                                        K_CLASS_COUNT));
 
     ASSERT_EQ(labels.size(), 2u);
-    ASSERT_EQ(labels.polygons().size(), 2u);
-    EXPECT_TRUE(labels.polygons()[0].empty());
-    EXPECT_TRUE(labels.polygons()[1].empty());
+    ASSERT_EQ(labels.outlines().size(), 2u);
+    EXPECT_TRUE(labels.outlines()[0].empty());
+    EXPECT_TRUE(labels.outlines()[1].empty());
 }
 
 TEST(Small_ImagingLabels, RejectsABoxRowInAPolygonFile)
@@ -586,8 +586,8 @@ TEST(Small_ImagingLabels, RemovesARepeatedPolygonAndKeepsOneWithTheSameBox)
     ASSERT_EQ(labels.size(), 2u);
     expect_box(labels.boxes()[0], 0.5f, 0.5f, 0.5f, 0.5f);
     expect_box(labels.boxes()[1], 0.5f, 0.5f, 0.5f, 0.5f);
-    ASSERT_EQ(labels.polygons()[0].size(), 3u);
-    ASSERT_EQ(labels.polygons()[1].size(), 3u);
-    EXPECT_NEAR(labels.polygons()[0][1].x, 0.75f, K_FRACTION_TOLERANCE);
-    EXPECT_NEAR(labels.polygons()[1][1].x, 0.25f, K_FRACTION_TOLERANCE);
+    ASSERT_EQ(labels.outlines()[0][0].size(), 3u);
+    ASSERT_EQ(labels.outlines()[1][0].size(), 3u);
+    EXPECT_NEAR(labels.outlines()[0][0][1].x, 0.75f, K_FRACTION_TOLERANCE);
+    EXPECT_NEAR(labels.outlines()[1][0][1].x, 0.25f, K_FRACTION_TOLERANCE);
 }

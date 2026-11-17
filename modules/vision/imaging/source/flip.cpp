@@ -107,13 +107,13 @@ namespace SushiAI::Vision::Imaging
         for (std::size_t i = 0; i < labels.size(); ++i)
         {
             const PixelBox& box = labels.boxes()[i];
-            Polygon polygon = labels.polygons()[i];
+            Outline outline = labels.outlines()[i];
 
             // x * -1 + width is width - x exactly, since a negation does not round.
-            map_polygon(polygon, -1.0f, 1.0f, width, 0.0f);
+            map_outline(outline, -1.0f, 1.0f, width, 0.0f);
             mirrored.add(labels.classes()[i],
                          PixelBox{width - box.x2, box.y1, width - box.x1, box.y2},
-                         std::move(polygon));
+                         std::move(outline));
         }
 
         return mirrored;

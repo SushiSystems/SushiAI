@@ -30,7 +30,9 @@
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
 
 #include <algorithm>
+#include <limits>
 #include <string_view>
+#include <vector>
 #include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI::Vision::Segment
@@ -40,19 +42,29 @@ namespace SushiAI::Vision::Segment
         /** @brief Names this unit in a message. */
         constexpr std::string_view K_UNIT = "ConfusionMatrix";
 
+        /** @brief Holds the bytes of one count of the matrix. */
+        constexpr std::size_t K_COUNT_BYTES = sizeof(std::int64_t);
+
         /** @brief Reports whether @p value names one of @p classes classes. */
-        [[nodiscard]] constexpr bool is_class(std::int32_t value, std::int32_t classes) noexcept
+        template<typename Value>
+        [[nodiscard]] constexpr bool is_class(Value value, std::int32_t classes) noexcept
         {
-            return value >= 0 && value < classes;
+            return value >= 0 && value < static_cast<Value>(classes);
         }
     } // namespace
 
     Status check_confusion_class_count(std::int32_t classes) noexcept
     {
-        SA_FAIL_IF(classes < 1 || classes > K_MAX_CONFUSION_CLASSES,
-                   StatusCode::InvalidDescription,
-                   "{}: {} classes; a matrix counts 1 to {}", K_UNIT, classes,
-                   K_MAX_CONFUSION_CLASSES);
+        SA_FAIL_IF(classes < 1, StatusCode::InvalidDescription,
+                   "{}: {} classes; a matrix counts at least 1", K_UNIT, classes);
+
+        // C * C counts of 8 bytes must be a block the host can address at all.
+        const std::size_t most_counts = std::vector<std::int64_t>().max_size();
+        const std::size_t side = static_cast<std::size_t>(classes);
+        SA_FAIL_IF(side > most_counts / side, StatusCode::InvalidDescription,
+                   "{}: {} classes need {} x {} counts of {} bytes, which is more memory than "
+                   "the host can address",
+                   K_UNIT, classes, classes, classes, K_COUNT_BYTES);
         return Status();
     }
 
@@ -77,6 +89,21 @@ namespace SushiAI::Vision::Segment
                                 SushiRuntime::span<const std::int32_t> truth,
                                 std::int32_t ignore_index) noexcept
     {
+        return add_pixels(predicted, truth, ignore_index);
+    }
+
+    Status ConfusionMatrix::add(SushiRuntime::span<const std::int64_t> predicted,
+                                SushiRuntime::span<const std::int32_t> truth,
+                                std::int32_t ignore_index) noexcept
+    {
+        return add_pixels(predicted, truth, ignore_index);
+    }
+
+    template<typename Predicted>
+    Status ConfusionMatrix::add_pixels(SushiRuntime::span<const Predicted> predicted,
+                                       SushiRuntime::span<const std::int32_t> truth,
+                                       std::int32_t ignore_index) noexcept
+    {
         SA_FAIL_IF(predicted.size() != truth.size(), StatusCode::Incompatible,
                    "{}: {} predicted classes against {} true classes; one of each per pixel",
                    K_UNIT, predicted.size(), truth.size());
@@ -99,7 +126,7 @@ namespace SushiAI::Vision::Segment
         for (std::size_t pixel = 0; pixel < truth.size(); ++pixel)
         {
             if (truth[pixel] != ignore_index)
-                ++counts_[offset_of(truth[pixel], predicted[pixel])];
+                ++counts_[offset_of(truth[pixel], static_cast<std::int32_t>(predicted[pixel]))];
         }
 
         return Status();

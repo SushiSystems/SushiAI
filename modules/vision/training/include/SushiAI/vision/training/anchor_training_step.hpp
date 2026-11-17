@@ -39,6 +39,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -117,6 +118,13 @@ namespace SushiAI::Vision::Training
              * @return What Train::TrainingStep::restore_run_count() returns.
              */
             [[nodiscard]] Status restore_run_count(std::size_t count) noexcept;
+
+            /**
+             * @brief Returns the input a dataset must publish to feed the step's input leaf.
+             * @return The extents of the leaf past its batch axis and its element type, or
+             *         InvalidDescription for a leaf of rank 0.
+             */
+            [[nodiscard]] Result<Data::InputDescription> input_description() const noexcept;
 
             /** @brief Returns the objective that describes the heads. */
             [[nodiscard]] const AnchorObjective& objective() const noexcept;

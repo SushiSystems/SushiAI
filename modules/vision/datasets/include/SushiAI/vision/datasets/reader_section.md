@@ -21,6 +21,8 @@ serves the whole dataset from a `MemorySource`, with a `MemorySink` over it for 
 | `input` | `[height, width]` | required for a task of images | The input size every image is fitted to |
 | `channels` | whole number | `3` | Channels of the input, 1 to 4 |
 | `classes` | whole number | the count of the list | Classes of the collator; at least the count the samples name |
+| `letterbox_padding` | whole number | `114` | The byte a letterbox pads with, in [0, 255]. An error beside a `fit` that is not `letterbox` |
+| `letterbox_scale_up` | boolean | `false` | Lets a letterbox scale an image up past its size. An error beside a `fit` that is not `letterbox` |
 | `cache` | string | none | The directory of the raw cache; the images are decoded into it when the dataset is built, and read from it |
 | `cache_side` | whole number | `0` | The longest side an image is cached at; 0 keeps the stored size. Needs `cache` |
 | `shuffle` | boolean | `false` | A new order of the samples in every epoch |
@@ -29,9 +31,9 @@ serves the whole dataset from a `MemorySource`, with a `MemorySink` over it for 
 | `workers` | whole number | `0` | Threads that read batches ahead; 0 reads on the caller's thread |
 | `prefetch` | whole number | the value of `workers` | Batches read ahead and held; at least 1. Needs `workers` above 0 |
 
-These fifteen are the shared keys. A section may also hold the keys of its reader's row and of
+These seventeen are listed here; `fit` and `normalise` are the other two shared keys, and README.md describes them. A section may also hold the keys of its reader's row and of
 its task's row, which the two sections above list. `regression` reads neither `input` nor
-`channels`, and a section that states them for it is not refused; it refuses `cache`,
+`channels`, and a section that states them for it is not refused; it refuses `fit`, `letterbox_padding`, `letterbox_scale_up`, `normalise`, `cache`,
 `cache_side`, `shuffle`, `seed` and `pipeline`.
 
 With `workers` above 0 the dataset is wrapped in a `Data::ThreadedLoader`, whatever the task.

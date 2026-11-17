@@ -163,17 +163,17 @@ TEST_F(Medium_VisionTrainingPixelTargets, TheLabelCheckRefusesAFloatMask)
                       StatusCode::Incompatible, "mask is");
 }
 
-/** @brief Tests that pixel r of class l indexes r * C + l and weighs 1 over the kept count. */
-TEST_F(Medium_VisionTrainingPixelTargets, AKeptPixelIndexesItsClassAndSharesTheWeight)
+/** @brief Tests that a pixel keeps its label and the kept pixels share the weight. */
+TEST_F(Medium_VisionTrainingPixelTargets, AKeptPixelHoldsItsLabelAndSharesTheWeight)
 {
     const SushiBLAS::Tensor mask = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 1, 1, K_IGNORE});
-    SushiBLAS::Tensor indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
+    SushiBLAS::Tensor labels = make_ids(Shape{K_PIXELS}, Classes(6, -7));
     SushiBLAS::Tensor weights = make_reals(Shape{K_PIXELS, 1});
 
-    SA_EXPECT_OK(fill_pixel_targets(mask, K_CLASSES, K_IGNORE, indices, weights));
+    SA_EXPECT_OK(fill_pixel_targets(mask, K_CLASSES, K_IGNORE, labels, weights));
 
-    // An ignored pixel points at the first score of its own row, with a weight of zero.
-    EXPECT_EQ(read_ids(indices), (Classes{0, 5, 6, 10, 13, 15}));
+    // An ignored pixel keeps the ignore index, which names no class, with a weight of zero.
+    EXPECT_EQ(read_ids(labels), (Classes{0, 2, K_IGNORE, 1, 1, K_IGNORE}));
     expect_reals(weights, {0.25, 0.25, 0.0, 0.25, 0.25, 0.0});
 }
 
@@ -181,12 +181,12 @@ TEST_F(Medium_VisionTrainingPixelTargets, AKeptPixelIndexesItsClassAndSharesTheW
 TEST_F(Medium_VisionTrainingPixelTargets, AMaskWithNoKeptPixelGivesZeroWeights)
 {
     const SushiBLAS::Tensor mask = make_ids(Shape{K_PIXELS}, Classes(6, K_IGNORE));
-    SushiBLAS::Tensor indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
+    SushiBLAS::Tensor labels = make_ids(Shape{K_PIXELS}, Classes(6, -7));
     SushiBLAS::Tensor weights = make_reals(Shape{K_PIXELS, 1});
 
-    SA_EXPECT_OK(fill_pixel_targets(mask, K_CLASSES, K_IGNORE, indices, weights));
+    SA_EXPECT_OK(fill_pixel_targets(mask, K_CLASSES, K_IGNORE, labels, weights));
 
-    EXPECT_EQ(read_ids(indices), (Classes{0, 3, 6, 9, 12, 15}));
+    EXPECT_EQ(read_ids(labels), Classes(6, K_IGNORE));
     expect_reals(weights, {0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 }
 
@@ -195,97 +195,70 @@ TEST_F(Medium_VisionTrainingPixelTargets, ARefusedPixelFillChangesNothing)
 {
     const SushiBLAS::Tensor bad = make_ids(Shape{K_PIXELS}, {0, 2, 1, 1, 9, 0});
     const SushiBLAS::Tensor good = make_ids(Shape{K_PIXELS}, {0, 2, 1, 1, 0, 0});
-    SushiBLAS::Tensor indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
+    SushiBLAS::Tensor labels = make_ids(Shape{K_PIXELS}, Classes(6, -7));
     SushiBLAS::Tensor weights = make_reals(Shape{K_PIXELS, 1});
     SushiBLAS::Tensor short_weights = make_reals(Shape{K_PIXELS - 1, 1});
 
-    SA_EXPECT_FAILURE(fill_pixel_targets(bad, K_CLASSES, K_IGNORE, indices, weights),
+    SA_EXPECT_FAILURE(fill_pixel_targets(bad, K_CLASSES, K_IGNORE, labels, weights),
                       StatusCode::Incompatible, "holds 9 at pixel 4");
-    SA_EXPECT_FAILURE(fill_pixel_targets(good, K_CLASSES, K_IGNORE, indices, short_weights),
-                      StatusCode::Incompatible, "6 pixel indices", "5 pixel weights");
+    SA_EXPECT_FAILURE(fill_pixel_targets(good, K_CLASSES, K_IGNORE, labels, short_weights),
+                      StatusCode::Incompatible, "6 pixel labels", "5 pixel weights");
     SA_EXPECT_FAILURE(fill_pixel_targets(good, K_CLASSES, K_IGNORE, weights, weights),
-                      StatusCode::Incompatible, "pixel indices are");
+                      StatusCode::Incompatible, "pixel labels are");
 
-    EXPECT_EQ(read_ids(indices), Classes(6, -7));
+    EXPECT_EQ(read_ids(labels), Classes(6, -7));
     expect_reals(weights, std::vector<double>(6, K_UNTOUCHED));
 }
 
 /**
- * @brief Tests that a pixel count whose indices pass INT32_MAX is refused before any element is
- *        read or allocated.
+ * @brief Tests that a class count below 1 is refused before any element is read or allocated.
  *
  * The tensors are headers only: they carry the element count and the type and hold no storage, so
  * a refusal that reached the labels would dereference null.
  */
-TEST(Small_VisionTrainingPixelTargetsOverflow, APixelCountPastInt32IsRefusedWithoutAllocation)
+TEST(Small_VisionTrainingPixelTargetsClasses, AClassCountBelowOneIsRefusedWithoutReadingTheMask)
 {
-    constexpr std::int64_t pixels = static_cast<std::int64_t>(INT32_MAX) + 1;
+    constexpr std::int64_t pixels = 6;
     SushiBLAS::Tensor mask;
     mask.dtype = DType::Int32;
     mask.num_elements = pixels;
-    SushiBLAS::Tensor indices;
-    indices.dtype = DType::Int32;
-    indices.num_elements = pixels;
+    SushiBLAS::Tensor labels;
+    labels.dtype = DType::Int32;
+    labels.num_elements = pixels;
     SushiBLAS::Tensor weights;
     weights.dtype = DType::Float32;
     weights.num_elements = pixels;
 
-    SA_EXPECT_FAILURE(fill_pixel_targets(mask, 1, K_IGNORE, indices, weights),
-                      StatusCode::Incompatible, "2147483648 pixels", "cannot be indexed");
-    SA_EXPECT_FAILURE(fill_pixel_targets(mask, K_CLASSES, K_IGNORE, indices, weights),
-                      StatusCode::Incompatible, "cannot be indexed");
+    SA_EXPECT_FAILURE(fill_pixel_targets(mask, 0, K_IGNORE, labels, weights),
+                      StatusCode::Incompatible, "at least one class", "got 0");
 }
 
-/** @brief Tests that a product of pixels and classes past INT32_MAX is refused likewise. */
-TEST(Small_VisionTrainingPixelTargetsOverflow, APixelsTimesClassesPastInt32IsRefused)
-{
-    // 1 << 20 pixels over 2048 classes is 2^31 indices, one past what INT32 holds.
-    constexpr std::int64_t pixels = std::int64_t{1} << 20;
-    SushiBLAS::Tensor mask;
-    mask.dtype = DType::Int32;
-    mask.num_elements = pixels;
-    SushiBLAS::Tensor indices;
-    indices.dtype = DType::Int32;
-    indices.num_elements = pixels;
-    SushiBLAS::Tensor weights;
-    weights.dtype = DType::Float32;
-    weights.num_elements = pixels;
-
-    SA_EXPECT_FAILURE(fill_pixel_targets(mask, 2048, K_IGNORE, indices, weights),
-                      StatusCode::Incompatible, "cannot be indexed");
-}
-
-/** @brief Tests that a refused Dice fill leaves the five leaves as they were. */
+/** @brief Tests that a refused Dice fill leaves the four leaves as they were. */
 TEST_F(Medium_VisionTrainingPixelTargets, ARefusedDiceFillChangesNothing)
 {
     const SushiBLAS::Tensor bad = make_ids(Shape{K_PIXELS}, {0, 2, 1, 1, 3, 0});
     const SushiBLAS::Tensor good = make_ids(Shape{K_PIXELS}, {0, 2, 1, 1, 0, 0});
-    SushiBLAS::Tensor score_indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
-    SushiBLAS::Tensor class_indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
+    SushiBLAS::Tensor labels = make_ids(Shape{K_PIXELS}, Classes(6, -7));
     SushiBLAS::Tensor kept = make_reals(Shape{K_PIXELS, 1});
     SushiBLAS::Tensor class_pixels = make_reals(Shape{K_CLASSES});
     SushiBLAS::Tensor class_weights = make_reals(Shape{K_CLASSES});
     SushiBLAS::Tensor short_weights = make_reals(Shape{K_CLASSES - 1});
-    SushiBLAS::Tensor real_indices = make_reals(Shape{K_PIXELS});
+    SushiBLAS::Tensor real_labels = make_reals(Shape{K_PIXELS});
 
     SA_EXPECT_FAILURE(
         fill_dice_targets(bad, K_CLASSES, K_IGNORE,
-                          DiceLeaves{&score_indices, &class_indices, &kept, &class_pixels,
-                                     &class_weights}),
+                          DiceLeaves{&labels, &kept, &class_pixels, &class_weights}),
         StatusCode::Incompatible, "holds 3 at pixel 4");
     SA_EXPECT_FAILURE(
         fill_dice_targets(good, K_CLASSES, K_IGNORE,
-                          DiceLeaves{&score_indices, &class_indices, &kept, &class_pixels,
-                                     &short_weights}),
+                          DiceLeaves{&labels, &kept, &class_pixels, &short_weights}),
         StatusCode::Incompatible, "'class_weights'", "2 elements");
     SA_EXPECT_FAILURE(
         fill_dice_targets(good, K_CLASSES, K_IGNORE,
-                          DiceLeaves{&score_indices, &real_indices, &kept, &class_pixels,
-                                     &class_weights}),
-        StatusCode::Incompatible, "'class_indices'", "int32");
+                          DiceLeaves{&real_labels, &kept, &class_pixels, &class_weights}),
+        StatusCode::Incompatible, "'labels'", "int32");
 
-    EXPECT_EQ(read_ids(score_indices), Classes(6, -7));
-    EXPECT_EQ(read_ids(class_indices), Classes(6, -7));
+    EXPECT_EQ(read_ids(labels), Classes(6, -7));
     expect_reals(kept, std::vector<double>(6, K_UNTOUCHED));
     expect_reals(class_pixels, std::vector<double>(3, K_UNTOUCHED));
 }

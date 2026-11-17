@@ -59,20 +59,22 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    ImageSize fit_long_side(ImageSize original, std::int32_t image_size) noexcept
+    ImageSize fit_within(ImageSize original, ImageSize target) noexcept
     {
-        const std::int32_t long_side = std::max(original.height, original.width);
-        const double ratio = static_cast<double>(image_size) / static_cast<double>(long_side);
+        // For a square target the smaller ratio is target / max(height, width), exactly.
+        const double ratio =
+            std::min(static_cast<double>(target.height) / static_cast<double>(original.height),
+                     static_cast<double>(target.width) / static_cast<double>(original.width));
 
         if (ratio == 1.0)
             return original;
 
         const double height = std::ceil(static_cast<double>(original.height) * ratio);
         const double width = std::ceil(static_cast<double>(original.width) * ratio);
-        const double limit = static_cast<double>(image_size);
 
-        return ImageSize{static_cast<std::int32_t>(std::min(height, limit)),
-                         static_cast<std::int32_t>(std::min(width, limit))};
+        return ImageSize{
+            static_cast<std::int32_t>(std::min(height, static_cast<double>(target.height))),
+            static_cast<std::int32_t>(std::min(width, static_cast<double>(target.width)))};
     }
 
     Status resize_bilinear(ImageView source, ImageSize size, Image& destination) noexcept
@@ -116,14 +118,14 @@ namespace SushiAI::Vision::Imaging
         }
     }
 
-    Status resize_long_side(ImageView source, std::int32_t image_size, Image& destination) noexcept
+    Status resize_within(ImageView source, ImageSize target, Image& destination) noexcept
     {
-        SA_FAIL_IF(!is_valid_side(image_size), StatusCode::InvalidDescription,
-                   "resize_long_side: an image size of {} is outside [1, {}]", image_size,
-                   K_MAX_IMAGE_SIDE);
-        check_source(source, destination, "resize_long_side");
+        SA_FAIL_IF(!is_valid_size(target), StatusCode::InvalidDescription,
+                   "resize_within: a target of {}x{} is outside [1, {}]", target.height,
+                   target.width, K_MAX_IMAGE_SIDE);
+        check_source(source, destination, "resize_within");
 
-        const ImageSize fitted = fit_long_side(source.size(), image_size);
+        const ImageSize fitted = fit_within(source.size(), target);
         destination.reset(fitted, source.channels());
 
         if (fitted == source.size())

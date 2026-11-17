@@ -19,6 +19,11 @@ Without the member the task reads `BestShape`, and the written section leaves th
 A section with a `ratio_limit` of 3.5 and a `neighbour_offset` of 0.25 reads both values and is
 written back with the same JSON text.
 
+## AShapeRatioSectionIsWrittenAsShortestDecimals
+
+A section with a `ratio_limit` of 3.7 and a `neighbour_offset` of 0.3 is read and written back.
+The written values are the doubles 3.7 and 0.3, not the widenings of the floats.
+
 ## RefusesAnUnknownRule
 
 The rule "nearest" is refused naming `'rule'`, `'nearest'` and `'shape_ratio'`.

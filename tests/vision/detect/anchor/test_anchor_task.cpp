@@ -450,21 +450,43 @@ TEST(Small_DetectAnchorTask, WritesTheKeysInOrder)
               (std::vector<std::string>{"output", "anchors", "coding", "scale_xy"}));
 }
 
-/** @brief Tests that the writer states each float as the double it widens to. */
-TEST(Small_DetectAnchorTask, WritesEachFloatAsItsDouble)
+/** @brief Tests that the writer states each float as the shortest decimal that reads back as it. */
+TEST(Small_DetectAnchorTask, WritesEachFloatAsItsShortestDecimal)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value section, write_anchor_task(make_two_head_task()));
 
     const Value& head =
         require_value(require_value(section.at("heads", "task")).as_array("heads"))[1];
-    // The tolerance is zero: a float widens to exactly one double.
+    // The tolerance is zero: the double is the one the text 1.05 parses to, not the float's widening.
     EXPECT_EQ(require_value(require_value(head.at("scale_xy", "head")).as_real("scale_xy")),
-              static_cast<double>(1.05f));
+              1.05);
     const Value& anchor =
         require_value(require_value(section.at("anchors", "task")).as_array("anchors"))[2];
     const std::vector<Value>& sizes = require_value(anchor.as_array("anchor"));
-    EXPECT_EQ(require_value(sizes[0].as_real("width")), static_cast<double>(0.09f));
-    EXPECT_EQ(require_value(sizes[1].as_real("height")), static_cast<double>(0.14f));
+    EXPECT_EQ(require_value(sizes[0].as_real("width")), 0.09);
+    EXPECT_EQ(require_value(sizes[1].as_real("height")), 0.14);
+}
+
+/** @brief Tests that a 0.7 read from a section is written as 0.7 in an anchor and in a head. */
+TEST(Small_DetectAnchorTask, AWrittenSevenTenthsReadsAsSevenTenths)
+{
+    SectionText text;
+    text.anchors = "[[0.7, 0.3], [0.25, 0.5], [0.5, 0.25], [0.75, 0.5]]";
+    text.heads =
+        R"([{"output": "a", "anchors": [2, 3], "coding": "logit", "scale_xy": 1.7},
+            {"output": "b", "anchors": [0, 1], "coding": "logit", "scale_xy": 1.0}])";
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorTask task, read_anchor_task(section_from(text)));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(task));
+
+    const Value& anchor =
+        require_value(require_value(written.at("anchors", "task")).as_array("anchors"))[0];
+    const std::vector<Value>& sizes = require_value(anchor.as_array("anchor"));
+    EXPECT_EQ(require_value(sizes[0].as_real("width")), 0.7);
+    EXPECT_EQ(require_value(sizes[1].as_real("height")), 0.3);
+    const Value& head =
+        require_value(require_value(written.at("heads", "task")).as_array("heads"))[0];
+    EXPECT_EQ(require_value(require_value(head.at("scale_xy", "head")).as_real("scale_xy")), 1.7);
 }
 
 /** @brief Tests that a string of "coding" is read and written as its enumerator. */

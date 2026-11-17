@@ -47,8 +47,8 @@ sample of the file `pictures/cat.png` with 3 classes.
 
 ## ARowListsTheKeysItReads
 
-One test per row, named after its reader. The rows yolo_txt, image_folder, idx and cifar list
-no key. coco_json lists `annotations`, `images`, `polygons`; voc_xml lists `class_names`,
+One test per row, named after its reader. The rows yolo_txt, image_folder and cifar list no key.
+idx lists `image_file` and `label_file`. coco_json lists `annotations`, `images`, `polygons`; voc_xml lists `class_names`,
 `keep_difficult`; mask_png lists `images`, `masks`, `image_suffix`, `mask_suffix`; csv lists
 `file`, `features`, `targets`.
 
@@ -126,7 +126,7 @@ has the sample shape [4, 4].
 One test per row, over a root that does not exist. Each fails with `InvalidDescription` and
 names what its row lists:
 
-- AFitOutsideTheList: `fit` "crop"; "data 'fit' is 'crop'" and "'resize', 'letterbox'".
+- AFitOutsideTheList: `fit` "crop"; "data 'fit' is 'crop'" and "'resize', 'letterbox', 'darknet_letterbox'".
 - AnUnknownReader: "tfrecord"; "data 'reader'", "'tfrecord'" and the quoted name of each of the
   eight readers.
 - AnUnknownTask: "pose"; "data 'task'", "'pose'" and the quoted name of each of the six tasks.
@@ -141,8 +141,21 @@ names what its row lists:
 - AnInputOfThreeEntries: "data 'input'", "3 entries" and "[height, width]".
 - AnInputExtentOfZero: `input` [4, 0]; "data 'input[1]' is 0".
 - ZeroChannels: "data 'channels' is 0".
-- AnUnknownPipeline: "mixup"; "data 'pipeline' is 'mixup'", "'none'" and "'default'".
-- TheDefaultPipelineOnANonSquareInput: `input` [4, 6]; "square" and "4 by 6".
+- AnUnknownPipeline: "mixup"; "data 'pipeline' is 'mixup'", "'none'", "'default'" and "'darknet'".
+- AKeyOfAnotherPipeline: `jitter` under `pipeline` "default"; "data" and "'jitter'".
+- AnUnknownKeyOfTheDarknetPipeline: `mixup` under `pipeline` "darknet"; "data", "'mixup'" and
+  the four keys the row reads, "'jitter'", "'hue'", "'saturation'" and "'exposure'".
+- ADarknetJitterThatIsNoNumber: `jitter` "wide"; "data 'jitter'".
+- ADarknetJitterOfOne: `jitter` 1; "DarknetPipeline", "the jitter is 1" and "[0, 0.5)".
+- ADarknetSaturationBelowOne: `saturation` 0.5; "DarknetPipeline", "the saturation is 0.5" and
+  "a number from 1".
+
+## TheDarknetPipelineReadsItsFourKeys
+
+Two detection sections over the YOLO split, with `input` [16, 16] and `pipeline` "darknet", one
+without the keys and one with `jitter` 0.3, `hue` 0.1, `saturation` 1.5 and `exposure` 1.5, the
+four keys an import writes. Both build a dataset of sample shape [16, 16, 3], and the inputs of
+batch 0 differ.
 
 ## ADetectionSectionBuildsLetterboxedBatches
 
@@ -240,3 +253,22 @@ two.
 A segmentation section over the reader yolo_txt, with a label file whose one polygon of class
 1 covers the top left quarter of a 4 by 4 image and with `background` 2, gives a mask in
 batch 0 whose top left 2 by 2 pixels are 1 and whose other pixels are 2.
+
+## TheIdxRowReadsTheTwoFilesOfTheSection
+
+With `image_file` "emnist-images" and `label_file` "emnist-labels" in a memory source, the idx row
+lists two samples of the classes 7 and 3, and the one file is `idx_root/emnist-images`.
+
+## ALetterboxSectionStatesItsPaddingByte
+
+A detection section with `"letterbox_padding": 0` reads a batch whose first input value, which lies
+in padding, is 0 and not 114 / 255.
+
+## ALetterboxSettingBesideAResizeIsRefused
+
+`"fit": "resize"` with `"letterbox_padding": 0` fails with `InvalidDescription`, "data
+'letterbox_padding'" and "'letterbox'".
+
+## APaddingAbove255IsRefused
+
+`"letterbox_padding": 256` fails with `InvalidDescription`, "data 'letterbox_padding'" and "[0, 255]".

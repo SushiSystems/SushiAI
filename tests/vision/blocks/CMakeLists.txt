@@ -15,7 +15,9 @@ sushiai_add_test_program(OWNER vision/blocks
         test_c3k.cpp
         test_c3k2.cpp
         test_conv_norm.cpp
+        test_decoupled_head.cpp
         test_detect_head.cpp
+        test_focus.cpp
         test_psa_block.cpp
         test_segment_head.cpp
         test_sppf.cpp

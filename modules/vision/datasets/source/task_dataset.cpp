@@ -37,6 +37,7 @@
 #include <utility>
 #include <vector>
 
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
@@ -137,6 +138,7 @@ namespace SushiAI::Vision::Datasets::Detail
         constexpr FitName K_FIT_NAMES[] = {
             {Config::K_FIT_RESIZE, SampleFit::Resize},
             {Config::K_FIT_LETTERBOX, SampleFit::Letterbox},
+            {Config::K_FIT_DARKNET_LETTERBOX, SampleFit::DarknetLetterbox},
         };
 
         /**
@@ -169,6 +171,56 @@ namespace SushiAI::Vision::Datasets::Detail
             return found->fit;
         }
 
+        /**
+         * @brief Reads "normalise"; the default conversion when the section states none.
+         * @return The normalisation; what Config::parse_input_normalise refuses.
+         */
+        [[nodiscard]] Result<Config::InputNormalise> read_normalise(
+            const Config::Value& section, std::string_view context)
+        {
+            if (!section.has(K_NORMALISE_KEY))
+                return Config::InputNormalise();
+
+            SA_TRY_ASSIGN(const Config::Value& stated, section.at(K_NORMALISE_KEY, context));
+            return Config::parse_input_normalise(stated, named(context, K_NORMALISE_KEY));
+        }
+
+        /** @brief Holds the largest value a padding byte takes. */
+        constexpr std::int64_t K_MAX_PADDING = 255;
+
+        /**
+         * @brief Reads "letterbox_padding" and "letterbox_scale_up"; the defaults of
+         *        Imaging::LetterboxSettings when the section states neither.
+         * @return The settings; InvalidDescription for a padding outside [0, 255] and for
+         *         either key stated under a fit other than the letterbox.
+         */
+        [[nodiscard]] Result<Imaging::LetterboxSettings> read_letterbox(
+            const Config::Value& section, std::string_view context, SampleFit fit)
+        {
+            const bool is_stated = section.has(K_LETTERBOX_PADDING_KEY) ||
+                                   section.has(K_LETTERBOX_SCALE_UP_KEY);
+            SA_FAIL_IF(is_stated && fit != SampleFit::Letterbox, StatusCode::InvalidDescription,
+                       "{} and {} set the letterbox, but the fit of {} is not '{}'",
+                       named(context, K_LETTERBOX_PADDING_KEY),
+                       named(context, K_LETTERBOX_SCALE_UP_KEY), context, Config::K_FIT_LETTERBOX);
+
+            Imaging::LetterboxSettings settings;
+            const Config::Value padding = Config::Value::integer(settings.padding_value);
+            SA_TRY_ASSIGN(const std::int64_t stated_padding,
+                          section.at_or(K_LETTERBOX_PADDING_KEY, padding)
+                              .as_int(named(context, K_LETTERBOX_PADDING_KEY)));
+            SA_FAIL_IF(stated_padding < 0 || stated_padding > K_MAX_PADDING,
+                       StatusCode::InvalidDescription, "{} is {}; a padding byte is in [0, {}]",
+                       named(context, K_LETTERBOX_PADDING_KEY), stated_padding, K_MAX_PADDING);
+            settings.padding_value = static_cast<std::uint8_t>(stated_padding);
+
+            const Config::Value scale_up = Config::Value::boolean(settings.scale_up);
+            SA_TRY_ASSIGN(settings.scale_up,
+                          section.at_or(K_LETTERBOX_SCALE_UP_KEY, scale_up)
+                              .as_bool(named(context, K_LETTERBOX_SCALE_UP_KEY)));
+            return settings;
+        }
+
         /** @brief Reads the input size, the channels and the batch size; the task gives the fit. */
         [[nodiscard]] Result<ReaderDatasetOptions> read_image_options(
             const Config::Value& section, std::string_view context, const TaskEntry& task)
@@ -176,6 +228,7 @@ namespace SushiAI::Vision::Datasets::Detail
             ReaderDatasetOptions options;
             SA_TRY_ASSIGN(options.fit.fit, read_fit(section, context, task.fit));
             SA_TRY_ASSIGN(options.fit.size, read_input_size(section, context));
+            SA_TRY_ASSIGN(options.fit.letterbox, read_letterbox(section, context, options.fit.fit));
 
             const Config::Value channels = Config::Value::integer(options.channels);
             SA_TRY_ASSIGN(options.channels,
@@ -273,12 +326,10 @@ namespace SushiAI::Vision::Datasets::Detail
 
         SA_TRY_ASSIGN(const PipelineEntry* const pipeline_row,
                       read_pipeline_row(section, context));
+        if (pipeline_row->check != nullptr)
+            SA_TRY(pipeline_row->check(section, context));
         SA_TRY_ASSIGN(const std::optional<SampleCacheOptions> cache,
                       read_cache_options(section, context, options.channels));
-        SA_TRY_ASSIGN(std::unique_ptr<const SamplePipeline> pipeline,
-                      pipeline_row->make(
-                          PipelineRequest{options.fit, options.channels, options.seed,
-                                          request.storage.source}));
 
         SA_TRY_ASSIGN(ListedSamples listed, read_samples(reader, request, context));
         SA_FAIL_IF(!listed.list.table.values.empty(), StatusCode::InvalidDescription,
@@ -288,10 +339,16 @@ namespace SushiAI::Vision::Datasets::Detail
         if (cache.has_value())
             SA_TRY(cache_samples(*cache, listed.list, request.storage));
 
+        SA_TRY_ASSIGN(const Config::InputNormalise normalise, read_normalise(section, context));
         SA_TRY_ASSIGN(std::unique_ptr<const Collator> collator,
                       task.make_collator(section, context,
                                          CollatorRequest{listed.list, listed.class_count,
-                                                         options.fit.size}));
+                                                         options.fit.size, normalise}));
+        SA_TRY_ASSIGN(std::unique_ptr<const SamplePipeline> pipeline,
+                      pipeline_row->make(
+                          PipelineRequest{options.fit, options.channels, options.seed,
+                                          request.storage.source, collator->reads_mask(),
+                                          section, std::string(context)}));
         SA_TRY_ASSIGN(std::unique_ptr<ReaderDataset> dataset,
                       ReaderDataset::make(engine, std::move(listed.list), std::move(collator),
                                           std::move(pipeline), std::move(options)));

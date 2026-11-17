@@ -101,6 +101,11 @@ namespace SushiAI::Vision::Datasets
         return K_TASK_SEGMENTATION;
     }
 
+    bool SegmentationCollator::reads_mask() const noexcept
+    {
+        return options_.origin == MaskOrigin::File;
+    }
+
     const std::vector<Data::TargetDescription>& SegmentationCollator::targets() const noexcept
     {
         return targets_;
@@ -113,7 +118,7 @@ namespace SushiAI::Vision::Datasets
         const std::size_t width = static_cast<std::size_t>(options_.size.width);
         const std::size_t pixels = static_cast<std::size_t>(options_.size.height) * width;
 
-        SA_TRY(write_batch_inputs(samples, batch.inputs));
+        SA_TRY(write_batch_inputs(samples, batch.inputs, options_.normalise));
         SA_TRY_ASSIGN(SushiBLAS::Tensor* const mask,
                       Detail::role_tensor(batch, Data::K_ROLE_MASK, DType::Int32,
                                           static_cast<std::int64_t>(samples.size() * pixels),

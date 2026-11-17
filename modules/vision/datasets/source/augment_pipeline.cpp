@@ -145,8 +145,8 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Makes one sample, then clips its labels and makes its mask. */
         [[nodiscard]] Status produce_one(const SampleList& list, std::size_t sample,
-                                         std::int32_t epoch, BatchPipelines& pipelines,
-                                         FittedSample& fitted)
+                                         std::int32_t epoch, bool decode_masks,
+                                         BatchPipelines& pipelines, FittedSample& fitted)
         {
             SA_FAIL_IF(sample >= list.samples.size(), StatusCode::InvalidDescription,
                        "{}: sample {} is outside a list of {} samples", K_PIPELINE, sample,
@@ -163,7 +163,7 @@ namespace SushiAI::Vision::Datasets
             fitted.file = record.file;
             fitted.class_index = record.class_index;
 
-            if (!record.mask.has_value())
+            if (!decode_masks || !record.mask.has_value())
                 return Status();
 
             return SA_ANNOTATE(pipelines.masks.make_mask(sample, trace,
@@ -174,11 +174,11 @@ namespace SushiAI::Vision::Datasets
 
     Result<std::unique_ptr<AugmentPipeline>> AugmentPipeline::make(const AugmentOptions& options) noexcept
     {
-        SA_FAIL_IF(options.image_size < 1 ||
-                       options.image_size > Imaging::K_MAX_MOSAIC_IMAGE_SIZE,
+        SA_FAIL_IF(!Imaging::validate_mosaic_size(options.image_size).is_ok(),
                    StatusCode::InvalidDescription,
-                   "{}: a training size of {} is outside [1, {}]", K_PIPELINE,
-                   options.image_size, Imaging::K_MAX_MOSAIC_IMAGE_SIZE);
+                   "{}: a training size of {}x{} has a side outside [1, {}]", K_PIPELINE,
+                   options.image_size.height, options.image_size.width,
+                   Imaging::K_MAX_MOSAIC_IMAGE_SIZE);
         SA_FAIL_IF(options.mosaic_epochs < 0, StatusCode::InvalidDescription,
                    "{}: {} epochs of mosaic; the count is not below zero", K_PIPELINE,
                    options.mosaic_epochs);
@@ -194,12 +194,13 @@ namespace SushiAI::Vision::Datasets
         return Result<std::unique_ptr<AugmentPipeline>>(
             std::unique_ptr<AugmentPipeline>(new AugmentPipeline(settings, options.source != nullptr
                                                                ? *options.source
-                                                               : Detail::file_system())));
+                                                               : Detail::file_system(),
+                                                               options.decode_masks)));
     }
 
     AugmentPipeline::AugmentPipeline(const Imaging::TrainingSettings& settings,
-                                     const ByteSource& source) noexcept
-        : settings_(settings), source_(&source)
+                                     const ByteSource& source, bool decode_masks) noexcept
+        : settings_(settings), source_(&source), decode_masks_(decode_masks)
     {
 
     }
@@ -242,7 +243,7 @@ namespace SushiAI::Vision::Datasets
 
             for (std::size_t row = 0; row < samples.size(); ++row)
                 SA_TRY(produce_one(list, samples[row], static_cast<std::int32_t>(epoch),
-                                   pipelines, fitted[row]));
+                                   decode_masks_, pipelines, fitted[row]));
 
             return Status();
         });

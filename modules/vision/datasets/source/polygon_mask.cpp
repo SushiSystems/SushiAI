@@ -60,9 +60,9 @@ namespace SushiAI::Vision::Datasets
             for (std::size_t object = 0; object < objects.size(); ++object)
             {
                 const std::int32_t class_index = objects.classes()[object];
-                const Imaging::Polygon& polygon = objects.polygons()[object];
+                const Imaging::Outline& outline = objects.outlines()[object];
 
-                SA_FAIL_IF(polygon.empty(), StatusCode::InvalidDescription,
+                SA_FAIL_IF(outline.empty(), StatusCode::InvalidDescription,
                            "{}: object {} has a box and no polygon; a mask is painted from "
                            "polygons",
                            K_PAINTER, object);
@@ -71,10 +71,9 @@ namespace SushiAI::Vision::Datasets
                            "{}: object {} has the class {}; a mask of bytes names 0 to {}",
                            K_PAINTER, object, class_index, K_MASK_VOID - 1);
 
-                // An object holds one polygon, so its outline has one part.
                 outlines.push_back(Segment::ClassOutline{
                     static_cast<std::uint8_t>(class_index),
-                    SushiRuntime::span<const Imaging::Polygon>(&polygon, 1)});
+                    SushiRuntime::span<const Imaging::Polygon>(outline.data(), outline.size())});
             }
 
             return Segment::rasterise_outlines(

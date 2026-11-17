@@ -5,8 +5,9 @@
 
 `mosaic` is 1.0 (`cfg/default.yaml:126`); the canvas fill is 114 (`data/augment.py:611`).
 
-`validate_mosaic_size` owns the rule that the 2s canvas is a valid image: `image_size` is in
-[1, `K_MAX_MOSAIC_IMAGE_SIZE`], which is `K_MAX_IMAGE_SIDE / 2`. `draw_mosaic`, `plan_mosaic`, both `apply_mosaic` overloads and `validate_training` call it, so
+`validate_mosaic_size` owns the rule that the canvas is a valid image: each side of
+`image_size` is in [1, `K_MAX_MOSAIC_IMAGE_SIZE`], which is `K_MAX_IMAGE_SIDE / 2`, and
+`mosaic_canvas` is twice each side. `draw_mosaic`, `plan_mosaic`, both `apply_mosaic` overloads and `validate_training` call it, so
 its message opens with `validate_mosaic_size:` whoever the caller is.
 
 Draws, in order: the three partners through the `PartnerSource`, the gate, `center_y`,
@@ -16,11 +17,14 @@ the mosaic when `random.uniform(0, 1) > p`; `draw_mosaic` makes it when
 `bernoulli(probability)`, which differs only on a draw equal to `p`.
 
 Centre (`data/augment.py:480`, `520`): `center_y` first, then `center_x`, each
-`int(uniform(b, 2s - b))` with `b = (s + 1) / 2`. For s = 640 that is a value in 320 to 959.
+`int(uniform(b, 2s - b))` with `b = (s + 1) / 2`, where `s` is the height for the row and the
+width for the column. For s = 640 that is a value in 320 to 959. A square size draws exactly the
+reference's centre; a rectangular one draws each axis by the same rule over its own side.
 
 ## plan_mosaic
 
-`data/augment.py:525-538`. With centre `(cx, cy)`, patch size `(h, w)` and canvas side `c = 2s`:
+`data/augment.py:525-538`. With centre `(cx, cy)`, patch size `(h, w)` and canvas
+`mosaic_canvas(image_size)`, `c` below is the canvas width in an `x` and its height in a `y`:
 
 | Patch | Canvas `x1, y1, x2, y2` | Patch `x1, y1, x2, y2` |
 | --- | --- | --- |
@@ -31,15 +35,16 @@ Centre (`data/augment.py:480`, `520`): `center_y` first, then `center_x`, each
 
 `x2a - x1a` is the width of the canvas rectangle in the same row. `offset_x = canvas_x1 -
 patch_x1` and `offset_y = canvas_y1 - patch_y1`. Patch 0 is the sample; patches 1 to 3 are the
-partners in draw order. Each patch is an image as `resize_long_side` returned it; the mosaic
+partners in draw order. Each patch is an image as `resize_within` returned it; the mosaic
 resamples nothing.
 
 ## apply_mosaic
 
-Image: a canvas of 2s by 2s filled with `fill_value`, then the four copies
-(`data/augment.py:611-617`). The canvas is not cropped; `apply_affine` reduces it to s by s.
+Image: a canvas of `mosaic_canvas(image_size)` filled with `fill_value`, then the four copies
+(`data/augment.py:611-617`). The canvas is not cropped; `apply_affine` reduces it to
+`image_size`.
 
 Labels: each patch's boxes and vertices plus its offsets (`data/augment.py:724`,
-`utils/instance.py:315-317`), joined in patch order (`773-774`), clipped to [0, 2s] with
+`utils/instance.py:315-317`), joined in patch order (`773-774`), clipped to the canvas with
 `clip_labels` (`776`), then `remove_empty_boxes` (`777-778`). The clip clamps each vertex on its
 own, which is why the polygons were resampled to 1000 points at load.

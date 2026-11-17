@@ -61,6 +61,16 @@ namespace SushiAI::Vision::Datasets
                 const noexcept = 0;
 
             /**
+             * @brief Tells whether collate() reads FittedSample::mask.
+             * @return False by default; a pipeline decodes no mask file for a collator that
+             *         returns false.
+             */
+            [[nodiscard]] virtual bool reads_mask() const noexcept
+            {
+                return false;
+            }
+
+            /**
              * @brief Writes Batch::inputs and every role of the task.
              * @param list The list the samples came from; read for file names.
              * @param samples One per row of the batch, each at the input size.

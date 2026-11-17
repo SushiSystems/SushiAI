@@ -329,7 +329,7 @@ namespace
             {"yolo_txt", {}},
             {"image_folder", {}},
             {"image_file", {"file"}},
-            {"idx", {}},
+            {"idx", {"image_file", "label_file"}},
             {"cifar", {}},
             {"coco_json", {"annotations", "images", "polygons"}},
             {"voc_xml", {"class_names", "keep_difficult"}},
@@ -518,7 +518,7 @@ namespace
             {"AFitOutsideTheList",
              R"(, "reader": "yolo_txt", "task": "detection", "split": "train",
                 "input": [4, 4], "max_objects": 2, "classes": 3, "fit": "crop")",
-             {"data 'fit' is 'crop'", "'resize', 'letterbox'"}},
+             {"data 'fit' is 'crop'", "'resize', 'letterbox', 'darknet_letterbox'"}},
             {"AnUnknownReader",
              R"(, "reader": "tfrecord", "task": "detection", "input": [4, 4],
                 "max_objects": 2)",
@@ -565,11 +565,27 @@ namespace
             {"AnUnknownPipeline",
              R"(, "reader": "yolo_txt", "task": "detection", "batch_size": 2, "input": [4, 4],
                 "max_objects": 2, "classes": 3, "pipeline": "mixup")",
-             {"data 'pipeline' is 'mixup'", "'none'", "'default'"}},
-            {"TheDefaultPipelineOnANonSquareInput",
-             R"(, "reader": "yolo_txt", "task": "detection", "batch_size": 2, "input": [4, 6],
-                "max_objects": 2, "classes": 3, "pipeline": "default")",
-             {"square", "4 by 6"}},
+             {"data 'pipeline' is 'mixup'", "'none'", "'default'", "'darknet'"}},
+            {"AKeyOfAnotherPipeline",
+             R"(, "reader": "yolo_txt", "task": "detection", "batch_size": 2, "input": [4, 4],
+                "max_objects": 2, "classes": 3, "pipeline": "default", "jitter": 0.3)",
+             {"data", "'jitter'"}},
+            {"AnUnknownKeyOfTheDarknetPipeline",
+             R"(, "reader": "yolo_txt", "task": "detection", "batch_size": 2, "input": [4, 4],
+                "max_objects": 2, "classes": 3, "pipeline": "darknet", "mixup": 0.5)",
+             {"data", "'mixup'", "'jitter'", "'hue'", "'saturation'", "'exposure'"}},
+            {"ADarknetJitterThatIsNoNumber",
+             R"(, "reader": "yolo_txt", "task": "detection", "batch_size": 2, "input": [4, 4],
+                "max_objects": 2, "classes": 3, "pipeline": "darknet", "jitter": "wide")",
+             {"data 'jitter'"}},
+            {"ADarknetJitterOfOne",
+             R"(, "reader": "yolo_txt", "task": "detection", "batch_size": 2, "input": [4, 4],
+                "max_objects": 2, "classes": 3, "pipeline": "darknet", "jitter": 1)",
+             {"DarknetPipeline", "the jitter is 1", "[0, 0.5)"}},
+            {"ADarknetSaturationBelowOne",
+             R"(, "reader": "yolo_txt", "task": "detection", "batch_size": 2, "input": [4, 4],
+                "max_objects": 2, "classes": 3, "pipeline": "darknet", "saturation": 0.5)",
+             {"DarknetPipeline", "the saturation is 0.5", "a number from 1"}},
         };
         return rows;
     }
@@ -650,6 +666,29 @@ TEST(Small_DatasetsReaderTable, TheCSVRowReadsItsKeysOfTheSection)
     ASSERT_NE(csv, nullptr);
     SA_ASSERT_OK_AND_ASSIGN(const SampleList list, csv->read(request));
     EXPECT_EQ(list.table.values, (std::vector<float>{3.0f, 1.0f, 2.0f}));
+}
+
+/** @brief Tests that the idx row reads the two files its section names instead of the MNIST ones. */
+TEST(Small_DatasetsReaderTable, TheIdxRowReadsTheTwoFilesOfTheSection)
+{
+    MemorySource files;
+    files.add_file("idx_root/emnist-images",
+                   Support::text_of(Support::idx_bytes(0x08, {2, 1, 2}, {1, 2, 3, 4})));
+    files.add_file("idx_root/emnist-labels", Support::text_of(Support::idx_bytes(0x08, {2}, {7, 3})));
+
+    ReaderRequest request;
+    request.root = "idx_root";
+    request.storage.source = &files;
+    request.section = SaTest::attributes_from(
+        R"({"image_file": "emnist-images", "label_file": "emnist-labels"})");
+
+    const ReaderEntry* const row = find_reader("idx");
+    ASSERT_NE(row, nullptr);
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, row->read(request));
+    ASSERT_EQ(list.samples.size(), 2u);
+    EXPECT_EQ(list.samples[0].class_index, 7);
+    EXPECT_EQ(list.samples[1].class_index, 3);
+    EXPECT_EQ(list.files[0].generic_string(), "idx_root/emnist-images");
 }
 
 /** @brief Tests that the image_file row lists the one file its section names. */
@@ -1147,6 +1186,24 @@ TEST_F(Small_DatasetsReaderSection, ThePipelineKeyChangesTheInputsOfABatch)
     EXPECT_NE(inputs_of(*augmented, 0), inputs_of(*fitted, 0));
 }
 
+/** @brief Tests that the keys of the "darknet" pipeline, as an import writes them, change the inputs. */
+TEST_F(Small_DatasetsReaderSection, TheDarknetPipelineReadsItsFourKeys)
+{
+    add_split(yolo_split());
+    const std::string members = R"(, "reader": "yolo_txt", "task": "detection",
+        "batch_size": 2, "input": [16, 16], "max_objects": 8, "classes": 3, "pipeline": "darknet")";
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> plain,
+                            build_in_memory(section_in_memory(members)));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Data::Dataset> augmented,
+        build_in_memory(section_in_memory(members + R"(, "jitter": 0.3, "hue": 0.1,
+            "saturation": 1.5, "exposure": 1.5)")));
+
+    EXPECT_EQ(augmented->sample_shape(), (Shape{16, 16, 3}));
+    EXPECT_NE(inputs_of(*augmented, 0), inputs_of(*plain, 0));
+}
+
 /** @brief Tests that "workers" puts the dataset behind a loader. */
 TEST_F(Medium_DatasetsReaderSection, WorkersPutTheDatasetBehindALoader)
 {
@@ -1204,4 +1261,46 @@ TEST_F(Small_DatasetsReaderSection, ASegmentationSectionPaintsThePolygonsOfALabe
     const std::int32_t* mask = batch.targets[0].values.data_as<std::int32_t>();
     EXPECT_EQ(std::vector<std::int32_t>(mask, mask + 16),
               (std::vector<std::int32_t>{1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}));
+}
+
+/** @brief Tests that a letterbox section states the byte its padding is made of. */
+TEST_F(Small_DatasetsReaderSection, ALetterboxSectionStatesItsPaddingByte)
+{
+    add_split(yolo_split());
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Data::Dataset> dataset,
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
+            "split": "train", "batch_size": 2, "input": [4, 4], "max_objects": 2,
+            "classes": 3, "letterbox_padding": 0)")));
+
+    Data::Batch batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
+
+    // Row 0 of each 4 by 4 by 3 input is padding, which the section sets to 0 instead of 114.
+    EXPECT_EQ(batch.inputs.data_as<float>()[0], 0.0f);
+}
+
+/** @brief Tests that a letterbox setting beside a fit that is no letterbox is refused. */
+TEST_F(Small_DatasetsReaderSection, ALetterboxSettingBesideAResizeIsRefused)
+{
+    add_split(yolo_split());
+
+    SA_EXPECT_FAILURE(
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
+            "split": "train", "batch_size": 2, "input": [4, 4], "max_objects": 2,
+            "classes": 3, "fit": "resize", "letterbox_padding": 0)")),
+        StatusCode::InvalidDescription, "data 'letterbox_padding'", "'letterbox'");
+}
+
+/** @brief Tests that a padding byte above 255 is refused. */
+TEST_F(Small_DatasetsReaderSection, APaddingAbove255IsRefused)
+{
+    add_split(yolo_split());
+
+    SA_EXPECT_FAILURE(
+        build_in_memory(section_in_memory(R"(, "reader": "yolo_txt", "task": "detection",
+            "split": "train", "batch_size": 2, "input": [4, 4], "max_objects": 2,
+            "classes": 3, "letterbox_padding": 256)")),
+        StatusCode::InvalidDescription, "data 'letterbox_padding'", "[0, 255]");
 }

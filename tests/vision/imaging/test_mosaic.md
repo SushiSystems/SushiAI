@@ -94,6 +94,12 @@ Over 5000 seeds at image size 640 both centre coordinates lie in 320 to 959. The
 At image size 5 the centres of 400 seeds are exactly the values 3, 4, 5 and 6 on both axes. The
 reference computes the border as -5 // 2, which is -3, so the range is `int(uniform(3, 7))`.
 
+## DrawOnARectangleTakesTheRowFromTheHeightAndTheColumnFromTheWidth
+
+At 320 by 640, a replica of the generator makes the three partner draws and the gate, then
+`int(uniform(160, 480))` for the row and `int(uniform(320, 960))` for the column; the draw holds
+those two centres.
+
 ## GateOpensWithItsProbability
 
 At probability 0.25 the draw is enabled for 0.25 of 4000 seeds, within `mean_tolerance(1, 4000)`.
@@ -109,6 +115,11 @@ The plan's `fill_value` is 9 when the settings say 9 and 114 by default.
 ## CanvasIsTwiceTheSizeOfTheTrainingSize
 
 The canvas is 16 by 16 with three channels.
+
+## CanvasOfARectangleIsTwiceEachOfItsSides
+
+The low plan at a training size of `K_SIDE` by twice `K_SIDE` gives a canvas of 16 by 32, and its
+right edge, which no patch reaches, holds the fill value.
 
 ## UncoveredCanvasTakesTheFillValue
 

@@ -32,6 +32,7 @@ Each test file has a page beside it that says what its cases pin.
 | `test_yolo_txt.cpp` | [`test_yolo_txt.md`](test_yolo_txt.md) |
 | `test_batch_inputs.cpp, test_classification_collator.cpp, test_detection_collator.cpp` | [`test_batch_inputs.md`](test_batch_inputs.md) |
 | `test_pipeline_table.cpp, test_fit_pipeline.cpp, test_augment_pipeline.cpp` | [`test_pipeline_table.md`](test_pipeline_table.md) |
+| `test_darknet_pipeline.cpp` | [`test_darknet_pipeline.md`](test_darknet_pipeline.md) |
 | `test_binary_collator.cpp, test_multi_label_collator.cpp, test_regression_collator.cpp, test_segmentation_collator.cpp` | [`test_binary_collator.md`](test_binary_collator.md) |
 | `test_collator.cpp` | [`test_collator.md`](test_collator.md) |
 | `test_fitted_sample.cpp` | [`test_fitted_sample.md`](test_fitted_sample.md) |

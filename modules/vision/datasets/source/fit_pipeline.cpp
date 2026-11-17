@@ -79,7 +79,8 @@ namespace SushiAI::Vision::Datasets
 
     Result<std::unique_ptr<FitPipeline>> FitPipeline::make(const SampleFitOptions& fit,
                                                            std::int32_t channels,
-                                                           const ByteSource* source) noexcept
+                                                           const ByteSource* source,
+                                                           bool decode_masks) noexcept
     {
         SA_FAIL_IF(!Imaging::is_valid_size(fit.size), StatusCode::InvalidDescription,
                    "{}: an input of {} by {} pixels is outside the bounds of an image",
@@ -89,13 +90,15 @@ namespace SushiAI::Vision::Datasets
         {
             return std::unique_ptr<FitPipeline>(new FitPipeline(fit, channels,
                                                   source != nullptr ? *source
-                                                                    : Detail::file_system()));
+                                                                    : Detail::file_system(),
+                                                  decode_masks));
         });
     }
 
     FitPipeline::FitPipeline(const SampleFitOptions& fit, std::int32_t channels,
-                             const ByteSource& source) noexcept
-        : fit_(fit), decoding_(decoding_of(channels)), source_(&source)
+                             const ByteSource& source, bool decode_masks) noexcept
+        : fit_(fit), decoding_(decoding_of(channels)), source_(&source),
+          decode_masks_(decode_masks)
     {
 
     }
@@ -134,8 +137,11 @@ namespace SushiAI::Vision::Datasets
 
                 SA_TRY(SA_ANNOTATE(fit_sample(record, loaded.view(), fit_, fitted[row]), "'{}'",
                                    Detail::display_of(file)));
-                SA_TRY(fit_mask_of(list, samples[row], loaded.size(), fit_, mask, fitted[row],
-                                   *source_));
+                if (decode_masks_)
+                {
+                    SA_TRY(fit_mask_of(list, samples[row], loaded.size(), fit_, mask,
+                                       fitted[row], *source_));
+                }
             }
 
             return Status();

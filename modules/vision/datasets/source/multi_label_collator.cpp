@@ -51,7 +51,8 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_COLLATOR = "MultiLabelCollator";
     } // namespace
 
-    Result<std::unique_ptr<MultiLabelCollator>> MultiLabelCollator::make(std::int32_t class_count) noexcept
+    Result<std::unique_ptr<MultiLabelCollator>> MultiLabelCollator::make(
+        std::int32_t class_count, const Config::InputNormalise& normalise) noexcept
     {
         SA_FAIL_IF(class_count < 1, StatusCode::InvalidDescription,
                    "{}: {} classes; there must be at least 1", K_COLLATOR, class_count);
@@ -59,12 +60,13 @@ namespace SushiAI::Vision::Datasets
         return Detail::at_boundary(
             K_COLLATOR, [&]() -> Result<std::unique_ptr<MultiLabelCollator>>
         {
-            return std::unique_ptr<MultiLabelCollator>(new MultiLabelCollator(class_count));
+            return std::unique_ptr<MultiLabelCollator>(new MultiLabelCollator(class_count, normalise));
         });
     }
 
-    MultiLabelCollator::MultiLabelCollator(std::int32_t class_count)
-        : class_count_(class_count),
+    MultiLabelCollator::MultiLabelCollator(std::int32_t class_count,
+                                       const Config::InputNormalise& normalise)
+        : class_count_(class_count), normalise_(normalise),
           targets_{Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{class_count},
                                            DType::Float32, 0}}
     {
@@ -88,7 +90,7 @@ namespace SushiAI::Vision::Datasets
         const std::size_t classes = static_cast<std::size_t>(class_count_);
         const std::int64_t flags = static_cast<std::int64_t>(samples.size()) * class_count_;
 
-        SA_TRY(write_batch_inputs(samples, batch.inputs));
+        SA_TRY(write_batch_inputs(samples, batch.inputs, normalise_));
         SA_TRY_ASSIGN(SushiBLAS::Tensor* const labels,
                       Detail::role_tensor(batch, Data::K_ROLE_LABELS, DType::Float32, flags,
                                           K_COLLATOR));

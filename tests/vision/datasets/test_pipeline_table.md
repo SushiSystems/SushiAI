@@ -15,14 +15,25 @@ are `Medium_`. They read four raw RGB images of the sizes 20 by 16, 16 by 20, 16
 temporary directory; sample i holds one object of class i. The training pipelines have a size
 of 16 and the seed 20261011.
 
-## ItListsNoneThenDefault
+## ItListsNoneDefaultThenDarknet
 
-`pipeline_table` has two rows, named "none" and then "default".
+`pipeline_table` has three rows, named "none", "default" and then "darknet".
+
+## OnlyTheDarknetRowListsKeys
+
+The "none" and "default" rows list no key. The "darknet" row lists `jitter`, `hue`, `saturation`
+and `exposure`, in that order.
+
+## TheDarknetRowRefusesAKeyItCannotUse
+
+The "darknet" row builds a pipeline from a section of the four keys as numbers. A `jitter` of
+"wide" fails with `InvalidDescription` and "data 'jitter'"; a `jitter` of 0.5 with "the jitter is
+0.5"; an `exposure` of 0.9 with "the exposure 0.9".
 
 ## FindPipelineFindsEachNameInTheTable
 
-`Small_DatasetsPipelineTableName`, one row each for "none" and "default": `find_pipeline`
-returns the row of that name.
+`Small_DatasetsPipelineTableName`, one row each for "none", "default" and "darknet":
+`find_pipeline` returns the row of that name.
 
 ## AnUnknownNameFindsNoRow
 
@@ -33,11 +44,14 @@ returns the row of that name.
 For the same rows and a request of 16 by 16 and three channels, the row's `make` gives a
 pipeline whose `name` is the row's name.
 
-## DefaultRefusesAnInputItDoesNotMake
+## DefaultRefusesAnInputOfOneChannel
 
-`Small_DatasetsPipelineTableRefusal`, one row each: the "default" row fails with
-`InvalidDescription` and "'default'" for a size of 4 by 6 ("square", "4 by 6") and for one
-channel ("3 channels", "has 1").
+The "default" row fails with `InvalidDescription`, "'default'", "3 channels" and "has 1" for a
+request of 4 by 4 and one channel.
+
+## DefaultBuildsForANonSquareInput
+
+The "default" row builds its pipeline for a request of 4 by 6 and three channels.
 
 ## AFittedSampleHasTheInputSizeAndThreeChannels
 
@@ -96,6 +110,11 @@ For the sample rows, each sample is given a mask of its image's size that holds 
 epoch 1 the produced mask is 16 by 16 with one channel, and each byte is below 4 or is
 `K_MASK_VOID`.
 
+## ARectangularSizeGivesAnImageAndAMaskOfThatSize
+
+An `AugmentPipeline` at 8 by 16, over the four images with masks, makes sample 0 in epoch 1 as
+an image and a mask of 8 by 16.
+
 ## AnImageThatCannotBeReadIsTheFailure
 
 `Medium_DatasetsAugmentPipeline`. With the file of sample 1 replaced by a path that does not
@@ -104,7 +123,7 @@ exist, `produce` fails with `FileNotFound` and "gone.saim".
 ## MakeRefusesWhatItCannotBuild
 
 `Small_DatasetsAugmentPipelineMakeRefusal`, one row each: `AugmentPipeline::make` fails with
-`InvalidDescription` for a size of 0 ("AugmentPipeline", "a training size of 0") and for -1
+`InvalidDescription` for a size of 0 ("AugmentPipeline", "a training size of 0x0") and for -1
 mosaic epochs ("-1 epochs of mosaic").
 
 ## ProduceRefusesANegativeEpoch

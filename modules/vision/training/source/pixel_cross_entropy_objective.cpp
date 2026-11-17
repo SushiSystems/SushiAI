@@ -29,7 +29,6 @@
 
 #include <SushiAI/vision/training/pixel_cross_entropy_objective.hpp>
 
-#include <limits>
 #include <utility>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -44,16 +43,10 @@
 
 namespace SushiAI::Vision::Training
 {
-    namespace
-    {
-        /** @brief Holds the largest index K_GATHER_ROWS addresses a table row by. */
-        constexpr std::int64_t K_LARGEST_INDEX = std::numeric_limits<std::int32_t>::max();
-    } // namespace
-
     Result<std::unique_ptr<PixelCrossEntropyObjective>> PixelCrossEntropyObjective::make(
         const PixelExtents& extents, std::int32_t ignore_index, DType dtype) noexcept
     {
-        SA_TRY(Detail::validate_pixel_objective(extents, ignore_index, dtype, K_LARGEST_INDEX,
+        SA_TRY(Detail::validate_pixel_objective(extents, ignore_index, dtype,
                                                 K_PIXEL_CROSS_ENTROPY_TYPE));
 
         return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
@@ -75,6 +68,8 @@ namespace SushiAI::Vision::Training
                                              Train::ObjectiveLeaves& leaves) const
     {
         const std::int64_t pixels = extents_.pixels();
+
+        // The leaf holds each pixel's label, the ignore index included; TAKE_ALONG reads it as 0.
         leaves.add(K_PIXEL_TARGETS_LEAF,
                    builder.input(Shape{pixels}, K_PIXEL_TARGETS_LEAF, DType::Int32));
         leaves.add(K_PIXEL_WEIGHTS_LEAF,
@@ -82,19 +77,30 @@ namespace SushiAI::Vision::Training
         leaves.require(Detail::describe_mask_role(extents_));
     }
 
-    Result<Graph::ValueID> PixelCrossEntropyObjective::loss(
+    Result<Train::LossTrace> PixelCrossEntropyObjective::loss(
         const Graph::GraphBuilder& builder, const Graph::Graph& graph,
         const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
         SA_TRY_ASSIGN(const Graph::ValueID rows,
-                      Detail::emit_pixel_rows(builder, graph, outputs, extents_,
+                      Detail::emit_pixel_rows(builder, outputs, extents_,
                                               K_PIXEL_CROSS_ENTROPY_TYPE));
         SA_TRY_ASSIGN(const Graph::ValueID loss,
                       emit_pixel_cross_entropy(builder, graph, rows,
                                                leaves.at(K_PIXEL_TARGETS_LEAF),
                                                leaves.at(K_PIXEL_WEIGHTS_LEAF)));
 
-        return loss;
+        Train::LossTrace trace(loss);
+        trace.add(Detail::K_PIXEL_ROWS_VALUE, rows);
+
+        return trace;
+    }
+
+    Result<NN::ModelOutputs> PixelCrossEntropyObjective::declare_metric_values(
+        const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+        const Train::LossTrace& trace) const
+    {
+        return Detail::declare_pixel_classes(builder, outputs, trace, extents_,
+                                             K_PIXEL_CROSS_ENTROPY_TYPE);
     }
 
     Status PixelCrossEntropyObjective::feed(const Data::Batch& batch,
@@ -103,12 +109,12 @@ namespace SushiAI::Vision::Training
     {
         SA_TRY_ASSIGN(const Data::BatchTarget* const mask,
                       Train::require_batch_role(batch, Data::K_ROLE_MASK));
-        SA_TRY_ASSIGN(SushiBLAS::Tensor* const indices,
+        SA_TRY_ASSIGN(SushiBLAS::Tensor* const labels,
                       Train::find_leaf_tensor(leaves, K_PIXEL_TARGETS_LEAF, pool));
         SA_TRY_ASSIGN(SushiBLAS::Tensor* const weights,
                       Train::find_leaf_tensor(leaves, K_PIXEL_WEIGHTS_LEAF, pool));
 
-        return fill_pixel_targets(mask->values, extents_.classes, ignore_index_, *indices,
+        return fill_pixel_targets(mask->values, extents_.classes, ignore_index_, *labels,
                                   *weights);
     }
 

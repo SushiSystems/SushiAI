@@ -37,13 +37,13 @@ With `labels.json` and the folder `pictures` named, the first sample is `picture
 
 ## APolygonIsKeptOnlyWhenAskedFor
 
-By default the object holds no outline; with `COCOSegmentation::Polygons` it holds one of four
-vertices.
+By default the object holds no outline; with `COCOSegmentation::Polygons` it holds one of two
+parts, the second of four vertices.
 
-## TheLargestPartOfAPolygonIsTaken
+## EveryPartOfAPolygonIsKept
 
-Of a three-vertex and a four-vertex part, the outline is the four-vertex one, and its third vertex
-is (100 / 200, 50 / 100).
+Of a three-vertex and a four-vertex part, the outline holds both, in file order. The third vertex of
+the first is (2 / 200, 2 / 100) and the third vertex of the second is (100 / 200, 50 / 100).
 
 ## ARunLengthMaskIsAcceptedByDefault
 
@@ -110,7 +110,8 @@ compared exactly) as one that lists images, categories, annotations.
 ## AnAnnotationListedBeforeItsImageStillReachesIt
 
 With the categories and the images before the annotation, image 4 (the second sample) holds one
-object of class 2 with an outline of four vertices, and the first sample holds none.
+object of class 2 with an outline of two parts, the second of four vertices, and the first
+sample holds none.
 
 ## AListStatedTwiceIsRefused
 

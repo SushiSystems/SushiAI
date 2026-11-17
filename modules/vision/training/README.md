@@ -38,9 +38,9 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/free_assignment_stage.hpp>` | `FreeLeafKind`, `FreeLeaf`, `FreeLevelViews`, `FreeAssignmentStage` |
 | `<SushiAI/vision/training/free_batch_decoder.hpp>` | `FreeLevelLogits`, `FreeBatchDecoder` |
 | `<SushiAI/vision/training/free_detection_loss.hpp>` | `FreeLossValues`, `FreeLossTermIDs`, `emit_free_detection_loss` |
-| `<SushiAI/vision/training/free_detection_loss_host.hpp>` | `evaluate_free_detection_loss` |
+| `<SushiAI/vision/training/free_loss_terms.hpp>` | `FreeLossTerms` |
 | `<SushiAI/vision/training/free_loss_gains.hpp>` | `FreeLossGains`, `K_FREE_LOSS_GAIN_KEYS`, `validate_free_loss_gains`, `read_free_loss_gains` |
-| `<SushiAI/vision/training/free_objective.hpp>` | `K_FREE_OBJECTIVE_TYPE`, `K_FREE_PROJECTION_ROLE`, `FreeObjective`, `add_free_loss_metrics` |
+| `<SushiAI/vision/training/free_objective.hpp>` | `K_FREE_OBJECTIVE_TYPE`, `K_FREE_PROJECTION_ROLE`, `K_FREE_BOX_VALUE`, `K_FREE_CLASSES_VALUE`, `K_FREE_DISTRIBUTION_VALUE`, `K_FREE_L1_VALUE`, `FreeObjective`, `add_free_loss_metrics` |
 | `<SushiAI/vision/training/free_objective_factory.hpp>` | `build_free_objective`, `make_free_objective` |
 | `<SushiAI/vision/training/free_training_step.hpp>` | `FreeTrainingStep` |
 | `<SushiAI/vision/training/free_training_loop.hpp>` | `FreeProgress`, `FreeUpdateHook`, `FreeLoopOptions`, `FreeRunReport`, `run_free_training` |
@@ -64,7 +64,7 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/pixel_targets.hpp>` | `fill_pixel_targets` |
 | `<SushiAI/vision/training/dice_targets.hpp>` | `DiceLeaves`, `fill_dice_targets` |
 | `<SushiAI/vision/training/pixel_losses.hpp>` | `K_DICE_EPSILON`, `emit_pixel_cross_entropy`, `DiceOperands`, `emit_soft_dice` |
-| `<SushiAI/vision/training/segmentation_metrics.hpp>` | `K_MEAN_IOU_METRIC`, `K_PIXEL_ACCURACY_METRIC`, `measure_segmentation` |
+| `<SushiAI/vision/training/segmentation_metrics.hpp>` | `K_MEAN_IOU_METRIC`, `K_PIXEL_ACCURACY_METRIC`, `K_PIXEL_CLASSES_VALUE`, `measure_segmentation` |
 | `<SushiAI/vision/training/pixel_cross_entropy_objective.hpp>` | `K_PIXEL_CROSS_ENTROPY_TYPE`, `K_PIXEL_TARGETS_LEAF`, `K_PIXEL_WEIGHTS_LEAF`, `PixelCrossEntropyObjective`, `make_pixel_cross_entropy_objective` |
 | `<SushiAI/vision/training/dice_objective.hpp>` | `K_DICE_TYPE`, the five `K_DICE_*_LEAF` names, `DiceObjective`, `make_dice_objective` |
 
@@ -79,9 +79,18 @@ weights are leaves the step writes, so the step compiles once. Each copy has its
 `FreeAssignmentStage`: the one-to-one stage reads the task's `one_to_one` assigner and names its
 leaves `free.one_to_one.<kind>`. `FreeTrainingStep` splits the step at the ports: the host stage runs
 `FreeAssignmentStage` over the batch's truth and writes the loss leaves and the bin values, then
-the loss graph, its backward and the optimiser run. The host stage also evaluates the loss terms
-in double for the metrics, since the graph keeps no term values. `run_free_training` drives the
-step over the epochs, and a fresh run without weights starts the head's last biases. The stage and `FreeBatchDecoder`
+the loss graph, its backward and the optimiser run. The graph keeps the four terms: `FreeObjective`
+declares them as metric values (`free.box`, `free.classes`, `free.distribution`, `free.l1`; the last
+two only when `reg_max` and `l1_gain` leave them on), each before its gain and, with a one-to-one
+copy, mixed by the same two weights as the total, and the step reads them and the loss from its
+pool after the run. `loss` keeps each term in the `Train::LossTrace` it returns, under the name
+it is published by and, for the one-to-one copy, under that name with `.one_to_one` and beside the
+two weight leaves, and `declare_metric_values` reads them from the trace it is handed, so the
+objective holds no state between the two calls; an evaluation graph passes an empty trace and
+gets no term. The double oracle of the loss, `evaluate_free_detection_loss`, is a test helper in
+`tests/support/free_detection_loss_host.hpp`. `run_free_training` matches the dataset against
+`FreeTrainingStep::input_description()` with `Train::match_input` before it checks the run, then
+drives the step over the epochs, and a fresh run without weights starts the head's last biases. The stage and `FreeBatchDecoder`
 return `InvalidDescription` on a NaN or an infinity in a port value or a valid truth box, naming the
 level and index.
 
@@ -193,8 +202,8 @@ or a box against the image; `AnchorTrainingStep::run` and `validate_head_truth` 
 | `tests/vision/training/test_detection_run_check.cpp` | The epochs, the first batch, the batch size, the schedule and the roles of a run, and the plan copied from loop options. Reads no batch |
 | `tests/vision/training/test_run_progress.cpp` | An empty callback, one call with the progress, a throw returned as a failure |
 | `tests/vision/training/test_pixel_targets.cpp` | The label check, the indices and weights of the cross entropy, the five Dice leaves, a mask with no kept pixel, the refusals and that a refused fill writes nothing. Needs an engine |
-| `tests/vision/training/test_pixel_cross_entropy_objective.cpp`, `test_dice_objective.cpp`, `test_pixel_extents.cpp` | What `make` keeps and refuses, the INT32 bound at 54 and 55 images of 512 by 512 over 150 classes, the leaves, the nodes of both losses, both factories and what they refuse |
-| `tests/vision/training/test_segmentation_metrics.cpp` | Mean IoU and pixel accuracy of one step by hand, and the steps refused. Needs an engine |
+| `tests/vision/training/test_pixel_cross_entropy_objective.cpp`, `test_dice_objective.cpp`, `test_pixel_extents.cpp` | What `make` keeps and refuses, that 54 and 55 images of 512 by 512 over 150 classes are both accepted, the leaves, the nodes of both losses, both factories and what they refuse |
+| `tests/vision/training/test_segmentation_metrics.cpp` | Mean IoU and pixel accuracy of one step from its class value by hand, 4100 classes, and the steps refused. Needs an engine |
 | `tests/vision/training/test_pixel_cross_entropy_objective.cpp` (root) | Both losses and their gradients at the logits against the host, a mask of ignored pixels alone, a label out of bounds |
 | `tests/vision/training/test_pixel_cross_entropy_objective.cpp` (root) | Two convolutions and a `SegmentHead` fitting one batch through `Train::Trainer` |
 | `tests/vision/training/test_head_delta_loss.cpp` (root) | The gradient at the head on an engine |
@@ -276,21 +285,31 @@ outputs into leaves. Three checks do not differ, and each lives in one file that
 
 Both objectives read one NHWC `[N, H, W, C]` output, the logits, and the role `mask`, `[N, H, W]`
 int32, in which a pixel holds a class in `[0, C)` or the ignore index. `R` below is `N * H * W`.
-The logits are viewed as `[R, C]` rows by a `RESHAPE`; no value is copied. Both are made with a
+The logits are viewed as `[R, C]` rows by a `RESHAPE`; no value is copied. The loss and the
+`pixel_classes` metric value read the same rows: `loss` emits the `RESHAPE` once and keeps it in
+its `Train::LossTrace` under `pixel.rows`, and `declare_metric_values` reads it from the trace it
+is handed, so a training graph carries one. An evaluation graph has no loss and passes an empty
+trace, so the hook emits the rows itself. Both are made with a
 `PixelExtents`, an ignore index, 255 by default, and the element type of their real leaves,
 which must be the type of the logits. An ignore index inside `[0, C)` is refused.
 
 `feed` checks every label with `validate_pixel_labels` before it writes a leaf, so a batch
 with a label at or above `C` that is not the ignore index stops the step as `Incompatible`
 with the pixel named, and the leaves keep the last batch. The check matters beyond the
-message: SushiBLAS reads outside the table for an index out of range (`core/graph` README).
+message: a label outside `[0, C)` that is not the ignore index would be read as an ignored pixel
+and lose its loss without a word.
 
-`measure` appends `mean_iou` and `pixel_accuracy` through `measure_segmentation`. It picks the
-class of each pixel on the host, 4096 pixels at a time, into a `Segment::ConfusionMatrix`
-built for the step. That is `R * C` host reads per step: 39 million for one 512 by 512 image
-over 150 classes. `TrainerOptions::track_metrics` turns it off. The numbers are those of the
-training batch under batch statistics, not of a validation pass. A model of more than 4096
-classes trains and fails at its first `measure`.
+Both objectives publish the class of each pixel through `declare_metric_values`: the
+`[R, C]` rows go through `argmax_rows`, which writes an int64 `[R]` value, the lowest class on a
+tie, and the step keeps it under `pixel_classes` (`K_PIXEL_CLASSES_VALUE`). `measure` appends
+`mean_iou` and `pixel_accuracy` through `measure_segmentation`, which adds the value and the mask
+to a `Segment::ConfusionMatrix` built for the step; no logit is read on the host. The device
+computes the argmax in the replay of every step, so `R * C` reads happen there whether or not
+`TrainerOptions::track_metrics` is set. The numbers are those of the training batch under batch
+statistics, not of a validation pass. The matrix is `C * C` int64 counts, so a model of 4100
+classes holds 134 MB for the metrics; `make` refuses only a count whose matrix no host can
+address, naming it. A class value outside `[0, C)` at a counted pixel stops `measure` as
+`Incompatible` with the pixel named.
 
 ### pixel_cross_entropy
 
@@ -299,27 +318,27 @@ each pixel's class:
 
 ```
 log_p   = LOG_SOFTMAX(logits as [R, C])
-picked  = GATHER_ROWS(log_p as [R * C, 1], targets)        [R, 1]
-loss    = -SUM_ROWS(picked * weights)                      [1]
+picked  = TAKE_ALONG(log_p, targets)                        [R]
+loss    = -SUM_ROWS(picked as [R, 1] * weights)            [1]
 ```
 
 | Leaf | Shape | `fill_pixel_targets` writes |
 | --- | --- | --- |
-| `targets` | int32 `[R]` | `r * C + mask[r]` for a kept pixel, `r * C` for an ignored one |
+| `targets` | int32 `[R]` | `mask[r]`, the ignore index included |
 | `weights` | real `[R, 1]` | `1 / kept` for a kept pixel, 0 for an ignored one |
 
-The one weight leaf carries both the masking and the divisor. An ignored pixel still gathers a
-log-probability, the first of its row, so that its index is valid; the zero weight removes it
-from the sum and from the gradient. With the divisor in the leaf the graph needs no scalar
+The one weight leaf carries both the masking and the divisor. An ignored pixel keeps the ignore
+index in `targets`, which lies outside `[0, C)`, so `TAKE_ALONG` reads it as zero and
+`PUT_ALONG` writes nothing for it in the gradient; the zero weight is still needed, since it also
+carries the divisor. With the divisor in the leaf the graph needs no scalar
 leaf and no `DYNAMIC_SCALE`. Beside the next-token form, the cost is one `[R, 1]` real leaf,
 4 bytes a pixel in float32, and one `[R, 1]` `MUL`. `1 / kept` is rounded once to the leaf's
 type, a relative error of about 6e-8 in float32. A mask with no kept pixel gives a loss of 0
 and a gradient of zeros.
 
-`GATHER_ROWS` takes an int32 index into `R * C` rows, so `N * H * W * C` may not exceed
-2 147 483 647. `make` refuses a larger product as `InvalidDescription`. One 512 by 512 image
-over 150 classes is 39 321 600 scores, so the largest batch at that size is 54 images; at 1024
-by 1024 over 19 classes it is 107.
+`TAKE_ALONG` indexes a column of one row, so no product `R * C` is an index and `make` refuses no
+size of the batch: 55 images of 512 by 512 over 150 classes, 2 162 688 000 scores, build. The
+refusal of `N * H * W * C` above 2 147 483 647 went with the table of `R * C` single rows.
 
 ### dice
 
@@ -328,16 +347,15 @@ classes present, a class being present when a kept pixel holds it:
 
 ```
 p       = softmax(logits as [R, C])
-picked  = GATHER_ROWS(p as [R * C, 1], score_indices)       [R, 1]
-I[c]    = SCATTER_ADD_ROWS(picked * kept, class_indices)[c]  p of class c over its own kept pixels
+picked  = TAKE_ALONG(p, labels)                              [R]
+I[c]    = SCATTER_ADD_ROWS(picked as [R, 1], labels)[c]      p of class c over its own kept pixels
 P[c]    = MATMUL(kept transposed, p)[c]                      p of class c over every kept pixel
 loss    = SUM_ROWS(class_weights * (1 - 2 I / (P + class_pixels + 1e-6)))
 ```
 
 | Leaf | Shape | `fill_dice_targets` writes |
 | --- | --- | --- |
-| `score_indices` | int32 `[R]` | `r * C + mask[r]` for a kept pixel, `r * C` for an ignored one |
-| `class_indices` | int32 `[R]` | `mask[r]` for a kept pixel, 0 for an ignored one |
+| `labels` | int32 `[R]` | `mask[r]`, the ignore index included |
 | `kept` | real `[R, 1]` | 1 for a kept pixel, 0 for an ignored one |
 | `class_pixels` | real `[C]` | The kept pixels of each class |
 | `class_weights` | real `[C]` | `1 / present` for a present class, 0 for an absent one |
@@ -349,17 +367,23 @@ no kept pixel gives a loss of 0.
 Dice is its own objective and not a term of `pixel_cross_entropy`: each of the two has its own
 leaves and its own fill. A file trains on both through the `sum` objective of `layers/train`,
 which adds the losses of its terms with stated weights and reports `mean_iou` and
-`pixel_accuracy` once, from its first term.
+`pixel_accuracy` once, from its first term: both objectives state those two names through
+`metric_names()`, so the sum measures the second term not at all (RW-76).
 
-An ignored pixel gathers the first probability of its row and names class 0, so both of its
-indices are valid; its `kept` of 0 zeroes the gathered value before the scatter-add and removes
-it from the gradient. `score_indices` is the index `write_score_indices` also writes for the
-cross entropy's `targets`.
+An ignored pixel keeps the ignore index in `labels`, outside `[0, C)`: `TAKE_ALONG` reads its
+probability as zero and `SCATTER_ADD_ROWS` skips its row, so it adds to no class and takes no
+gradient. `kept` is read once, by the `MATMUL` that sums the probabilities of each class over the
+kept pixels. The one `labels` leaf replaces the two index leaves the form with a gathered table
+needed, and the same leaf is the cross entropy's `targets`.
 
 No leaf holds `R * C` elements. For one 512 by 512 image over 150 classes in float32, `R` is
-262 144: the two index leaves and `kept` are 1 048 576 bytes each and the two class leaves 600
-bytes each, so `feed` writes 3 146 928 bytes a step. The gradient crosses the scatter-add
-through the `K_SCATTER_ADD_ROWS` rule of `core/autograd`, a row gather by `class_indices`.
+262 144: `labels` and `kept` are 1 048 576 bytes each and the two class leaves 600 bytes each, so
+`feed` writes 2 098 352 bytes a step. The gradient crosses the scatter-add through the
+`K_SCATTER_ADD_ROWS` rule of `core/autograd`, a row gather by `labels`, and the take through
+`K_PUT_ALONG`.
 
-`GATHER_ROWS` indexes `R * C` rows in int32, so the bound of the cross entropy holds here too:
-`make` refuses `N * H * W * C` above 2 147 483 647 as `InvalidDescription`.
+The class sums are `SCATTER_ADD_ROWS` of the picked probabilities, whose lowering walks the `R`
+pixels in one work-item because it has one right-hand column. `SUM_ALONG` of `PUT_ALONG` is the
+other form `docs/design/GRAPH_CAPABILITIES/GRAPH.md` (G6) names, parallel over `R * C` elements
+at the cost of an `[R, C]` device value. Neither was timed: no build has run since the two forms
+exist, so the scatter-add stays and the choice is open until a run measures both.

@@ -273,3 +273,8 @@ The same box without a polygon is removed at the default box ratio of 0.10.
 
 With a translation of 500, the object whose polygon leaves the output is removed and the one
 the translation moves into it is kept, with class 1 and the box (40, 10, 80, 50).
+
+## AnOutlineOfTwoPartsTakesTheBoxOfBothParts
+
+With scale 2 and translation (10, -5) in a 100 by 100 image, two triangles with corners (5, 10) and
+(25, 30) make the box (20, 15, 60, 55), and each part is warped by the same matrix.

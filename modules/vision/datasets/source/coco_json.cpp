@@ -219,7 +219,7 @@ namespace SushiAI::Vision::Datasets
             std::int64_t image_id = 0;               /**< Holds "image_id". */
             std::int64_t category_id = 0;            /**< Holds "category_id". */
             std::array<double, K_BOX_NUMBERS> box{}; /**< Holds "bbox". */
-            Imaging::Polygon outline;                /**< Holds the outline, once resolved. */
+            Imaging::Outline outline;                /**< Holds the outline, once resolved. */
             bool has_image_id = false;               /**< Says "image_id" is a whole number. */
             bool has_category_id = false;            /**< Says "category_id" is one. */
             bool is_crowd = false;                   /**< Says "iscrowd" is a nonzero whole. */
@@ -258,57 +258,35 @@ namespace SushiAI::Vision::Datasets
             return annotation.is_crowd || annotation.box[2] <= 0.0 || annotation.box[3] <= 0.0;
         }
 
-        /** @brief Returns twice the area an outline encloses, by the sum over its edges. */
-        [[nodiscard]] double doubled_area(const Imaging::Polygon& outline) noexcept
-        {
-            double sum = 0.0;
-
-            for (std::size_t vertex = 0; vertex < outline.size(); ++vertex)
-            {
-                const Imaging::Point& a = outline[vertex];
-                const Imaging::Point& b = outline[(vertex + 1) % outline.size()];
-                sum += static_cast<double>(a.x) * b.y - static_cast<double>(b.x) * a.y;
-            }
-
-            return sum < 0.0 ? -sum : sum;
-        }
-
         /**
-         * @brief Returns the part of the largest area, in fractions of the image.
+         * @brief Returns every part, in fractions of the image, in file order.
          * @param numbers Holds the pixel coordinates of every part, joined.
-         * @param part_ends Holds where each part ends in @p numbers; the first part of the
-         *                  largest area wins.
+         * @param part_ends Holds where each part ends in @p numbers.
          */
-        [[nodiscard]] Imaging::Polygon largest_outline(const std::vector<double>& numbers,
-                                                       const std::vector<std::size_t>& part_ends,
-                                                       const Extent& extent)
+        [[nodiscard]] Imaging::Outline outline_of_parts(const std::vector<double>& numbers,
+                                                        const std::vector<std::size_t>& part_ends,
+                                                        const Extent& extent)
         {
-            Imaging::Polygon largest;
-            double largest_area = -1.0;
+            Imaging::Outline outline;
+            outline.reserve(part_ends.size());
             std::size_t begin = 0;
 
             for (const std::size_t end : part_ends)
             {
-                Imaging::Polygon outline;
-                outline.reserve((end - begin) / 2);
+                Imaging::Polygon part;
+                part.reserve((end - begin) / 2);
                 for (std::size_t number = begin; number < end; number += 2)
                 {
-                    outline.push_back(
+                    part.push_back(
                         Imaging::Point{static_cast<float>(numbers[number] / extent.width),
                                        static_cast<float>(numbers[number + 1] / extent.height)});
                 }
 
-                const double area = doubled_area(outline);
-                if (area > largest_area)
-                {
-                    largest_area = area;
-                    largest = std::move(outline);
-                }
-
+                outline.push_back(std::move(part));
                 begin = end;
             }
 
-            return largest;
+            return outline;
         }
 
         /**
@@ -653,8 +631,8 @@ namespace SushiAI::Vision::Datasets
                     const auto extent = extents_.find(annotation.image_id);
                     if (extent != extents_.end())
                     {
-                        annotation.outline = largest_outline(numbers_, part_ends_,
-                                                             extent->second);
+                        annotation.outline = outline_of_parts(numbers_, part_ends_,
+                                                              extent->second);
                         return;
                     }
 
@@ -1044,13 +1022,13 @@ namespace SushiAI::Vision::Datasets
                 const Extent& extent = resolved.extents[image];
                 const std::array<double, K_BOX_NUMBERS>& box = annotation.box;
 
-                Imaging::Polygon polygon;
+                Imaging::Outline outline;
                 if (segmentation == COCOSegmentation::Polygons)
                 {
                     SA_TRY(check_outline(annotation.segmentation, entry));
-                    polygon = waiting == nullptr
+                    outline = waiting == nullptr
                                   ? std::move(annotation.outline)
-                                  : largest_outline(waiting->numbers, waiting->part_ends, extent);
+                                  : outline_of_parts(waiting->numbers, waiting->part_ends, extent);
                 }
 
                 Imaging::NormalizedBox fraction;
@@ -1060,7 +1038,7 @@ namespace SushiAI::Vision::Datasets
                 fraction.height = static_cast<float>(box[3] / extent.height);
 
                 list.samples[image].objects.add(static_cast<std::int32_t>(class_index), fraction,
-                                                std::move(polygon));
+                                                std::move(outline));
             }
 
             return Status();

@@ -14,6 +14,7 @@ endif()
 sushiai_add_test_program(OWNER vision/training
     SOURCES
         compile_anchor_head.cpp
+        compile_free_loss_terms.cpp
         test_anchor_bias_init.cpp
         test_anchor_objective.cpp
         test_anchor_objective_factory.cpp
@@ -31,7 +32,8 @@ sushiai_add_test_program(OWNER vision/training
         test_free_bias_init.cpp
         test_free_branch_weights.cpp
         test_free_detection_loss.cpp
-        test_free_detection_loss_host.cpp
+        ../../support/free_detection_loss_host.cpp
+        ../../support/test_free_detection_loss_host.cpp
         test_free_loss_gains.cpp
         test_free_model_facts.cpp
         test_free_objective.cpp

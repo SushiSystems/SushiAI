@@ -51,7 +51,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Result<std::unique_ptr<ClassificationCollator>> ClassificationCollator::make(
-        std::int32_t class_count) noexcept
+        std::int32_t class_count, const Config::InputNormalise& normalise) noexcept
     {
         SA_FAIL_IF(class_count < 1, StatusCode::InvalidDescription,
                    "{}: {} classes; there must be at least 1", K_COLLATOR, class_count);
@@ -60,12 +60,13 @@ namespace SushiAI::Vision::Datasets
             K_COLLATOR, [&]() -> Result<std::unique_ptr<ClassificationCollator>>
         {
             return std::unique_ptr<ClassificationCollator>(
-                new ClassificationCollator(class_count));
+                new ClassificationCollator(class_count, normalise));
         });
     }
 
-    ClassificationCollator::ClassificationCollator(std::int32_t class_count)
-        : class_count_(class_count),
+    ClassificationCollator::ClassificationCollator(std::int32_t class_count,
+                                               const Config::InputNormalise& normalise)
+        : class_count_(class_count), normalise_(normalise),
           targets_{Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{},
                                            DType::Int32, class_count}}
     {
@@ -86,7 +87,7 @@ namespace SushiAI::Vision::Datasets
                                            SushiRuntime::span<const FittedSample> samples,
                                            Data::Batch& batch) const
     {
-        SA_TRY(write_batch_inputs(samples, batch.inputs));
+        SA_TRY(write_batch_inputs(samples, batch.inputs, normalise_));
         SA_TRY_ASSIGN(SushiBLAS::Tensor* const labels,
                       Detail::role_tensor(batch, Data::K_ROLE_LABELS, DType::Int32,
                                           static_cast<std::int64_t>(samples.size()),

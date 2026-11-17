@@ -62,7 +62,8 @@ namespace SushiAI::Vision::Datasets
         if (collator != nullptr && Imaging::is_valid_size(options.fit.size))
         {
             SA_TRY_ASSIGN(std::unique_ptr<FitPipeline> fit,
-                          FitPipeline::make(options.fit, options.channels, options.source));
+                          FitPipeline::make(options.fit, options.channels, options.source,
+                                            collator->reads_mask()));
             pipeline = std::move(fit);
         }
 

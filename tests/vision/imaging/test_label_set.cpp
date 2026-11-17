@@ -116,8 +116,8 @@ TEST(Medium_ImagingLabelSet, ConstructorsRejectListsOfDifferentLengths)
 
     SA_EXPECT_FATAL(static_cast<void>(Labels({1, 2}, {box})), "LabelSet", "2 classes", "1 boxes");
     SA_EXPECT_FATAL(static_cast<void>(Labels({1}, {box, box})), "LabelSet", "1 classes", "2 boxes");
-    SA_EXPECT_FATAL(static_cast<void>(Labels({1, 2}, {box, box}, {Polygon{}})), "LabelSet",
-                    "1 polygons");
+    SA_EXPECT_FATAL(static_cast<void>(Labels({1, 2}, {box, box}, {Outline{}})), "LabelSet",
+                    "1 outlines");
     SA_EXPECT_FATAL(static_cast<void>(FileLabels({}, {NormalizedBox{}})), "LabelSet", "0 classes",
                     "1 boxes");
 }
@@ -129,9 +129,9 @@ TEST(Small_ImagingLabelSet, SetWithoutPolygonsHoldsOneEmptyPolygonPerObject)
                         {PixelBox{0.0f, 0.0f, 1.0f, 1.0f}, PixelBox{2.0f, 2.0f, 3.0f, 3.0f}});
 
     ASSERT_EQ(labels.size(), 2u);
-    ASSERT_EQ(labels.polygons().size(), 2u);
-    EXPECT_TRUE(labels.polygons()[0].empty());
-    EXPECT_TRUE(labels.polygons()[1].empty());
+    ASSERT_EQ(labels.outlines().size(), 2u);
+    EXPECT_TRUE(labels.outlines()[0].empty());
+    EXPECT_TRUE(labels.outlines()[1].empty());
 }
 
 /** @brief Tests that add grows the three lists together, with or without a polygon. */
@@ -145,10 +145,10 @@ TEST(Small_ImagingLabelSet, AddAppendsOneEntryToEachList)
     ASSERT_EQ(labels.size(), 2u);
     EXPECT_EQ(labels.classes(), (std::vector<std::int32_t>{5, 6}));
     ASSERT_EQ(labels.boxes().size(), 2u);
-    ASSERT_EQ(labels.polygons().size(), 2u);
-    EXPECT_TRUE(labels.polygons()[0].empty());
-    ASSERT_EQ(labels.polygons()[1].size(), 2u);
-    expect_point(labels.polygons()[1][1], 7.0f, 8.0f);
+    ASSERT_EQ(labels.outlines().size(), 2u);
+    EXPECT_TRUE(labels.outlines()[0].empty());
+    ASSERT_EQ(labels.outlines()[1][0].size(), 2u);
+    expect_point(labels.outlines()[1][0][1], 7.0f, 8.0f);
 }
 
 /** @brief Tests that keep_if removes an object's class, box and polygon together. */
@@ -168,12 +168,12 @@ TEST(Small_ImagingLabelSet, KeepIfRemovesAnObjectFromAllThreeLists)
     ASSERT_EQ(labels.size(), 2u);
     EXPECT_EQ(labels.classes(), (std::vector<std::int32_t>{2, 4}));
     ASSERT_EQ(labels.boxes().size(), 2u);
-    ASSERT_EQ(labels.polygons().size(), 2u);
+    ASSERT_EQ(labels.outlines().size(), 2u);
     expect_pixel_box(labels.boxes()[0], 0.0f, 0.0f, 2.0f, 2.0f);
     expect_pixel_box(labels.boxes()[1], 0.0f, 0.0f, 4.0f, 4.0f);
-    ASSERT_EQ(labels.polygons()[0].size(), 2u);
-    ASSERT_EQ(labels.polygons()[1].size(), 1u);
-    expect_point(labels.polygons()[1][0], 4.0f, 4.0f);
+    ASSERT_EQ(labels.outlines()[0][0].size(), 2u);
+    ASSERT_EQ(labels.outlines()[1][0].size(), 1u);
+    expect_point(labels.outlines()[1][0][0], 4.0f, 4.0f);
 }
 
 /** @brief Tests that to_pixel_labels converts every box and keeps classes and order. */
@@ -203,11 +203,11 @@ TEST(Small_ImagingLabelSet, ToPixelLabelsScalesVerticesByWidthAndHeight)
     const Labels pixels = to_pixel_labels(labels, K_SIZE);
 
     ASSERT_EQ(pixels.size(), 2u);
-    ASSERT_EQ(pixels.polygons()[0].size(), 3u);
-    expect_point(pixels.polygons()[0][0], 160.0f, 120.0f);
-    expect_point(pixels.polygons()[0][1], 480.0f, 120.0f);
-    expect_point(pixels.polygons()[0][2], 320.0f, 360.0f);
-    EXPECT_TRUE(pixels.polygons()[1].empty());
+    ASSERT_EQ(pixels.outlines()[0][0].size(), 3u);
+    expect_point(pixels.outlines()[0][0][0], 160.0f, 120.0f);
+    expect_point(pixels.outlines()[0][0][1], 480.0f, 120.0f);
+    expect_point(pixels.outlines()[0][0][2], 320.0f, 360.0f);
+    EXPECT_TRUE(pixels.outlines()[1].empty());
 }
 
 /** @brief Tests that to_normalized_labels converts boxes and vertices and keeps the order. */
@@ -224,10 +224,10 @@ TEST(Small_ImagingLabelSet, ToNormalizedLabelsKeepsClassesAndOrder)
     EXPECT_EQ(normalized.classes(), (std::vector<std::int32_t>{4, 9}));
     expect_normalized_box(normalized.boxes()[0], 0.25f, 0.5f, 0.25f, 0.5f);
     expect_normalized_box(normalized.boxes()[1], 0.5f, 0.25f, 0.5f, 0.25f);
-    ASSERT_EQ(normalized.polygons()[0].size(), 3u);
-    expect_point(normalized.polygons()[0][0], 0.125f, 0.25f);
-    expect_point(normalized.polygons()[0][1], 0.375f, 0.75f);
-    EXPECT_TRUE(normalized.polygons()[1].empty());
+    ASSERT_EQ(normalized.outlines()[0][0].size(), 3u);
+    expect_point(normalized.outlines()[0][0][0], 0.125f, 0.25f);
+    expect_point(normalized.outlines()[0][0][1], 0.375f, 0.75f);
+    EXPECT_TRUE(normalized.outlines()[1].empty());
 }
 
 /** @brief Tests that both conversions of a background image give an empty set. */
@@ -251,10 +251,10 @@ TEST(Small_ImagingLabelSet, ClipLabelsClipsBoxesAndVerticesAndRemovesNone)
     EXPECT_EQ(labels.classes(), (std::vector<std::int32_t>{1, 2}));
     expect_pixel_box(labels.boxes()[0], 0.0f, 20.0f, 640.0f, 480.0f);
     expect_pixel_box(labels.boxes()[1], 640.0f, 10.0f, 640.0f, 20.0f);
-    ASSERT_EQ(labels.polygons()[0].size(), 3u);
-    expect_point(labels.polygons()[0][0], 0.0f, 20.0f);
-    expect_point(labels.polygons()[0][1], 640.0f, 30.0f);
-    expect_point(labels.polygons()[0][2], 320.0f, 480.0f);
+    ASSERT_EQ(labels.outlines()[0][0].size(), 3u);
+    expect_point(labels.outlines()[0][0][0], 0.0f, 20.0f);
+    expect_point(labels.outlines()[0][0][1], 640.0f, 30.0f);
+    expect_point(labels.outlines()[0][0][2], 320.0f, 480.0f);
 }
 
 /** @brief Tests that remove_empty_boxes drops the boxes of zero and of negative area. */
@@ -288,10 +288,10 @@ TEST(Small_ImagingLabelSet, RemoveEmptyBoxesKeepsEachSurvivorsPolygon)
 
     remove_empty_boxes(labels);
 
-    ASSERT_EQ(labels.polygons().size(), 3u);
-    EXPECT_TRUE(labels.polygons()[0].empty());
-    EXPECT_EQ(labels.polygons()[1].size(), 2u);
-    EXPECT_TRUE(labels.polygons()[2].empty());
+    ASSERT_EQ(labels.outlines().size(), 3u);
+    EXPECT_TRUE(labels.outlines()[0].empty());
+    EXPECT_EQ(labels.outlines()[1][0].size(), 2u);
+    EXPECT_TRUE(labels.outlines()[2].empty());
 }
 
 /** @brief Tests that resample_polygons gives every polygon 1000 points and skips empty ones. */
@@ -307,11 +307,11 @@ TEST(Small_ImagingLabelSet, ResamplePolygonsGivesEachPolygonAThousandPoints)
 
     ASSERT_EQ(resampled.size(), 3u);
     EXPECT_EQ(resampled.classes(), labels.classes());
-    EXPECT_EQ(resampled.polygons()[0].size(), K_POLYGON_POINTS);
-    EXPECT_TRUE(resampled.polygons()[1].empty());
-    EXPECT_EQ(resampled.polygons()[2].size(), K_POLYGON_POINTS);
-    EXPECT_NEAR(resampled.polygons()[0][0].x, 0.25f, K_FRACTION_TOLERANCE);
-    EXPECT_NEAR(resampled.polygons()[0][0].y, 0.25f, K_FRACTION_TOLERANCE);
+    EXPECT_EQ(resampled.outlines()[0][0].size(), K_POLYGON_POINTS);
+    EXPECT_TRUE(resampled.outlines()[1].empty());
+    EXPECT_EQ(resampled.outlines()[2][0].size(), K_POLYGON_POINTS);
+    EXPECT_NEAR(resampled.outlines()[0][0][0].x, 0.25f, K_FRACTION_TOLERANCE);
+    EXPECT_NEAR(resampled.outlines()[0][0][0].y, 0.25f, K_FRACTION_TOLERANCE);
     expect_normalized_box(resampled.boxes()[2], 0.5f, 0.5f, 1.0f, 1.0f);
 }
 
@@ -323,6 +323,77 @@ TEST(Small_ImagingLabelSet, ResamplePolygonsLeavesASetWithoutPolygonsAlone)
     const FileLabels resampled = resample_polygons(labels);
 
     ASSERT_EQ(resampled.size(), 1u);
-    EXPECT_TRUE(resampled.polygons()[0].empty());
+    EXPECT_TRUE(resampled.outlines()[0].empty());
     expect_normalized_box(resampled.boxes()[0], 0.5f, 0.5f, 0.5f, 0.5f);
+}
+
+/** @brief Tests that an object added with an outline of two parts keeps both, in order. */
+TEST(Small_ImagingLabelSet, AnOutlineOfSeveralPartsKeepsEveryPart)
+{
+    Labels labels;
+    labels.add(4, PixelBox{0.0f, 0.0f, 8.0f, 8.0f},
+               Outline{Polygon{Point{0.0f, 0.0f}, Point{2.0f, 0.0f}, Point{2.0f, 2.0f}},
+                       Polygon{Point{5.0f, 5.0f}, Point{8.0f, 5.0f}}});
+
+    ASSERT_EQ(labels.outlines().size(), 1u);
+    ASSERT_EQ(labels.outlines()[0].size(), 2u);
+    ASSERT_EQ(labels.outlines()[0][0].size(), 3u);
+    ASSERT_EQ(labels.outlines()[0][1].size(), 2u);
+    expect_point(labels.outlines()[0][1][0], 5.0f, 5.0f);
+}
+
+/** @brief Tests that to_pixel_labels scales the vertices of every part. */
+TEST(Small_ImagingLabelSet, ToPixelLabelsScalesEveryPartOfAnOutline)
+{
+    FileLabels labels;
+    labels.add(0, NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f},
+               Outline{Polygon{Point{0.25f, 0.25f}}, Polygon{Point{0.5f, 0.75f}}});
+
+    const Labels pixels = to_pixel_labels(labels, K_SIZE);
+
+    ASSERT_EQ(pixels.outlines()[0].size(), 2u);
+    expect_point(pixels.outlines()[0][0][0], 160.0f, 120.0f);
+    expect_point(pixels.outlines()[0][1][0], 320.0f, 360.0f);
+}
+
+/** @brief Tests that to_normalized_labels divides the vertices of every part. */
+TEST(Small_ImagingLabelSet, ToNormalizedLabelsDividesEveryPartOfAnOutline)
+{
+    Labels labels;
+    labels.add(0, PixelBox{0.0f, 0.0f, 640.0f, 480.0f},
+               Outline{Polygon{Point{80.0f, 120.0f}}, Polygon{Point{240.0f, 360.0f}}});
+
+    const FileLabels normalized = to_normalized_labels(labels, K_SIZE);
+
+    ASSERT_EQ(normalized.outlines()[0].size(), 2u);
+    expect_point(normalized.outlines()[0][0][0], 0.125f, 0.25f);
+    expect_point(normalized.outlines()[0][1][0], 0.375f, 0.75f);
+}
+
+/** @brief Tests that clip_labels clamps the vertices of every part to the image. */
+TEST(Small_ImagingLabelSet, ClipLabelsClampsEveryPartOfAnOutline)
+{
+    Labels labels;
+    labels.add(0, PixelBox{0.0f, 0.0f, 640.0f, 480.0f},
+               Outline{Polygon{Point{-10.0f, 20.0f}}, Polygon{Point{700.0f, 500.0f}}});
+
+    clip_labels(labels, K_SIZE);
+
+    expect_point(labels.outlines()[0][0][0], 0.0f, 20.0f);
+    expect_point(labels.outlines()[0][1][0], 640.0f, 480.0f);
+}
+
+/** @brief Tests that resample_polygons gives every part the count of the longest part of the set. */
+TEST(Small_ImagingLabelSet, ResamplePolygonsGivesEveryPartTheSameCount)
+{
+    FileLabels labels;
+    labels.add(0, NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f},
+               Outline{Polygon{Point{0.25f, 0.25f}, Point{0.75f, 0.25f}, Point{0.5f, 0.75f}},
+                       make_diagonal(40)});
+
+    const FileLabels resampled = resample_polygons(labels);
+
+    ASSERT_EQ(resampled.outlines()[0].size(), 2u);
+    EXPECT_EQ(resampled.outlines()[0][0].size(), K_POLYGON_POINTS);
+    EXPECT_EQ(resampled.outlines()[0][1].size(), K_POLYGON_POINTS);
 }

@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <initializer_list>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include <SushiAI/dtype/dtype.hpp>
@@ -53,6 +54,40 @@ namespace SushiAI::Vision::Training
             const Result<Graph::ValueID> found = outputs.at(name);
             SA_FATAL_IF(!found.has_value(), "{}", found.status().message());
             return found.value();
+        }
+
+        /** @brief Names the part a loss term of the one-to-one copy adds to its name in a trace. */
+        constexpr std::string_view K_ONE_TO_ONE_SUFFIX = ".one_to_one";
+
+        /** @brief Pairs the name a term is kept and published under with its id in a copy. */
+        using TermColumn = std::pair<std::string_view, Graph::ValueID FreeLossTermIDs::*>;
+
+        /** @brief Lists the terms of a copy that the trace keeps and the metrics publish. */
+        constexpr TermColumn K_TERMS[] = {
+            {K_FREE_BOX_VALUE, &FreeLossTermIDs::box},
+            {K_FREE_CLASSES_VALUE, &FreeLossTermIDs::classes},
+            {K_FREE_DISTRIBUTION_VALUE, &FreeLossTermIDs::distribution},
+            {K_FREE_L1_VALUE, &FreeLossTermIDs::l1},
+        };
+
+        /** @brief Returns the name under which a trace keeps a term of the one-to-one copy. */
+        [[nodiscard]] std::string one_to_one_name(std::string_view name)
+        {
+            return std::string(name) + std::string(K_ONE_TO_ONE_SUFFIX);
+        }
+
+        /** @brief Keeps every term @p ids holds in @p trace, named for one copy or the other. */
+        void keep_terms(const FreeLossTermIDs& ids, FreeBranch branch, Train::LossTrace& trace)
+        {
+            for (const auto& [name, member] : K_TERMS)
+            {
+                if (ids.*member == Graph::K_NO_VALUE)
+                    continue;
+
+                trace.add(branch == FreeBranch::OneToOne ? one_to_one_name(name)
+                                                         : std::string(name),
+                          ids.*member);
+            }
         }
 
         /** @brief Returns the field of @p level a leaf of @p kind fills, or null for none. */
@@ -145,30 +180,44 @@ namespace SushiAI::Vision::Training
         }
     }
 
-    Result<Graph::ValueID> FreeObjective::loss(
+    Result<Train::LossTrace> FreeObjective::loss(
         const Graph::GraphBuilder& builder, const Graph::Graph& graph,
         const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
-        SA_TRY_ASSIGN(const Graph::ValueID one_to_many,
+        SA_TRY_ASSIGN(const FreeLossTermIDs one_to_many,
                       branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToMany));
+
         if (!facts_.has_one_to_one)
-            return one_to_many;
+        {
+            Train::LossTrace trace(one_to_many.total);
+            keep_terms(one_to_many, FreeBranch::OneToMany, trace);
 
-        SA_TRY_ASSIGN(const Graph::ValueID one_to_one,
+            return trace;
+        }
+
+        SA_TRY_ASSIGN(const FreeLossTermIDs one_to_one,
                       branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToOne));
-        SA_TRY_ASSIGN(const Graph::ValueID total,
-                      builder.add(
-                          builder.mul(one_to_many, leaves.at(K_FREE_ONE_TO_MANY_WEIGHT_ROLE)),
-                          builder.mul(one_to_one, leaves.at(K_FREE_ONE_TO_ONE_WEIGHT_ROLE))));
+        const Graph::ValueID one_to_many_weight = leaves.at(K_FREE_ONE_TO_MANY_WEIGHT_ROLE);
+        const Graph::ValueID one_to_one_weight = leaves.at(K_FREE_ONE_TO_ONE_WEIGHT_ROLE);
 
-        return total;
+        SA_TRY_ASSIGN(const Graph::ValueID total,
+                      builder.add(builder.mul(one_to_many.total, one_to_many_weight),
+                                  builder.mul(one_to_one.total, one_to_one_weight)));
+
+        Train::LossTrace trace(total);
+        keep_terms(one_to_many, FreeBranch::OneToMany, trace);
+        keep_terms(one_to_one, FreeBranch::OneToOne, trace);
+        trace.add(K_FREE_ONE_TO_MANY_WEIGHT_ROLE, one_to_many_weight);
+        trace.add(K_FREE_ONE_TO_ONE_WEIGHT_ROLE, one_to_one_weight);
+
+        return trace;
     }
 
-    Result<Graph::ValueID> FreeObjective::branch_loss(const Graph::GraphBuilder& builder,
-                                                      const Graph::Graph& graph,
-                                                      const NN::ModelOutputs& outputs,
-                                                      const Train::ObjectiveLeaves& leaves,
-                                                      FreeBranch branch) const
+    Result<FreeLossTermIDs> FreeObjective::branch_loss(const Graph::GraphBuilder& builder,
+                                                       const Graph::Graph& graph,
+                                                       const NN::ModelOutputs& outputs,
+                                                       const Train::ObjectiveLeaves& leaves,
+                                                       FreeBranch branch) const
     {
         FreeLossValues values;
         values.levels.resize(facts_.levels.size());
@@ -200,10 +249,40 @@ namespace SushiAI::Vision::Training
         if (facts_.reg_max > 1)
             values.projection = leaves.at(K_FREE_PROJECTION_ROLE);
 
-        SA_TRY_ASSIGN(const FreeLossTermIDs terms,
-                      emit_free_detection_loss(builder, graph, facts_, values, gains_));
+        return emit_free_detection_loss(builder, graph, facts_, values, gains_);
+    }
 
-        return terms.total;
+    Result<NN::ModelOutputs> FreeObjective::declare_metric_values(
+        const Graph::GraphBuilder& builder, const NN::ModelOutputs&,
+        const Train::LossTrace& trace) const
+    {
+        NN::ModelOutputs values;
+
+        for (const auto& [name, member] : K_TERMS)
+        {
+            // An evaluation graph passes the empty trace, which keeps no term.
+            if (!trace.has(name))
+                continue;
+
+            Graph::ValueID published = trace.at(name);
+            const std::string one_to_one = one_to_one_name(name);
+            if (trace.has(one_to_one))
+            {
+                SA_TRY_ASSIGN(published,
+                              builder.add(builder.mul(published,
+                                                      trace.at(K_FREE_ONE_TO_MANY_WEIGHT_ROLE)),
+                                          builder.mul(trace.at(one_to_one),
+                                                      trace.at(K_FREE_ONE_TO_ONE_WEIGHT_ROLE))));
+            }
+
+            SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
+                                            [&values, name = name, published]() -> Status
+            {
+                return values.add(std::string(name), published);
+            }));
+        }
+
+        return Result<NN::ModelOutputs>(std::move(values));
     }
 
     std::string_view FreeObjective::name() const noexcept

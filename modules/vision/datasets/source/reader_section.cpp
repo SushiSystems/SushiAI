@@ -39,6 +39,7 @@
 
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/threaded_loader.hpp>
+#include <SushiAI/vision/datasets/pipeline_table.hpp>
 #include <SushiAI/vision/datasets/reader_table.hpp>
 #include <SushiAI/vision/datasets/task_table.hpp>
 
@@ -53,8 +54,9 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_SHARED_KEYS[] = {
             Detail::K_READER_KEY, Detail::K_TASK_KEY, Detail::K_ROOT_KEY,
             Detail::K_SPLIT_KEY, Detail::K_BATCH_SIZE_KEY, Detail::K_INPUT_KEY,
-            Detail::K_CHANNELS_KEY, Detail::K_CLASSES_KEY, Detail::K_FIT_KEY, Detail::K_CACHE_KEY,
-            Detail::K_CACHE_SIDE_KEY, Detail::K_SHUFFLE_KEY, Detail::K_SEED_KEY,
+            Detail::K_CHANNELS_KEY, Detail::K_CLASSES_KEY, Detail::K_FIT_KEY,
+            Detail::K_LETTERBOX_PADDING_KEY, Detail::K_LETTERBOX_SCALE_UP_KEY,
+            Detail::K_NORMALISE_KEY, Detail::K_CACHE_KEY, Detail::K_CACHE_SIDE_KEY, Detail::K_SHUFFLE_KEY, Detail::K_SEED_KEY,
             Detail::K_PIPELINE_KEY, Detail::K_WORKERS_KEY, Detail::K_PREFETCH_KEY,
         };
 
@@ -75,7 +77,30 @@ namespace SushiAI::Vision::Datasets
         }
 
         /**
-         * @brief Refuses a key that no section, nor the reader, nor the task of this one reads.
+         * @brief Returns the keys the pipeline row of a section reads.
+         *
+         * A section without "pipeline", with one that is no string and with one the table lacks
+         * has none here; the dataset builder reports the last two when it reads the key.
+         */
+        [[nodiscard]] SushiRuntime::span<const std::string_view> pipeline_keys_of(
+            const Config::Value& section) noexcept
+        {
+            const Config::Value absent;
+            const Config::Value& stated = section.at_or(Detail::K_PIPELINE_KEY, absent);
+            if (stated.kind() != Config::Kind::String)
+                return {};
+
+            const Result<const std::string&> name = stated.as_string(Detail::K_PIPELINE_KEY);
+            const PipelineEntry* const row = find_pipeline(name.value());
+            if (row == nullptr)
+                return {};
+
+            return row->keys;
+        }
+
+        /**
+         * @brief Refuses a key that no section, nor the reader, the task or the pipeline of this
+         *        one reads.
          * @return InvalidDescription when the section holds such a key; the message lists the
          *         keys allowed.
          */
@@ -87,6 +112,9 @@ namespace SushiAI::Vision::Datasets
                                                   std::end(K_SHARED_KEYS));
             allowed.insert(allowed.end(), reader.keys.begin(), reader.keys.end());
             allowed.insert(allowed.end(), task.keys.begin(), task.keys.end());
+
+            const SushiRuntime::span<const std::string_view> pipeline = pipeline_keys_of(section);
+            allowed.insert(allowed.end(), pipeline.begin(), pipeline.end());
 
             return section.reject_unknown_keys(
                 context,

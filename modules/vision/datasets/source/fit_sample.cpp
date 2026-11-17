@@ -37,6 +37,7 @@
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/vision/imaging/darknet_letterbox.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
 
@@ -81,8 +82,24 @@ namespace SushiAI::Vision::Datasets
                 Imaging::to_pixel_labels(sample.objects, source.size()), plan));
         }
 
+        /** @brief Letterboxes the image as Darknet does and moves the labels by the same plan. */
+        Result<Imaging::Labels> fit_by_darknet_letterbox(const Sample& sample,
+                                                         Imaging::ImageView source,
+                                                         const SampleFitOptions& options,
+                                                         Imaging::Image& destination,
+                                                         Imaging::FitTransform& transform)
+        {
+            SA_TRY_ASSIGN(const Imaging::DarknetLetterboxPlan plan,
+                          Imaging::plan_darknet_letterbox(source.size(), options.size));
+            transform = Imaging::darknet_letterbox_transform(plan);
+
+            Imaging::apply_darknet_letterbox(source, plan, destination);
+            return Result<Imaging::Labels>(Imaging::apply_darknet_letterbox(
+                Imaging::to_pixel_labels(sample.objects, source.size()), plan));
+        }
+
         /** @brief Holds the function of each SampleFit, at the index of its enumerator. */
-        constexpr Fit K_FITS[] = {fit_by_resize, fit_by_letterbox};
+        constexpr Fit K_FITS[] = {fit_by_resize, fit_by_letterbox, fit_by_darknet_letterbox};
     } // namespace
 
     Status fit_sample(const Sample& sample, Imaging::ImageView source,

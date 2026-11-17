@@ -9,16 +9,18 @@ bottleneck; `C3k2`, which takes a `Bottleneck`, a `C3k` or a `Bottleneck` with a
 its inner block; `C2f`, a `C3k2` over bottlenecks of the full hidden width; `SPPF`; `DWConv` and `DWConvLinear`, the depthwise forms of `Conv` and `ConvLinear`;
 `Attention`, a multi-head self-attention over the positions of a feature map; `PSABlock`, an
 attention with a feed-forward pair; `C2PSA`, which chains `PSABlock`s; `DetectHead`, the
-detection head; and `SegmentHead`, the semantic segmentation head. Every block but `DetectHead`
+detection head; `SegmentHead`, the semantic segmentation head; `Focus`, the YOLOX stem that
+stacks the four pixel phases into channels and convolves; and `DecoupledHead`, the YOLOX head
+with a class tower and a box tower per level. Every block but `DetectHead` and `DecoupledHead`
 is a `NN::TraceModule`: it traces itself into an
 `NN::Trace` and computes the shape it produces. `DetectHead` is an `NN::Node` with one input per
-feature level and four ports per level. Every block a model file can name has a factory that
+feature level and four ports per level; `DecoupledHead` is one with three ports per level. Every block a model file can name has a factory that
 builds an `NN::Node` from a row's attributes, and the comment of each factory lists the keys it
 reads. `Attention` and `PSABlock` have none.
 
 ## Depends on
 
-- `config`, `failure`, `shape`, `graph` and `nn` (`PUBLIC_DEPENDS`).
+- `config`, `failure`, `shape`, `graph`, `nn` and `vision/detect` (`PUBLIC_DEPENDS`).
 
 ## Public entry points
 
@@ -38,6 +40,8 @@ Consumers include each header by the path in the first column.
 | `<SushiAI/vision/blocks/c2psa.hpp>` | `C2PSA`, `make_c2psa_node` |
 | `<SushiAI/vision/blocks/detect_head.hpp>` | `BoxBranch`, `ClassStage`, `ClassBranch`, `DetectHead`, `make_detect_node` |
 | `<SushiAI/vision/blocks/segment_head.hpp>` | `SegmentHead`, `make_segment_head_node` |
+| `<SushiAI/vision/blocks/focus.hpp>` | `Focus`, `make_focus_node` |
+| `<SushiAI/vision/blocks/decoupled_head.hpp>` | `DecoupledTower`, `DecoupledBranches`, `DecoupledHead`, `make_decoupled_head_node` |
 
 Each `make_*_node` function takes the input shapes, the attributes and a context string, and
 returns `Result<std::unique_ptr<NN::Node>>`. `make_c3k2_node` reads the `inner` key and selects
@@ -59,10 +63,12 @@ that comment.
 | `make_sppf_node` | `filters` | `kernel`, `pools`, `shortcut`, `activate_narrowing`, `bn_epsilon`, `bn_momentum` |
 | `make_c2psa_node` | `filters`, `hidden` | `repeats`, `heads`, `bn_epsilon`, `bn_momentum` |
 | `make_detect_node` | `classes` | `reg_max`, `end2end`, `class_branch`, `bn_epsilon`, `bn_momentum` |
-| `make_segment_head_node` | `classes` | `hidden`, `scale`, `bn_epsilon`, `bn_momentum` |
+| `make_segment_head_node` | `classes` | `hidden`, `scale`, `mode`, `bn_epsilon`, `bn_momentum` |
+| `make_focus_node` | `filters` | `kernel`, `bn_epsilon`, `bn_momentum` |
+| `make_decoupled_head_node` | `classes`, `hidden` | `bn_epsilon`, `bn_momentum` |
 
 `registration` adds the factories of `conv`, `bottleneck`, `c3k`, `c3k2`, `c2f`, `c3`, `sppf`,
-`c2psa`, `detect` and `segment_head` to the node registry.
+`c2psa`, `detect`, `segment_head`, `focus` and `decoupled_head` to the node registry.
 
 ## Notes on the blocks
 
@@ -185,11 +191,13 @@ does not. `make_detect_node` reads `classes`, the three options and the two norm
 ### segment_head.hpp
 
 `SegmentHead` traces `cv1`, a 3x3 `Conv` to `hidden` channels, then `cv2`, a biased 1x1
-convolution to `classes` channels, then `up`, an `NN::Upsample2d` by `scale`. Its output is
+convolution to `classes` channels, then `up`, an `NN::Upsample2d` by `scale` in the `mode` the
+row states. Its output is
 `[N, H * scale, W * scale, classes]` logits in NHWC, the form `pixel_cross_entropy` and `dice`
 of `vision/training` read. Its state is listed under "cv1" and "cv2"; the upsample holds none.
 `make_segment_head_node` reads `classes` and the optional `hidden`, the input width when absent,
-`scale`, 1 when absent, and the two norm keys. It is the `segment_head` row.
+`scale`, 1 when absent, `mode`, `"nearest"` when absent or `"bilinear"`, and the two norm keys.
+It is the `segment_head` row. A mode other than those two names is `InvalidDescription`.
 
 `scale` is the product of the strides of the body, so that the logits end at the input size;
 the factory of each objective refuses a model whose output has another height or width than its
@@ -201,3 +209,30 @@ head has no source in another implementation.
 can sit only on a multiple of `scale` pixels. With `scale` 8 a structure narrower than 8 pixels
 is lost or widened to 8, which lowers IoU on thin classes; a head fed from a stride-2 or
 stride-4 feature map loses less. A bilinear upsample needs an operation in `core/graph`.
+
+### focus.hpp
+
+`Focus` halves H and W and stacks the four pixel phases of each 2x2 window into channels, in the
+order of YOLOX: `x[::2, ::2]`, `x[1::2, ::2]`, `x[::2, 1::2]`, `x[1::2, 1::2]`, that is top-left,
+bottom-left, top-right, bottom-right. A `[N, H, W, C]` input gives `[N, H/2, W/2, 4C]`, and a
+`Conv` named `conv` follows. `Focus::stack_phases` emits the stack with graph operations that
+exist: `im2col` over a 2x2 window of stride 2, which lists the taps row by row (top-left,
+top-right, bottom-left, bottom-right), a `reshape` to NHWC, four `slice_channels` and a
+`concat_channels` in the order of YOLOX. H and W must be even; an odd one is refused. The state
+is "conv.conv.weight" over `4 * in_channels` and "conv.bn.*", the names of YOLOX's
+`stem.conv`. `make_focus_node` reads `filters`, the optional `kernel`, 3 when absent and odd,
+and the two norm keys.
+
+### decoupled_head.hpp
+
+`DecoupledHead` is the YOLOX head. Each level goes through a 1x1 `Conv` stem to `hidden`
+channels, then two towers of two 3x3 `Conv`: the class tower ends in a biased 1x1 to `classes`
+channels, the box tower in a biased 1x1 to 4 values and a second biased 1x1 to 1 value, the
+objectness. The node appends "level<l>.classes", "level<l>.boxes" and "level<l>.objectness" per
+level, the names `vision/detect/yolox/yolox_head_contract.hpp` gives and `decode_yolox` reads;
+the shapes are `[N, H, W, classes]`, `[N, H, W, 4]` and `[N, H, W, 1]`. The state is walked in
+the order of YOLOX's state dict under "cls_convs.<l>.<j>", "reg_convs.<l>.<j>",
+"cls_preds.<l>", "reg_preds.<l>", "obj_preds.<l>" and "stems.<l>", so a model file that names
+the node "head" gives "head.stems.0.conv.weight" and the other names of the checkpoint. The
+class and objectness biases start from log(0.01 / 0.99), the box bias from 0. `make_decoupled_head_node` reads
+`classes` and `hidden`, and the two norm keys.

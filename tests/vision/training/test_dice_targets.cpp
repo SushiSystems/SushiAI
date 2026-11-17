@@ -64,7 +64,7 @@ namespace
     /** @brief Names a list of class indices, one per pixel. */
     using Classes = std::vector<std::int32_t>;
 
-    /** @brief Provides an engine and the five leaves of one Dice fill. */
+    /** @brief Provides an engine and the four leaves of one Dice fill. */
     class Medium_VisionTrainingDiceTargets : public SaTest::EngineTest
     {
         protected:
@@ -117,8 +117,7 @@ namespace
         DType dtype;                       /**< The element type of the real leaves. */
         Classes mask;                      /**< The class of each pixel. */
         std::int32_t ignore;               /**< The mask value of a pixel of no class. */
-        Classes score_indices;             /**< The score each pixel points at. */
-        Classes class_indices;             /**< The class each pixel points at. */
+        Classes labels;                    /**< The label each pixel holds in the leaf. */
         std::vector<double> kept;          /**< One for a kept pixel, zero for an ignored one. */
         std::vector<double> class_pixels;  /**< The kept pixels of each class. */
         std::vector<double> class_weights; /**< One over the present classes, zero for the rest. */
@@ -137,42 +136,38 @@ namespace
 TEST_F(Medium_VisionTrainingDiceTargets, AMaskWithNoKeptPixelGivesZeros)
 {
     const SushiBLAS::Tensor mask = make_ids(Shape{K_PIXELS}, Classes(4, 255));
-    SushiBLAS::Tensor score_indices = make_ids(Shape{K_PIXELS}, Classes(4, -7));
-    SushiBLAS::Tensor class_indices = make_ids(Shape{K_PIXELS}, Classes(4, -7));
+    SushiBLAS::Tensor labels = make_ids(Shape{K_PIXELS}, Classes(4, -7));
     SushiBLAS::Tensor kept = make_reals(Shape{K_PIXELS, 1}, DType::Float32);
     SushiBLAS::Tensor class_pixels = make_reals(Shape{K_CLASSES}, DType::Float32);
     SushiBLAS::Tensor class_weights = make_reals(Shape{K_CLASSES}, DType::Float32);
 
     SA_EXPECT_OK(fill_dice_targets(
         mask, K_CLASSES, 255,
-        DiceLeaves{&score_indices, &class_indices, &kept, &class_pixels, &class_weights}));
+        DiceLeaves{&labels, &kept, &class_pixels, &class_weights}));
 
-    // Each ignored pixel r points at score r * C and at class 0.
-    EXPECT_EQ(read_ids(score_indices), (Classes{0, 3, 6, 9}));
-    EXPECT_EQ(read_ids(class_indices), Classes(4, 0));
+    // Each ignored pixel keeps the ignore index, which names no class.
+    EXPECT_EQ(read_ids(labels), Classes(4, 255));
     expect_reals(kept, {0.0, 0.0, 0.0, 0.0});
     expect_reals(class_pixels, {0.0, 0.0, 0.0});
     expect_reals(class_weights, {0.0, 0.0, 0.0});
 }
 
-/** @brief Tests that the five Dice leaves count the kept pixels of each class. */
+/** @brief Tests that the four Dice leaves count the kept pixels of each class. */
 TEST_P(Medium_VisionTrainingDiceTargetsCounts, TheDiceLeavesCountTheKeptPixelsOfEachClass)
 {
     const DiceRow& row = GetParam();
     const Shape pixels{static_cast<std::int64_t>(row.mask.size())};
     const SushiBLAS::Tensor mask = make_ids(pixels, row.mask);
-    SushiBLAS::Tensor score_indices = make_ids(pixels, Classes(row.mask.size(), -7));
-    SushiBLAS::Tensor class_indices = make_ids(pixels, Classes(row.mask.size(), -7));
+    SushiBLAS::Tensor labels = make_ids(pixels, Classes(row.mask.size(), -7));
     SushiBLAS::Tensor kept = make_reals(Shape{pixels[0], 1}, row.dtype);
     SushiBLAS::Tensor class_pixels = make_reals(Shape{K_CLASSES}, row.dtype);
     SushiBLAS::Tensor class_weights = make_reals(Shape{K_CLASSES}, row.dtype);
 
     SA_EXPECT_OK(fill_dice_targets(
         mask, K_CLASSES, row.ignore,
-        DiceLeaves{&score_indices, &class_indices, &kept, &class_pixels, &class_weights}));
+        DiceLeaves{&labels, &kept, &class_pixels, &class_weights}));
 
-    EXPECT_EQ(read_ids(score_indices), row.score_indices);
-    EXPECT_EQ(read_ids(class_indices), row.class_indices);
+    EXPECT_EQ(read_ids(labels), row.labels);
     expect_reals(kept, row.kept);
     expect_reals(class_pixels, row.class_pixels);
     expect_reals(class_weights, row.class_weights);
@@ -182,9 +177,9 @@ INSTANTIATE_TEST_SUITE_P(
     Rows, Medium_VisionTrainingDiceTargetsCounts,
     ::testing::Values(
         DiceRow{"FloatSixtyFourIgnoreMinusOne", DType::Float64, {1, 1, 0, -1}, -1,
-                {1, 4, 6, 9}, {1, 1, 0, 0}, {1.0, 1.0, 1.0, 0.0}, {1.0, 2.0, 0.0},
+                {1, 1, 0, -1}, {1.0, 1.0, 1.0, 0.0}, {1.0, 2.0, 0.0},
                 {0.5, 0.5, 0.0}},
         DiceRow{"FloatThirtyTwoIgnoreTwoFiftyFive", DType::Float32, {0, 2, 255, 0, 2, 0}, 255,
-                {0, 5, 6, 9, 14, 15}, {0, 2, 0, 0, 2, 0}, {1.0, 1.0, 0.0, 1.0, 1.0, 1.0},
+                {0, 2, 255, 0, 2, 0}, {1.0, 1.0, 0.0, 1.0, 1.0, 1.0},
                 {3.0, 0.0, 2.0}, {0.5, 0.0, 0.5}}),
     [](const ::testing::TestParamInfo<DiceRow>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });

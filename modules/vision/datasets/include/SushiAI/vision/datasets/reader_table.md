@@ -10,7 +10,7 @@ section holds a null one, and a row then takes the default of each of its keys.
 | --- | --- | --- | --- |
 | `yolo_txt` | `read_yolo_txt` | Root, split and class count; a count of 0 is refused by the reader | none |
 | `image_folder` | `read_image_folder` | Root and split | none |
-| `idx` | `read_idx` | Root and split; the files take the MNIST names of the split | none |
+| `idx` | `read_idx` | Root and split; the files take the MNIST names of the split | `image_file` and `label_file`, strings: the two files in the root, each the MNIST name of the split when left out or empty |
 | `cifar` | `read_cifar` | Root and split; a class count of 0 or 10 reads CIFAR-10, 100 the fine labels of CIFAR-100, 20 the coarse ones, and any other is `InvalidDescription` | none |
 | `coco_json` | `read_coco_json` | Root and split | `annotations`, a string: the JSON file. `images`, a string: the image folder. `polygons`, a boolean, `false` by default: `true` keeps polygons |
 | `voc_xml` | `read_voc_xml` | Root and split | `class_names`, an array of strings. `keep_difficult`, a boolean, `false` by default |

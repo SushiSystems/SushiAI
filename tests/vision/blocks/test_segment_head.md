@@ -32,7 +32,7 @@ after an evaluation trace it has seven pieces of state, the first being `cv1.con
 
 ## TheFactoryRefusesAnUnknownKey
 
-`make_segment_head_node` fails with `InvalidDescription` for a row with the key `mode`, naming "layer 3 'segment_head'" and "'mode'".
+`make_segment_head_node` fails with `InvalidDescription` for a row with the key `dilation`, naming "layer 3 'segment_head'" and "'dilation'".
 
 ## TheFactoryRefusesAnAbsentClassCount
 
@@ -41,3 +41,19 @@ A row without `classes` fails with "'classes'" and "absent".
 ## TheFactoryRefusesAScaleOfZero
 
 `scale` 0 fails with "'scale'" and "positive".
+
+## TheTraceUsesTheUpsampleOfItsMode
+
+A head built with `Upsample2d::Mode::Bilinear`, 8 hidden channels and scale 2 traces a [2, 4, 4, 16]
+input to a value of [2, 8, 8, 5] whose producer node is `K_UPSAMPLE2D_BILINEAR`.
+
+## TheFactoryReadsTheMode
+
+Over the input [4, 4, 16], the row with `classes` 5, `scale` 2 and `mode` "bilinear" traces to a
+value produced by `K_UPSAMPLE2D_BILINEAR`; the same row without `mode` traces to one produced by
+`K_UPSAMPLE2D`, the nearest form.
+
+## TheFactoryRefusesAnUnknownMode
+
+`mode` "bicubic" fails with `InvalidDescription` naming "'nearest'", "'bilinear'" and "got
+'bicubic'"; `mode` 1 fails naming "layer 3 'segment_head' 'mode'" and "string".

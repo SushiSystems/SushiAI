@@ -10,12 +10,13 @@ in, and rows likewise. No two classes are blended.
 | --- | --- |
 | `Resize` | Each axis is scaled to the input size |
 | `Letterbox` | `Imaging::plan_letterbox` over the mask's size with `SampleFitOptions::letterbox`; the mask is scaled to `plan.resized` and written from row `plan.top` and column `plan.left`; every other byte is `K_MASK_VOID`, 255 |
+| `DarknetLetterbox` | `Imaging::plan_darknet_letterbox` over the mask's size; the mask is scaled to `plan.resized` by nearest neighbour and written from row `plan.top` and column `plan.left`; every other byte is `K_MASK_VOID` |
 
 | Code | When |
 | --- | --- |
 | `InvalidDescription` | The input size is outside its bounds, or the fit names no row of the table |
 | `Incompatible` | The mask has more than one channel, or another size than its image |
-| `InvalidDescription` | `Imaging::plan_letterbox` refuses the sizes; the status is its own |
+| `InvalidDescription` | `Imaging::plan_letterbox` or `Imaging::plan_darknet_letterbox` refuses the sizes; the status is its own |
 | `OutOfMemory` | An allocation fails |
 
 `vision/imaging` has no nearest-neighbour resize and no letterbox for a mask.

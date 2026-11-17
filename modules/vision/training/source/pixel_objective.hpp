@@ -40,6 +40,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/train/loss_trace.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/vision/training/pixel_extents.hpp>
 
@@ -48,16 +49,17 @@ namespace SushiAI::Vision::Training::Detail
     /** @brief Names the key that holds the index of a pixel of no class. */
     inline constexpr std::string_view K_IGNORE_INDEX_KEY = "ignore_index";
 
+    /** @brief Names the value of a LossTrace that holds the logits viewed as [R, C] rows. */
+    inline constexpr std::string_view K_PIXEL_ROWS_VALUE = "pixel.rows";
+
     /**
      * @brief Returns InvalidDescription unless the leaves of a per-pixel objective can be made.
-     * @param largest The most elements N * H * W * C may hold.
      * @param objective Names the objective in the message.
-     * @return InvalidDescription for an extent below 1, a product above @p largest, an ignore
-     *         index that names a class, or an element type that is neither float32 nor float64.
+     * @return InvalidDescription for an extent below 1, an ignore index that names a class, or
+     *         an element type that is neither float32 nor float64.
      */
     [[nodiscard]] Status validate_pixel_objective(const PixelExtents& extents,
                                                   std::int32_t ignore_index, DType dtype,
-                                                  std::int64_t largest,
                                                   std::string_view objective);
 
     /** @brief Returns the description of the mask role: int32 [H, W] of any class count. */
@@ -65,15 +67,26 @@ namespace SushiAI::Vision::Training::Detail
 
     /**
      * @brief Emits the only output of @p outputs viewed as [N * H * W, C] rows.
+     *
+     * A loss emits the rows once and keeps them in its LossTrace under K_PIXEL_ROWS_VALUE.
      * @pre @p outputs holds one value of the extents given; anything else stops the process,
      *      naming @p objective.
      * @return The rows; the failure of the reshape if the builder refuses it.
      */
     [[nodiscard]] Graph::Traced emit_pixel_rows(const Graph::GraphBuilder& builder,
-                                                const Graph::Graph& graph,
                                                 const NN::ModelOutputs& outputs,
                                                 const PixelExtents& extents,
                                                 std::string_view objective);
+
+    /**
+     * @brief Emits the class of each pixel as the INT64 [N * H * W] value a step's metrics read.
+     * @param trace The trace of the loss; its K_PIXEL_ROWS_VALUE is read when it holds one.
+     * @pre @p outputs holds one value of the extents given; else the process stops.
+     * @return The value under K_PIXEL_CLASSES_VALUE, or the failure of the emission.
+     */
+    [[nodiscard]] Result<NN::ModelOutputs> declare_pixel_classes(
+        const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+        const Train::LossTrace& trace, const PixelExtents& extents, std::string_view objective);
 
     /**
      * @brief Returns the extents of the one [N, H, W, C] output of @p given.

@@ -18,6 +18,9 @@ Each test file has a page beside it that says what its cases pin.
 | `test_labels.cpp` | [`test_labels.md`](test_labels.md) |
 | `test_fit_transform.cpp` | [`test_fit_transform.md`](test_fit_transform.md) |
 | `test_letterbox.cpp` | [`test_letterbox.md`](test_letterbox.md) |
+| `test_darknet_resize.cpp` | [`test_darknet_resize.md`](test_darknet_resize.md) |
+| `test_darknet_letterbox.cpp` | [`test_darknet_letterbox.md`](test_darknet_letterbox.md) |
+| `test_darknet_augment.cpp` | [`test_darknet_augment.md`](test_darknet_augment.md) |
 | `test_mask_pipeline.cpp` | [`test_mask_pipeline.md`](test_mask_pipeline.md) |
 | `test_mosaic.cpp` | [`test_mosaic.md`](test_mosaic.md) |
 | `test_pipeline.cpp` | [`test_pipeline.md`](test_pipeline.md) |

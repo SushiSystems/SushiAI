@@ -29,6 +29,7 @@
  */
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -199,7 +200,7 @@ TEST(Small_SegmentConfusionMatrix, ClearSetsEveryCountToZero)
     EXPECT_EQ(matrix.pixel_count(), 0);
 }
 
-/** @brief Tests that make refuses a class count outside [1, K_MAX_CONFUSION_CLASSES]. */
+/** @brief Tests that make refuses a class count below 1 and one whose matrix cannot be addressed. */
 TEST_P(Small_SegmentConfusionMatrixClassCount, MakeRefusesAClassCountOutsideItsBounds)
 {
     const RefusedClassCount& row = GetParam();
@@ -211,14 +212,15 @@ TEST_P(Small_SegmentConfusionMatrixClassCount, MakeRefusesAClassCountOutsideItsB
 INSTANTIATE_TEST_SUITE_P(
     Counts, Small_SegmentConfusionMatrixClassCount,
     ::testing::Values(RefusedClassCount{0, "ConfusionMatrix", "0 classes"},
-                      RefusedClassCount{Vision::Segment::K_MAX_CONFUSION_CLASSES + 1,
-                                        "4097 classes", "4096"}),
+                      RefusedClassCount{std::numeric_limits<std::int32_t>::max(),
+                                        "2147483647 classes", "host can address"}),
     count_name);
 
 /**
- * @brief Tests that the check accepts a class count at either edge of its bounds.
+ * @brief Tests that the check accepts a class count at the edge of its bounds, 4096 and 4097
+ *        included.
  *
- * The check allocates nothing, so the largest count is tried without building the 128 MiB matrix.
+ * The check allocates nothing, so a count of 2^29 classes is tried without building the matrix.
  */
 TEST_P(Small_SegmentConfusionMatrixEdge, TheCheckAcceptsAClassCountAtTheEdgeOfItsBounds)
 {
@@ -234,7 +236,7 @@ TEST(Small_SegmentConfusionMatrixMake, MakeBuildsAMatrixOverTheGivenClassCount)
 }
 
 INSTANTIATE_TEST_SUITE_P(Counts, Small_SegmentConfusionMatrixEdge,
-                         ::testing::Values(1, Vision::Segment::K_MAX_CONFUSION_CLASSES),
+                         ::testing::Values(1, 4096, 4097, 1 << 29),
                          edge_name);
 
 /** @brief Tests that add refuses a batch it cannot count and changes no count. */
@@ -259,6 +261,43 @@ INSTANTIATE_TEST_SUITE_P(
         RefusedBatch{"PredictionOutOfBounds", {0, -1}, {0, 1}, "predicted class of pixel 1",
                      "is -1", "", ""}),
     batch_name);
+
+/** @brief Tests that int64 predictions, as the device writes them, count as int32 ones do. */
+TEST(Small_SegmentConfusionMatrix, Int64PredictionsCountByTruthAndPrediction)
+{
+    SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(3));
+    const std::vector<std::int64_t> predicted{0, 1, 1, 2, 2, 2};
+    const Classes truth{0, 0, 1, 2, 1, K_IGNORE};
+
+    SA_EXPECT_OK(matrix.add(SushiRuntime::span<const std::int64_t>(predicted.data(),
+                                                                   predicted.size()),
+                            view(truth), K_IGNORE));
+
+    EXPECT_EQ(matrix.count(0, 0), 1);
+    EXPECT_EQ(matrix.count(0, 1), 1);
+    EXPECT_EQ(matrix.count(1, 1), 1);
+    EXPECT_EQ(matrix.count(1, 2), 1);
+    EXPECT_EQ(matrix.count(2, 2), 1);
+    EXPECT_EQ(matrix.pixel_count(), 5);
+}
+
+/**
+ * @brief Tests that an int64 prediction above the int32 range is refused, not wrapped.
+ *
+ * 2^32 + 1 wraps to 1 in an int32, which is a class of the matrix.
+ */
+TEST(Small_SegmentConfusionMatrix, AnInt64PredictionAboveInt32IsRefusedNotWrapped)
+{
+    SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(2));
+    const std::vector<std::int64_t> predicted{0, (std::int64_t{1} << 32) + 1};
+    const Classes truth{0, 1};
+
+    SA_EXPECT_FAILURE(matrix.add(SushiRuntime::span<const std::int64_t>(predicted.data(),
+                                                                        predicted.size()),
+                                 view(truth), K_IGNORE),
+                      StatusCode::Incompatible, "predicted class of pixel 1", "4294967297");
+    EXPECT_EQ(matrix.pixel_count(), 0);
+}
 
 /** @brief Tests that merge refuses a matrix of another class count. */
 TEST(Small_SegmentConfusionMatrix, MergeRefusesAnotherClassCount)

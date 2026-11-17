@@ -44,6 +44,12 @@ A weight type of int32 fails with `InvalidDescription` naming "float32".
 The training graph's loss has one element, its targets are INT32, and both parameters have a
 gradient. The operations that make the loss are not counted.
 
+### TheLossAndTheMetricValuesShareOneReshapeOfTheOutput, TheDiceLossAndTheMetricValuesShareOneReshapeOfTheOutput
+
+`build_training_graph` over the model of one convolution, for the cross entropy and then for the
+Dice objective, declares one metric value (the class of each pixel) and holds exactly one RESHAPE
+node that reads the model's output: the loss and the metric value read the same `[32, 3]` rows.
+
 ### TheCrossEntropyFactoryReadsTheModelsOutput, TheDiceFactoryReadsTheModelsOutputAndItsIgnoreIndex
 
 The cross entropy factory builds an objective named `pixel_cross_entropy` of 32 pixels and the
@@ -90,3 +96,10 @@ A tiny segmenter of two convolutions and a head, trained on one batch, ends with
 fraction of its first and a mean IoU above the bound. The step count, the compile count and the
 relation between the accuracy and the mean IoU are not asserted here; the metric belongs to
 `test_segmentation_metrics.cpp`. The fraction and the bound are marked unconfirmed in the test.
+
+### TheLossFallsOnOneBatchWithABilinearHead, TheMeanIouRisesOnOneBatchWithABilinearHead
+
+The same two promises over the same segmenter and batch, with the head built in
+`Upsample2d::Mode::Bilinear`. A bilinear head blends the two scores across the class boundary, so
+the bound holds only if the gradient crosses `K_UPSAMPLE2D_BILINEAR` to the convolutions; the
+fraction and the bound are the unconfirmed ones of the nearest case.

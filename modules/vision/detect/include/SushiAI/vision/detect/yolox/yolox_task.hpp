@@ -1,0 +1,78 @@
+/**************************************************************************/
+/* yolox_task.hpp                                                         */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License"); you    */
+/* may not use this file except in compliance with the License. You may   */
+/* obtain a copy of the License at                                        */
+/*                                                                        */
+/*     https://www.apache.org/licenses/LICENSE-2.0                        */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+/**
+ * @file yolox_task.hpp
+ * @brief Declares what decoding a YOLOX model needs beyond its graph and its task section.
+ * @author Mustafa Garip
+ * @see modules/vision/detect/README.md
+ */
+
+#pragma once
+
+#include <string_view>
+
+#include <SushiAI/config/value.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/detect/suppression_section.hpp>
+
+namespace SushiAI
+{
+    namespace Vision::Detect::Yolox
+    {
+        /** @brief Holds the "type" a task section states when it describes a YoloxTask. */
+        inline constexpr std::string_view K_YOLOX_TASK_TYPE = "yolox_detection";
+
+        /**
+         * @brief Holds what decoding a YOLOX model needs beyond its graph.
+         *
+         * The strides, the class count and the ports come from the built model and its inputs,
+         * never from here.
+         */
+        struct YoloxTask
+        {
+            /** @brief Holds the score, objectness times class probability, a detection must reach. */
+            float score_threshold = 0.25f;
+
+            /** @brief Holds the suppression measure, its threshold and its exponent. */
+            SuppressionSection suppression = {SuppressionCriterion::IoU, 0.65f,
+                                              K_DEFAULT_DISTANCE_EXPONENT};
+        };
+
+        /**
+         * @brief Reads the task section of a model file as a YoloxTask.
+         * @param task The "task" object, as Config::ModelSpec::task holds it.
+         * @return The task, or InvalidDescription naming the key that fails: a missing or
+         *         unknown key, a wrong type, or a value outside its range.
+         */
+        [[nodiscard]] Result<YoloxTask> read_yolox_task(const Config::Value& task) noexcept;
+
+        /**
+         * @brief Writes a YoloxTask as the task section of a model file.
+         * @return The "task" object, each float as the double of equal value, or
+         *         InvalidDescription naming the key that fails.
+         */
+        [[nodiscard]] Result<Config::Value> write_yolox_task(const YoloxTask& task) noexcept;
+
+    } // namespace Vision::Detect::Yolox
+} // namespace SushiAI

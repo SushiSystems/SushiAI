@@ -38,8 +38,10 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include "datasets_test_support.hpp"
+#include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/vision/datasets/darknet_pipeline.hpp>
 #include <SushiAI/vision/datasets/augment_pipeline.hpp>
 #include <SushiAI/vision/datasets/fit_mask.hpp>
 #include <SushiAI/vision/datasets/fit_pipeline.hpp>
@@ -70,30 +72,6 @@ namespace
     {
     };
 
-    /** @brief Holds an input the default row refuses and the text of the refusal. */
-    struct InputRefusal
-    {
-        /** @brief Names the row. */
-        const char* name;
-
-        /** @brief Holds the size of the request. */
-        ImageSize size;
-
-        /** @brief Holds the channels of the request. */
-        std::int32_t channels;
-
-        /** @brief Holds a text the refusal carries. */
-        const char* message;
-
-        /** @brief Holds another text the refusal carries. */
-        const char* detail;
-    };
-
-    /** @brief Holds one refused input per row. */
-    class Small_DatasetsPipelineTableRefusal : public ::testing::TestWithParam<InputRefusal>
-    {
-    };
-
     /** @brief Names a test after the name of its row. */
     std::string table_row_name(const ::testing::TestParamInfo<std::string_view>& info)
     {
@@ -101,14 +79,52 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the table lists none, then default. */
-TEST(Small_DatasetsPipelineTable, ItListsNoneThenDefault)
+/** @brief Tests that the table lists none, default, then darknet. */
+TEST(Small_DatasetsPipelineTable, ItListsNoneDefaultThenDarknet)
 {
     const SushiRuntime::span<const PipelineEntry> rows = pipeline_table();
 
-    ASSERT_EQ(rows.size(), 2u);
+    ASSERT_EQ(rows.size(), 3u);
     EXPECT_EQ(rows[0].name, "none");
     EXPECT_EQ(rows[1].name, "default");
+    EXPECT_EQ(rows[2].name, "darknet");
+}
+
+/** @brief Tests that the darknet row lists its four keys and the other rows list none. */
+TEST(Small_DatasetsPipelineTable, OnlyTheDarknetRowListsKeys)
+{
+    EXPECT_TRUE(find_pipeline(K_PIPELINE_NONE)->keys.empty());
+    EXPECT_TRUE(find_pipeline(K_PIPELINE_DEFAULT)->keys.empty());
+
+    const PipelineEntry* const row = find_pipeline(K_PIPELINE_DARKNET);
+    ASSERT_NE(row, nullptr);
+    EXPECT_EQ(std::vector<std::string_view>(row->keys.begin(), row->keys.end()),
+              (std::vector<std::string_view>{"jitter", "hue", "saturation", "exposure"}));
+}
+
+/** @brief Tests that the darknet row reads a key as a float32 and refuses what it cannot read. */
+TEST(Small_DatasetsPipelineTable, TheDarknetRowRefusesAKeyItCannotUse)
+{
+    const PipelineEntry* const row = find_pipeline(K_PIPELINE_DARKNET);
+    ASSERT_NE(row, nullptr);
+    PipelineRequest request;
+    request.fit.size = ImageSize{K_SIDE, K_SIDE};
+    request.channels = 3;
+    request.context = "data";
+
+    request.section = Config::Value::object({"jitter", "hue", "saturation", "exposure"},
+                                            {Config::Value::real(0.3), Config::Value::real(0.1),
+                                             Config::Value::real(1.5), Config::Value::real(1.5)});
+    SA_EXPECT_OK(row->make(request));
+
+    request.section = Config::Value::object({"jitter"}, {Config::Value::string("wide")});
+    SA_EXPECT_FAILURE(row->make(request), StatusCode::InvalidDescription, "data 'jitter'");
+
+    request.section = Config::Value::object({"jitter"}, {Config::Value::real(0.5)});
+    SA_EXPECT_FAILURE(row->make(request), StatusCode::InvalidDescription, "the jitter is 0.5");
+
+    request.section = Config::Value::object({"exposure"}, {Config::Value::real(0.9)});
+    SA_EXPECT_FAILURE(row->make(request), StatusCode::InvalidDescription, "the exposure 0.9");
 }
 
 /** @brief Tests that find_pipeline finds the row of a name in the table. */
@@ -137,7 +153,8 @@ TEST_P(Small_DatasetsPipelineTableName, ARowBuildsThePipelineOfItsName)
 }
 
 INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsPipelineTableName,
-                         ::testing::Values(std::string_view("none"), std::string_view("default")),
+                         ::testing::Values(std::string_view("none"), std::string_view("default"),
+                                           std::string_view("darknet")),
                          table_row_name);
 
 /** @brief Tests that find_pipeline gives no row for a name the table lacks. */
@@ -146,22 +163,28 @@ TEST(Small_DatasetsPipelineTable, AnUnknownNameFindsNoRow)
     EXPECT_EQ(find_pipeline("mixup"), nullptr);
 }
 
-/** @brief Tests that default refuses an input that is not square or not of three channels. */
-TEST_P(Small_DatasetsPipelineTableRefusal, DefaultRefusesAnInputItDoesNotMake)
+/** @brief Tests that default refuses an input of another channel count than three. */
+TEST(Small_DatasetsPipelineTable, DefaultRefusesAnInputOfOneChannel)
 {
-    const InputRefusal& refusal = GetParam();
     const PipelineEntry* const row = find_pipeline(K_PIPELINE_DEFAULT);
     ASSERT_NE(row, nullptr);
     PipelineRequest request;
-    request.fit.size = refusal.size;
-    request.channels = refusal.channels;
+    request.fit.size = ImageSize{4, 4};
+    request.channels = 1;
 
     SA_EXPECT_FAILURE(row->make(request), StatusCode::InvalidDescription, "'default'",
-                      refusal.message, refusal.detail);
+                      "3 channels", "has 1");
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    Rows, Small_DatasetsPipelineTableRefusal,
-    ::testing::Values(InputRefusal{"ANonSquareSize", ImageSize{4, 6}, 3, "square", "4 by 6"},
-                      InputRefusal{"OneChannel", ImageSize{4, 4}, 1, "3 channels", "has 1"}),
-    [](const ::testing::TestParamInfo<InputRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
+/** @brief Tests that default builds its pipeline for an input that is not square. */
+TEST(Small_DatasetsPipelineTable, DefaultBuildsForANonSquareInput)
+{
+    const PipelineEntry* const row = find_pipeline(K_PIPELINE_DEFAULT);
+    ASSERT_NE(row, nullptr);
+    PipelineRequest request;
+    request.fit.size = ImageSize{4, 6};
+    request.channels = 3;
+    request.seed = K_SEED;
+
+    SA_EXPECT_OK(row->make(request));
+}

@@ -48,9 +48,10 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/detect/free/distribution_targets.hpp>
 #include <SushiAI/vision/training/free_detection_loss.hpp>
-#include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
+#include <SushiAI/vision/training/free_loss_terms.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
+#include <support/free_detection_loss_host.hpp>
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
@@ -58,7 +59,6 @@ using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
 using Graph::ValueID;
-using Vision::Training::FreeLevelLossArrays;
 using Vision::Training::FreeLevelLossValues;
 using Vision::Training::FreeLossGains;
 using Vision::Training::FreeLossTermIDs;
@@ -265,7 +265,7 @@ namespace
             Result<FreeLossTerms> host(SushiRuntime::span<const double> point) const
             {
                 const std::size_t box_values = static_cast<std::size_t>(K_ROWS * 4 * reg_max_);
-                FreeLevelLossArrays level;
+                SaTest::FreeLevelLossArrays level;
                 level.boxes = point.subspan(0, box_values);
                 level.scores = point.subspan(box_values);
                 level.target_scores = leaves_.target_scores;
@@ -277,9 +277,9 @@ namespace
                 level.safe_boxes = leaves_.safe_boxes;
                 level.distribution_weights = leaves_.distribution_weights;
                 level.anchor_points = leaves_.anchor_points;
-                return Vision::Training::evaluate_free_detection_loss(
-                    SushiRuntime::span<const FreeLevelLossArrays>(&level, 1), reg_max_, K_CLASSES,
-                    1, leaves_.target_scores_sum, gains_);
+                return SaTest::evaluate_free_detection_loss(
+                    SushiRuntime::span<const SaTest::FreeLevelLossArrays>(&level, 1), reg_max_,
+                    K_CLASSES, 1, leaves_.target_scores_sum, gains_);
             }
 
             /** @brief Returns the graph's value of the term @p id after the last run. */

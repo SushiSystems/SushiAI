@@ -255,3 +255,27 @@ TEST(Small_DatasetsFitPipeline, AMaskOfAnotherSizeThanItsImageNamesItsFile)
                                         0, SushiRuntime::span<FittedSample>(&fitted, 1)),
                       StatusCode::Incompatible, "masks/train/a.png", "fit_mask");
 }
+
+/** @brief Tests that a pipeline told to decode no mask opens none and leaves the mask empty. */
+TEST(Small_DatasetsFitPipeline, APipelineWithoutMasksOpensNoMaskFile)
+{
+    MemorySource source;
+    SampleList list;
+    list.files.push_back(Support::add_raw_image(
+        source, "images/train/a.saim", Support::uniform_image(ImageSize{2, 4}, 3, 255)));
+    list.files.push_back(Support::add_raw_image(
+        source, "masks/train/a.png", Support::uniform_image(ImageSize{2, 2}, 1, 0)));
+    Sample sample;
+    sample.file = 0;
+    sample.mask = 1u;
+    list.samples.push_back(sample);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<FitPipeline> pipeline,
+                            FitPipeline::make(letterbox_of_eight(), 3, &source, false));
+    const std::size_t samples[] = {0};
+    FittedSample fitted;
+
+    SA_EXPECT_OK(pipeline->produce(list, SushiRuntime::span<const std::size_t>(samples, 1), 0,
+                                   SushiRuntime::span<FittedSample>(&fitted, 1)));
+    EXPECT_EQ(fitted.mask.byte_count(), 0u);
+}

@@ -8,10 +8,10 @@ soft Dice of the softmax probabilities. The graph cases read a model of one bias
 convolution from 5 channels to 3 classes over a batch of 2 maps of 4 by 4, so a batch holds 32
 pixels. They build the graph on the host and need no device.
 
-### TheDiceDeclaresTwoIndexLeavesAndNoOneHot
+### TheDiceDeclaresOneLabelLeafAndNoOneHot
 
-`declare` adds five leaves: `score_indices` and `class_indices` as INT32 `[32]`, `kept` as
-`[32, 1]`, and `class_pixels` and `class_weights` as `[3]`. No `one_hot` leaf exists, so no leaf
+`declare` adds four leaves: `labels` as INT32 `[32]`, `kept` as `[32, 1]`, and `class_pixels` and
+`class_weights` as `[3]`. No `one_hot` leaf exists, so no leaf
 is `[R, C]`. The objective requires the `mask` role.
 
 ### TheDiceLossIsDifferentiated

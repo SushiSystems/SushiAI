@@ -149,8 +149,8 @@ namespace SushiAI
             return Value::object(
                 {"rule", "ratio_limit", "neighbour_offset"},
                 {Value::string(std::string(found->name)),
-                 Value::real(static_cast<double>(choice.shape_ratio.ratio_limit)),
-                 Value::real(static_cast<double>(choice.shape_ratio.neighbour_offset))});
+                 Config::float32_value(choice.shape_ratio.ratio_limit),
+                 Config::float32_value(choice.shape_ratio.neighbour_offset)});
         }
 
     } // namespace Vision::Detect::Anchor

@@ -35,4 +35,8 @@ Each test file has a page beside it that says what its cases pin.
 | `test_detections_nms.cpp, test_detections_topk.cpp, test_top_k.cpp` | [`test_detections_nms.md`](test_detections_nms.md) |
 | `anchor/test_target_assignment.cpp` | [`anchor/test_target_assignment.md`](anchor/test_target_assignment.md) |
 | `free/test_head_contract.cpp` | [`free/test_head_contract.md`](free/test_head_contract.md) |
+| `test_suppression_section.cpp` | [`test_suppression_section.md`](test_suppression_section.md) |
+| `yolox/test_yolox_decode.cpp` | [`yolox/test_yolox_decode.md`](yolox/test_yolox_decode.md) |
+| `yolox/test_yolox_head_contract.cpp` | [`yolox/test_yolox_head_contract.md`](yolox/test_yolox_head_contract.md) |
+| `yolox/test_yolox_task.cpp` | [`yolox/test_yolox_task.md`](yolox/test_yolox_task.md) |
 | `test_float_order.cpp` | [`test_float_order.md`](test_float_order.md) |

@@ -182,7 +182,9 @@ namespace SushiAI::Vision::Datasets
                 {
                     SA_TRY(Imaging::resize_bilinear(
                         decoded.view(),
-                        Imaging::fit_long_side(decoded.size(), options.longest_side), resized));
+                        Imaging::fit_within(decoded.size(),
+                                            Imaging::square_size(options.longest_side)),
+                        resized));
                     stored = resized.view();
                 }
 

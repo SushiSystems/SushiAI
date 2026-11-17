@@ -40,7 +40,7 @@ namespace SushiAI::Vision::Training
     /**
      * @brief Emits minus the sum over rows of weight[r] * log_softmax(logits)[r, label[r]].
      * @param logits [R, C] scores of a real floating type.
-     * @param indices The INT32 [R] leaf fill_pixel_targets() writes.
+     * @param labels The INT32 [R] leaf fill_pixel_targets() writes.
      * @param weights The [R, 1] leaf it writes, of the type of @p logits.
      * @pre The shapes and the types are as stated; anything else stops the process.
      * @return The id of a 1-element value; the failure of an emission the builder refuses.
@@ -48,14 +48,13 @@ namespace SushiAI::Vision::Training
     [[nodiscard]] Graph::Traced emit_pixel_cross_entropy(const Graph::GraphBuilder& builder,
                                                          const Graph::Graph& graph,
                                                          Graph::ValueID logits,
-                                                         Graph::ValueID indices,
+                                                         Graph::ValueID labels,
                                                          Graph::ValueID weights) noexcept;
 
-    /** @brief Holds the five leaves fill_dice_targets() writes, as values of one graph. */
+    /** @brief Holds the four leaves fill_dice_targets() writes, as values of one graph. */
     struct DiceOperands
     {
-        Graph::ValueID score_indices = Graph::K_NO_VALUE; /**< INT32 [R]. */
-        Graph::ValueID class_indices = Graph::K_NO_VALUE; /**< INT32 [R]. */
+        Graph::ValueID labels = Graph::K_NO_VALUE;        /**< INT32 [R]. */
         Graph::ValueID kept = Graph::K_NO_VALUE;          /**< [R, 1]. */
         Graph::ValueID class_pixels = Graph::K_NO_VALUE;  /**< [C]. */
         Graph::ValueID class_weights = Graph::K_NO_VALUE; /**< [C]. */
@@ -65,7 +64,7 @@ namespace SushiAI::Vision::Training
      * @brief Emits the sum over classes of weight[c] * (1 - 2 I[c] / (P[c] + Y[c] + eps)),
      *        the terms README.md defines over softmax(logits).
      * @param logits [R, C] scores of a real floating type, which the real operands share.
-     * @pre The shapes and the types are as stated, and R * C fits INT32; anything else stops
+     * @pre The shapes and the types are as stated; anything else stops
      *      the process.
      * @return The id of a 1-element value; the failure of an emission the builder refuses.
      */

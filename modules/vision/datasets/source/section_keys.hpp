@@ -61,6 +61,15 @@ namespace SushiAI::Vision::Datasets::Detail
     /** @brief Names the key of how an image is fitted to the input. */
     inline constexpr std::string_view K_FIT_KEY = "fit";
 
+    /** @brief Names the key of the byte a letterbox pads with. */
+    inline constexpr std::string_view K_LETTERBOX_PADDING_KEY = "letterbox_padding";
+
+    /** @brief Names the key that lets a letterbox scale an image up. */
+    inline constexpr std::string_view K_LETTERBOX_SCALE_UP_KEY = "letterbox_scale_up";
+
+    /** @brief Names the key of how the byte levels of an image become input values. */
+    inline constexpr std::string_view K_NORMALISE_KEY = "normalise";
+
     /** @brief Names the key of the directory of the raw cache. */
     inline constexpr std::string_view K_CACHE_KEY = "cache";
 
@@ -84,7 +93,9 @@ namespace SushiAI::Vision::Datasets::Detail
 
     /** @brief Lists the keys a dataset of images reads and a dataset of rows refuses. */
     inline constexpr std::string_view K_IMAGE_KEYS[] = {
-        K_FIT_KEY, K_CACHE_KEY, K_CACHE_SIDE_KEY, K_SHUFFLE_KEY, K_SEED_KEY, K_PIPELINE_KEY,
+        K_FIT_KEY,     K_LETTERBOX_PADDING_KEY, K_LETTERBOX_SCALE_UP_KEY, K_NORMALISE_KEY,
+        K_CACHE_KEY,   K_CACHE_SIDE_KEY,        K_SHUFFLE_KEY,            K_SEED_KEY,
+        K_PIPELINE_KEY,
     };
 
     /** @brief Returns "<prefix> '<key>'", what a diagnostic calls one value of a section. */

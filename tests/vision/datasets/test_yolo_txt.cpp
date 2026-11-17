@@ -175,7 +175,7 @@ TEST(Small_DatasetsYoloTxt, ALabelFileOfBoxesGivesOneObjectPerLine)
     EXPECT_NEAR(box.y_center, 0.25f, K_COORDINATE_TOLERANCE);
     EXPECT_NEAR(box.width, 0.2f, K_COORDINATE_TOLERANCE);
     EXPECT_NEAR(box.height, 0.1f, K_COORDINATE_TOLERANCE);
-    EXPECT_TRUE(boxes.objects.polygons()[0].empty());
+    EXPECT_TRUE(boxes.objects.outlines()[0].empty());
 }
 
 /** @brief Tests that a label line of more numbers gives a polygon. */
@@ -188,9 +188,9 @@ TEST(Small_DatasetsYoloTxt, ALabelLineOfPointsGivesAPolygon)
     const Sample& polygon = list.samples[1];
     ASSERT_EQ(polygon.objects.size(), 1u);
     EXPECT_EQ(polygon.objects.classes()[0], 1);
-    ASSERT_EQ(polygon.objects.polygons()[0].size(), 3u);
-    EXPECT_NEAR(polygon.objects.polygons()[0][1].x, 0.9f, K_COORDINATE_TOLERANCE);
-    EXPECT_NEAR(polygon.objects.polygons()[0][1].y, 0.1f, K_COORDINATE_TOLERANCE);
+    ASSERT_EQ(polygon.objects.outlines()[0][0].size(), 3u);
+    EXPECT_NEAR(polygon.objects.outlines()[0][0][1].x, 0.9f, K_COORDINATE_TOLERANCE);
+    EXPECT_NEAR(polygon.objects.outlines()[0][0][1].y, 0.1f, K_COORDINATE_TOLERANCE);
 }
 
 /** @brief Tests that an image without a label file, or with an empty one, has no object. */

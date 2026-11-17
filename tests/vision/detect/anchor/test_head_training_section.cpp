@@ -304,15 +304,15 @@ TEST(Small_DetectAnchorTrainingSection, WritesEveryKeyInOrder)
                                         "objectness_gain"}));
 }
 
-/** @brief Tests that the writer spells a float as the one double it widens to. */
-TEST(Small_DetectAnchorTrainingSection, WritesAFloatAsItsDouble)
+/** @brief Tests that the writer states a float as its shortest decimal. */
+TEST(Small_DetectAnchorTrainingSection, WritesAFloatAsItsShortestDecimal)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value section,
                             write_head_training_section(make_imported_options()));
 
-    // The tolerance is zero: a float widens to exactly one double.
-    EXPECT_EQ(real_of(section, "match_threshold"), static_cast<double>(0.213f));
-    EXPECT_EQ(real_of(section, "box_weight"), static_cast<double>(0.07f));
+    // The tolerance is zero: 0.213 and 0.07 are the shortest decimals of those floats.
+    EXPECT_EQ(real_of(section, "match_threshold"), 0.213);
+    EXPECT_EQ(real_of(section, "box_weight"), 0.07);
 }
 
 /** @brief Tests that both strings of the box loss are written and read. */

@@ -30,7 +30,7 @@
 #include <SushiAI/vision/training/free_training_step.hpp>
 
 #include <cstdint>
-#include <initializer_list>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -46,6 +46,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/profile/profile.hpp>
 #include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
 #include <SushiAI/vision/training/detection_truth_check.hpp>
@@ -82,19 +83,6 @@ namespace SushiAI::Vision::Training
         {
             return SushiRuntime::span<const float>(tensor.data_as<float>(),
                                                    static_cast<std::size_t>(tensor.num_elements));
-        }
-
-        /** @brief Overwrites @p values with the float32 values of @p tensor, widened. */
-        void widen(const SushiBLAS::Tensor& tensor, std::vector<double>& values)
-        {
-            const SushiRuntime::span<const float> source = floats_of(tensor);
-            values.assign(source.begin(), source.end());
-        }
-
-        /** @brief Returns @p values as a span of its elements. */
-        [[nodiscard]] SushiRuntime::span<const double> view(const std::vector<double>& values)
-        {
-            return SushiRuntime::span<const double>(values.data(), values.size());
         }
     } // namespace
 
@@ -150,8 +138,7 @@ namespace SushiAI::Vision::Training
           pool_(&pool),
           training_(),
           input_(&input),
-          one_to_many_weight_(objective_.branch_weights().start),
-          doubles_()
+          one_to_many_weight_(objective_.branch_weights().start)
     {
 
     }
@@ -290,6 +277,25 @@ namespace SushiAI::Vision::Training
                 SA_TRY(check_host_floats(*projection_, facts.reg_max, K_FREE_PROJECTION_ROLE));
             }
 
+            SA_FAIL_IF(!pool_->is_bound(built.spec.loss), StatusCode::InvalidDescription,
+                       "The loss of the training graph has no tensor in the training pool");
+            loss_ = &pool_->tensor(built.spec.loss);
+            SA_TRY(check_host_floats(*loss_, 1, "the loss"));
+
+            const std::string_view names[] = {K_FREE_BOX_VALUE, K_FREE_CLASSES_VALUE,
+                                              K_FREE_DISTRIBUTION_VALUE, K_FREE_L1_VALUE};
+            for (std::size_t term = 0; term < std::size(names); ++term)
+            {
+                const Result<Graph::ValueID> id = built.metric_values.at(names[term]);
+                if (!id.has_value())
+                    continue;
+
+                SA_FAIL_IF(!pool_->is_bound(id.value()), StatusCode::InvalidDescription,
+                           "The loss term '{}' has no tensor in the training pool", names[term]);
+                terms_[term] = &pool_->tensor(id.value());
+                SA_TRY(check_host_floats(*terms_[term], 1, names[term]));
+            }
+
             return Status();
         });
     }
@@ -351,114 +357,20 @@ namespace SushiAI::Vision::Training
         });
     }
 
-    Result<FreeLossTerms> FreeTrainingStep::measure_terms()
+    FreeLossTerms FreeTrainingStep::read_terms() const noexcept
     {
-        if (branches_.size() == 1)
-            return measure_branch(branches_.front());
-
-        const double weights[] = {static_cast<double>(one_to_many_weight_),
-                                  1.0 - static_cast<double>(one_to_many_weight_)};
-        FreeLossTerms sum;
-        for (std::size_t copy = 0; copy < branches_.size(); ++copy)
+        const auto first_of = [](const SushiBLAS::Tensor* tensor) -> double
         {
-            SA_TRY_ASSIGN(const FreeLossTerms terms, measure_branch(branches_[copy]));
-            sum.total += weights[copy] * terms.total;
-            sum.box += weights[copy] * terms.box;
-            sum.classes += weights[copy] * terms.classes;
-            sum.distribution += weights[copy] * terms.distribution;
-            sum.l1 += weights[copy] * terms.l1;
-        }
-        return sum;
-    }
+            return tensor == nullptr ? 0.0 : static_cast<double>(tensor->data_as<float>()[0]);
+        };
 
-    Result<FreeLossTerms> FreeTrainingStep::measure_branch(const Branch& branch)
-    {
-        const FreeModelFacts& facts = objective_.facts();
-        const std::vector<FreeLeaf>& described = branch.stage.leaves();
-        FreeLossTerms sum;
-
-        for (std::size_t level = 0; level < facts.levels.size(); ++level)
-        {
-            LevelDoubles& host = doubles_;
-            {
-                SA_ZONE("host", "readback");
-                widen(*branch.ports[level * 2], host.boxes);
-                widen(*branch.ports[level * 2 + 1], host.scores);
-            }
-            for (std::vector<double>* field :
-                 {&host.target_scores, &host.box_mask, &host.normalized_weight, &host.target_boxes,
-                  &host.target_distances, &host.l1_scale, &host.safe_boxes,
-                  &host.distribution_weights, &host.anchor_points})
-                field->clear();
-
-            for (std::size_t leaf = 0; leaf < described.size(); ++leaf)
-            {
-                if (branch.leaves[leaf] == nullptr
-                    || described[leaf].level != static_cast<std::int64_t>(level))
-                    continue;
-
-                std::vector<double>* target = nullptr;
-                switch (described[leaf].kind)
-                {
-                    case FreeLeafKind::TargetScores:
-                        target = &host.target_scores;
-                        break;
-                    case FreeLeafKind::BoxMask:
-                        target = &host.box_mask;
-                        break;
-                    case FreeLeafKind::NormalizedWeight:
-                        target = &host.normalized_weight;
-                        break;
-                    case FreeLeafKind::TargetBoxes:
-                        target = &host.target_boxes;
-                        break;
-                    case FreeLeafKind::TargetDistances:
-                        target = &host.target_distances;
-                        break;
-                    case FreeLeafKind::L1Scale:
-                        target = &host.l1_scale;
-                        break;
-                    case FreeLeafKind::SafeBoxes:
-                        target = &host.safe_boxes;
-                        break;
-                    case FreeLeafKind::DistributionWeights:
-                        target = &host.distribution_weights;
-                        break;
-                    case FreeLeafKind::AnchorPoints:
-                        target = &host.anchor_points;
-                        break;
-                    case FreeLeafKind::AnchorStrides:
-                    case FreeLeafKind::TargetScoresSum:
-                        break;
-                }
-                if (target != nullptr)
-                {
-                    SA_ZONE("host", "readback");
-                    widen(*branch.leaves[leaf], *target);
-                }
-            }
-
-            const FreeLevelLossArrays arrays{
-                view(host.boxes),          view(host.scores),           view(host.target_scores),
-                view(host.box_mask),       view(host.normalized_weight), view(host.target_boxes),
-                view(host.target_distances), view(host.l1_scale),        view(host.safe_boxes),
-                view(host.distribution_weights), view(host.anchor_points)};
-
-            // Every term is a sum over rows divided by one score sum, so levels add.
-            SA_TRY_ASSIGN(const FreeLossTerms terms,
-                          evaluate_free_detection_loss(
-                              SushiRuntime::span<const FreeLevelLossArrays>(&arrays, 1),
-                              facts.reg_max, facts.classes, objective_.batch(),
-                              static_cast<double>(branch.stage.targets().target_scores_sum[0]),
-                              objective_.gains()));
-            sum.total += terms.total;
-            sum.box += terms.box;
-            sum.classes += terms.classes;
-            sum.distribution += terms.distribution;
-            sum.l1 += terms.l1;
-        }
-
-        return sum;
+        FreeLossTerms terms;
+        terms.total = first_of(loss_);
+        terms.box = first_of(terms_[0]);
+        terms.classes = first_of(terms_[1]);
+        terms.distribution = first_of(terms_[2]);
+        terms.l1 = first_of(terms_[3]);
+        return terms;
     }
 
     Result<FreeLossTerms> FreeTrainingStep::run(const SushiBLAS::Tensor& inputs,
@@ -479,21 +391,14 @@ namespace SushiAI::Vision::Training
         }
 
         // The ports are read before the rest of the step may reuse their storage.
-        FreeLossTerms terms;
         SA_ZONE("device", "run");
-        SA_TRY(training_->run([this, &truth, &terms]() -> Status
+        SA_TRY(training_->run([this, &truth]() -> Status
         {
-            SA_TRY(feed_leaves(truth));
-            return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Execute,
-                                            [this, &terms]() -> Status
-            {
-                SA_ZONE("host", "loss");
-                SA_TRY_ASSIGN(terms, measure_terms());
-                return Status();
-            });
+            return feed_leaves(truth);
         }));
 
-        return terms;
+        // The loss and its terms are pinned values, so they hold this run's numbers.
+        return read_terms();
     }
 
     const FreeAssignmentStage& FreeTrainingStep::stage() const noexcept
@@ -524,6 +429,18 @@ namespace SushiAI::Vision::Training
     Status FreeTrainingStep::restore_run_count(std::size_t count) noexcept
     {
         return training_->restore_run_count(count);
+    }
+
+    Result<Data::InputDescription> FreeTrainingStep::input_description() const noexcept
+    {
+        SA_TRY_ASSIGN(const Shape full, checked_shape_of(*input_));
+        SA_FAIL_IF(full.rank() == 0, StatusCode::InvalidDescription,
+                   "The input leaf of the anchor-free step has no batch extent");
+
+        const SushiRuntime::span<const std::int64_t> sample(
+            full.data() + 1, static_cast<std::size_t>(full.rank()) - 1);
+
+        return Data::InputDescription{Shape(sample), input_->dtype};
     }
 
     const FreeObjective& FreeTrainingStep::objective() const noexcept

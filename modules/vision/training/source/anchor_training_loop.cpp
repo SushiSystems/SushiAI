@@ -37,6 +37,7 @@
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/profile/profile.hpp>
 #include <SushiAI/profile/timelines.hpp>
+#include <SushiAI/train/input_match.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/detection_run_check.hpp>
@@ -52,6 +53,9 @@ namespace SushiAI::Vision::Training
                                        const Data::Dataset& dataset,
                                        const AnchorLoopOptions& options)
         {
+            SA_TRY_ASSIGN(const Data::InputDescription required, step.input_description());
+            SA_TRY(Train::match_input(required, dataset));
+
             const AnchorHead& head = step.objective().heads().front();
 
             DetectionRunSubject subject;

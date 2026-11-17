@@ -17,6 +17,7 @@ sushiai_add_test_program(OWNER vision/datasets
         test_coco_json.cpp
         test_collator.cpp
         test_csv.cpp
+        test_darknet_pipeline.cpp
         test_detection_collator.cpp
         test_fit_mask.cpp
         test_fit_pipeline.cpp

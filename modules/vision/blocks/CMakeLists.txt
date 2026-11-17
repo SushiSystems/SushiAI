@@ -15,7 +15,9 @@ sushiai_add_module(NAME blocks TIER vision
         source/c3k.cpp
         source/c3k2.cpp
         source/conv_norm.cpp
+        source/decoupled_head.cpp
         source/detect_head.cpp
+        source/focus.cpp
         source/psa_block.cpp
         source/segment_head.cpp
         source/sppf.cpp

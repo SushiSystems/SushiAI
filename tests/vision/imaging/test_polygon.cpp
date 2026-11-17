@@ -287,3 +287,40 @@ TEST(Small_ImagingPolygon, VisibleBoxIncludesTheImageCornersThePolygonContains)
     EXPECT_EQ(corner_box.y2, 33.0f);
     expect_box(visible_polygon_box(cover, K_IMAGE), 0.0f, 0.0f, 100.0f, 80.0f);
 }
+
+/** @brief Tests that the visible box of an outline is the union of the boxes of its parts. */
+TEST(Small_ImagingPolygon, VisibleBoxOfAnOutlineIsTheUnionOfItsParts)
+{
+    const Outline outline{Polygon{Point{10.0f, 10.0f}, Point{20.0f, 10.0f}, Point{20.0f, 20.0f}},
+                          Polygon{Point{60.0f, 50.0f}, Point{90.0f, 50.0f}, Point{90.0f, 70.0f}}};
+
+    expect_box(visible_outline_box(outline, K_IMAGE), 10.0f, 10.0f, 90.0f, 70.0f);
+}
+
+/** @brief Tests that a part outside the image adds nothing to the visible box of an outline. */
+TEST(Small_ImagingPolygon, VisibleBoxOfAnOutlineIgnoresAPartOutsideTheImage)
+{
+    const Outline outline{Polygon{Point{10.0f, 10.0f}, Point{20.0f, 10.0f}, Point{20.0f, 20.0f}},
+                          Polygon{Point{-50.0f, -50.0f}, Point{-40.0f, -50.0f},
+                                  Point{-40.0f, -40.0f}}};
+
+    expect_box(visible_outline_box(outline, K_IMAGE), 10.0f, 10.0f, 20.0f, 20.0f);
+    expect_box(visible_outline_box(Outline{}, K_IMAGE), 0.0f, 0.0f, 0.0f, 0.0f);
+}
+
+/** @brief Tests that map_outline and clamp_outline move every part. */
+TEST(Small_ImagingPolygon, MapAndClampOutlineMoveEveryPart)
+{
+    Outline outline{Polygon{Point{1.0f, 2.0f}}, Polygon{Point{3.0f, 4.0f}}};
+
+    map_outline(outline, 2.0f, 3.0f, 1.0f, -1.0f);
+    EXPECT_EQ(outline[0][0].x, 3.0f);
+    EXPECT_EQ(outline[0][0].y, 5.0f);
+    EXPECT_EQ(outline[1][0].x, 7.0f);
+    EXPECT_EQ(outline[1][0].y, 11.0f);
+
+    clamp_outline(outline, PixelBox{0.0f, 0.0f, 5.0f, 8.0f});
+    EXPECT_EQ(outline[0][0].x, 3.0f);
+    EXPECT_EQ(outline[1][0].x, 5.0f);
+    EXPECT_EQ(outline[1][0].y, 8.0f);
+}

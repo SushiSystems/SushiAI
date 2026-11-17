@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* argmax_classes.hpp                                                     */
+/* yolox_head_contract.cpp                                                */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,45 +22,31 @@
 /**************************************************************************/
 
 /**
- * @file argmax_classes.hpp
- * @brief Defines the pick of the highest-scoring class of each pixel.
+ * @file yolox_head_contract.cpp
+ * @brief Implements the port names and the objectness prior a YOLOX head and its decoding share.
  * @author Mustafa Garip
+ * @see modules/vision/detect/README.md
  */
 
-#pragma once
+#include <SushiAI/vision/detect/yolox/yolox_head_contract.hpp>
 
-#include <cstddef>
-#include <cstdint>
-#include <SushiRuntime/core/span.hpp>
+#include <cmath>
 
-/** @brief Holds the mask geometry and the metrics of semantic segmentation. */
-namespace SushiAI::Vision::Segment
+namespace SushiAI
 {
-    /**
-     * @brief Writes, for each pixel, the class whose score is the largest.
-     *
-     * Equal scores give the lowest class.
-     * @tparam Real float or double.
-     * @param scores @p classes scores per pixel, pixel after pixel.
-     * @pre @p classes is at least 1 and scores.size() equals picked.size() * classes.
-     */
-    template<typename Real>
-    void argmax_classes(SushiRuntime::span<const Real> scores, std::int32_t classes,
-                        SushiRuntime::span<std::int32_t> picked) noexcept
+    namespace Vision::Detect::Yolox
     {
-        const std::size_t width = static_cast<std::size_t>(classes);
-        for (std::size_t pixel = 0; pixel < picked.size(); ++pixel)
+        std::string yolox_port_name(std::size_t level, std::string_view role) noexcept
         {
-            const Real* const row = scores.data() + pixel * width;
-            std::size_t best = 0;
-            for (std::size_t class_index = 1; class_index < width; ++class_index)
-            {
-                if (row[class_index] > row[best])
-                    best = class_index;
-            }
+            std::string name("level");
+            name.append(std::to_string(level)).append(".").append(role);
 
-            picked[pixel] = static_cast<std::int32_t>(best);
+            return name;
         }
-    }
 
-} // namespace SushiAI::Vision::Segment
+        double yolox_prior_bias() noexcept
+        {
+            return std::log(K_YOLOX_PRIOR_PROBABILITY / (1.0 - K_YOLOX_PRIOR_PROBABILITY));
+        }
+    } // namespace Vision::Detect::Yolox
+} // namespace SushiAI

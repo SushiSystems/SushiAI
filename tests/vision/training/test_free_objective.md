@@ -30,6 +30,14 @@ and the L1 scale of level 0.
 
 Over the ports of both levels as parameters, `loss` returns a root of one element.
 
+### TheLossKeepsEachTermUnderItsName
+
+At the default gains and reg_max 2, the `LossTrace` of `loss` holds `free.box`, `free.classes` and `free.distribution` and no `free.l1`, as the L1 gain is 0.
+
+### TheMetricValuesAreTheTermsOfTheTrace
+
+`declare_metric_values` over that trace publishes three values, and `free.box` is the id the trace holds. Over a default `LossTrace`, which an evaluation graph passes, it publishes none.
+
 ### AMissingPortIsFatalNamingThePort
 
 `loss` over outputs without the ports stops the process; the report names `one2many.level0.boxes`.

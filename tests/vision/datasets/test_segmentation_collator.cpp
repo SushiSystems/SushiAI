@@ -280,3 +280,21 @@ TEST_F(Small_SegmentationCollator, SegmentationRefusesAnObjectWithoutAPolygon)
     SA_EXPECT_FAILURE(collator->collate(list, span(), batch), StatusCode::InvalidDescription,
                       "second.png", "paint_polygon_mask", "no polygon");
 }
+
+/** @brief Tests that a collator of mask files says it reads the mask. */
+TEST(Small_SegmentationCollatorTargets, AFileOriginReadsTheMask)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SegmentationCollator> collator,
+                            SegmentationCollator::make(three_classes()));
+
+    EXPECT_TRUE(collator->reads_mask());
+}
+
+/** @brief Tests that a collator that paints polygons says it reads no mask. */
+TEST(Small_SegmentationCollatorTargets, APolygonOriginReadsNoMask)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SegmentationCollator> collator,
+                            SegmentationCollator::make(polygons(std::nullopt)));
+
+    EXPECT_FALSE(collator->reads_mask());
+}

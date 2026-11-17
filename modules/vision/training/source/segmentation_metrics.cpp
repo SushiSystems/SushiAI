@@ -29,9 +29,9 @@
 
 #include <SushiAI/vision/training/segmentation_metrics.hpp>
 
-#include <algorithm>
-#include <array>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -39,56 +39,24 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/train/batch_role.hpp>
-#include <SushiAI/train/host_values.hpp>
-#include <SushiAI/vision/segment/argmax_classes.hpp>
+#include <SushiAI/train/step_view.hpp>
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
 #include <SushiAI/vision/segment/intersection_over_union.hpp>
 #include <SushiAI/vision/segment/pixel_accuracy.hpp>
 
-#include "host_reals.hpp"
-
 namespace SushiAI::Vision::Training
 {
-    namespace
-    {
-        /** @brief Holds how many pixels are picked and counted at a time. */
-        constexpr std::size_t K_PIXELS_PER_PASS = 4096;
-
-        /**
-         * @brief Adds every pixel of a step to @p matrix, K_PIXELS_PER_PASS at a time.
-         * @tparam Real float or double, the element type of the logits.
-         * @param scores The C logits of each pixel; @p truth The class of each pixel.
-         * @return What Segment::ConfusionMatrix::add refuses.
-         */
-        template<typename Real>
-        [[nodiscard]] Status count_pixels(const Real* scores, const std::int32_t* truth,
-                                          std::size_t pixels, std::int32_t ignore_index,
-                                          Segment::ConfusionMatrix& matrix)
-        {
-            const std::size_t classes = static_cast<std::size_t>(matrix.class_count());
-            std::array<std::int32_t, K_PIXELS_PER_PASS> picked{};
-            for (std::size_t first = 0; first < pixels; first += K_PIXELS_PER_PASS)
-            {
-                const std::size_t count = std::min(K_PIXELS_PER_PASS, pixels - first);
-                const SushiRuntime::span<std::int32_t> classes_picked(picked.data(), count);
-                Segment::argmax_classes(
-                    SushiRuntime::span<const Real>(scores + first * classes, count * classes),
-                    matrix.class_count(), classes_picked);
-                SA_TRY(matrix.add(
-                    SushiRuntime::span<const std::int32_t>(picked.data(), count),
-                    SushiRuntime::span<const std::int32_t>(truth + first, count), ignore_index));
-            }
-
-            return Status();
-        }
-    } // namespace
-
     Status measure_segmentation(const Train::StepView& step, const PixelExtents& extents,
                                 std::int32_t ignore_index, Train::Metrics& metrics) noexcept
     {
         const std::int64_t pixels = extents.pixels();
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, Train::only_output(step));
-        SA_TRY(Train::require_host_reals(*logits, pixels * extents.classes, "the logits"));
+        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const classes,
+                      Train::named_value(step, K_PIXEL_CLASSES_VALUE));
+        SA_FAIL_IF(classes->dtype != DType::Int64 || classes->num_elements != pixels,
+                   StatusCode::Incompatible,
+                   "The step's class value holds {} elements of {}; its metrics read {} of {}",
+                   classes->num_elements, dtype_name(classes->dtype), pixels,
+                   dtype_name(DType::Int64));
         SA_TRY_ASSIGN(const Data::BatchTarget* const mask,
                       Train::require_batch_role(step.batch, Data::K_ROLE_MASK));
         SA_FAIL_IF(mask->values.dtype != DType::Int32 || mask->values.num_elements != pixels,
@@ -96,19 +64,20 @@ namespace SushiAI::Vision::Training
                    "The batch's mask holds {} elements of {}; the step's metrics read {} of {}",
                    mask->values.num_elements, dtype_name(mask->values.dtype), pixels,
                    dtype_name(DType::Int32));
-        SA_FAIL_IF(extents.classes > Segment::K_MAX_CONFUSION_CLASSES,
+        SA_FAIL_IF(extents.classes > std::numeric_limits<std::int32_t>::max(),
                    StatusCode::InvalidDescription,
-                   "The step scores {} classes; its metrics count at most {}", extents.classes,
-                   Segment::K_MAX_CONFUSION_CLASSES);
+                   "The step scores {} classes; a class index is an int32 and the metrics "
+                   "count no more than {}",
+                   extents.classes, std::numeric_limits<std::int32_t>::max());
 
         SA_TRY_ASSIGN(Segment::ConfusionMatrix matrix,
                       Segment::ConfusionMatrix::make(static_cast<std::int32_t>(extents.classes)));
-        const std::int32_t* const truth = mask->values.data_as<std::int32_t>();
-        SA_TRY(Detail::read_reals(*logits, [&](const auto* const scores)
-        {
-            return count_pixels(scores, truth, static_cast<std::size_t>(pixels), ignore_index,
-                                matrix);
-        }));
+        const std::size_t count = static_cast<std::size_t>(pixels);
+        SA_TRY(matrix.add(SushiRuntime::span<const std::int64_t>(classes->data_as<std::int64_t>(),
+                                                                 count),
+                          SushiRuntime::span<const std::int32_t>(
+                              mask->values.data_as<std::int32_t>(), count),
+                          ignore_index));
 
         SA_TRY(metrics.add(Train::Metric{K_MEAN_IOU_METRIC, Segment::mean_iou(matrix), true}));
 

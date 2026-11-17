@@ -57,12 +57,16 @@ using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
 using Vision::Imaging::Image;
 using Vision::Imaging::ImageSize;
+using Vision::Imaging::square_size;
 using Vision::Imaging::NormalizedBox;
 
 namespace
 {
     /** @brief Holds the training size of the tests. */
     constexpr std::int32_t K_SIDE = 16;
+
+    /** @brief Holds the square training size of side K_SIDE. */
+    constexpr ImageSize K_SIZE = square_size(K_SIDE);
 
     /** @brief Holds the seed of every pipeline below. */
     constexpr std::uint64_t K_SEED = 20261011;
@@ -114,12 +118,13 @@ namespace
         }
     }
 
-    /** @brief Returns the training pipeline of K_SIDE and K_SEED. */
+    /** @brief Returns the training pipeline of K_SEED at @p image_size, K_SIZE by default. */
     std::unique_ptr<AugmentPipeline> augment(std::int32_t mosaic_epochs,
-                                              const ByteSource* source = nullptr)
+                                              const ByteSource* source = nullptr,
+                                              ImageSize image_size = K_SIZE)
     {
         AugmentOptions options;
-        options.image_size = K_SIDE;
+        options.image_size = image_size;
         options.seed = K_SEED;
         options.mosaic_epochs = mosaic_epochs;
         options.source = source;
@@ -227,7 +232,7 @@ namespace
         const char* name;
 
         /** @brief Holds the training size. */
-        std::int32_t image_size;
+        ImageSize image_size;
 
         /** @brief Holds the count of epochs of mosaic. */
         std::int32_t mosaic_epochs;
@@ -338,6 +343,23 @@ TEST_P(Small_DatasetsAugmentPipelineSample, AMaskTakesTheSizeOfItsSample)
 INSTANTIATE_TEST_SUITE_P(Rows, Small_DatasetsAugmentPipelineSample,
                          ::testing::Range<std::size_t>(0, 4), sample_row_name);
 
+/** @brief Tests that a rectangular training size gives an image and a mask of that size. */
+TEST(Small_DatasetsAugmentPipeline, ARectangularSizeGivesAnImageAndAMaskOfThatSize)
+{
+    MemorySource source;
+    SampleList list = four_images(source);
+    add_masks(source, list);
+    const ImageSize rectangle{K_SIDE / 2, K_SIDE};
+    const std::unique_ptr<AugmentPipeline> pipeline = augment(1000, &source, rectangle);
+    ASSERT_NE(pipeline, nullptr);
+
+    const std::vector<FittedSample> made = produce(*pipeline, list, {0}, 1);
+
+    ASSERT_EQ(made.size(), 1u);
+    EXPECT_EQ(made[0].image.size(), rectangle);
+    EXPECT_EQ(made[0].mask.size(), rectangle);
+}
+
 /** @brief Tests that the next epoch changes at least one image of the four. */
 TEST(Small_DatasetsAugmentPipeline, ANewEpochChangesTheImages)
 {
@@ -407,8 +429,9 @@ TEST_P(Small_DatasetsAugmentPipelineMakeRefusal, MakeRefusesWhatItCannotBuild)
 
 INSTANTIATE_TEST_SUITE_P(
     Rows, Small_DatasetsAugmentPipelineMakeRefusal,
-    ::testing::Values(MakeRefusal{"ASizeOfZero", 0, 1, "a training size of 0"},
-                      MakeRefusal{"ANegativeEpochCount", K_SIDE, -1, "-1 epochs of mosaic"}),
+    ::testing::Values(MakeRefusal{"ASizeOfZero", ImageSize{0, 0}, 1, "a training size of 0x0"},
+                      MakeRefusal{"ANegativeEpochCount", K_SIZE, -1,
+                                  "-1 epochs of mosaic"}),
     [](const ::testing::TestParamInfo<MakeRefusal>& info) { return ::SushiAI::Test::parameter_name(info.param.name); });
 
 /** @brief Tests that produce refuses a negative epoch. */

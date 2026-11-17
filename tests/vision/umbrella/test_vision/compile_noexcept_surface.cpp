@@ -174,8 +174,8 @@
 #include <SushiAI/vision/training/free_bias_init.hpp>
 #include <SushiAI/vision/training/free_branch_weights.hpp>
 #include <SushiAI/vision/training/free_detection_loss.hpp>
-#include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
+#include <SushiAI/vision/training/free_loss_terms.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include <SushiAI/vision/training/free_objective.hpp>
 #include <SushiAI/vision/training/free_objective_factory.hpp>
@@ -1472,16 +1472,16 @@ namespace SushiAI::Vision::Imaging
         noexcept(validate_mosaic(std::declval<const MosaicSettings&>())),
         "validate_mosaic is noexcept");
     static_assert(
-        noexcept(validate_mosaic_size(std::declval<std::int32_t>())),
+        noexcept(validate_mosaic_size(std::declval<ImageSize>())),
         "validate_mosaic_size is noexcept");
     static_assert(
-        noexcept(draw_mosaic(std::declval<const MosaicSettings&>(), std::declval<std::int32_t>(),
+        noexcept(draw_mosaic(std::declval<const MosaicSettings&>(), std::declval<ImageSize>(),
                 std::declval<std::size_t>(), std::declval<PartnerSource&>(),
                 std::declval<Random&>())),
         "draw_mosaic is noexcept");
     static_assert(
         noexcept(plan_mosaic(std::declval<const MosaicSettings&>(),
-                std::declval<const MosaicDraw&>(), std::declval<std::int32_t>(),
+                std::declval<const MosaicDraw&>(), std::declval<ImageSize>(),
                 std::declval<const std::array<ImageSize, K_MOSAIC_PATCHES>&>())),
         "plan_mosaic is noexcept");
     static_assert(
@@ -1554,6 +1554,16 @@ namespace SushiAI::Vision::Imaging
     static_assert(
         noexcept(clamp_polygon(std::declval<Polygon&>(), std::declval<const PixelBox&>())),
         "clamp_polygon is noexcept");
+    static_assert(
+        noexcept(map_outline(std::declval<Outline&>(), std::declval<float>(), std::declval<float>(),
+                std::declval<float>(), std::declval<float>())),
+        "map_outline is noexcept");
+    static_assert(
+        noexcept(clamp_outline(std::declval<Outline&>(), std::declval<const PixelBox&>())),
+        "clamp_outline is noexcept");
+    static_assert(
+        noexcept(visible_outline_box(std::declval<const Outline&>(), std::declval<ImageSize>())),
+        "visible_outline_box is noexcept");
     static_assert(
         noexcept(is_point_inside(std::declval<const Polygon&>(), std::declval<Point>())),
         "is_point_inside is noexcept");
@@ -1644,8 +1654,8 @@ namespace SushiAI::Vision::Imaging
 namespace SushiAI::Vision::Imaging
 {
     static_assert(
-        noexcept(fit_long_side(std::declval<ImageSize>(), std::declval<std::int32_t>())),
-        "fit_long_side is noexcept");
+        noexcept(fit_within(std::declval<ImageSize>(), std::declval<ImageSize>())),
+        "fit_within is noexcept");
     static_assert(
         noexcept(resize_bilinear(std::declval<ImageView>(), std::declval<ImageSize>(),
                 std::declval<Image&>())),
@@ -1655,9 +1665,9 @@ namespace SushiAI::Vision::Imaging
                 std::declval<Image&>())),
         "resize_nearest is noexcept");
     static_assert(
-        noexcept(resize_long_side(std::declval<ImageView>(), std::declval<std::int32_t>(),
+        noexcept(resize_within(std::declval<ImageView>(), std::declval<ImageSize>(),
                 std::declval<Image&>())),
-        "resize_long_side is noexcept");
+        "resize_within is noexcept");
 } // namespace SushiAI::Vision::Imaging
 
 namespace SushiAI::Vision::Importers
@@ -2086,17 +2096,6 @@ namespace SushiAI::Vision::Training
                 std::declval<const Graph::Graph&>(), std::declval<const FreeModelFacts&>(),
                 std::declval<const FreeLossValues&>(), std::declval<const FreeLossGains&>())),
         "emit_free_detection_loss is noexcept");
-} // namespace SushiAI::Vision::Training
-
-namespace SushiAI::Vision::Training
-{
-    static_assert(
-        noexcept(evaluate_free_detection_loss(
-                std::declval<SushiRuntime::span<const FreeLevelLossArrays>>(),
-                std::declval<std::int64_t>(), std::declval<std::int64_t>(),
-                std::declval<std::int64_t>(), std::declval<double>(),
-                std::declval<const FreeLossGains&>())),
-        "evaluate_free_detection_loss is noexcept");
 } // namespace SushiAI::Vision::Training
 
 namespace SushiAI::Vision::Training

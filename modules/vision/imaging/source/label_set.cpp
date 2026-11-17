@@ -35,26 +35,32 @@
 
 namespace SushiAI::Vision::Imaging
 {
-    void Detail::check_label_counts(std::size_t classes, std::size_t boxes, std::size_t polygons)
+    void Detail::check_label_counts(std::size_t classes, std::size_t boxes, std::size_t outlines)
     {
-        SA_FATAL_IF(classes != boxes || polygons != boxes,
-                    "LabelSet: {} classes, {} boxes and {} polygons do not describe the same "
+        SA_FATAL_IF(classes != boxes || outlines != boxes,
+                    "LabelSet: {} classes, {} boxes and {} outlines do not describe the same "
                     "objects; the three counts must match",
-                    classes, boxes, polygons);
+                    classes, boxes, outlines);
     }
 
     FileLabels resample_polygons(FileLabels labels)
     {
         std::size_t longest = 0;
-        for (const Polygon& polygon : labels.polygons())
-            longest = std::max(longest, polygon.size());
+        for (const Outline& outline : labels.outlines())
+        {
+            for (const Polygon& part : outline)
+                longest = std::max(longest, part.size());
+        }
 
         if (longest == 0)
             return labels;
 
         const std::size_t count = resampled_point_count(longest);
         for (std::size_t i = 0; i < labels.size(); ++i)
-            labels.polygon(i) = resample_polygon(labels.polygon(i), count);
+        {
+            for (Polygon& part : labels.outline(i))
+                part = resample_polygon(part, count);
+        }
 
         return labels;
     }
@@ -69,10 +75,10 @@ namespace SushiAI::Vision::Imaging
 
         for (std::size_t i = 0; i < labels.size(); ++i)
         {
-            Polygon polygon = labels.polygons()[i];
-            map_polygon(polygon, width, height, 0.0f, 0.0f);
+            Outline outline = labels.outlines()[i];
+            map_outline(outline, width, height, 0.0f, 0.0f);
             pixels.add(labels.classes()[i], to_pixel_box(labels.boxes()[i], size),
-                       std::move(polygon));
+                       std::move(outline));
         }
 
         return pixels;
@@ -88,15 +94,18 @@ namespace SushiAI::Vision::Imaging
 
         for (std::size_t i = 0; i < labels.size(); ++i)
         {
-            Polygon polygon = labels.polygons()[i];
-            for (Point& point : polygon)
+            Outline outline = labels.outlines()[i];
+            for (Polygon& part : outline)
             {
-                point.x /= width;
-                point.y /= height;
+                for (Point& point : part)
+                {
+                    point.x /= width;
+                    point.y /= height;
+                }
             }
 
             normalized.add(labels.classes()[i], to_normalized_box(labels.boxes()[i], size),
-                           std::move(polygon));
+                           std::move(outline));
         }
 
         return normalized;
@@ -110,7 +119,7 @@ namespace SushiAI::Vision::Imaging
         for (std::size_t i = 0; i < labels.size(); ++i)
         {
             labels.box(i) = clip_box(labels.box(i), size);
-            clamp_polygon(labels.polygon(i), image);
+            clamp_outline(labels.outline(i), image);
         }
     }
 

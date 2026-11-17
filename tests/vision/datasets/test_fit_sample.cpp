@@ -269,3 +269,54 @@ TEST(Small_DatasetsFitSample, ALetterboxThatLeavesNoPixelsIsRefused)
                                  options_of(ImageSize{4, 4}, SampleFit::Letterbox), fitted),
                       StatusCode::InvalidDescription, "plan_letterbox", "zero pixels");
 }
+
+/** @brief Tests the image and the labels of the Darknet letterbox against a hand derivation. */
+TEST(Small_DatasetsFitSample, DarknetLetterboxMatchesTheHandDerivedImage)
+{
+    // 2 by 3 into 6 by 6: width 6, height 4, a padding row each side; 30 c + 90 r -> 12 k + 30 r.
+    const Image source = Support::gray_image(ImageSize{2, 3}, {0, 30, 60, 90, 120, 150});
+    const Sample sample = sample_with_one_box(NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f});
+
+    FittedSample fitted;
+    SA_EXPECT_OK(fit_sample(sample, source.view(),
+                            options_of(ImageSize{6, 6}, SampleFit::DarknetLetterbox), fitted));
+
+    const std::uint8_t g = 128;
+    EXPECT_EQ(bytes_of(fitted.image),
+              (std::vector<std::uint8_t>{g, g, g, g, g, g,
+                                         0, 12, 24, 36, 48, 60,
+                                         30, 42, 54, 66, 78, 90,
+                                         60, 72, 84, 96, 108, 120,
+                                         90, 102, 114, 126, 138, 150,
+                                         g, g, g, g, g, g}));
+
+    // The box spans [0.75, 2.25] by [0.5, 1.5]; both axes scale by 2 and the rows move by 1.
+    ASSERT_EQ(fitted.objects.size(), 1u);
+    expect_box(fitted.objects.boxes()[0], 1.5f, 2.0f, 4.5f, 4.0f);
+
+    EXPECT_EQ(fitted.fit.source, (ImageSize{2, 3}));
+    EXPECT_EQ(fitted.fit.scale_x, 2.0f);
+    EXPECT_EQ(fitted.fit.scale_y, 2.0f);
+    EXPECT_EQ(fitted.fit.offset_x, 0.0f);
+    EXPECT_EQ(fitted.fit.offset_y, 1.0f);
+}
+
+/** @brief Tests that the Darknet letterbox truncates its sides and its offsets. */
+TEST(Small_DatasetsFitSample, DarknetLetterboxTruncatesTheSidesAndTheOffsets)
+{
+    // 3 by 5 into 4 by 6: width 6, height 3 * 6 / 5 truncates to 3, padding below; 10 c -> 8 k.
+    const Image source = Support::gray_image(
+        ImageSize{3, 5}, {0, 10, 20, 30, 40, 100, 110, 120, 130, 140, 200, 210, 220, 230, 240});
+
+    FittedSample fitted;
+    SA_EXPECT_OK(fit_sample(Sample{}, source.view(),
+                            options_of(ImageSize{4, 6}, SampleFit::DarknetLetterbox), fitted));
+
+    const std::uint8_t g = 128;
+    EXPECT_EQ(bytes_of(fitted.image),
+              (std::vector<std::uint8_t>{0, 8, 16, 24, 32, 40,
+                                         100, 108, 116, 124, 132, 140,
+                                         200, 208, 216, 224, 232, 240,
+                                         g, g, g, g, g, g}));
+    EXPECT_EQ(fitted.fit.offset_y, 0.0f);
+}

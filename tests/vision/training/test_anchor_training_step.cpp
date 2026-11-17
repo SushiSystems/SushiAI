@@ -41,6 +41,8 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiAI/data/input.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -474,6 +476,22 @@ TEST_F(Medium_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
     EXPECT_GT(squares, 0.0);
     EXPECT_NEAR(cost.stored, squares, K_COST_TOLERANCE * squares);
     EXPECT_NEAR(cost.total, squares / static_cast<double>(K_BATCH), K_COST_TOLERANCE * squares);
+}
+
+/** @brief Tests that the step names the input its leaf holds, past the batch axis. */
+TEST_F(Medium_AnchorTrainingStep, TheInputDescriptionIsTheLeafPastItsBatchAxis)
+{
+    TwoHeadCase model;
+    model.prepare(backend(), two_heads("head.0", "head.1"));
+    ASSERT_TRUE(model.ready);
+    model.make_step(backend());
+    ASSERT_NE(model.step, nullptr);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Data::InputDescription described,
+                            model.step->input_description());
+
+    EXPECT_EQ(described.sample_shape, (Shape{K_NETWORK_SIDE, K_NETWORK_SIDE, 3}));
+    EXPECT_EQ(described.dtype, DType::Float32);
 }
 
 /** @brief Tests that a step under the shape-ratio rule feeds that rule's deltas and cost. */

@@ -59,16 +59,12 @@ using Vision::Training::make_pixel_cross_entropy_objective;
 using Vision::Training::PixelCrossEntropyObjective;
 using Vision::Training::PixelExtents;
 
-/** @brief Tests the largest batch of 512 by 512 pixels over 150 classes INT32 indexes: 54. */
-TEST(Small_PixelExtents, MakeRefusesWhatInt32CannotIndex)
+/** @brief Tests that a product of extents past what INT32 indexes is accepted: 55 images fit. */
+TEST(Small_PixelExtents, MakeAcceptsAProductOfExtentsPastInt32)
 {
-    // 54 * 512 * 512 * 150 is 2 123 366 400; one image more is 2 162 688 000.
+    // 54 * 512 * 512 * 150 is 2 123 366 400; 55 images are 2 162 688 000, above 2 147 483 647.
     SA_EXPECT_OK(PixelCrossEntropyObjective::make(PixelExtents{54, 512, 512, 150}));
-    SA_EXPECT_FAILURE(PixelCrossEntropyObjective::make(PixelExtents{55, 512, 512, 150}),
-                      StatusCode::InvalidDescription, "55 * 512 * 512 * 150", "2147483647");
-
-    // The Dice objective gathers one probability per pixel, so the same bound holds for it.
+    SA_EXPECT_OK(PixelCrossEntropyObjective::make(PixelExtents{55, 512, 512, 150}));
     SA_EXPECT_OK(DiceObjective::make(PixelExtents{54, 512, 512, 150}));
-    SA_EXPECT_FAILURE(DiceObjective::make(PixelExtents{55, 512, 512, 150}),
-                      StatusCode::InvalidDescription, "55 * 512 * 512 * 150", "2147483647");
+    SA_EXPECT_OK(DiceObjective::make(PixelExtents{55, 512, 512, 150}));
 }

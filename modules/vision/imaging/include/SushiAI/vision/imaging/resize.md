@@ -1,12 +1,14 @@
 # modules/vision/imaging/include/SushiAI/vision/imaging/resize.hpp
 
 
-## fit_long_side
+## fit_within
 
-The reference's training and validation load (`data/base.py:297-299`): with
-`r = image_size / max(height, width)` in `double`, a ratio of exactly 1 leaves the size alone,
-and otherwise each side is `min(ceil(side * r), image_size)`. A small image is enlarged; the
-reference has no guard against that.
+With `r = min(target.height / height, target.width / width)` in `double`, a ratio of exactly 1
+leaves the size alone, and otherwise each side is `min(ceil(side * r), its target side)`. A small
+image is enlarged; the reference has no guard against that. For a square target `s` the smaller
+ratio is `s / max(height, width)`, so the result is the reference's training and validation load
+(`data/base.py:297-299`) to the bit. A rectangular target, such as 800 by 1440, keeps the image's
+aspect and fits it inside both sides.
 
 ## resize_bilinear
 
@@ -47,6 +49,6 @@ stops the process through `check_source` and through `Image::reset`, which is wh
 outside the bounds of an image is refused. `Datasets::fit_mask` computes the same index with its own
 kernel, because it writes into a region of a letterboxed mask.
 
-## resize_long_side
+## resize_within
 
-`resize_bilinear` to `fit_long_side`, or a copy when the size does not change.
+`resize_bilinear` to `fit_within`, or a copy when the size does not change.

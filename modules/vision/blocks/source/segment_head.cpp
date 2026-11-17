@@ -29,6 +29,8 @@
 
 #include <SushiAI/vision/blocks/segment_head.hpp>
 
+#include <string>
+#include <string_view>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/status.hpp>
 
@@ -42,7 +44,7 @@ namespace SushiAI
         {
             /** @brief Lists every key a "segment_head" row accepts. */
             constexpr std::string_view K_SEGMENT_HEAD_KEYS[] = {
-                "classes", "hidden", "scale", Detail::K_NORM_EPSILON_KEY,
+                "classes", "hidden", "scale", "mode", Detail::K_NORM_EPSILON_KEY,
                 Detail::K_NORM_MOMENTUM_KEY};
 
             /** @brief Holds the side of the window of the first convolution. */
@@ -50,6 +52,26 @@ namespace SushiAI
 
             /** @brief Holds the upsample factor of a row that states none. */
             constexpr int64_t K_DEFAULT_SCALE = 1;
+
+            /**
+             * @brief Reads the name under "mode", or Mode::Nearest when the key is absent.
+             * @return InvalidDescription when the key holds anything but "nearest" or "bilinear".
+             */
+            [[nodiscard]] Result<NN::Upsample2d::Mode> read_mode(const Config::Value& attributes,
+                                                                  std::string_view context)
+            {
+                if (!attributes.has("mode"))
+                    return NN::Upsample2d::Mode::Nearest;
+
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at("mode", context));
+                SA_FAIL_IF(stated.kind() != Config::Kind::String, StatusCode::InvalidDescription,
+                           "{} 'mode' must be a string, but it is {}", context,
+                           Config::kind_name(stated.kind()));
+
+                SA_TRY_ASSIGN(const std::string& name, stated.as_string(context));
+
+                return NN::Upsample2d::mode_from_name(name);
+            }
 
             /** @brief Builds the biased, unpadded 1x1 convolution that scores the classes. */
             [[nodiscard]] NN::Conv2d biased_pointwise(int64_t in_channels, int64_t out_channels)
@@ -63,10 +85,11 @@ namespace SushiAI
         } // namespace
 
         SegmentHead::SegmentHead(int64_t in_channels, int64_t hidden, int64_t classes,
-                                 int64_t scale, NN::NormOptions norm) noexcept
+                                 int64_t scale, NN::NormOptions norm,
+                                 NN::Upsample2d::Mode mode) noexcept
             : cv1(in_channels, hidden, K_FEATURE_KERNEL, Detail::K_POINTWISE, norm),
               cv2(biased_pointwise(hidden, classes)),
-              up{scale}
+              up{scale, mode}
         {
 
         }
@@ -101,10 +124,12 @@ namespace SushiAI
             SA_TRY_ASSIGN(const int64_t scale,
                           Detail::read_positive_int_or(attributes, "scale", context,
                                                        K_DEFAULT_SCALE));
+            SA_TRY_ASSIGN(const NN::Upsample2d::Mode mode, read_mode(attributes, context));
             SA_TRY_ASSIGN(const NN::NormOptions norm,
                           Detail::read_norm_options(attributes, context));
 
-            return Detail::wrap_block(SegmentHead(input[2], hidden, classes, scale, norm), input);
+            return Detail::wrap_block(SegmentHead(input[2], hidden, classes, scale, norm, mode),
+                                      input);
         }
 
     } // namespace Vision::Blocks

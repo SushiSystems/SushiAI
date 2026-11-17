@@ -39,13 +39,13 @@
 /** @brief Holds the mask geometry and the metrics of semantic segmentation. */
 namespace SushiAI::Vision::Segment
 {
-    /** @brief Holds the largest class count a confusion matrix is built for. */
-    inline constexpr std::int32_t K_MAX_CONFUSION_CLASSES = 4096;
-
     /**
-     * @brief Checks that a matrix is built over @p classes classes, allocating nothing.
-     * @return Success, or InvalidDescription naming the count and the bounds for a count outside
-     *         [1, K_MAX_CONFUSION_CLASSES]; ConfusionMatrix::make() runs it first.
+     * @brief Checks that a matrix of @p classes classes fits memory, allocating nothing.
+     *
+     * The matrix holds C * C int64 counts, which is 8 * C * C bytes.
+     * @return Success, or InvalidDescription for a count below 1, or for one whose count of
+     *         bytes is above the largest block the host can address, naming the count and the
+     *         bytes; ConfusionMatrix::make() runs it first.
      */
     [[nodiscard]] Status check_confusion_class_count(std::int32_t classes) noexcept;
 
@@ -60,8 +60,8 @@ namespace SushiAI::Vision::Segment
         public:
             /**
              * @brief Builds a matrix of zeros over @p classes classes.
-             * @return The matrix; InvalidDescription for a count outside
-             *         [1, K_MAX_CONFUSION_CLASSES]; OutOfMemory when it cannot be allocated.
+             * @return The matrix; InvalidDescription from check_confusion_class_count();
+             *         OutOfMemory when the host cannot allocate it.
              */
             [[nodiscard]] static Result<ConfusionMatrix> make(std::int32_t classes) noexcept;
 
@@ -73,6 +73,18 @@ namespace SushiAI::Vision::Segment
              *         for a class outside those bounds, naming the pixel.
              */
             [[nodiscard]] Status add(SushiRuntime::span<const std::int32_t> predicted,
+                                     SushiRuntime::span<const std::int32_t> truth,
+                                     std::int32_t ignore_index) noexcept;
+
+            /**
+             * @brief Counts every pixel whose true class is not @p ignore_index, the predicted
+             *        classes being int64 values as the device writes them.
+             * @param predicted One class per pixel; in [0, class_count()) where the pixel counts.
+             * @param truth One class per pixel, in [0, class_count()) or @p ignore_index.
+             * @return Incompatible, with the counts unchanged, for spans of unequal length or
+             *         for a class outside those bounds, naming the pixel.
+             */
+            [[nodiscard]] Status add(SushiRuntime::span<const std::int64_t> predicted,
                                      SushiRuntime::span<const std::int32_t> truth,
                                      std::int32_t ignore_index) noexcept;
 
@@ -113,6 +125,16 @@ namespace SushiAI::Vision::Segment
         private:
             /** @brief Stores a class count make() has checked and C * C zeros. */
             explicit ConfusionMatrix(std::int32_t classes);
+
+            /**
+             * @brief Counts the pixels of @p predicted and @p truth, whatever the element type
+             *        of @p predicted is.
+             * @tparam Predicted std::int32_t or std::int64_t.
+             */
+            template<typename Predicted>
+            [[nodiscard]] Status add_pixels(SushiRuntime::span<const Predicted> predicted,
+                                            SushiRuntime::span<const std::int32_t> truth,
+                                            std::int32_t ignore_index) noexcept;
 
             /** @brief Returns the position of the count of (@p truth, @p predicted). */
             [[nodiscard]] std::size_t offset_of(std::int32_t truth,

@@ -73,19 +73,18 @@ namespace SushiAI::Vision::Training
 
     Graph::Traced emit_pixel_cross_entropy(const Graph::GraphBuilder& builder,
                                            const Graph::Graph& graph, Graph::ValueID logits,
-                                           Graph::ValueID indices, Graph::ValueID weights) noexcept
+                                           Graph::ValueID labels, Graph::ValueID weights) noexcept
     {
         const Shape shape = require_rows(graph, logits, "per-pixel cross entropy");
         const std::int64_t rows = shape[0];
-        const std::int64_t classes = shape[1];
         require_operand(graph, logits, weights, Shape{rows, 1}, "weights");
 
-        // As a table of rows * classes single values, one index picks one log-probability.
-        SA_TRY_ASSIGN(const Graph::ValueID table,
-                      builder.reshape(builder.log_softmax(logits), Shape{rows * classes, 1}));
-        SA_TRY_ASSIGN(const Graph::ValueID picked, builder.gather_rows(table, indices));
+        // A label outside [0, classes), the ignore index, picks nothing and reads as zero.
+        SA_TRY_ASSIGN(const Graph::ValueID picked,
+                      builder.take_along(builder.log_softmax(logits), labels));
+        SA_TRY_ASSIGN(const Graph::ValueID column, builder.reshape(picked, Shape{rows, 1}));
 
-        return builder.scale(builder.sum_rows(builder.mul(picked, weights)), -1.0);
+        return builder.scale(builder.sum_rows(builder.mul(column, weights)), -1.0);
     }
 
     Graph::Traced emit_soft_dice(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
@@ -100,16 +99,12 @@ namespace SushiAI::Vision::Training
 
         SA_TRY_ASSIGN(const Graph::ValueID probabilities, builder.softmax(logits));
 
-        // As a table of rows * classes single values, one index picks a pixel's own class.
-        SA_TRY_ASSIGN(const Graph::ValueID table,
-                      builder.reshape(probabilities, Shape{rows * classes, 1}));
+        // An ignored label is outside [0, classes): the pixel adds nothing to any class.
         SA_TRY_ASSIGN(const Graph::ValueID picked,
-                      builder.gather_rows(table, operands.score_indices));
-
-        // An ignored row is zeroed before the sum, so the class its index names gains nothing.
+                      builder.take_along(probabilities, operands.labels));
+        SA_TRY_ASSIGN(const Graph::ValueID column, builder.reshape(picked, Shape{rows, 1}));
         SA_TRY_ASSIGN(const Graph::ValueID hits,
-                      builder.reshape(builder.scatter_add_rows(builder.mul(picked, operands.kept),
-                                                               operands.class_indices, classes),
+                      builder.reshape(builder.scatter_add_rows(column, operands.labels, classes),
                                       Shape{classes}));
 
         // kept transposed times the probabilities sums each class over the kept rows alone.

@@ -47,13 +47,14 @@
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/vision/segment/ignore_index.hpp>
 #include <SushiAI/vision/training/pixel_extents.hpp>
+#include <SushiAI/vision/training/segmentation_metrics.hpp>
 
 namespace SushiAI::Vision::Training
 {
     /** @brief Holds the "type" a training file states for the per-pixel cross entropy. */
     inline constexpr std::string_view K_PIXEL_CROSS_ENTROPY_TYPE = "pixel_cross_entropy";
 
-    /** @brief Holds the role of the INT32 [R] leaf of log-probability indices. */
+    /** @brief Holds the role of the INT32 [R] leaf with the label of each pixel. */
     inline constexpr std::string_view K_PIXEL_TARGETS_LEAF = "targets";
 
     /** @brief Holds the role of the [R, 1] leaf of pixel weights. */
@@ -63,8 +64,8 @@ namespace SushiAI::Vision::Training
      * @brief Computes the mean cross entropy of [N, H, W, C] logits against an [N, H, W] mask,
      *        over the pixels that are not the ignore index.
      *
-     * The loss reads one log-probability per pixel through K_GATHER_ROWS, so no one-hot
-     * leaf is held. README.md states what the two leaves cost.
+     * The loss reads one log-probability per pixel through K_TAKE_ALONG, so no one-hot
+     * leaf is held and no product of the extents is indexed. README.md states what the two leaves cost.
      */
     class PixelCrossEntropyObjective final : public Train::Objective
     {
@@ -72,9 +73,8 @@ namespace SushiAI::Vision::Training
             /**
              * @brief Builds the objective over the logits @p extents describe.
              * @param dtype The element type of the weight leaf, float32 or float64.
-             * @return The objective, or InvalidDescription for an extent below 1, for
-             *         N * H * W * C above what INT32 indexes, for an ignore index that names
-             *         a class, or for another element type.
+             * @return The objective, or InvalidDescription for an extent below 1, for an
+             *         ignore index that names a class, or for another element type.
              */
             [[nodiscard]] static Result<std::unique_ptr<PixelCrossEntropyObjective>> make(
                 const PixelExtents& extents,
@@ -90,10 +90,22 @@ namespace SushiAI::Vision::Training
              * @pre @p outputs holds one NHWC value of the extents make() was given; anything
              *      else stops the process.
              */
-            [[nodiscard]] Result<Graph::ValueID> loss(
+            [[nodiscard]] Result<Train::LossTrace> loss(
                 const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                 const NN::ModelOutputs& outputs,
                 const Train::ObjectiveLeaves& leaves) const override;
+
+            /**
+             * @brief Emits the class of each pixel on the device with declare_pixel_classes(),
+             *        over the rows loss() kept in @p trace, or over rows of its own when the
+             *        trace holds none.
+             * @pre @p outputs holds one NHWC value of the extents make() was given; anything
+             *      else stops the process.
+             * @return The INT64 [N * H * W] value under K_PIXEL_CLASSES_VALUE.
+             */
+            [[nodiscard]] Result<NN::ModelOutputs> declare_metric_values(
+                const Graph::GraphBuilder& builder, const NN::ModelOutputs& outputs,
+                const Train::LossTrace& trace) const override;
 
             /**
              * @brief Writes both leaves from the mask role with fill_pixel_targets().
@@ -110,6 +122,13 @@ namespace SushiAI::Vision::Training
             /** @brief Appends "mean_iou" and "pixel_accuracy" with measure_segmentation(). */
             [[nodiscard]] Status measure(const Train::StepView& step,
                                          Train::Metrics& metrics) const override;
+
+                        /** @brief Returns the names measure_segmentation() appends. */
+            [[nodiscard]] SushiRuntime::span<const std::string_view> metric_names()
+                const noexcept override
+            {
+                return segmentation_metric_names();
+            }
 
             /** @brief Returns "pixel_cross_entropy". */
             std::string_view name() const noexcept override

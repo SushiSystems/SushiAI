@@ -1,10 +1,11 @@
 # detect
 
-The module has three parts: the root, which holds what both detection families share, in namespace
+The module has four parts: the root, which holds what the detection families share, in namespace
 `SushiAI::Vision::Detect`; `free/`, which holds the anchor-free path of YOLO26, in
-`SushiAI::Vision::Detect::Free`; and `anchor/`, which holds anchor-box detection, in
-`SushiAI::Vision::Detect::Anchor`. Headings below name each header with its folder, so `free/` and
-`anchor/` headers carry the prefix and root headers keep their bare names.
+`SushiAI::Vision::Detect::Free`; `anchor/`, which holds anchor-box detection, in
+`SushiAI::Vision::Detect::Anchor`; and `yolox/`, which holds the YOLOX task and its decoding, in
+`SushiAI::Vision::Detect::Yolox`. Headings below name each header with its folder, so `free/`,
+`anchor/` and `yolox/` headers carry the prefix and root headers keep their bare names.
 
 The parts of a detector's training and inference that run on the host over plain arrays: anchor
 grids, box coding, IoU, label assignment, the leaves a masked loss reads, both postprocess paths
@@ -48,6 +49,7 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `detections_topk.hpp` | `count_top_detections`, `select_top_detections`, `keep_confident_detections` |
 | `suppression_criterion.hpp` | `K_DEFAULT_DISTANCE_EXPONENT`, `SuppressionCriterion`, `measure_suppression` |
 | `detections_nms.hpp` | `LabelMode`, `ClassMode`, `NMSConfig`, `suppress_overlaps`, `select_nms_detections` |
+| `suppression_section.hpp` | `SuppressionKeys`, `SuppressionSection`, `read_suppression_section`, `write_suppression_section` |
 | `average_precision.hpp` | `K_IOU_THRESHOLDS`, `ClassMetrics`, `MetricsSummary`, `match_detections`, `integrate_precision`, `AveragePrecision` |
 | `batch_average_precision.hpp` | `add_batch` |
 | `anchor/anchor_size.hpp` | `AnchorSize`, `shape_iou` |
@@ -72,6 +74,9 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `anchor/shape_ratio_delta.hpp` | `K_MAX_BALANCED_LEVELS`, `ShapeRatioDeltaInput`, `ShapeRatioFactors`, `ShapeRatioLoss`, `objectness_balance`, `derive_shape_ratio_factors`, `validate_shape_ratio_delta`, `build_objectness_targets`, `measure_shape_ratio_loss`, `compute_shape_ratio_delta` |
 | `anchor/head_training_section.hpp` | `K_ANCHOR_OBJECTIVE_TYPE`, `read_head_training_section`, `write_head_training_section` |
 | `anchor/seeded_sequence.hpp` | `Detail::SeededSequence` |
+| `yolox/yolox_head_contract.hpp` | the `K_YOLOX_*` port role names and channel counts, `K_YOLOX_PRIOR_PROBABILITY`, `yolox_port_name`, `yolox_prior_bias` |
+| `yolox/yolox_task.hpp` | `K_YOLOX_TASK_TYPE`, `YoloxTask`, `read_yolox_task`, `write_yolox_task` |
+| `yolox/yolox_decode.hpp` | `YoloxLevel`, `YoloxDecoded`, `decode_yolox`, `make_yolox_nms_config`, `select_yolox_detections` |
 
 ## anchor/shape_ratio_delta.hpp
 
@@ -115,6 +120,28 @@ A task section selects the rule under `"assignment"`:
 rule is `best_shape`, the assignment `compute_head_delta` makes, and the writer leaves the
 member out. `ratio_limit` must be finite and above 1, `neighbour_offset` finite and in
 [0, 0.5]. `compute_head_delta` does not read the choice yet.
+
+## suppression_section.hpp
+
+[`include/SushiAI/vision/detect/suppression_section.md`](include/SushiAI/vision/detect/suppression_section.md) describes it.
+
+The YOLOX, anchor-free and anchor task sections read and write their `suppression` object
+through it; the anchor task uses the `WithoutThreshold` form.
+
+## yolox/yolox_head_contract.hpp
+
+The role names of the three ports of a YOLOX head level, "classes", "boxes" and "objectness", the
+channel counts of the last two, and the probability 0.01 that the class and objectness biases
+start from as a logit, `log(p / (1 - p))`. `DecoupledHead` in `vision/blocks` takes its port names
+and biases from here, so the head and `decode_yolox` agree.
+
+## yolox/yolox_task.hpp
+
+[`include/SushiAI/vision/detect/yolox/yolox_task.md`](include/SushiAI/vision/detect/yolox/yolox_task.md) describes it.
+
+## yolox/yolox_decode.hpp
+
+[`include/SushiAI/vision/detect/yolox/yolox_decode.md`](include/SushiAI/vision/detect/yolox/yolox_decode.md) describes it.
 
 ## free/anchors.hpp
 

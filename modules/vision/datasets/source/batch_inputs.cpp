@@ -29,10 +29,11 @@
 
 #include <SushiAI/vision/datasets/batch_inputs.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
-
 
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
@@ -46,10 +47,52 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Holds the rank of an NHWC tensor. */
         constexpr std::int32_t K_INPUT_RANK = 4;
+
+        /** @brief Counts the levels a byte can hold. */
+        constexpr std::size_t K_LEVELS = 256;
+
+        /** @brief Holds the channel count the colours of a normalisation are stated for. */
+        constexpr std::int64_t K_COLOUR_CHANNELS = 3;
+
+        /** @brief Holds the value of every byte level on one channel. */
+        using LevelTable = std::array<float, K_LEVELS>;
+
+        /** @brief Holds one table for each channel the mean and the deviation are stated for. */
+        using ChannelTables = std::array<LevelTable, Config::K_NORMALISE_CHANNELS>;
+
+        /** @brief Holds the table of each channel and the stored channel each output reads. */
+        struct ChannelPlan
+        {
+            ChannelTables tables;                                       /**< Value of each level. */
+            std::array<std::size_t, Imaging::K_MAX_CHANNELS> source{};  /**< Stored channel read. */
+        };
+
+        /** @brief Builds the tables and the channel each output channel reads. */
+        ChannelPlan plan_channels(const Config::InputNormalise& normalise, std::int64_t channels)
+        {
+            ChannelPlan plan;
+            for (std::size_t c = 0; c < Config::K_NORMALISE_CHANNELS; ++c)
+            {
+                for (std::size_t level = 0; level < K_LEVELS; ++level)
+                {
+                    const double scaled = static_cast<double>(level) * normalise.scale;
+                    plan.tables[c][level] =
+                        static_cast<float>((scaled - normalise.mean[c]) / normalise.deviation[c]);
+                }
+            }
+
+            const bool swapped = channels == K_COLOUR_CHANNELS &&
+                                 normalise.channels == Config::ChannelOrder::Bgr;
+            for (std::size_t c = 0; c < static_cast<std::size_t>(channels); ++c)
+                plan.source[c] = swapped ? Config::K_NORMALISE_CHANNELS - 1 - c : c;
+
+            return plan;
+        }
     } // namespace
 
     Status write_batch_inputs(SushiRuntime::span<const FittedSample> samples,
-                              SushiBLAS::Tensor& inputs) noexcept
+                              SushiBLAS::Tensor& inputs,
+                              const Config::InputNormalise& normalise) noexcept
     {
         SA_FAIL_IF(inputs.dtype != DType::Float32 || inputs.rank != K_INPUT_RANK,
                    StatusCode::Incompatible,
@@ -62,7 +105,18 @@ namespace SushiAI::Vision::Datasets
         const std::int64_t height = inputs.shape[1];
         const std::int64_t width = inputs.shape[2];
         const std::int64_t channels = inputs.shape[3];
-        const std::size_t elements = static_cast<std::size_t>(height * width * channels);
+        SA_FAIL_IF(!Imaging::is_valid_channel_count(channels), StatusCode::Incompatible,
+                   "{}: the input has {} channels; an image has 1 to {}", K_WRITER, channels,
+                   Imaging::K_MAX_CHANNELS);
+        SA_FAIL_IF(channels != K_COLOUR_CHANNELS && normalise.colours_differ(),
+                   StatusCode::Incompatible,
+                   "{}: the input has {} channels; a channel order, a mean or a deviation is "
+                   "stated for {}",
+                   K_WRITER, channels, K_COLOUR_CHANNELS);
+
+        const ChannelPlan plan = plan_channels(normalise, channels);
+        const std::size_t pixels = static_cast<std::size_t>(height * width);
+        const std::size_t stride = static_cast<std::size_t>(channels);
         float* out = inputs.data_as<float>();
 
         for (std::size_t i = 0; i < samples.size(); ++i)
@@ -78,10 +132,17 @@ namespace SushiAI::Vision::Datasets
                        width, channels);
 
             const std::uint8_t* bytes = image.data();
-            for (std::size_t e = 0; e < elements; ++e)
-                out[e] = static_cast<float>(bytes[e]) / K_BYTE_SCALE;
+            for (std::size_t p = 0; p < pixels; ++p)
+            {
+                for (std::size_t c = 0; c < stride; ++c)
+                {
+                    const std::size_t table = std::min(c, Config::K_NORMALISE_CHANNELS - 1);
+                    out[c] = plan.tables[table][bytes[plan.source[c]]];
+                }
 
-            out += elements;
+                bytes += stride;
+                out += stride;
+            }
         }
 
         return Status();

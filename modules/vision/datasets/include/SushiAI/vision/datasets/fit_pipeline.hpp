@@ -57,13 +57,13 @@ namespace SushiAI::Vision::Datasets
              * @brief Builds the pipeline of one fit and one channel count.
              * @param channels 1 decodes to gray, any other count to colour.
              * @param source Serves the files of the samples; null for the file system.
+             * @param decode_masks False leaves FittedSample::mask empty and opens no mask file.
              * @pre @p source, when given, outlives the pipeline.
-             * @return The pipeline, never null; InvalidDescription for an input size outside
-             *         the bounds of an image.
+             * @return The pipeline, or InvalidDescription for a size outside an image's bounds.
              */
             [[nodiscard]] static Result<std::unique_ptr<FitPipeline>> make(
                 const SampleFitOptions& fit, std::int32_t channels,
-                const ByteSource* source = nullptr) noexcept;
+                const ByteSource* source = nullptr, bool decode_masks = true) noexcept;
 
             /** @brief Returns the layout an image of a channel count is decoded to. */
             [[nodiscard]] static Codecs::ChannelLayout layout_of(std::int32_t channels) noexcept;
@@ -83,7 +83,7 @@ namespace SushiAI::Vision::Datasets
         private:
             /** @brief Holds the fit and the decoding of the channel count. */
             FitPipeline(const SampleFitOptions& fit, std::int32_t channels,
-                        const ByteSource& source) noexcept;
+                        const ByteSource& source, bool decode_masks) noexcept;
 
             /// @brief Holds the input size and how an image is fitted to it.
             SampleFitOptions fit_;
@@ -93,5 +93,8 @@ namespace SushiAI::Vision::Datasets
 
             /// @brief Points at the source the files are read through, never null.
             const ByteSource* source_;
+
+            /// @brief Tells whether the mask of a sample that has one is loaded and fitted.
+            bool decode_masks_;
     };
 } // namespace SushiAI::Vision::Datasets

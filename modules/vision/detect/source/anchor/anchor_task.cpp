@@ -40,6 +40,7 @@
 
 #include <SushiAI/config/section_reader.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/vision/detect/suppression_section.hpp>
 
 namespace SushiAI
 {
@@ -61,9 +62,6 @@ namespace SushiAI
             constexpr std::string_view K_HEAD_KEYS[] = {"output", "anchors", "coding",
                                                       "scale_xy", "size"};
 
-            /** @brief Lists every key "suppression" may carry. */
-            constexpr std::string_view K_SUPPRESSION_KEYS[] = {"criterion", "distance_exponent"};
-
             /** @brief Pairs one head coding with the string a task section states for it. */
             struct CodingName
             {
@@ -78,14 +76,6 @@ namespace SushiAI
                 std::string_view name; /**< Its string under "size". */
             };
 
-            /** @brief Pairs one suppression criterion with its string and what it reads. */
-            struct CriterionName
-            {
-                SuppressionCriterion value; /**< The enumerator. */
-                std::string_view name;      /**< Its string under "criterion". */
-                bool reads_exponent;        /**< Whether the measure reads distance_exponent. */
-            };
-
             /** @brief Lists every head coding; the reader and the writer both look it up. */
             constexpr CodingName K_CODING_NAMES[] = {{HeadCoding::Logit, "logit"},
                                                      {HeadCoding::Activated, "activated"}};
@@ -93,11 +83,6 @@ namespace SushiAI
             /** @brief Lists every size form; the reader and the writer both look it up. */
             constexpr SizeName K_SIZE_NAMES[] = {{SizeForm::Exponential, "exponential"},
                                                  {SizeForm::SquaredSigmoid, "squared_sigmoid"}};
-
-            /** @brief Lists every criterion; the reader and the writer both look it up. */
-            constexpr CriterionName K_CRITERION_NAMES[] = {
-                {SuppressionCriterion::IoU, "iou", false},
-                {SuppressionCriterion::DistanceIoU, "distance_iou", true}};
 
             /** @brief Returns the row of @p table for the enumerator @p value, or null. */
             template<typename Row, std::size_t N, typename Enumerator>
@@ -255,41 +240,6 @@ namespace SushiAI
                 return Status();
             }
 
-            /** @brief Reads "suppression" of @p task into the criterion and its exponent. */
-            Status read_suppression(const Value& task, AnchorTask& result)
-            {
-                const std::string where = member_of(K_TASK, "suppression");
-                SA_TRY_ASSIGN(const Value* const suppression,
-                              SectionReader(task, K_TASK).find_of("suppression", Kind::Object));
-
-                const SectionReader reader(*suppression, where);
-                SA_TRY(reader.check_keys(
-                    KeySpan(K_SUPPRESSION_KEYS, std::size(K_SUPPRESSION_KEYS))));
-
-                SA_TRY_ASSIGN(const Value* const criterion,
-                              reader.find_of("criterion", Kind::String));
-                SA_TRY_ASSIGN(const std::string& stated, criterion->as_string(where));
-                const CriterionName* const row = find_by_name(K_CRITERION_NAMES, stated);
-                SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,
-                           "{} is '{}'; it is one of {}", member_of(where, "criterion"), stated,
-                           list_names(K_CRITERION_NAMES));
-                result.criterion = row->value;
-
-                if (!row->reads_exponent)
-                {
-                    SA_FAIL_IF(suppression->has("distance_exponent"),
-                               StatusCode::InvalidDescription,
-                               "{} is stated, but the criterion '{}' does not read it",
-                               member_of(where, "distance_exponent"), stated);
-                    return Status();
-                }
-
-                SA_TRY_ASSIGN(const Value* const exponent, reader.find("distance_exponent"));
-                SA_TRY_ASSIGN(result.distance_exponent,
-                              read_float32(*exponent, reader.member("distance_exponent")));
-                return Status();
-            }
-
             /** @brief Checks head @p index of @p task against the task's classes and anchors. */
             Status validate_task_head(const AnchorTask& task, std::size_t index)
             {
@@ -367,8 +317,8 @@ namespace SushiAI
                 for (const AnchorSize& anchor : anchors)
                 {
                     entries.push_back(
-                        Value::array({Value::real(static_cast<double>(anchor.width)),
-                                      Value::real(static_cast<double>(anchor.height))}));
+                        Value::array({Config::float32_value(anchor.width),
+                                      Config::float32_value(anchor.height)}));
                 }
                 return Value::array(std::move(entries));
             }
@@ -394,7 +344,7 @@ namespace SushiAI
                 values.push_back(Value::string(head.output));
                 values.push_back(Value::array(std::move(indices)));
                 values.push_back(Value::string(std::string(coding->name)));
-                values.push_back(Value::real(static_cast<double>(head.options.scale_xy)));
+                values.push_back(Config::float32_value(head.options.scale_xy));
                 if (head.options.size != SizeForm::Exponential)
                 {
                     const SizeName* const size = find_by_value(K_SIZE_NAMES, head.options.size);
@@ -423,32 +373,6 @@ namespace SushiAI
                 return Value::array(std::move(entries));
             }
 
-            /** @brief Builds "suppression": the criterion, and the exponent when it is read. */
-            Result<Value> suppression_value(const AnchorTask& task)
-            {
-                const std::string where = member_of(K_TASK, "suppression");
-                const CriterionName* const criterion =
-                    find_by_value(K_CRITERION_NAMES, task.criterion);
-                SA_FAIL_IF(criterion == nullptr, StatusCode::InvalidDescription,
-                           "{} holds the value {}, which is no criterion; the criteria are {}",
-                           member_of(where, "criterion"),
-                           static_cast<std::int64_t>(task.criterion),
-                           list_names(K_CRITERION_NAMES));
-
-                if (!criterion->reads_exponent)
-                {
-                    return Value::object({"criterion"},
-                                         {Value::string(std::string(criterion->name))});
-                }
-
-                SA_FAIL_IF(!std::isfinite(task.distance_exponent), StatusCode::InvalidDescription,
-                           "{} must be finite; got {}", member_of(where, "distance_exponent"),
-                           task.distance_exponent);
-                return Value::object(
-                    {"criterion", "distance_exponent"},
-                    {Value::string(std::string(criterion->name)),
-                     Value::real(static_cast<double>(task.distance_exponent))});
-            }
         } // namespace
 
         Result<AnchorTask> read_anchor_task(const Config::Value& task) noexcept
@@ -471,7 +395,11 @@ namespace SushiAI
 
             SA_TRY(read_anchors(task, result.layout.anchors));
             SA_TRY(read_heads(task, result));
-            SA_TRY(read_suppression(task, result));
+            SA_TRY_ASSIGN(const SuppressionSection suppression,
+                          read_suppression_section(task, K_TASK,
+                                                   SuppressionKeys::WithoutThreshold));
+            result.criterion = suppression.criterion;
+            result.distance_exponent = suppression.distance_exponent;
             const Value* assignment = nullptr;
             if (reader.has("assignment"))
             {
@@ -488,7 +416,12 @@ namespace SushiAI
             SA_TRY(validate_anchor_task(task));
 
             SA_TRY_ASSIGN(Value heads, heads_value(task));
-            SA_TRY_ASSIGN(Value suppression, suppression_value(task));
+            SuppressionSection section;
+            section.criterion = task.criterion;
+            section.distance_exponent = task.distance_exponent;
+            SA_TRY_ASSIGN(Value suppression,
+                          write_suppression_section(section, K_TASK,
+                                                    SuppressionKeys::WithoutThreshold));
 
             std::vector<std::string> keys = {"type", "classes", "anchors", "heads",
                                              "suppression"};

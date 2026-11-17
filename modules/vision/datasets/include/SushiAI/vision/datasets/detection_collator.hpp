@@ -34,6 +34,7 @@
 #include <string_view>
 #include <vector>
 
+#include <SushiAI/config/input_normalise.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 
@@ -61,10 +62,12 @@ namespace SushiAI::Vision::Datasets
         public:
             /**
              * @brief Builds the collator of @p class_count classes and M = @p max_objects.
+             * @param normalise How the byte levels of an image become input values.
              * @return The collator, never null; InvalidDescription for a value below 1.
              */
             [[nodiscard]] static Result<std::unique_ptr<DetectionCollator>> make(
-                std::int32_t class_count, std::int32_t max_objects) noexcept;
+                std::int32_t class_count, std::int32_t max_objects,
+                const Config::InputNormalise& normalise = Config::InputNormalise()) noexcept;
 
             [[nodiscard]] std::string_view task() const noexcept override;
             [[nodiscard]] const std::vector<Data::TargetDescription>& targets()
@@ -81,13 +84,17 @@ namespace SushiAI::Vision::Datasets
 
         private:
             /** @brief Holds the descriptions of the three roles. */
-            DetectionCollator(std::int32_t class_count, std::int32_t max_objects);
+            DetectionCollator(std::int32_t class_count, std::int32_t max_objects,
+                              const Config::InputNormalise& normalise);
 
             /// @brief Counts the classes an object may name.
             std::int32_t class_count_;
 
             /// @brief Counts the object slots of one image, M.
             std::int32_t max_objects_;
+
+            /// @brief Holds how the byte levels of an image become input values.
+            Config::InputNormalise normalise_;
 
             /// @brief Holds the descriptions of boxes, classes and valid, in that order.
             std::vector<Data::TargetDescription> targets_;

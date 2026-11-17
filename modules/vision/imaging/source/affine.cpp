@@ -123,14 +123,14 @@ namespace SushiAI::Vision::Imaging
             return Detail::blend_pair(left, right, column.second_weight);
         }
 
-        /** @brief Holds what the warp makes of one object: its box and its polygon. */
+        /** @brief Holds what the warp makes of one object: its box and its outline. */
         struct WarpedObject
         {
             /** @brief Holds the box in the output, clipped to it. */
             PixelBox box{};
 
-            /** @brief Holds the polygon in the output, clamped to the box; empty without one. */
-            Polygon polygon;
+            /** @brief Holds the outline in the output, clamped to the box; empty without one. */
+            Outline outline;
         };
 
         /**
@@ -143,25 +143,25 @@ namespace SushiAI::Vision::Imaging
             const PixelBox warped{m[0] * box.x1 + m[2], m[4] * box.y1 + m[5],
                                   m[0] * box.x2 + m[2], m[4] * box.y2 + m[5]};
 
-            return WarpedObject{clip_box(warped, plan.output), Polygon{}};
+            return WarpedObject{clip_box(warped, plan.output), Outline{}};
         }
 
         /**
-         * @brief Warps one object that has a polygon and takes its box from the warped polygon.
+         * @brief Warps one object that has an outline and takes its box from the warped outline.
          *
-         * The box is visible_polygon_box clipped to the output, and the polygon is clamped to
+         * The box is visible_outline_box clipped to the output, and every part is clamped to
          * that box: the reference's apply_segments (data/augment.py:1313-1322) followed by
          * Instances.clip (utils/instance.py:426-429).
          */
-        [[nodiscard]] WarpedObject warp_polygon(Polygon polygon, const AffinePlan& plan) noexcept
+        [[nodiscard]] WarpedObject warp_outline(Outline outline, const AffinePlan& plan) noexcept
         {
             const std::array<float, 6>& m = plan.matrix;
 
-            map_polygon(polygon, m[0], m[4], m[2], m[5]);
-            const PixelBox box = clip_box(visible_polygon_box(polygon, plan.output), plan.output);
-            clamp_polygon(polygon, box);
+            map_outline(outline, m[0], m[4], m[2], m[5]);
+            const PixelBox box = clip_box(visible_outline_box(outline, plan.output), plan.output);
+            clamp_outline(outline, box);
 
-            return WarpedObject{box, std::move(polygon)};
+            return WarpedObject{box, std::move(outline)};
         }
     } // namespace
 
@@ -278,16 +278,16 @@ namespace SushiAI::Vision::Imaging
         for (std::size_t i = 0; i < labels.size(); ++i)
         {
             const PixelBox& box = labels.boxes()[i];
-            const Polygon& polygon = labels.polygons()[i];
-            const bool has_polygon = !polygon.empty();
+            const Outline& outline = labels.outlines()[i];
+            const bool has_polygon = !outline.empty();
 
-            WarpedObject warped = has_polygon ? warp_polygon(polygon, plan) : warp_box(box, plan);
+            WarpedObject warped = has_polygon ? warp_outline(outline, plan) : warp_box(box, plan);
             const CandidateFilter& filter = has_polygon ? plan.polygon_filter : plan.filter;
 
             if (!is_box_candidate(scale_box(box, plan.scale, plan.scale), warped.box, filter))
                 continue;
 
-            kept.add(labels.classes()[i], warped.box, std::move(warped.polygon));
+            kept.add(labels.classes()[i], warped.box, std::move(warped.outline));
         }
 
         return kept;

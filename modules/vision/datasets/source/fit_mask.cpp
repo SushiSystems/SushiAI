@@ -38,6 +38,7 @@
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/vision/imaging/darknet_letterbox.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 
 #include "disk.hpp"
@@ -107,8 +108,21 @@ namespace SushiAI::Vision::Datasets
             return Status();
         }
 
+        /** @brief Places the mask where the Darknet letterbox places its image; the rest is void. */
+        Status fit_by_darknet_letterbox(Imaging::ImageView mask, const SampleFitOptions& options,
+                                        Imaging::Image& fitted)
+        {
+            SA_TRY_ASSIGN(const Imaging::DarknetLetterboxPlan plan,
+                          Imaging::plan_darknet_letterbox(mask.size(), options.size));
+
+            fitted.reset(options.size, K_MASK_CHANNELS);
+            fitted.fill(K_MASK_VOID);
+            resize_nearest(mask, plan.resized, plan.top, plan.left, fitted);
+            return Status();
+        }
+
         /** @brief Holds the function of each SampleFit, at the index of its enumerator. */
-        constexpr MaskFit K_FITS[] = {fit_by_resize, fit_by_letterbox};
+        constexpr MaskFit K_FITS[] = {fit_by_resize, fit_by_letterbox, fit_by_darknet_letterbox};
     } // namespace
 
     Status fit_mask(Imaging::ImageView mask, Imaging::ImageSize image,
