@@ -60,6 +60,13 @@ namespace SushiAI
         /** @brief Records UPSAMPLE2D_BACKWARD, which sums each scale block onto its pixel. */
         [[nodiscard]] Status lower_upsample2d_backward(const LoweringContext& context) noexcept;
 
+        /** @brief Records UPSAMPLE2D_BILINEAR, which interpolates each pixel from four. */
+        [[nodiscard]] Status lower_upsample2d_bilinear(const LoweringContext& context) noexcept;
+
+        /** @brief Records UPSAMPLE2D_BILINEAR_BACKWARD, which gathers each pixel's gradients. */
+        [[nodiscard]] Status lower_upsample2d_bilinear_backward(
+            const LoweringContext& context) noexcept;
+
         /** @brief Records SPATIAL_MEAN, which averages an NHWC tensor over H and W. */
         [[nodiscard]] Status lower_spatial_mean(const LoweringContext& context) noexcept;
 
@@ -82,7 +89,7 @@ namespace SushiAI
         [[nodiscard]] Status lower_depthwise_conv2d_backward_weight(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each spatial operation with the row that lowers it. */
-        inline constexpr std::array<LoweringEntry, 15> K_SPATIAL_LOWERINGS = {{
+        inline constexpr std::array<LoweringEntry, 17> K_SPATIAL_LOWERINGS = {{
             {Ops::K_IM2COL.id, &lower_im2col},
             {Ops::K_COL2IM.id, &lower_col2im},
             {Ops::K_MAXPOOL2D.id, &lower_maxpool2d},
@@ -98,6 +105,8 @@ namespace SushiAI
             {Ops::K_DEPTHWISE_CONV2D.id, &lower_depthwise_conv2d},
             {Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id, &lower_depthwise_conv2d_backward_input},
             {Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id, &lower_depthwise_conv2d_backward_weight},
+            {Ops::K_UPSAMPLE2D_BILINEAR.id, &lower_upsample2d_bilinear},
+            {Ops::K_UPSAMPLE2D_BILINEAR_BACKWARD.id, &lower_upsample2d_bilinear_backward},
         }};
     } // namespace Graph
 } // namespace SushiAI

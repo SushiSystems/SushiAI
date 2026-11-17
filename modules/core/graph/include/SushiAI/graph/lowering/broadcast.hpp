@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* linalg.hpp                                                             */
+/* broadcast.hpp                                                          */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,8 +22,8 @@
 /**************************************************************************/
 
 /**
- * @file linalg.hpp
- * @brief Declares the lowering rows of the linear-algebra operations and their table.
+ * @file broadcast.hpp
+ * @brief Declares the lowering rows of the broadcast arithmetic and the sum along an axis.
  * @author Mustafa Garip
  */
 
@@ -36,32 +36,28 @@ namespace SushiAI
 {
     namespace Graph
     {
-        /** @brief Records the product of two matrices, each transposed if its flag is set. */
-        [[nodiscard]] Status lower_matmul(const LoweringContext& context) noexcept;
+        /** @brief Records the sum of a tensor and a vector broadcast along the node's side. */
+        [[nodiscard]] Status lower_broadcast_add(const LoweringContext& context) noexcept;
 
-        /** @brief Records the sum of a rank-2 operand and a bias vector added to every row. */
-        [[nodiscard]] Status lower_bias_add(const LoweringContext& context) noexcept;
+        /** @brief Records the difference of a tensor and a vector broadcast along the node's side. */
+        [[nodiscard]] Status lower_broadcast_sub(const LoweringContext& context) noexcept;
 
-        /** @brief Records the column sums of a rank-2 operand. */
-        [[nodiscard]] Status lower_sum_rows(const LoweringContext& context) noexcept;
+        /** @brief Records the product of a tensor and a vector broadcast along the node's side. */
+        [[nodiscard]] Status lower_broadcast_mul(const LoweringContext& context) noexcept;
 
-        /** @brief Records the product of a row-selection matrix and a [V, D] table. */
-        [[nodiscard]] Status lower_gather_rows(const LoweringContext& context) noexcept;
+        /** @brief Records the quotient of a tensor and a vector broadcast along the node's side. */
+        [[nodiscard]] Status lower_broadcast_div(const LoweringContext& context) noexcept;
 
-        /** @brief Records the product of a transposed row-selection matrix and [N, D] rows. */
-        [[nodiscard]] Status lower_scatter_add_rows(const LoweringContext& context) noexcept;
+        /** @brief Records the sum of a tensor down to a prefix or a suffix of its shape. */
+        [[nodiscard]] Status lower_sum_along(const LoweringContext& context) noexcept;
 
-        /** @brief Records a per-entry scale and shift that replaces the upper triangle. */
-        [[nodiscard]] Status lower_causal_mask(const LoweringContext& context) noexcept;
-
-        /** @brief Pairs each linear-algebra operation with the row that lowers it. */
-        inline constexpr std::array<LoweringEntry, 6> K_LINALG_LOWERINGS = {{
-            {Ops::K_MATMUL.id, &lower_matmul},
-            {Ops::K_BIAS_ADD.id, &lower_bias_add},
-            {Ops::K_SUM_ROWS.id, &lower_sum_rows},
-            {Ops::K_GATHER_ROWS.id, &lower_gather_rows},
-            {Ops::K_SCATTER_ADD_ROWS.id, &lower_scatter_add_rows},
-            {Ops::K_CAUSAL_MASK.id, &lower_causal_mask},
+        /** @brief Pairs each broadcast operation with the row that lowers it. */
+        inline constexpr std::array<LoweringEntry, 5> K_BROADCAST_LOWERINGS = {{
+            {Ops::K_BROADCAST_ADD.id, &lower_broadcast_add},
+            {Ops::K_BROADCAST_SUB.id, &lower_broadcast_sub},
+            {Ops::K_BROADCAST_MUL.id, &lower_broadcast_mul},
+            {Ops::K_BROADCAST_DIV.id, &lower_broadcast_div},
+            {Ops::K_SUM_ALONG.id, &lower_sum_along},
         }};
     } // namespace Graph
 } // namespace SushiAI

@@ -8,8 +8,8 @@ Tests the contents of `K_UNLOWERED`. That none of its operations has a lowering 
 
 ## TheListNamesTheFourOperationsRecordedBesideTheGraph
 
-The list has four entries: ADAMW_UPDATE, SGD_UPDATE, CLIP_SCALE and BATCHNORM_UPDATE_STATS.
+The list has six entries: ADAMW_UPDATE, SGD_UPDATE, CLIP_SCALE, BATCHNORM_UPDATE_STATS, LAYER_NORM_DEVIATION and LAYER_NORM_APPLY.
 
 ## NoOperationIsListedTwice
 
-One row per pair of positions, six in all: the two entries are different operations, so the four entries are four operations.
+One row per pair of positions, fifteen in all: the two entries are different operations, so the six entries are six operations.

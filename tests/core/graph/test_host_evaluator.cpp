@@ -29,6 +29,8 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <numeric>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
@@ -191,6 +193,39 @@ namespace
 
     };
 
+    /** @brief Holds one transpose case: the operand shape, the permutation and the result. */
+    struct TransposeRow
+    {
+        std::string name;                  /**< The row's name. */
+        Shape shape;                       /**< The shape of the operand, 0, 1, 2 ... in order. */
+        std::vector<int64_t> permutation;  /**< The per-sample permutation. */
+        std::vector<double> expected;      /**< The hand-worked result. */
+    };
+
+    /**
+     * @brief Lists the transpose cases. An operand of [2, 2, 3] holds 0 to 11, so each sample is
+     *        [[0, 1, 2], [3, 4, 5]] or [[6, 7, 8], [9, 10, 11]]; swapping the two per-sample axes
+     *        gives [[0, 3], [1, 4], [2, 5]] and [[6, 9], [7, 10], [8, 11]]. An operand of
+     *        [1, 2, 3, 2] holds 6a + 2b + c at (a, b, c); the cycle (1, 2, 0) writes
+     *        6 i2 + 2 i0 + i1 at (i0, i1, i2). The identity leaves [1, 2, 2] as it is.
+     */
+    std::vector<TransposeRow> transpose_rows()
+    {
+        return {
+            {"SwapOfTwoAxes", Shape{2, 2, 3}, {1, 0},
+             {0, 3, 1, 4, 2, 5, 6, 9, 7, 10, 8, 11}},
+            {"CycleOfThreeAxes", Shape{1, 2, 3, 2}, {1, 2, 0},
+             {0, 6, 1, 7, 2, 8, 3, 9, 4, 10, 5, 11}},
+            {"Identity", Shape{1, 2, 2}, {0, 1}, {0, 1, 2, 3}},
+        };
+    }
+
+    /** @brief Runs one transpose row. */
+    class Small_HostEvaluatorTranspose : public ::testing::TestWithParam<TransposeRow>
+    {
+
+    };
+
     /** @brief Expects each of @p result to sit within the rounding bound of its @p expected. */
     void expect_each_within(const std::vector<double>& result,
                             const std::vector<double>& expected)
@@ -259,6 +294,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(BinaryRow{"Add", Ops::K_ADD.id, {4, 8, 3}},
                       BinaryRow{"Sub", Ops::K_SUB.id, {-2, 0, -7}},
                       BinaryRow{"Mul", Ops::K_MUL.id, {3, 16, -10}},
+                      BinaryRow{"Maximum", Ops::K_MAXIMUM.id, {3, 4, 5}},
                       BinaryRow{"LessEqual", Ops::K_LESS_EQUAL.id, {1, 1, 1}}),
     row_name<BinaryRow>);
 
@@ -330,10 +366,49 @@ INSTANTIATE_TEST_SUITE_P(
                       CoverageRow{"NllLoss", Ops::K_NLL_LOSS.id, true},
                       CoverageRow{"Abs", Ops::K_ABS.id, true},
                       CoverageRow{"Softplus", Ops::K_SOFTPLUS.id, true},
+                      CoverageRow{"Div", Ops::K_DIV.id, true},
+                      CoverageRow{"Maximum", Ops::K_MAXIMUM.id, true},
+                      CoverageRow{"Sqrt", Ops::K_SQRT.id, true},
+                      CoverageRow{"Log", Ops::K_LOG.id, true},
+                      CoverageRow{"Pow", Ops::K_POW.id, true},
+                      CoverageRow{"BroadcastAdd", Ops::K_BROADCAST_ADD.id, true},
+                      CoverageRow{"BroadcastSub", Ops::K_BROADCAST_SUB.id, true},
+                      CoverageRow{"BroadcastMul", Ops::K_BROADCAST_MUL.id, true},
+                      CoverageRow{"BroadcastDiv", Ops::K_BROADCAST_DIV.id, true},
+                      CoverageRow{"SumAlong", Ops::K_SUM_ALONG.id, true},
+                      CoverageRow{"TakeAlong", Ops::K_TAKE_ALONG.id, true},
+                      CoverageRow{"PutAlong", Ops::K_PUT_ALONG.id, true},
+                      CoverageRow{"ArgmaxRows", Ops::K_ARGMAX_ROWS.id, true},
                       CoverageRow{"Atan", Ops::K_ATAN.id, false},
                       CoverageRow{"ScatterAddRows", Ops::K_SCATTER_ADD_ROWS.id, true},
-                      CoverageRow{"CausalMask", Ops::K_CAUSAL_MASK.id, true}),
+                      CoverageRow{"CausalMask", Ops::K_CAUSAL_MASK.id, true},
+                      CoverageRow{"Transpose", Ops::K_TRANSPOSE.id, true}),
     row_name<CoverageRow>);
+
+/** @brief Tests that a transpose writes each element where the permutation sends it. */
+TEST_P(Small_HostEvaluatorTranspose, ATransposePlacesEachElementByItsPermutation)
+{
+    const TransposeRow& row = GetParam();
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(row.shape, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                            builder.transpose(x, SushiRuntime::span<const int64_t>(
+                                                     row.permutation.data(),
+                                                     row.permutation.size())));
+    std::vector<double> elements(static_cast<std::size_t>(row.shape.num_elements()));
+    std::iota(elements.begin(), elements.end(), 0.0);
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, elements));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, row.expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_HostEvaluatorTranspose, ::testing::ValuesIn(transpose_rows()),
+                         row_name<TransposeRow>);
 
 /** @brief Tests that a reshape keeps the elements of its operand in their order. */
 TEST(Small_HostEvaluator, AReshapeKeepsTheElementsInOrder)
@@ -885,4 +960,260 @@ TEST(Small_HostEvaluator, AWriteOfAComputedValueIsRefused)
 
     SA_EXPECT_FAILURE(evaluator.write(y, {1, 2}), StatusCode::InvalidDescription,
                       Ops::name_of(Ops::K_EXP.id), "computes it");
+}
+
+namespace
+{
+    /** @brief Emits one broadcast operation of a [2, 3] operand and a vector. */
+    using BroadcastEmit = Graph::Traced (*)(const GraphBuilder&, ValueID, ValueID,
+                                            Graph::BroadcastSide);
+
+    /** @brief Holds one broadcast case over x = {1, 2, 3, 4, 5, 6} of shape [2, 3]. */
+    struct BroadcastRow
+    {
+        std::string name;              /**< The row's name. */
+        BroadcastEmit emit;            /**< Emits the node. */
+        Graph::BroadcastSide side;     /**< The side the vector lies on. */
+        std::vector<double> vector;    /**< The vector: three elements trailing, two leading. */
+        std::vector<double> expected;  /**< The hand-worked result. */
+    };
+
+    /**
+     * @brief Lists the broadcast cases. A trailing vector meets x[r, c] at c and a leading one at
+     *        r. Add: {10, 20, 30} gives {11, 22, 33, 14, 25, 36} and {10, 20} gives
+     *        {11, 12, 13, 24, 25, 26}. Sub of {1, 2, 3} gives {0, 0, 0, 3, 3, 3} and of {1, 2}
+     *        gives {0, 1, 2, 2, 3, 4}. Mul by {1, 2, 3} gives {1, 4, 9, 4, 10, 18} and by {2, 3}
+     *        gives {2, 4, 6, 12, 15, 18}. Div by {1, 2, 4} gives {1, 1, 0.75, 4, 2.5, 1.5} and by
+     *        {1, 2} gives {1, 2, 3, 2, 2.5, 3}, every quotient exact in binary.
+     */
+    std::vector<BroadcastRow> broadcast_rows()
+    {
+        using Graph::BroadcastSide;
+        const BroadcastEmit add = [](const GraphBuilder& b, ValueID x, ValueID v,
+                                     BroadcastSide s) { return b.broadcast_add(x, v, s); };
+        const BroadcastEmit sub = [](const GraphBuilder& b, ValueID x, ValueID v,
+                                     BroadcastSide s) { return b.broadcast_sub(x, v, s); };
+        const BroadcastEmit mul = [](const GraphBuilder& b, ValueID x, ValueID v,
+                                     BroadcastSide s) { return b.broadcast_mul(x, v, s); };
+        const BroadcastEmit div = [](const GraphBuilder& b, ValueID x, ValueID v,
+                                     BroadcastSide s) { return b.broadcast_div(x, v, s); };
+        return {
+            {"AddTrailing", add, BroadcastSide::Trailing, {10, 20, 30}, {11, 22, 33, 14, 25, 36}},
+            {"AddLeading", add, BroadcastSide::Leading, {10, 20}, {11, 12, 13, 24, 25, 26}},
+            {"SubTrailing", sub, BroadcastSide::Trailing, {1, 2, 3}, {0, 0, 0, 3, 3, 3}},
+            {"SubLeading", sub, BroadcastSide::Leading, {1, 2}, {0, 1, 2, 2, 3, 4}},
+            {"MulTrailing", mul, BroadcastSide::Trailing, {1, 2, 3}, {1, 4, 9, 4, 10, 18}},
+            {"MulLeading", mul, BroadcastSide::Leading, {2, 3}, {2, 4, 6, 12, 15, 18}},
+            {"DivTrailing", div, BroadcastSide::Trailing, {1, 2, 4}, {1, 1, 0.75, 4, 2.5, 1.5}},
+            {"DivLeading", div, BroadcastSide::Leading, {1, 2}, {1, 2, 3, 2, 2.5, 3}},
+        };
+    }
+
+    /** @brief Runs one broadcast row. */
+    class Small_HostEvaluatorBroadcast : public ::testing::TestWithParam<BroadcastRow>
+    {
+
+    };
+
+    /** @brief Holds one sum case: the operand's shape, the kept shape, the side and the sums. */
+    struct SumAlongRow
+    {
+        std::string name;              /**< The row's name. */
+        Shape shape;                   /**< The operand's shape; it holds 1, 2, ... in order. */
+        Shape kept;                    /**< The shape the sum keeps. */
+        Graph::BroadcastSide side;     /**< The side the kept shape lies on. */
+        std::vector<double> expected;  /**< The hand-worked sums. */
+    };
+
+    /**
+     * @brief Lists the sum cases over 1, 2, ... in order. [2, 3] keeping [3] sums the columns,
+     *        {1 + 4, 2 + 5, 3 + 6}; keeping [2] on the leading side sums the rows,
+     *        {1 + 2 + 3, 4 + 5 + 6}. [2, 2, 2] keeping [2] leading gives {1 + 2 + 3 + 4,
+     *        5 + 6 + 7 + 8}; keeping [2] trailing gives the odd and the even elements,
+     *        {1 + 3 + 5 + 7, 2 + 4 + 6 + 8}; keeping [2, 2] trailing gives {1 + 5, 2 + 6, 3 + 7,
+     *        4 + 8}.
+     */
+    std::vector<SumAlongRow> sum_along_rows()
+    {
+        using Graph::BroadcastSide;
+        return {
+            {"ColumnsOfAMatrix", Shape{2, 3}, Shape{3}, BroadcastSide::Trailing, {5, 7, 9}},
+            {"RowsOfAMatrix", Shape{2, 3}, Shape{2}, BroadcastSide::Leading, {6, 15}},
+            {"LeadingAxisOfACube", Shape{2, 2, 2}, Shape{2}, BroadcastSide::Leading, {10, 26}},
+            {"TrailingAxisOfACube", Shape{2, 2, 2}, Shape{2}, BroadcastSide::Trailing, {16, 20}},
+            {"TrailingPlaneOfACube", Shape{2, 2, 2}, Shape{2, 2}, BroadcastSide::Trailing,
+             {6, 8, 10, 12}},
+        };
+    }
+
+    /** @brief Runs one sum row. */
+    class Small_HostEvaluatorSumAlong : public ::testing::TestWithParam<SumAlongRow>
+    {
+
+    };
+} // namespace
+
+/** @brief Tests that a quotient divides each element of the first operand by the second. */
+TEST(Small_HostEvaluator, ADivisionDividesEachPair)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID a = builder.input(Shape{3}, "a");
+    const ValueID b = builder.input(Shape{3}, "b");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.div(a, b));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(a, {6, -9, 1}));
+    SA_EXPECT_OK(evaluator.write(b, {3, 3, 4}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, (std::vector<double>{2, -3, 0.25}));
+}
+
+/** @brief Tests that a square root is taken of each element: sqrt(4) = 2, sqrt(2.25) = 1.5. */
+TEST(Small_HostEvaluator, ASquareRootMapsEachElement)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{2}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.sqrt(x));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {4, 2.25}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    expect_each_within(result, {2.0, 1.5});
+}
+
+/** @brief Tests that the natural logarithm is taken of each element: ln 2 and 3 ln 2. */
+TEST(Small_HostEvaluator, ALogarithmMapsEachElement)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{2}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.log(x));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {2, 8}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    expect_each_within(result, {0.6931471805599453, 2.0794415416798357});
+}
+
+/** @brief Tests that a power raises each element to the exponent in attribute slot 0. */
+TEST(Small_HostEvaluator, APowerRaisesEachElementToItsExponent)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{2}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.pow(x, 3.0));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {2, -3}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    expect_each_within(result, {8.0, -27.0});
+}
+
+/** @brief Tests that each broadcast rule meets each element with the vector element of its side. */
+TEST_P(Small_HostEvaluatorBroadcast, ABroadcastMeetsEachElementWithItsVectorElement)
+{
+    const BroadcastRow& row = GetParam();
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{2, 3}, "x");
+    const ValueID v = builder.input(Shape{static_cast<int64_t>(row.vector.size())}, "v");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, row.emit(builder, x, v, row.side));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {1, 2, 3, 4, 5, 6}));
+    SA_EXPECT_OK(evaluator.write(v, row.vector));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, row.expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_HostEvaluatorBroadcast, ::testing::ValuesIn(broadcast_rows()),
+                         row_name<BroadcastRow>);
+
+/** @brief Tests that a sum down to a side adds every element that meets the same kept element. */
+TEST_P(Small_HostEvaluatorSumAlong, ASumAddsEveryElementOfEachKeptPosition)
+{
+    const SumAlongRow& row = GetParam();
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(row.shape, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.sum_along(x, row.kept, row.side));
+    HostEvaluator evaluator(graph);
+    std::vector<double> elements(static_cast<std::size_t>(row.shape.num_elements()));
+    std::iota(elements.begin(), elements.end(), 1.0);
+    SA_EXPECT_OK(evaluator.write(x, elements));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(y));
+    EXPECT_EQ(result, row.expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_HostEvaluatorSumAlong, ::testing::ValuesIn(sum_along_rows()),
+                         row_name<SumAlongRow>);
+
+/** @brief Tests that take_along reads each row at its index and gives 0 outside [0, C). */
+TEST(Small_HostEvaluator, ATakeReadsEachRowAtItsIndex)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID values = builder.input(Shape{4, 3}, "values");
+    const ValueID index = builder.input(Shape{4}, "index", DType::Int64);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID picked, builder.take_along(values, index));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(values, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}));
+    SA_EXPECT_OK(evaluator.write(index, {2, -1, 1, 3}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    // Row 0 column 2 is 3, row 2 column 1 is 8; -1 and 3 lie outside [0, 3).
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(picked));
+    EXPECT_EQ(result, (std::vector<double>{3, 0, 8, 0}));
+}
+
+/** @brief Tests that put_along writes each value at its index and skips an index outside [0, C). */
+TEST(Small_HostEvaluator, APutWritesEachValueAtItsIndex)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID picked = builder.input(Shape{4}, "picked");
+    const ValueID index = builder.input(Shape{4}, "index", DType::Int64);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID placed, builder.put_along(picked, index, 3));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(picked, {5, 6, 7, 8}));
+    SA_EXPECT_OK(evaluator.write(index, {2, -1, 0, 3}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    // 5 lands at (0, 2) and 7 at (2, 0); 6 at -1 and 8 at 3 are skipped.
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(placed));
+    EXPECT_EQ(result, (std::vector<double>{0, 0, 5, 0, 0, 0, 7, 0, 0, 0, 0, 0}));
+}
+
+/** @brief Tests that argmax_rows gives the lowest column of each row's largest element. */
+TEST(Small_HostEvaluator, AnArgmaxGivesTheLowestColumnOfTheLargestElement)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{3, 3}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID best, builder.argmax_rows(x));
+    HostEvaluator evaluator(graph);
+    SA_EXPECT_OK(evaluator.write(x, {1, 5, 5, 9, 2, 3, -1, -1, -1}));
+
+    SA_EXPECT_OK(evaluator.run());
+
+    // Row 0 ties at columns 1 and 2 and keeps 1; row 1 peaks at 0; row 2 ties everywhere.
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> result, evaluator.read(best));
+    EXPECT_EQ(result, (std::vector<double>{1, 0, 0}));
 }

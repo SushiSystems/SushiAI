@@ -9,26 +9,26 @@ Tests `CompiledStep::restore_run_count`, `CompiledStep::run_at` and the node ran
 `HostExecutionBackend`, whose recording runs on the host and keeps the origin of each task. The
 `Medium_` fixture is an `EngineTest`, and each case passes its `backend()` to `CompiledStep::compile`.
 Each case compiles one dropout of rate 0.25 over a leaf of 256 ones with a fixed site seed, so
-the step's output is the mask: 4/3 where the published rule keeps an element and 0 elsewhere. The
-test derives the rule itself, from SplitMix64 and the top 53 bits of a draw, and compares within
-`K_TOLERANCE`, 32 unit roundoffs of float, the smallest power of two that covers 1e-6 for a
-FLOAT32 scale read back as a double.
+the step's output is the mask: 4/3 where an element is kept and 0 elsewhere. The oracle is a
+relation between runs, since the draw is the SushiBLAS Bernoulli at a position the step writes:
+a run index gives one mask whichever step reaches it, and two run indices give two masks.
 
 ## ARestoredRunCountIsTheIndexOfTheNextRun
 
 One step runs three times. A second step, with a run count of 0, is restored to 2 and runs
-once. Its run count is then 3, its output equals the first step's third output, and that
-output is the mask the rule gives for run 2.
+once. Its run count is then 3, its output equals the first step's third output, and every element
+of that output is 0 or 4/3.
 
-## RunDrawsTheMaskOfItsRunCount
+## RunDrawsADifferentMaskAtEachRunCount
 
-A step runs three times; after run `r` its output is the mask the rule gives for run
-`r`, so a single-machine step draws what it drew before `run_at` existed.
+A step runs three times. Every element of each output is 0 or 4/3, the three outputs differ
+pairwise, and `compile_count()` is 1.
 
 ## RunAtDrawsTheMaskOfItsIndexAndCountsTheRun
 
-`run_at(7)` leaves the mask of run 7 and a run count of 1. The `run()` after it draws the mask
-of run 1.
+`run_at(7)` on a first step leaves a run count of 1, and the `run()` after it draws a mask of run 1.
+A second step that reaches run 1 by two `run()` calls draws that same mask, and a third step that
+is given index 7 by `run_at(7)` draws the mask the first drew at 7. The masks of runs 1 and 7 differ.
 
 ## ARestoreAfterARunIsRefusedWithTheCount
 
@@ -97,3 +97,10 @@ apart.
 
 `Small_CompiledStepAttribution`. No task carries the origin of the reshape node, none has an empty origin, and the second relu
 carries its own origin, so the origin a view's rule opened was closed again.
+
+## AnEmptyGraphWithATrailingRecorderRunsTheRecorderEachRun
+
+`Small_CompiledStep`. A leaf of four ones lives in a pool that a separate graph materialised. A
+step is compiled from an empty `Graph` and a trailing recorder that records one `scal` by 2 of that
+leaf. `operation_count()` is 1 and `empty()` is false. After each of three runs the leaf holds 2,
+then 4, then 8 in every element, so the recorder ran once per run, and `run_count()` is 3.

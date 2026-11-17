@@ -36,12 +36,14 @@ namespace SushiAI
 {
     namespace Graph
     {
-        /** @brief Lists the operations recorded beside the graph, which no node carries. */
-        inline constexpr std::array<OpID, 4> K_UNLOWERED = {{
+        /** @brief Lists the operations no node carries, node sub-tasks included. */
+        inline constexpr std::array<OpID, 6> K_UNLOWERED = {{
             Ops::K_ADAMW_UPDATE.id,
             Ops::K_SGD_UPDATE.id,
             Ops::K_CLIP_SCALE.id,
             Ops::K_BATCHNORM_UPDATE_STATS.id,
+            Ops::K_LAYER_NORM_DEVIATION.id,
+            Ops::K_LAYER_NORM_APPLY.id,
         }};
 
     } // namespace Graph

@@ -24,7 +24,7 @@
 
 /**
  * @file test_host_values.cpp
- * @brief Tests fourteen lowerings against values computed on the host.
+ * @brief Tests fifteen lowerings against values computed on the host.
  * @author Mustafa Garip
  */
 
@@ -32,6 +32,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <gtest/gtest.h>
@@ -41,6 +42,7 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/graph/host_evaluator.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <support/tolerance.hpp>
@@ -229,6 +231,40 @@ namespace
         ASSERT_NO_FATAL_FAILURE(run.compile_and_run());
 
         gradient = read_tensor(run.pool.tensor(gradients[0]));
+    }
+
+    /**
+     * @brief Transposes a FLOAT32 [2, 3, 4, 5] value by @p permutation on the device and on the
+     *        host, and expects the two to agree element for element.
+     * @param permutation The per-sample permutation of the three non-batch axes.
+     */
+    void expect_transpose_matches_host(SushiAI::ExecutionBackend& backend,
+                                       const std::array<int64_t, 3>& permutation)
+    {
+        Graph::Graph graph;
+        const GraphBuilder builder(graph);
+
+        const ValueID x = builder.input(Shape{2, 3, 4, 5}, "x");
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                                builder.transpose(x, SushiRuntime::span<const int64_t>(
+                                                         permutation.data(), permutation.size())));
+
+        // The elements are the integers 0 to 119, which FLOAT32 holds exactly.
+        std::vector<double> input(120);
+        for (std::size_t at = 0; at < input.size(); ++at)
+            input[at] = static_cast<double>(at);
+
+        Graph::HostEvaluator host(graph);
+        SA_EXPECT_OK(host.write(x, input));
+        SA_EXPECT_OK(host.run());
+        SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> expected, host.read(y));
+
+        OneShot run(backend, graph);
+        write_tensor(run.pool.tensor(x), input);
+
+        ASSERT_NO_FATAL_FAILURE(run.compile_and_run());
+
+        expect_elements(read_tensor(run.pool.tensor(y)), expected, Tolerance{0.0, 0.0});
     }
 
     /** @brief Returns the logistic function of @p x, computed on the host. */
@@ -527,6 +563,20 @@ TEST_F(Medium_LoweredOperations, StopGradientCopiesItsOperand)
     ASSERT_NO_FATAL_FAILURE(run_unary(backend(), &GraphBuilder::stop_gradient, input, result));
 
     EXPECT_EQ(result, input);
+}
+
+/** @brief Tests that TRANSPOSE joins two neighbouring axes into one run and agrees with the host. */
+TEST_F(Medium_LoweredOperations, TransposeOfACycleAgreesWithTheHostEvaluator)
+{
+    // The cycle leaves the last two axes of [2, 3, 4, 5] side by side: three runs of axes.
+    ASSERT_NO_FATAL_FAILURE(expect_transpose_matches_host(backend(), {1, 2, 0}));
+}
+
+/** @brief Tests that TRANSPOSE walks four separate runs of axes and agrees with the host. */
+TEST_F(Medium_LoweredOperations, TransposeOfAReversalAgreesWithTheHostEvaluator)
+{
+    // The reversal separates every axis of [2, 3, 4, 5]: four runs, the most one copy walks.
+    ASSERT_NO_FATAL_FAILURE(expect_transpose_matches_host(backend(), {2, 1, 0}));
 }
 
 /** @brief Tests that BATCHNORM_FOLD writes gamma / sqrt(variance + eps) and its shift. */

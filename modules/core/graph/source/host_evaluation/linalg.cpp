@@ -24,7 +24,7 @@
 /**
  * @file linalg.cpp
  * @brief Defines the host rules of the matrix product, the bias row, the column sums, the row
- *        scatter and the causal mask.
+ *        scatter, the causal mask and the per-row take, put and argmax.
  * @author Mustafa Garip
  */
 
@@ -145,6 +145,66 @@ namespace SushiAI
                     const std::size_t row = (at / length) % length;
                     const std::size_t column = at % length;
                     masked[at] = column > row ? fill : scores[at];
+                }
+
+                return Status();
+            }
+
+            Status host_take_along(const HostNodeContext& context) noexcept
+            {
+                const std::vector<double>& values = context.input(0);
+                const std::vector<double>& index = context.input(1);
+                const int64_t columns = context.input_shape(0)[1];
+                std::vector<double>& picked = context.output(0);
+
+                // A row whose index lies outside [0, columns) keeps the zero the result starts as.
+                for (std::size_t row = 0; row < picked.size(); ++row)
+                {
+                    const int64_t column = static_cast<int64_t>(index[row]);
+                    if (column >= 0 && column < columns)
+                        picked[row] = values[row * static_cast<std::size_t>(columns)
+                                             + static_cast<std::size_t>(column)];
+                }
+
+                return Status();
+            }
+
+            Status host_put_along(const HostNodeContext& context) noexcept
+            {
+                const std::vector<double>& picked = context.input(0);
+                const std::vector<double>& index = context.input(1);
+                const int64_t columns = context.output_value(0).shape[1];
+                std::vector<double>& placed = context.output(0);
+
+                // A row whose index lies outside [0, columns) is skipped.
+                for (std::size_t row = 0; row < picked.size(); ++row)
+                {
+                    const int64_t column = static_cast<int64_t>(index[row]);
+                    if (column >= 0 && column < columns)
+                        placed[row * static_cast<std::size_t>(columns)
+                               + static_cast<std::size_t>(column)] = picked[row];
+                }
+
+                return Status();
+            }
+
+            Status host_argmax_rows(const HostNodeContext& context) noexcept
+            {
+                const std::vector<double>& x = context.input(0);
+                const std::size_t columns = static_cast<std::size_t>(context.input_shape(0)[1]);
+                std::vector<double>& best = context.output(0);
+
+                // A later element wins only when strictly larger, so a tie keeps the lowest column.
+                for (std::size_t row = 0; row < best.size(); ++row)
+                {
+                    std::size_t at = 0;
+                    for (std::size_t column = 1; column < columns; ++column)
+                    {
+                        if (x[row * columns + column] > x[row * columns + at])
+                            at = column;
+                    }
+
+                    best[row] = static_cast<double>(at);
                 }
 
                 return Status();

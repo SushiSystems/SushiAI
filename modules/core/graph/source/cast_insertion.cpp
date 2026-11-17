@@ -66,6 +66,28 @@ namespace SushiAI
             }
 
             /**
+             * @brief Returns the declared type a node's precision is read from.
+             *
+             * That is its first result's type when it carries precision; otherwise, for a node
+             * with an index result such as argmax, the type of its first operand that does.
+             * @param node The node; it writes at least one value.
+             * @param dtype_of Returns the declared type of a value.
+             */
+            template <typename DTypeOf>
+            DType precision_carrier(const Node& node, const DTypeOf& dtype_of) noexcept
+            {
+                const DType result = dtype_of(node.outputs.front());
+                if (has_precision(result))
+                    return result;
+                for (ValueID in : node.inputs)
+                {
+                    if (has_precision(dtype_of(in)))
+                        return dtype_of(in);
+                }
+                return result;
+            }
+
+            /**
              * @brief Resolves target computation data type for a node under policy.
              * @param node The graph node to inspect.
              * @param declared Table of declared value data types.
@@ -84,7 +106,8 @@ namespace SushiAI
 
                 PrecisionQuery query;
                 query.op = node.op;
-                query.declared = declared[node.outputs[0]];
+                query.declared =
+                    precision_carrier(node, [&declared](ValueID value) { return declared[value]; });
 
                 const PrecisionChoice choice = policy.choose(query);
 
@@ -355,7 +378,8 @@ namespace SushiAI
 
                 PrecisionQuery query;
                 query.op = node.op;
-                query.declared = graph.value(node.outputs[0]).dtype;
+                query.declared = precision_carrier(
+                    node, [&graph](ValueID value) { return graph.value(value).dtype; });
 
                 const DType wanted = policy.choose(query).dtype;
 

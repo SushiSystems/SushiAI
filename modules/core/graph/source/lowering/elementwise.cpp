@@ -185,6 +185,32 @@ namespace SushiAI
             return record_copy_then(context, &SushiBLAS::ElementwiseOps::atan);
         }
 
+        Status lower_sqrt(const LoweringContext& context) noexcept
+        {
+            return record_copy_then(context, &SushiBLAS::ElementwiseOps::sqrt);
+        }
+
+        Status lower_log(const LoweringContext& context) noexcept
+        {
+            return record_copy_then(context, &SushiBLAS::ElementwiseOps::log);
+        }
+
+        Status lower_pow(const LoweringContext& context) noexcept
+        {
+            context.require_arity(1, 1);
+            const SushiBLAS::Tensor& source = context.input(0);
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& result, context.output(0));
+
+            SushiBLAS::BLASOps blas(context.recorder());
+            blas.copy(source, result);
+
+            // The exponent is narrowed to the element type when the call is recorded.
+            SushiBLAS::ElementwiseOps elementwise(context.recorder());
+            elementwise.pow(result, context.node().attributes.get(0));
+            context.count(2);
+            return Status();
+        }
+
         Status lower_less_equal(const LoweringContext& context) noexcept
         {
             return record_binary(context, &SushiBLAS::LogicOps::less_equal);

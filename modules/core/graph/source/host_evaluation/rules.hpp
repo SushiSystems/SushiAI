@@ -142,6 +142,16 @@ namespace SushiAI
             [[nodiscard]] Status host_sub(const HostNodeContext& context) noexcept;
             /** @brief Writes the elementwise product of two operands. */
             [[nodiscard]] Status host_mul(const HostNodeContext& context) noexcept;
+            /** @brief Writes the elementwise quotient of two operands. */
+            [[nodiscard]] Status host_div(const HostNodeContext& context) noexcept;
+            /** @brief Writes the larger of each pair of two operands. */
+            [[nodiscard]] Status host_maximum(const HostNodeContext& context) noexcept;
+            /** @brief Writes the elementwise square root of the operand. */
+            [[nodiscard]] Status host_sqrt(const HostNodeContext& context) noexcept;
+            /** @brief Writes the elementwise natural logarithm of the operand. */
+            [[nodiscard]] Status host_log(const HostNodeContext& context) noexcept;
+            /** @brief Writes each element of the operand raised to attribute slot 0. */
+            [[nodiscard]] Status host_pow(const HostNodeContext& context) noexcept;
             /** @brief Writes the operand times attribute slot 0. */
             [[nodiscard]] Status host_scale(const HostNodeContext& context) noexcept;
             /** @brief Writes the elementwise exponential of the operand. */
@@ -171,9 +181,28 @@ namespace SushiAI
             [[nodiscard]] Status host_scatter_add_rows(const HostNodeContext& context) noexcept;
             /** @brief Writes the scores with each entry above the diagonal set to slot 0. */
             [[nodiscard]] Status host_causal_mask(const HostNodeContext& context) noexcept;
+            /** @brief Writes values[r, index[r]] for each row, and 0 where the index is outside. */
+            [[nodiscard]] Status host_take_along(const HostNodeContext& context) noexcept;
+            /** @brief Writes a zero [R, C] result holding picked[r] at column index[r] of row r. */
+            [[nodiscard]] Status host_put_along(const HostNodeContext& context) noexcept;
+            /** @brief Writes the lowest column of the largest element of each row. */
+            [[nodiscard]] Status host_argmax_rows(const HostNodeContext& context) noexcept;
+
+            /** @brief Writes the operand plus a vector broadcast along the side in flag 0. */
+            [[nodiscard]] Status host_broadcast_add(const HostNodeContext& context) noexcept;
+            /** @brief Writes the operand minus a vector broadcast along the side in flag 0. */
+            [[nodiscard]] Status host_broadcast_sub(const HostNodeContext& context) noexcept;
+            /** @brief Writes the operand times a vector broadcast along the side in flag 0. */
+            [[nodiscard]] Status host_broadcast_mul(const HostNodeContext& context) noexcept;
+            /** @brief Writes the operand over a vector broadcast along the side in flag 0. */
+            [[nodiscard]] Status host_broadcast_div(const HostNodeContext& context) noexcept;
+            /** @brief Writes the operand summed down to the shape kept on the side in flag 0. */
+            [[nodiscard]] Status host_sum_along(const HostNodeContext& context) noexcept;
 
             /** @brief Copies the operand, whose elements a reshape keeps in order. */
             [[nodiscard]] Status host_reshape(const HostNodeContext& context) noexcept;
+            /** @brief Writes the operand with its non-batch axes in the order of slots 0 to 4. */
+            [[nodiscard]] Status host_transpose(const HostNodeContext& context) noexcept;
             /** @brief Writes the rows of a [V, D] table that an index operand names. */
             [[nodiscard]] Status host_gather_rows(const HostNodeContext& context) noexcept;
             /** @brief Writes the last-axis slice that starts at attribute slot 0. */

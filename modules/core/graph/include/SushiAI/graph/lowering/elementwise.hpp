@@ -69,6 +69,15 @@ namespace SushiAI
         /** @brief Records the elementwise arctangent of one operand. */
         [[nodiscard]] Status lower_atan(const LoweringContext& context) noexcept;
 
+        /** @brief Records the elementwise square root of one operand. */
+        [[nodiscard]] Status lower_sqrt(const LoweringContext& context) noexcept;
+
+        /** @brief Records the elementwise natural logarithm of one operand. */
+        [[nodiscard]] Status lower_log(const LoweringContext& context) noexcept;
+
+        /** @brief Records the elementwise power of one operand, its exponent in slot 0. */
+        [[nodiscard]] Status lower_pow(const LoweringContext& context) noexcept;
+
         /** @brief Records the elementwise less-or-equal mask of two operands. */
         [[nodiscard]] Status lower_less_equal(const LoweringContext& context) noexcept;
 
@@ -88,7 +97,7 @@ namespace SushiAI
         [[nodiscard]] Status lower_cast(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each elementwise operation with the row that lowers it. */
-        inline constexpr std::array<LoweringEntry, 17> K_ELEMENTWISE_LOWERINGS = {{
+        inline constexpr std::array<LoweringEntry, 20> K_ELEMENTWISE_LOWERINGS = {{
             {Ops::K_ADD.id, &lower_add},
             {Ops::K_SUB.id, &lower_sub},
             {Ops::K_MUL.id, &lower_mul},
@@ -106,6 +115,9 @@ namespace SushiAI
             {Ops::K_CONSTANT.id, &lower_constant},
             {Ops::K_ACCUMULATE.id, &lower_accumulate},
             {Ops::K_CAST.id, &lower_cast},
+            {Ops::K_SQRT.id, &lower_sqrt},
+            {Ops::K_LOG.id, &lower_log},
+            {Ops::K_POW.id, &lower_pow},
         }};
     } // namespace Graph
 } // namespace SushiAI

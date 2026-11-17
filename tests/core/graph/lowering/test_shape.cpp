@@ -34,7 +34,8 @@
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
-#include <SushiAI/graph/lowering/shape.hpp>
+#include <SushiAI/graph/lowering/shape.hpp>
+
 #include <support/test_names.hpp>
 
 using namespace SushiAI;
@@ -57,11 +58,12 @@ namespace
     };
 
     /** @brief Lists the rows of the shape table in the order the header writes them. */
-    const std::array<ExpectedRow, 4> K_EXPECTED_ROWS = {{
+    const std::array<ExpectedRow, 5> K_EXPECTED_ROWS = {{
         {0, Ops::K_LEAF.id, &Graph::lower_leaf},
         {1, Ops::K_RESHAPE.id, &Graph::lower_reshape},
-        {2, Ops::K_LAYOUT_CONVERT.id, &Graph::lower_layout_convert},
-        {3, Ops::K_STOP_GRADIENT.id, &Graph::lower_stop_gradient},
+        {2, Ops::K_TRANSPOSE.id, &Graph::lower_transpose},
+        {3, Ops::K_LAYOUT_CONVERT.id, &Graph::lower_layout_convert},
+        {4, Ops::K_STOP_GRADIENT.id, &Graph::lower_stop_gradient},
     }};
 } // namespace
 

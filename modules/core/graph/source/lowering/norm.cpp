@@ -29,9 +29,12 @@
 
 #include <SushiAI/graph/lowering/norm.hpp>
 
+#include <array>
 #include <cstdint>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/broadcast/dispatch.hpp>
+#include <SushiBLAS/functor_map/scalar_binding.hpp>
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/reductions/reductions.hpp>
@@ -42,6 +45,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 namespace SushiAI
 {
@@ -345,50 +349,53 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor& mean, context.output(1));
             SA_TRY_ASSIGN(SushiBLAS::Tensor& inv_std, context.output(2));
 
-            const DType dtype = context.input_value(0).dtype;
             const double inverse_width = 1.0 / static_cast<double>(width);
             const double epsilon = context.node().attributes.get(0);
-
-            const Shape per_row({rows});
-            const Shape matrix({rows, width});
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& ones, context.ones(per_row, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& negated_mean, context.scratch(0, per_row, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& zero, context.scratch(1, per_row, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& centred, context.scratch(2, matrix, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& squared, context.scratch(3, matrix, dtype));
 
             SushiBLAS::BLASOps blas(context.recorder());
             SushiBLAS::ElementwiseOps elementwise(context.recorder());
             SushiBLAS::ReductionOps reductions(context.recorder());
-            SushiBLAS::SpatialOps spatial(context.recorder());
-            SushiBLAS::RandomOps random(context.recorder(), context.stream());
 
             const SushiBLAS::Tensor x_rows = channel_rows(x, rows, width);
             reductions.sum_along(x_rows, 1, mean);
             blas.scal(inverse_width, mean);
 
-            blas.copy(mean, negated_mean);
-            blas.scal(-1.0, negated_mean);
-            SushiBLAS::Tensor centred_by_row = row_channels(centred, rows, width);
-            spatial.channel_affine(row_channels(x, rows, width), ones, negated_mean,
-                                   centred_by_row);
+            // y is dead until the last call, so it holds the squared deviations plus epsilon.
+            constexpr const char* K_DEVIATION_NAME = Ops::K_LAYER_NORM_DEVIATION.name.data();
+            const std::array<SushiBLAS::BroadcastOperand, 1> centre{
+                {{&mean, SushiBLAS::BroadcastAxis::Leading}}};
+            SushiBLAS::Dispatch::execute_broadcast(
+                context.recorder(), x, centre, y, K_DEVIATION_NAME,
+                Ops::K_LAYER_NORM_DEVIATION.id,
+                SushiBLAS::Dispatch::bind_scalars(
+                    [](auto value, auto centre_value, auto stabiliser)
+                    {
+                        const auto deviation = value - centre_value;
+                        return deviation * deviation + stabiliser;
+                    },
+                    SushiBLAS::Dispatch::ElementScalar(epsilon)),
+                {epsilon});
 
-            elementwise.mul(centred, centred, squared);
-            reductions.sum_along(squared, 1, inv_std);
+            reductions.sum_along(channel_rows(y, rows, width), 1, inv_std);
             blas.scal(inverse_width, inv_std);
-            blas.axpy(epsilon, ones, inv_std);
             elementwise.sqrt(inv_std);
             elementwise.reciprocal(inv_std);
 
-            // squared is dead once its row sums are taken, so it holds the normalised rows.
-            random.constant(zero, 0.0);
-            SushiBLAS::Tensor normalised_by_row = row_channels(squared, rows, width);
-            spatial.channel_affine(centred_by_row, inv_std, zero, normalised_by_row);
+            constexpr const char* K_APPLY_NAME = Ops::K_LAYER_NORM_APPLY.name.data();
+            const std::array<SushiBLAS::BroadcastOperand, 4> affine{
+                {{&mean, SushiBLAS::BroadcastAxis::Leading},
+                 {&inv_std, SushiBLAS::BroadcastAxis::Leading},
+                 {&gamma, SushiBLAS::BroadcastAxis::Trailing},
+                 {&beta, SushiBLAS::BroadcastAxis::Trailing}}};
+            SushiBLAS::Dispatch::execute_broadcast(
+                context.recorder(), x, affine, y, K_APPLY_NAME,
+                Ops::K_LAYER_NORM_APPLY.id,
+                [](auto value, auto centre_value, auto scale, auto gain, auto offset)
+                {
+                    return (value - centre_value) * scale * gain + offset;
+                });
 
-            SushiBLAS::Tensor y_columns = column_channels(y, rows, width);
-            spatial.channel_affine(column_channels(squared, rows, width), gamma, beta, y_columns);
-
-            context.count(14);
+            context.count(8);
             return Status();
         }
 

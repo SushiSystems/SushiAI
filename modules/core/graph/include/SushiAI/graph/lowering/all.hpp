@@ -23,7 +23,7 @@
 
 /**
  * @file all.hpp
- * @brief Joins the eight domain tables into the one lowering table and proves it complete.
+ * @brief Joins the domain tables into the one lowering table and proves it complete.
  * @author Mustafa Garip
  */
 
@@ -36,30 +36,37 @@
 #include <SushiAI/graph/lowering/unlowered.hpp>
 #include <SushiAI/graph/lowering/elementwise.hpp>
 #include <SushiAI/graph/lowering/activation.hpp>
-#include <SushiAI/graph/lowering/linalg.hpp>
+#include <SushiAI/graph/lowering/matmul.hpp>
+#include <SushiAI/graph/lowering/row_index.hpp>
+#include <SushiAI/graph/lowering/mask.hpp>
 #include <SushiAI/graph/lowering/loss.hpp>
 #include <SushiAI/graph/lowering/shape.hpp>
 #include <SushiAI/graph/lowering/spatial.hpp>
 #include <SushiAI/graph/lowering/norm.hpp>
 #include <SushiAI/graph/lowering/fused.hpp>
 #include <SushiAI/graph/lowering/random.hpp>
+#include <SushiAI/graph/lowering/broadcast.hpp>
 
 namespace SushiAI
 {
     namespace Graph
     {
         /**
-         * @brief Holds every lowering row, the nine domain tables joined in the order of the
+         * @brief Holds every lowering row, the domain tables joined in the order of the
          *        includes above.
          */
         inline constexpr auto K_LOWERINGS = concat_lowerings(
             concat_lowerings(
                 concat_lowerings(K_ELEMENTWISE_LOWERINGS, K_ACTIVATION_LOWERINGS),
-                concat_lowerings(K_LINALG_LOWERINGS, K_LOSS_LOWERINGS)),
+                concat_lowerings(
+                    concat_lowerings(K_MATMUL_LOWERINGS, K_ROW_INDEX_LOWERINGS),
+                    concat_lowerings(K_MASK_LOWERINGS, K_LOSS_LOWERINGS))),
             concat_lowerings(
                 concat_lowerings(K_SHAPE_LOWERINGS, K_SPATIAL_LOWERINGS),
-                concat_lowerings(concat_lowerings(K_NORM_LOWERINGS, K_FUSED_LOWERINGS),
-                                 K_RANDOM_LOWERINGS)));
+                concat_lowerings(
+                    concat_lowerings(concat_lowerings(K_NORM_LOWERINGS, K_FUSED_LOWERINGS),
+                                     K_RANDOM_LOWERINGS),
+                    K_BROADCAST_LOWERINGS)));
 
         /** @brief Returns the rule of the first row that names @p op, or nullptr when none does. */
         [[nodiscard]] constexpr LoweringRule find_lowering(OpID op) noexcept

@@ -8,12 +8,14 @@
 sushiai_add_module(NAME graph TIER core
     SOURCES
         source/arena.cpp
+        source/buffer_update_recorder.cpp
         source/builder.cpp
         source/cast_insertion.cpp
         source/compiled_step.cpp
         source/dropout_mask.cpp
         source/fusion.cpp
         source/fusion_selector.cpp
+        source/host_evaluation/broadcast.cpp
         source/host_evaluation/elementwise.cpp
         source/host_evaluation/linalg.cpp
         source/host_evaluation/loss.cpp
@@ -23,13 +25,16 @@ sushiai_add_module(NAME graph TIER core
         source/host_evaluator.cpp
         source/lowering.cpp
         source/lowering/activation.cpp
+        source/lowering/broadcast.cpp
         source/lowering/context.cpp
         source/lowering/elementwise.cpp
         source/lowering/fused.cpp
-        source/lowering/linalg.cpp
         source/lowering/loss.cpp
+        source/lowering/mask.cpp
+        source/lowering/matmul.cpp
         source/lowering/norm.cpp
         source/lowering/random.cpp
+        source/lowering/row_index.cpp
         source/lowering/shape.cpp
         source/lowering/spatial.cpp
         source/memory_plan.cpp
@@ -39,6 +44,9 @@ sushiai_add_module(NAME graph TIER core
     DEVICE_SOURCES
         source/lowering/elementwise.cpp
         source/lowering/fused.cpp
+        source/lowering/loss.cpp
+        source/lowering/mask.cpp
+        source/lowering/norm.cpp
     PUBLIC_DEPENDS allocation dtype execution failure ops seam shape
     PRIVATE_DEPENDS profile
     EXTERNAL_PUBLIC SushiRuntime::api SushiRuntime::core SushiLog::text

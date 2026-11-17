@@ -85,6 +85,21 @@ TEST(Small_CastInsertion, APassWithNothingToConvertGivesTheShortReport)
     EXPECT_EQ(text.find("values retyped"), std::string::npos) << text;
 }
 
+/** @brief Tests that a node with an index result reads its float operand without a cast. */
+TEST(Small_CastInsertion, AnIndexResultLeavesItsFloatOperandUncast)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID rows = builder.input(Shape{4, 3}, "rows");
+    SA_EXPECT_OK(builder.argmax_rows(rows));
+    const std::size_t nodes = graph.node_count();
+
+    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, Graph::insert_casts(graph));
+
+    EXPECT_EQ(report.count(), 0u);
+    EXPECT_EQ(report.nodes_after(), nodes);
+}
+
 /** @brief Tests that a graph already in the half type agrees with the mixed policy. */
 TEST(Small_CastInsertion, AGraphAlreadyNarrowHasNoMismatchUnderTheMixedPolicy)
 {

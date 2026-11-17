@@ -117,6 +117,32 @@ namespace SushiAI
                 return map_binary(context, [](double a, double b) { return a * b; });
             }
 
+            Status host_div(const HostNodeContext& context) noexcept
+            {
+                return map_binary(context, [](double a, double b) { return a / b; });
+            }
+
+            Status host_maximum(const HostNodeContext& context) noexcept
+            {
+                return map_binary(context, [](double a, double b) { return std::max(a, b); });
+            }
+
+            Status host_sqrt(const HostNodeContext& context) noexcept
+            {
+                return map_unary(context, [](double v) { return std::sqrt(v); });
+            }
+
+            Status host_log(const HostNodeContext& context) noexcept
+            {
+                return map_unary(context, [](double v) { return std::log(v); });
+            }
+
+            Status host_pow(const HostNodeContext& context) noexcept
+            {
+                const double exponent = context.node().attributes.get(0);
+                return map_unary(context, [exponent](double v) { return std::pow(v, exponent); });
+            }
+
             Status host_scale(const HostNodeContext& context) noexcept
             {
                 const double alpha = context.node().attributes.get(0);

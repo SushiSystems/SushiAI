@@ -2,7 +2,8 @@
 
 
 Suites: `Small_HostEvaluator`, `Small_HostEvaluatorProduct`, `Small_HostEvaluatorBinary`,
-`Small_HostEvaluatorUnary`, `Small_HostEvaluatorNll`, `Small_HostEvaluatorCoverage`.
+`Small_HostEvaluatorUnary`, `Small_HostEvaluatorNll`, `Small_HostEvaluatorBroadcast`,
+`Small_HostEvaluatorSumAlong`, `Small_HostEvaluatorTranspose`, `Small_HostEvaluatorCoverage`.
 
 Tests `Graph::HostEvaluator` and `Graph::host_evaluates` in
 `modules/core/graph/include/SushiAI/graph/host_evaluator.hpp`. Every case builds a small graph
@@ -20,8 +21,8 @@ is [[4, 5], [10, 11]], followed by four zeros for the batch.
 
 ## ABinaryRuleCombinesEachPair
 
-One row per ADD, SUB, MUL and LESS_EQUAL over a = {1, 4, -2} and b = {3, 4, 5}: {4, 8, 3},
-{-2, 0, -7}, {3, 16, -10} and {1, 1, 1}.
+One row per ADD, SUB, MUL, MAXIMUM and LESS_EQUAL over a = {1, 4, -2} and b = {3, 4, 5}: {4, 8, 3},
+{-2, 0, -7}, {3, 16, -10}, {3, 4, 5} and {1, 1, 1}.
 
 ## AUnaryRuleMapsEachElement
 
@@ -41,8 +42,64 @@ and {-5, -6} pick -2, -4 and -6, so the loss is 12 / 3 = 4.
 ## HostEvaluatesNamesTheRuledOperations
 
 `host_evaluates` is true for LEAF, MATMUL, NLL_LOSS, LAYER_NORM, SILU, RELU, ABS, SOFTPLUS, IM2COL,
-DEPTHWISE_CONV2D, BATCHNORM2D, BATCHNORM_FOLD, SCATTER_ADD_ROWS and CAUSAL_MASK, and false for
-ATAN.
+DEPTHWISE_CONV2D, BATCHNORM2D, BATCHNORM_FOLD, SCATTER_ADD_ROWS, CAUSAL_MASK, DIV, MAXIMUM, SQRT,
+LOG, POW, BROADCAST_ADD, BROADCAST_SUB, BROADCAST_MUL, BROADCAST_DIV, SUM_ALONG, TAKE_ALONG,
+PUT_ALONG, ARGMAX_ROWS and TRANSPOSE, and false for ATAN.
+
+## ATransposePlacesEachElementByItsPermutation
+
+One row per permutation, each over an operand that holds 0, 1, 2 ... in order and compared
+exactly. An operand of [2, 2, 3] with the swap (1, 0) turns each sample [[0, 1, 2], [3, 4, 5]]
+into [[0, 3], [1, 4], [2, 5]], and the second sample the same way from 6. An operand of
+[1, 2, 3, 2] holds 6a + 2b + c at (a, b, c); the cycle (1, 2, 0) writes 6 i2 + 2 i0 + i1 at
+(i0, i1, i2), which is {0, 6, 1, 7, 2, 8, 3, 9, 4, 10, 5, 11}. The identity (0, 1) over
+[1, 2, 2] returns {0, 1, 2, 3}.
+
+## ADivisionDividesEachPair
+
+{6, -9, 1} over {3, 3, 4} gives {2, -3, 0.25}, each quotient exact in binary.
+
+## ASquareRootMapsEachElement
+
+{4, 2.25} gives {2, 1.5}, within the transcendental bound.
+
+## ALogarithmMapsEachElement
+
+{2, 8} gives {ln 2, 3 ln 2} = {0.6931471805599453, 2.0794415416798357}, within the transcendental
+bound.
+
+## APowerRaisesEachElementToItsExponent
+
+The exponent 3 over {2, -3} gives {8, -27}, within the transcendental bound.
+
+## ABroadcastMeetsEachElementWithItsVectorElement
+
+One row per ADD, SUB, MUL and DIV on each side over x = {1, ..., 6} of shape [2, 3]. A trailing
+vector of three meets x[r, c] at c, a leading one of two at r. ADD with {10, 20, 30} gives
+{11, 22, 33, 14, 25, 36}, and with {10, 20} gives {11, 12, 13, 24, 25, 26}. SUB of {1, 2, 3} gives
+{0, 0, 0, 3, 3, 3}, and of {1, 2} gives {0, 1, 2, 2, 3, 4}. MUL by {1, 2, 3} gives
+{1, 4, 9, 4, 10, 18}, and by {2, 3} gives {2, 4, 6, 12, 15, 18}. DIV by {1, 2, 4} gives
+{1, 1, 0.75, 4, 2.5, 1.5}, and by {1, 2} gives {1, 2, 3, 2, 2.5, 3}.
+
+## ASumAddsEveryElementOfEachKeptPosition
+
+Over the elements 1, 2, ... in order: [2, 3] keeping [3] trailing gives {5, 7, 9}, keeping [2]
+leading gives {6, 15}. [2, 2, 2] keeping [2] leading gives {10, 26}, keeping [2] trailing gives
+{16, 20} (the odd and the even elements), and keeping [2, 2] trailing gives {6, 8, 10, 12}.
+
+## ATakeReadsEachRowAtItsIndex
+
+The [4, 3] table 1 to 12 with the INT64 index {2, -1, 1, 3} gives {3, 0, 8, 0}: -1 and 3 lie
+outside [0, 3) and read as zero.
+
+## APutWritesEachValueAtItsIndex
+
+The picked values {5, 6, 7, 8} with the INT64 index {2, -1, 0, 3} into three columns give a [4, 3]
+result with 5 at (0, 2) and 7 at (2, 0) and zero elsewhere: -1 and 3 are skipped.
+
+## AnArgmaxGivesTheLowestColumnOfTheLargestElement
+
+The rows {1, 5, 5}, {9, 2, 3} and {-1, -1, -1} give {1, 0, 0}: a tie keeps the lowest column.
 
 ## AReshapeKeepsTheElementsInOrder
 

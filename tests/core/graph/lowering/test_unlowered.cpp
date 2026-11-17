@@ -46,8 +46,9 @@ namespace
         std::size_t second; /**< The later position. */
     };
 
-    /** @brief Lists every pair of positions of the four entries. */
-    constexpr PositionPair K_PAIRS[] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
+    /** @brief Lists every pair of positions of the six entries. */
+    constexpr PositionPair K_PAIRS[] = {{0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {1, 2}, {1, 3}, {1, 4}, {1, 5},
+        {2, 3}, {2, 4}, {2, 5}, {3, 4}, {3, 5}, {4, 5}};
 
     /** @brief Runs once per pair of positions of K_UNLOWERED. */
     class Small_UnloweredPair : public ::testing::TestWithParam<PositionPair>
@@ -56,8 +57,8 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that the list names the two optimizer updates, the clip and the stats update. */
-TEST(Small_Unlowered, TheListNamesTheFourOperationsRecordedBesideTheGraph)
+/** @brief Tests that the list names the two optimizer updates, the clip, the stats update and the two layer-norm tasks. */
+TEST(Small_Unlowered, TheListNamesTheSixOperationsRecordedBesideTheGraph)
 {
     const auto holds = [](OpID op)
     {
@@ -65,11 +66,13 @@ TEST(Small_Unlowered, TheListNamesTheFourOperationsRecordedBesideTheGraph)
             != Graph::K_UNLOWERED.end();
     };
 
-    EXPECT_EQ(Graph::K_UNLOWERED.size(), 4u);
+    EXPECT_EQ(Graph::K_UNLOWERED.size(), 6u);
     EXPECT_TRUE(holds(Ops::K_ADAMW_UPDATE.id));
     EXPECT_TRUE(holds(Ops::K_SGD_UPDATE.id));
     EXPECT_TRUE(holds(Ops::K_CLIP_SCALE.id));
     EXPECT_TRUE(holds(Ops::K_BATCHNORM_UPDATE_STATS.id));
+    EXPECT_TRUE(holds(Ops::K_LAYER_NORM_DEVIATION.id));
+    EXPECT_TRUE(holds(Ops::K_LAYER_NORM_APPLY.id));
 }
 
 /** @brief Tests that two positions of the list never hold the same operation. */

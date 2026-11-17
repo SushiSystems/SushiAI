@@ -37,6 +37,7 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/graph/permuted_copy.hpp>
 
 namespace SushiAI
 {
@@ -79,14 +80,46 @@ namespace SushiAI
                 return Shape(SushiRuntime::span<const int64_t>(dims.data(), rank + 1));
             }
 
-            /**
-             * @brief Reports whether INT32 holds every row of a table and every offset of a
-             *        list of @p count indices, which runs from 0 to @p count.
-             */
-            bool fits_row_index(int64_t table_rows, int64_t count) noexcept
+            /** @brief Reports whether @p dtype is one a row or column index may have. */
+            bool is_index_dtype(DType dtype) noexcept
             {
-                constexpr int64_t K_LARGEST_INDEX = std::numeric_limits<int32_t>::max();
-                return table_rows <= K_LARGEST_INDEX && count < K_LARGEST_INDEX;
+                return dtype == DType::Int32 || dtype == DType::Int64;
+            }
+
+            /**
+             * @brief Reports whether @p part is a prefix or a suffix of @p whole, by @p side.
+             * @return True when @p part has at least one axis, no more than @p whole, and its
+             *         extents equal the first or the last ones of @p whole.
+             */
+            bool is_side_of(const Shape& whole, const Shape& part, BroadcastSide side) noexcept
+            {
+                const int32_t part_rank = part.rank();
+                const int32_t whole_rank = whole.rank();
+                if (part_rank < 1 || part_rank > whole_rank)
+                    return false;
+
+                const int32_t first = side == BroadcastSide::Leading ? 0 : whole_rank - part_rank;
+                for (int32_t axis = 0; axis < part_rank; ++axis)
+                {
+                    if (part[axis] != whole[first + axis])
+                        return false;
+                }
+
+                return true;
+            }
+
+            /** @brief Returns the name of @p side as a refusal message spells it. */
+            std::string_view side_name(BroadcastSide side) noexcept
+            {
+                return side == BroadcastSide::Leading ? "a prefix" : "a suffix";
+            }
+
+            /** @brief Returns the attributes of a node that holds @p side in flag 0. */
+            Attributes side_attributes(BroadcastSide side) noexcept
+            {
+                Attributes attributes{};
+                attributes.values[0] = side == BroadcastSide::Trailing ? 1.0 : 0.0;
+                return attributes;
             }
 
             /** @brief Returns InvalidDescription unless @p value is tagged NHWC. */
@@ -316,16 +349,13 @@ namespace SushiAI
             SA_REFUSE_IF(*this, !is_real_float(table_dtype),
                          "gather_rows needs a half, float32 or float64 table; got {}",
                          dtype_name(table_dtype));
-            SA_REFUSE_IF(*this, index_dtype != DType::Int32,
-                         "gather_rows needs an INT32 index; got {}", dtype_name(index_dtype));
+            SA_REFUSE_IF(*this, !is_index_dtype(index_dtype),
+                         "gather_rows needs an INT32 or INT64 index; got {}",
+                         dtype_name(index_dtype));
             SA_REFUSE_IF(*this, index_shape.rank() < 1 || index_shape.rank() >= K_MAX_RANK,
                          "gather_rows needs an index of rank 1 to {}, so the result fits rank "
                          "{}; got {}",
                          K_MAX_RANK - 1, K_MAX_RANK, index_shape.to_string());
-            SA_REFUSE_IF(*this, !fits_row_index(table_shape[0], index_shape.num_elements()),
-                         "gather_rows addresses rows in INT32; a table of {} rows read by {} "
-                         "indices does not fit",
-                         table_shape[0], index_shape.num_elements());
 
             const ValueID out = declare_like(table, with_last_axis(index_shape, table_shape[1]),
                                              table_dtype, Lifetime::Activation, "gather_rows");
@@ -351,8 +381,8 @@ namespace SushiAI
             SA_REFUSE_IF(*this, !is_real_float(row_dtype),
                          "scatter_add_rows needs half, float32 or float64 rows; got {}",
                          dtype_name(row_dtype));
-            SA_REFUSE_IF(*this, index_dtype != DType::Int32,
-                         "scatter_add_rows needs an INT32 index; got {}",
+            SA_REFUSE_IF(*this, !is_index_dtype(index_dtype),
+                         "scatter_add_rows needs an INT32 or INT64 index; got {}",
                          dtype_name(index_dtype));
 
             const int64_t width = row_shape[row_shape.rank() - 1];
@@ -361,15 +391,177 @@ namespace SushiAI
                          "scatter_add_rows needs one index per row; rows of {} take an index "
                          "shaped like them without the last axis, and got {}",
                          row_shape.to_string(), index_shape.to_string());
-            SA_REFUSE_IF(*this, table_rows < 1
-                                    || !fits_row_index(table_rows, index_shape.num_elements()),
-                         "scatter_add_rows addresses rows in INT32; a table of {} rows written "
-                         "by {} indices does not fit",
-                         table_rows, index_shape.num_elements());
+            SA_REFUSE_IF(*this, table_rows < 1,
+                         "scatter_add_rows needs a table of at least one row; got a table of {} "
+                         "rows",
+                         table_rows);
 
             const ValueID out = declare_like(rows, shape_of(table_rows, width), row_dtype,
                                              Lifetime::Activation, "scatter_add_rows");
             graph_->add_node(Ops::K_SCATTER_ADD_ROWS.id, {rows, indices}, {out});
+            return out;
+        }
+
+        Traced GraphBuilder::take_along(const Traced& source, const Traced& index) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID values, source);
+            SA_TRY_ASSIGN(const ValueID picks, index);
+
+            // Both descriptions are copied; declaring the result grows the value table.
+            const Shape value_shape = graph_->value(values).shape;
+            const DType value_dtype = graph_->value(values).dtype;
+            const Shape index_shape = graph_->value(picks).shape;
+            const DType index_dtype = graph_->value(picks).dtype;
+
+            SA_REFUSE_IF(*this, value_shape.rank() != 2,
+                         "take_along needs [R, C] values of rank 2; got {}",
+                         value_shape.to_string());
+            SA_REFUSE_IF(*this, !is_real_float(value_dtype),
+                         "take_along needs half, float32 or float64 values; got {}",
+                         dtype_name(value_dtype));
+            SA_REFUSE_IF(*this, !is_index_dtype(index_dtype),
+                         "take_along needs an INT32 or INT64 index; got {}",
+                         dtype_name(index_dtype));
+            SA_REFUSE_IF(*this, index_shape != shape_of(value_shape[0]),
+                         "take_along needs one index per row; values of {} take an index of [{}] "
+                         "and got {}",
+                         value_shape.to_string(), value_shape[0], index_shape.to_string());
+
+            const ValueID out = declare_like(values, shape_of(value_shape[0]), value_dtype,
+                                             Lifetime::Activation, "take_along");
+            graph_->add_node(Ops::K_TAKE_ALONG.id, {values, picks}, {out});
+            return out;
+        }
+
+        Traced GraphBuilder::put_along(const Traced& source, const Traced& index,
+                                       int64_t columns) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID picked, source);
+            SA_TRY_ASSIGN(const ValueID picks, index);
+
+            // Both descriptions are copied; declaring the result grows the value table.
+            const Shape picked_shape = graph_->value(picked).shape;
+            const DType picked_dtype = graph_->value(picked).dtype;
+            const Shape index_shape = graph_->value(picks).shape;
+            const DType index_dtype = graph_->value(picks).dtype;
+
+            SA_REFUSE_IF(*this, picked_shape.rank() != 1,
+                         "put_along needs a rank-1 [R] picked value; got {}",
+                         picked_shape.to_string());
+            SA_REFUSE_IF(*this, !is_real_float(picked_dtype),
+                         "put_along needs a half, float32 or float64 picked value; got {}",
+                         dtype_name(picked_dtype));
+            SA_REFUSE_IF(*this, !is_index_dtype(index_dtype),
+                         "put_along needs an INT32 or INT64 index; got {}",
+                         dtype_name(index_dtype));
+            SA_REFUSE_IF(*this, index_shape != picked_shape,
+                         "put_along needs one index per picked element; a picked value of {} "
+                         "takes an index of the same shape and got {}",
+                         picked_shape.to_string(), index_shape.to_string());
+            SA_REFUSE_IF(*this, columns < 1,
+                         "put_along needs a result of at least one column; got {} columns",
+                         columns);
+
+            const ValueID out = declare_like(picked, shape_of(picked_shape[0], columns),
+                                             picked_dtype, Lifetime::Activation, "put_along");
+
+            Attributes attributes{};
+            attributes.values[0] = static_cast<double>(columns);
+            graph_->add_node(Ops::K_PUT_ALONG.id, {picked, picks}, {out}, attributes);
+            return out;
+        }
+
+        Traced GraphBuilder::argmax_rows(const Traced& operand) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
+            // The description is copied; declaring the result grows the value table.
+            const Shape shape = graph_->value(x).shape;
+            const DType dtype = graph_->value(x).dtype;
+
+            SA_REFUSE_IF(*this, shape.rank() != 2 || shape.num_elements() < 1,
+                         "argmax_rows needs a non-empty [R, C] value of rank 2; got {}",
+                         shape.to_string());
+            SA_REFUSE_IF(*this, !is_real_float(dtype),
+                         "argmax_rows needs a half, float32 or float64 value; got {}",
+                         dtype_name(dtype));
+
+            const ValueID out = declare_like(x, shape_of(shape[0]), DType::Int64,
+                                             Lifetime::Activation, "argmax_rows");
+            graph_->add_node(Ops::K_ARGMAX_ROWS.id, {x}, {out});
+            return out;
+        }
+
+        Traced GraphBuilder::broadcast(OpID op, const Traced& operand, const Traced& vector,
+                                       BroadcastSide side, std::string_view what) const
+        {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_TRY_ASSIGN(const ValueID v, vector);
+
+            // Both descriptions are copied; declaring the result grows the value table.
+            const Shape x_shape = graph_->value(x).shape;
+            const DType x_dtype = graph_->value(x).dtype;
+            const Shape v_shape = graph_->value(v).shape;
+            const DType v_dtype = graph_->value(v).dtype;
+
+            SA_REFUSE_IF(*this, !is_real_float(x_dtype),
+                         "{} needs a half, float32 or float64 tensor; got {}", what,
+                         dtype_name(x_dtype));
+            SA_REFUSE_IF(*this, v_dtype != x_dtype,
+                         "{} needs a vector of the tensor's element type; got {} and {}", what,
+                         dtype_name(x_dtype), dtype_name(v_dtype));
+            SA_REFUSE_IF(*this, !is_side_of(x_shape, v_shape, side),
+                         "{} needs a vector whose shape is {} of the tensor's; got {} against {}",
+                         what, side_name(side), v_shape.to_string(), x_shape.to_string());
+
+            const ValueID out = declare_like(x, x_shape, x_dtype, Lifetime::Activation,
+                                             Ops::name_of(op));
+            graph_->add_node(op, {x, v}, {out}, side_attributes(side));
+            return out;
+        }
+
+        Traced GraphBuilder::broadcast_add(const Traced& x, const Traced& vector,
+                                           BroadcastSide side) const noexcept
+        {
+            return broadcast(Ops::K_BROADCAST_ADD.id, x, vector, side, "broadcast_add");
+        }
+
+        Traced GraphBuilder::broadcast_sub(const Traced& x, const Traced& vector,
+                                           BroadcastSide side) const noexcept
+        {
+            return broadcast(Ops::K_BROADCAST_SUB.id, x, vector, side, "broadcast_sub");
+        }
+
+        Traced GraphBuilder::broadcast_mul(const Traced& x, const Traced& vector,
+                                           BroadcastSide side) const noexcept
+        {
+            return broadcast(Ops::K_BROADCAST_MUL.id, x, vector, side, "broadcast_mul");
+        }
+
+        Traced GraphBuilder::broadcast_div(const Traced& x, const Traced& vector,
+                                           BroadcastSide side) const noexcept
+        {
+            return broadcast(Ops::K_BROADCAST_DIV.id, x, vector, side, "broadcast_div");
+        }
+
+        Traced GraphBuilder::sum_along(const Traced& operand, Shape kept,
+                                       BroadcastSide side) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
+            // The description is copied; declaring the result grows the value table.
+            const Shape shape = graph_->value(x).shape;
+            const DType dtype = graph_->value(x).dtype;
+
+            SA_REFUSE_IF(*this, !is_real_float(dtype),
+                         "sum_along needs a half, float32 or float64 tensor; got {}",
+                         dtype_name(dtype));
+            SA_REFUSE_IF(*this, !is_side_of(shape, kept, side),
+                         "sum_along keeps {} of the tensor's shape; got {} against {}",
+                         side_name(side), kept.to_string(), shape.to_string());
+
+            const ValueID out = declare_like(x, kept, dtype, Lifetime::Activation, "sum_along");
+            graph_->add_node(Ops::K_SUM_ALONG.id, {x}, {out}, side_attributes(side));
             return out;
         }
 
@@ -519,6 +711,31 @@ namespace SushiAI
         Traced GraphBuilder::exp(const Traced& x) const noexcept
         {
             return unary(Ops::K_EXP.id, x);
+        }
+
+        Traced GraphBuilder::sqrt(const Traced& x) const noexcept
+        {
+            return unary(Ops::K_SQRT.id, x);
+        }
+
+        Traced GraphBuilder::log(const Traced& x) const noexcept
+        {
+            return unary(Ops::K_LOG.id, x);
+        }
+
+        Traced GraphBuilder::pow(const Traced& operand, double exponent) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_REFUSE_IF(*this, !std::isfinite(exponent),
+                         "pow needs a finite exponent; got {}", exponent);
+
+            const Value& in = graph_->value(x);
+            const ValueID out = declare_like(x, in.shape, in.dtype, Lifetime::Activation, "pow");
+
+            Attributes attributes{};
+            attributes.values[0] = exponent;
+            graph_->add_node(Ops::K_POW.id, {x}, {out}, attributes);
+            return out;
         }
 
         Traced GraphBuilder::relu(const Traced& x) const noexcept
@@ -1241,6 +1458,34 @@ namespace SushiAI
             return out;
         }
 
+        Traced GraphBuilder::upsample2d_bilinear(const Traced& operand, int64_t scale_h,
+                                                 int64_t scale_w) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
+            const Value& in = graph_->value(x);
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "upsample2d_bilinear needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_REFUSE_IF(*this, !is_real_float(in.dtype),
+                         "upsample2d_bilinear needs a half, float32 or float64 input; got {}",
+                         dtype_name(in.dtype));
+            SA_TRY(observe(require_nhwc(in, "upsample2d_bilinear")));
+
+            SA_TRY_ASSIGN(const SpatialExtents scaled,
+                          observe(upsampled_extents(in.shape[1], in.shape[2], scale_h, scale_w)));
+
+            const ValueID out = declare_like(
+                x, Shape({in.shape[0], scaled.height, scaled.width, in.shape[3]}),
+                in.dtype, Lifetime::Activation, "upsampled");
+
+            Attributes a{};
+            a.values[0] = static_cast<double>(scale_h);
+            a.values[1] = static_cast<double>(scale_w);
+            graph_->add_node(Ops::K_UPSAMPLE2D_BILINEAR.id, {x}, {out}, a);
+            return out;
+        }
+
         Traced GraphBuilder::spatial_mean(const Traced& operand) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
@@ -1336,6 +1581,35 @@ namespace SushiAI
             a.values[0] = static_cast<double>(scale_h);
             a.values[1] = static_cast<double>(scale_w);
             graph_->add_node(Ops::K_UPSAMPLE2D_BACKWARD.id, {dy}, {out}, a);
+            return out;
+        }
+
+        Traced GraphBuilder::upsample2d_bilinear_backward(const Traced& gradient,
+                                                          Shape input_shape, int64_t scale_h,
+                                                          int64_t scale_w) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+
+            const Value& gy = graph_->value(dy);
+            SA_REFUSE_IF(*this, gy.shape.rank() != 4,
+                         "upsample2d_bilinear_backward needs a rank-4 [N,H,W,C] output gradient; "
+                         "got rank {}", gy.shape.rank());
+            SA_REFUSE_IF(*this, gy.layout != TensorLayout::NHWC,
+                         "upsample2d_bilinear_backward reads NHWC; this value is NCHW. Cross "
+                         "with layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, input_shape.rank() != 4,
+                         "upsample2d_bilinear_backward returns a rank-4 [N,H,W,C] input "
+                         "gradient; got rank {}", input_shape.rank());
+            SA_TRY(observe(require_upsample_scales("upsample2d_bilinear_backward", scale_h,
+                                                   scale_w)));
+
+            const ValueID out = declare_like(dy, input_shape, gy.dtype,
+                                             Lifetime::Activation, "dx");
+
+            Attributes a{};
+            a.values[0] = static_cast<double>(scale_h);
+            a.values[1] = static_cast<double>(scale_w);
+            graph_->add_node(Ops::K_UPSAMPLE2D_BILINEAR_BACKWARD.id, {dy}, {out}, a);
             return out;
         }
 
@@ -1780,6 +2054,48 @@ namespace SushiAI
 
             const ValueID out = declare_like(x, shape, in.dtype, Lifetime::Activation, "reshape");
             graph_->add_node(Ops::K_RESHAPE.id, {x}, {out});
+            return out;
+        }
+
+        Traced GraphBuilder::transpose(const Traced& operand,
+                                       SushiRuntime::span<const int64_t> permutation) const noexcept
+        {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
+            // The description is copied; declaring the result grows the value table.
+            const Shape shape = graph_->value(x).shape;
+            const DType dtype = graph_->value(x).dtype;
+            const int32_t rank = shape.rank();
+
+            SA_REFUSE_IF(*this, rank < 2,
+                         "transpose needs a batch axis and one more; got {}", shape.to_string());
+            SA_REFUSE_IF(*this, !is_real_float(dtype),
+                         "transpose needs a half, float32 or float64 value; got {}",
+                         dtype_name(dtype));
+            SA_REFUSE_IF(*this, permutation.size() != static_cast<std::size_t>(rank - 1)
+                                    || !is_axis_permutation(permutation),
+                         "transpose of {} needs a permutation of its {} per-sample axes; got {} "
+                         "entries",
+                         shape.to_string(), rank - 1, permutation.size());
+            SA_REFUSE_IF(*this, !plan_permuted_copy(shape, permutation).fits,
+                         "transpose of {} moves more than {} runs of axes, which one copy cannot "
+                         "walk",
+                         shape.to_string(), K_COPY_AXES);
+
+            std::array<int64_t, K_MAX_RANK> dims{};
+            dims[0] = shape[0];
+            Attributes attributes{};
+            for (std::size_t axis = 0; axis < permutation.size(); ++axis)
+            {
+                dims[axis + 1] = shape[static_cast<int32_t>(permutation[axis]) + 1];
+                attributes.values[axis] = static_cast<double>(permutation[axis]);
+            }
+
+            const Shape permuted(
+                SushiRuntime::span<const int64_t>(dims.data(), static_cast<std::size_t>(rank)));
+            const ValueID out = declare_like(x, permuted, dtype, Lifetime::Activation,
+                                             "transpose");
+            graph_->add_node(Ops::K_TRANSPOSE.id, {x}, {out}, attributes);
             return out;
         }
 

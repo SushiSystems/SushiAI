@@ -175,6 +175,24 @@ namespace SushiAI
             ValueID saved_mask;  /**< @brief The mask of the run: 0 or 1/(1 - rate) per element. */
         };
 
+        /** @brief Names whether a vector's shape is a prefix or a suffix of the tensor's. */
+        enum class BroadcastSide : std::uint8_t
+        {
+            /** @brief The vector's shape is a prefix: one element per outer index. */
+            Leading,
+            /** @brief The vector's shape is a suffix: one element per inner index. */
+            Trailing,
+        };
+
+        /**
+         * @brief Returns the side a broadcast or sum-along node holds in attribute flag 0.
+         * @return Trailing when the flag is set, Leading otherwise.
+         */
+        [[nodiscard]] constexpr BroadcastSide broadcast_side(const Attributes& attributes) noexcept
+        {
+            return attributes.flag(0) ? BroadcastSide::Trailing : BroadcastSide::Leading;
+        }
+
         /** @brief Names the attribute slot of a K_DROPOUT node that holds its rate. */
         inline constexpr std::size_t K_DROPOUT_RATE_SLOT = 0;
 
@@ -253,23 +271,82 @@ namespace SushiAI
 
                 /**
                  * @brief Emits @c K_GATHER_ROWS: the rows of @p table that @p indices names.
-                 * @param table A [V, D] value of a real floating type.
-                 * @param indices An INT32 value of rank one or more; each element is in [0, V).
-                 * @return The [..., D] result, or InvalidDescription when @p table is not rank
-                 *         2 or not floating, @p indices is not INT32, or an extent does not fit.
+                 * @param table A [V, D] real floating value.
+                 * @param indices An INT32 or INT64 value; an index outside [0, V) gives a row of zeros.
+                 * @return The [..., D] result, or InvalidDescription when an operand or an extent does not fit.
                  */
                 [[nodiscard]] Traced gather_rows(const Traced& table, const Traced& indices) const noexcept;
 
                 /**
-                 * @brief Emits @c K_SCATTER_ADD_ROWS: a zero [table_rows, D] with each row of
-                 *        @p rows added to the row its index names, in index order.
-                 * @param rows A [..., D] value of a real floating type.
-                 * @param indices An INT32 value shaped like @p rows without its last axis.
-                 * @param table_rows The row count V of the result; every index is in [0, V).
+                 * @brief Emits @c K_SCATTER_ADD_ROWS: a zero [table_rows, D] with each row of @p rows added
+                 *        to the row its index names, in index order.
+                 * @param indices An INT32 or INT64 value shaped like @p rows less its last axis; an index
+                 *        outside [0, V) skips its row.
                  * @return The result, or InvalidDescription when an argument does not fit.
                  */
                 [[nodiscard]] Traced scatter_add_rows(const Traced& rows, const Traced& indices,
                                                       int64_t table_rows) const noexcept;
+
+                /**
+                 * @brief Emits @c K_TAKE_ALONG: values[r, index[r]] for each row r.
+                 * @param values An [R, C] value of a real floating type.
+                 * @param index An INT32 or INT64 [R] value; an element outside [0, C) selects
+                 *        nothing and its result reads as zero.
+                 * @return The [R] result, or InvalidDescription when an operand does not fit.
+                 */
+                [[nodiscard]] Traced take_along(const Traced& values,
+                                                const Traced& index) const noexcept;
+
+                /**
+                 * @brief Emits @c K_PUT_ALONG: a zeroed [R, columns] result holding picked[r] at
+                 *        column index[r] of row r.
+                 * @param picked An [R] real floating value.
+                 * @param index An INT32 or INT64 [R] value; an index outside [0, columns) is skipped.
+                 * @param columns The column count of the result, stored in attribute slot 0.
+                 * @return The [R, columns] result, or InvalidDescription when an operand does not fit.
+                 */
+                [[nodiscard]] Traced put_along(const Traced& picked, const Traced& index,
+                                               int64_t columns) const noexcept;
+
+                /**
+                 * @brief Emits @c K_ARGMAX_ROWS: the column of the largest element of each row.
+                 * @param x An [R, C] value of a real floating type.
+                 * @return The INT64 [R] result, the lowest column on a tie, or InvalidDescription
+                 *         when @p x is not a non-empty rank-2 floating value.
+                 */
+                [[nodiscard]] Traced argmax_rows(const Traced& x) const noexcept;
+
+                /**
+                 * @brief Emits @c K_BROADCAST_ADD: x + vector, the vector broadcast along one side.
+                 * @param vector A prefix (Leading) or suffix (Trailing) of @p x's shape, of its type.
+                 * @param side Stored in attribute flag 0.
+                 * @return The result, shaped and typed like @p x, or InvalidDescription when the vector
+                 *         is not that prefix or suffix or the element types differ.
+                 */
+                [[nodiscard]] Traced broadcast_add(const Traced& x, const Traced& vector,
+                                                   BroadcastSide side) const noexcept;
+
+                /** @brief Emits @c K_BROADCAST_SUB: x - vector, as broadcast_add does. */
+                [[nodiscard]] Traced broadcast_sub(const Traced& x, const Traced& vector,
+                                                   BroadcastSide side) const noexcept;
+
+                /** @brief Emits @c K_BROADCAST_MUL: x * vector, as broadcast_add does. */
+                [[nodiscard]] Traced broadcast_mul(const Traced& x, const Traced& vector,
+                                                   BroadcastSide side) const noexcept;
+
+                /** @brief Emits @c K_BROADCAST_DIV: x / vector, as broadcast_add does. */
+                [[nodiscard]] Traced broadcast_div(const Traced& x, const Traced& vector,
+                                                   BroadcastSide side) const noexcept;
+
+                /**
+                 * @brief Emits @c K_SUM_ALONG: @p x summed down to @p kept.
+                 * @param kept A prefix (Leading) or a suffix (Trailing) of @p x's shape.
+                 * @param side Stored in attribute flag 0.
+                 * @return The result, shaped @p kept and typed like @p x, or InvalidDescription
+                 *         when @p kept is not that prefix or suffix.
+                 */
+                [[nodiscard]] Traced sum_along(const Traced& x, Shape kept,
+                                               BroadcastSide side) const noexcept;
 
                 /**
                  * @brief Emits @c K_CAUSAL_MASK: @p scores with every entry above the diagonal of
@@ -329,6 +406,27 @@ namespace SushiAI
 
                 /** @brief Emits @c K_EXP: elementwise exp(X), out of place. */
                 [[nodiscard]] Traced exp(const Traced& x) const noexcept;
+
+                /**
+                 * @brief Emits @c K_SQRT: elementwise square root, out of place.
+                 * @note An element below zero gives what the kernel gives; no check is added.
+                 */
+                [[nodiscard]] Traced sqrt(const Traced& x) const noexcept;
+
+                /**
+                 * @brief Emits @c K_LOG: elementwise natural logarithm, out of place.
+                 * @note An element at or below zero gives what the kernel gives; no check is added.
+                 */
+                [[nodiscard]] Traced log(const Traced& x) const noexcept;
+
+                /**
+                 * @brief Emits @c K_POW: elementwise x raised to @p exponent, out of place.
+                 * @param exponent Stored in attribute slot 0; must be finite. A reciprocal root
+                 *        is pow(x, -0.5).
+                 * @return The result, or InvalidDescription for an exponent that is not finite.
+                 * @note An element outside the power's domain gives what the kernel gives.
+                 */
+                [[nodiscard]] Traced pow(const Traced& x, double exponent) const noexcept;
 
                 /** @brief Emits ABS: elementwise |x|, out of place. */
                 [[nodiscard]] Traced abs(const Traced& x) const noexcept;
@@ -602,6 +700,15 @@ namespace SushiAI
                                                 int64_t scale_w) const noexcept;
 
                 /**
+                 * @brief Emits @c K_UPSAMPLE2D_BILINEAR: each output pixel interpolated from the
+                 *        four input pixels around its half-pixel centre.
+                 * @return The upsampled value, or InvalidDescription when @p x is not rank 4
+                 *         NHWC or a scale is below 1.
+                 */
+                [[nodiscard]] Traced upsample2d_bilinear(const Traced& x, int64_t scale_h,
+                                                         int64_t scale_w) const noexcept;
+
+                /**
                  * @brief Emits @c K_SPATIAL_MEAN: the mean of every [H,W] plane.
                  * @return The @c [N,C] result, or InvalidDescription when @p x is not rank 4
                  *         NHWC.
@@ -630,6 +737,16 @@ namespace SushiAI
                  */
                 [[nodiscard]] Traced upsample2d_backward(const Traced& dy, Shape input_shape,
                                                          int64_t scale_h, int64_t scale_w) const noexcept;
+
+                /**
+                 * @brief Emits @c K_UPSAMPLE2D_BILINEAR_BACKWARD: each input pixel gathers the
+                 *        output gradients it contributed to, each by its forward weight.
+                 * @return The input gradient, or InvalidDescription.
+                 */
+                [[nodiscard]] Traced upsample2d_bilinear_backward(const Traced& dy,
+                                                                  Shape input_shape,
+                                                                  int64_t scale_h,
+                                                                  int64_t scale_w) const noexcept;
 
                 /**
                  * @brief Emits SPATIAL_MEAN_BACKWARD broadcasting by 1/(H*W).
@@ -741,6 +858,17 @@ namespace SushiAI
                 [[nodiscard]] Traced reshape(const Traced& x, Shape shape) const noexcept;
 
                 /**
+                 * @brief Emits @c K_TRANSPOSE: @p x copied with its non-batch axes permuted.
+                 * @param x A real floating value with a batch axis and at least one more.
+                 * @param permutation Entry k names the per-sample axis of @p x that becomes axis k of the
+                 *        result; stored in attribute slots 0 to 4. The batch axis stays first.
+                 * @return The permuted value, or InvalidDescription when @p permutation is no permutation
+                 *         of the per-sample axes or needs more than four runs (see plan_permuted_copy).
+                 */
+                [[nodiscard]] Traced transpose(
+                    const Traced& x, SushiRuntime::span<const int64_t> permutation) const noexcept;
+
+                /**
                  * @brief Emits STOP_GRADIENT: the value of @p x, with no gradient path back to it.
                  * @return A value shaped, typed and laid out like @p x that requires no gradient.
                  */
@@ -793,6 +921,13 @@ namespace SushiAI
 
                 /** @brief Emits a unary node shaped, typed and laid out like its operand. */
                 Traced unary(OpID op, const Traced& x) const;
+
+                /**
+                 * @brief Emits a broadcast node: @p x against a vector at @p side of its shape.
+                 * @param what The emitter's name, as a refusal message spells it.
+                 */
+                Traced broadcast(OpID op, const Traced& x, const Traced& vector, BroadcastSide side,
+                                 std::string_view what) const;
 
                 /**
                  * @brief Returns InvalidDescription, without marking the graph, when @p a and

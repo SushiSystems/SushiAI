@@ -29,15 +29,18 @@
 
 #include <SushiAI/graph/lowering/loss.hpp>
 
+#include <array>
 #include <cstdint>
 #include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/broadcast/broadcast.hpp>
+#include <SushiBLAS/broadcast/dispatch.hpp>
 #include <SushiBLAS/elementwise/elementwise.hpp>
-#include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 namespace SushiAI
 {
@@ -54,7 +57,6 @@ namespace SushiAI
                         context.id(), x_shape.to_string());
 
             const int64_t rows = x_shape[0];
-            const int64_t cols = x_shape[1];
             const DType dtype = description.dtype;
 
             const SushiBLAS::Tensor& x = context.input(0);
@@ -65,27 +67,24 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor& exponents, context.scratch(2, x_shape, dtype));
             SA_TRY_ASSIGN(SushiBLAS::Tensor& row_sums, context.scratch(3, Shape{rows}, dtype));
 
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& ones_cols, context.ones(Shape{cols}, dtype));
-
             SushiBLAS::ReductionOps reductions(context.recorder());
             SushiBLAS::BLASOps blas(context.recorder());
             SushiBLAS::ElementwiseOps elementwise(context.recorder());
+            SushiBLAS::BroadcastOps broadcast(context.recorder());
 
             reductions.max_along(x, 1, row_max);
 
-            blas.copy(x, shifted);
-            blas.ger(row_max, ones_cols, shifted, -1.0f);
+            // Each subtraction takes one value per row from its own place, out of place.
+            broadcast.sub(x, row_max, shifted, SushiBLAS::BroadcastAxis::Leading);
 
             blas.copy(shifted, exponents);
             elementwise.exp(exponents);
-            blas.gemv(exponents, ones_cols, row_sums, SushiBLAS::Core::Transpose::NoTrans, 1.0f,
-                      0.0f);
+            reductions.sum_along(exponents, 1, row_sums);
 
             elementwise.log(row_sums);
-            blas.copy(shifted, out);
-            blas.ger(row_sums, ones_cols, out, -1.0f);
+            broadcast.sub(shifted, row_sums, out, SushiBLAS::BroadcastAxis::Leading);
 
-            context.count(9);
+            context.count(7);
             return Status();
         }
 
@@ -100,7 +99,6 @@ namespace SushiAI
                         context.id(), shape.to_string());
 
             const int64_t rows = shape[0];
-            const int64_t cols = shape[1];
             const DType dtype = description.dtype;
 
             const SushiBLAS::Tensor& dy = context.input(0);
@@ -108,28 +106,30 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor& dx, context.output(0));
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor& row_sums, context.scratch(0, Shape{rows}, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& spread, context.scratch(1, shape, dtype));
-
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& ones_cols, context.ones(Shape{cols}, dtype));
 
             SushiBLAS::BLASOps blas(context.recorder());
             SushiBLAS::ElementwiseOps elementwise(context.recorder());
-            SushiBLAS::RandomOps random(context.recorder(), context.stream());
+            SushiBLAS::ReductionOps reductions(context.recorder());
 
-            blas.gemv(dy, ones_cols, row_sums, SushiBLAS::Core::Transpose::NoTrans, 1.0f, 0.0f);
-
-            // spread holds minus the row sum of dy in every column of its row.
-            random.constant(spread, 0.0);
-            blas.ger(row_sums, ones_cols, spread, -1.0f);
+            reductions.sum_along(dy, 1, row_sums);
 
             blas.copy(log_probabilities, dx);
             elementwise.exp(dx);
 
-            // dx = dy - exp(log_probabilities) * rowsum(dy).
-            elementwise.mul(dx, spread, dx);
+            // dx = dy - exp(log_probabilities) * rowsum(dy): the call leaves -exp(.) * rowsum(dy).
+            constexpr const char* K_TASK_NAME = Ops::K_LOG_SOFTMAX_BACKWARD.name.data();
+            const std::array<SushiBLAS::BroadcastOperand, 1> row_sum_vector{
+                {{&row_sums, SushiBLAS::BroadcastAxis::Leading}}};
+            SushiBLAS::Dispatch::execute_broadcast(
+                context.recorder(), dx, row_sum_vector, dx, K_TASK_NAME,
+                Ops::K_LOG_SOFTMAX_BACKWARD.id,
+                [](auto probability, auto row_sum)
+                {
+                    return -probability * row_sum;
+                });
             blas.axpy(1.0, dy, dx);
 
-            context.count(7);
+            context.count(5);
             return Status();
         }
 

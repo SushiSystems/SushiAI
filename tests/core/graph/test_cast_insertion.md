@@ -13,6 +13,12 @@ text of `describe`. The conversions the pass inserts are pinned there. No device
 half, the same node count before and after, and the policy name "fp32". Its `to_string()` holds
 "casts inserted : 0" and no "values retyped" line.
 
+## AnIndexResultLeavesItsFloatOperandUncast
+
+`argmax_rows` over a float32 `[4, 3]` input writes an int64 index. The pass inserts no cast for
+it and leaves the node count as it was; before this, it tried to cast the float input to int64 and
+stopped the process.
+
 ## AGraphAlreadyNarrowHasNoMismatchUnderTheMixedPolicy
 
 A product of a half [4, 3] input and a half [5, 3] weight agrees with `MixedPrecisionPolicy`:

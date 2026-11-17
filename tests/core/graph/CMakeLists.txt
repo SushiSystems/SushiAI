@@ -10,18 +10,22 @@ sushiai_add_test_program(OWNER graph
         compile_step_recording.cpp
         lowering/test_activation.cpp
         lowering/test_all.cpp
+        lowering/test_broadcast.cpp
         lowering/test_context.cpp
         lowering/test_elementwise.cpp
         lowering/test_fused.cpp
-        lowering/test_linalg.cpp
         lowering/test_loss.cpp
+        lowering/test_mask.cpp
+        lowering/test_matmul.cpp
         lowering/test_norm.cpp
         lowering/test_random.cpp
+        lowering/test_row_index.cpp
         lowering/test_rule.cpp
         lowering/test_shape.cpp
         lowering/test_spatial.cpp
         lowering/test_unlowered.cpp
         test_arena.cpp
+        test_buffer_update_recorder.cpp
         test_builder.cpp
         test_cast_insertion.cpp
         test_compiled_step.cpp
@@ -37,6 +41,7 @@ sushiai_add_test_program(OWNER graph
         test_lowering/test_host_values.cpp
         test_memory_plan.cpp
         test_node_range.cpp
+        test_permuted_copy.cpp
         test_precision.cpp
         test_rematerialise.cpp
         test_replay_prelude.cpp

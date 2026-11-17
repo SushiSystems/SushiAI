@@ -379,9 +379,14 @@ index gives a [2, 1, 3, 1, 2, 3] value.
 
 A [7] table is refused with "rank-2 [V, D] table" and a [7, 2, 3] table with "[7, 2, 3]".
 
-## GatherRowsRefusesAnIndexThatIsNotInt32
+## GatherRowsRefusesAnIndexThatIsNotAnInteger
 
-A float32 index and an int64 index are each refused with "INT32 index".
+A float32 index is refused with "INT32 or INT64 index".
+
+## GatherRowsAcceptsAnInt64Index
+
+A [5] int64 index over the table gives a [5, 3] result that one GATHER_ROWS node produces from the
+table and the index, as an int32 index does.
 
 ## GatherRowsRefusesATableThatIsNotFloating
 
@@ -405,8 +410,13 @@ For the same call the result has the shape [7, 3], the type float64 and the life
 ## ScatterAddRowsRefusesOperandsThatDoNotFit
 
 Runs once for each of the five rows of `Small_ScatterAddRefusal`: rank-1 rows ("rank 2 or
-more"), int32 rows ("half, float32 or float64 rows"), a float32 index ("INT32 index"), a [4]
+more"), int32 rows ("half, float32 or float64 rows"), a float32 index ("INT32 or INT64 index"), a [4]
 index for five rows ("one index per row") and a row count of 0 ("a table of 0 rows").
+
+## ScatterAddRowsAcceptsAnInt64Index
+
+Over [2, 4, 3] float64 rows and a [2, 4] int64 index, `scatter_add_rows` with 7 table rows gives
+a [7, 3] result that one SCATTER_ADD_ROWS node produces from the rows and the index.
 
 ## AnInt32InputLeafRequiresNoGradient
 
@@ -584,3 +594,69 @@ fit.
 last channel, `channel_affine` with a [4] beta over three channels, `sum_channels` of a rank-2
 value, `batchnorm2d` with a zero epsilon and with a float64 beta, `batchnorm2d_backward` with a
 rank-2 gradient, and `batchnorm_fold` with a [4] beta.
+
+Suites: `Small_NewOperationEmitters`.
+
+Tests the emitters added with the graph capabilities, over one bench of a [4, 5] matrix, a [2, 4, 5]
+cube, an INT32 and an INT64 [4] index, a float32 [4] value and a [1, 2, 3, 2] image.
+
+## SqrtAndLogWriteTheirIdentityDescribedLikeTheirOperand
+
+`sqrt` and `log` of the matrix each write one node of their identity over the matrix, and the
+result copies the matrix's shape, type and layout as an activation.
+
+## PowKeepsItsExponentInSlotZero
+
+`pow(matrix, -0.5)` writes a POW node whose attribute slot 0 holds -0.5.
+
+## UpsampleBilinearMultipliesTheSpatialExtentsAndKeepsItsScales
+
+`upsample2d_bilinear(image, 3, 2)` gives a [1, 6, 6, 2] value with the scales 3 and 2 in slots 0
+and 1; the backward emitter over it, to the [1, 2, 3, 2] shape, writes the gradient identity.
+
+## UpsampleBilinearRefusesAScaleBelowOneAndAnOperandOfTheWrongRank
+
+A scale of 0 is refused with "scales of at least one" and a rank-2 operand with "rank-4"; no node
+is left behind and the graph holds a refusal.
+
+## ArgmaxRowsYieldsAnInt64ColumnPerRow
+
+The matrix gives an INT64 [4] value. The cube and the INT32 index are each refused with "rank 2".
+
+## TakeAlongAndPutAlongWriteTheirIdentitiesOverAnIndexPerRow
+
+`take_along(matrix, index)` gives an [4] value, and `put_along(values, wide_index, 5)` gives a
+[4, 5] value with 5 in attribute slot 0. An INT64 index is accepted.
+
+## TakeAlongAndPutAlongRefuseAnIndexThatDoesNotFit
+
+A float32 index is refused with "INT32 or INT64 index", a rank-3 value with "rank 2" and a
+column count of 0 with "at least one column".
+
+## BroadcastKeepsItsSideInFlagZeroAndTheTensorsDescription
+
+`broadcast_sub` with a [2, 4] vector on the leading side and `broadcast_div` with a [4, 5] vector
+on the trailing side each write their identity over [tensor, vector], copy the tensor's
+description, and `broadcast_side` reads the side back from the node.
+
+## BroadcastRefusesAVectorThatDoesNotFit
+
+A FLOAT64 vector is refused with "element type", a leading vector declared trailing with
+"a suffix", and a cube taken as the vector of a matrix with "a prefix".
+
+## TransposePermutesThePerSampleExtentsAndKeepsThePermutation
+
+`transpose` of the [2, 4, 5] cube by (1, 0) gives a [2, 5, 4] float32 value produced by K_TRANSPOSE
+from the cube, and the node holds 1 in attribute slot 0 and 0 in slot 1.
+
+## TransposeRefusesAPermutationThatDoesNotFit
+
+Five refusals, each leaving no node behind: a rank-1 value, "batch axis"; a one-entry permutation
+and a repeated entry over the cube, "per-sample axes"; an INT32 [2, 3, 4] value, "half, float32 or
+float64"; and the reversal of the five per-sample axes of a [1, 2, 3, 2, 3, 2] value, which no
+neighbours join into fewer than five runs, so the copy refuses it with "runs of axes".
+
+## SumAlongYieldsTheKeptShapeOnEitherSide
+
+`sum_along` of the cube to [2, 4] on the leading side and to [4, 5] on the trailing side give those
+shapes, and the trailing node holds its side.

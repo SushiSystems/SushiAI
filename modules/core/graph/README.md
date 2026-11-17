@@ -29,10 +29,10 @@ Each header is named by its include path under `include/`.
 | Header | Declares |
 | --- | --- |
 | `SushiAI/graph/arena.hpp` | `ArenaSet` |
-| `SushiAI/graph/builder.hpp` | `ConvGeometry`, `output_extent`, `SpatialExtents`, `PoolResult`, `BatchNormResult`, `BatchNormFold`, `BatchNormGrads`, `LayerNormResult`, `LayerNormGrads`, `DropoutResult`, `K_DROPOUT_RATE_SLOT`, `dropout_seed`, `GraphBuilder` |
+| `SushiAI/graph/builder.hpp` | `ConvGeometry`, `output_extent`, `SpatialExtents`, `PoolResult`, `BatchNormResult`, `BatchNormFold`, `BatchNormGrads`, `LayerNormResult`, `LayerNormGrads`, `DropoutResult`, `K_DROPOUT_RATE_SLOT`, `dropout_seed`, `BroadcastSide`, `broadcast_side`, `GraphBuilder` |
 | `SushiAI/graph/cast_insertion.hpp` | `CastOptions`, `InsertedCast`, `CastReport`, `insert_casts`, `DTypeMismatch`, `find_dtype_mismatches`, `describe` |
 | `SushiAI/graph/compiled_step.hpp` | `CompiledStep`, with its `compile` and `run`, and `check_compilable` |
-| `SushiAI/graph/dropout_mask.hpp` | `splitmix64_at`, `dropout_site_seed`, `dropout_bits`, `dropout_keeps`, `fill_keep_mask` |
+| `SushiAI/graph/dropout_mask.hpp` | `splitmix64_at`, `dropout_site_seed` |
 | `SushiAI/graph/fusion.hpp` | `FusedForm`, `fused_form_name`, `fused_form_from_name`, `fused_form_op`, `fused_form_of`, `FusionDecline`, `FusionOptions`, `FusedSubtree`, `DeclinedFusion`, `FusionReport`, `fuse` |
 | `SushiAI/graph/fusion_selector.hpp` | `FusionQuery`, `FusionChoice`, `FusionSelector`, `DeviceFusionSelector`, with `for_backend(const ExecutionBackend&)`, `FusionSelection` |
 | `SushiAI/graph/host_evaluator.hpp` | `HostEvaluator`, `host_evaluates` |
@@ -46,6 +46,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/replay_prelude.hpp` | `ReplayPrelude` |
 | `SushiAI/graph/state_id.hpp` | `StateID`, `K_NO_STATE`, `StateIdentity` |
 | `SushiAI/graph/step_recorder.hpp` | `StepRecorder`, `StepRecorderList` |
+| `SushiAI/graph/buffer_update_recorder.hpp` | `BufferUpdateSlot`, `BufferUpdateRecorder` |
 | `SushiAI/graph/in_memory_step_recorder.hpp` | `InMemoryStepRecorder` |
 | `SushiAI/graph/in_memory_descent_recorder.hpp` | `InMemoryDescentRecorder` |
 | `SushiAI/graph/run_counter.hpp` | `RunCounter` |
@@ -55,17 +56,21 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/traced.hpp` | `Traced` |
 | `SushiAI/graph/lowering/activation.hpp` | `K_ACTIVATION_LOWERINGS` |
 | `SushiAI/graph/lowering/all.hpp` | `K_LOWERINGS` |
+| `SushiAI/graph/lowering/broadcast.hpp` | `K_BROADCAST_LOWERINGS` |
 | `SushiAI/graph/lowering/context.hpp` | `LoweringContext` |
 | `SushiAI/graph/lowering/elementwise.hpp` | `K_ELEMENTWISE_LOWERINGS` |
 | `SushiAI/graph/lowering/fused.hpp` | `K_FUSED_LOWERINGS` |
-| `SushiAI/graph/lowering/linalg.hpp` | `K_LINALG_LOWERINGS` |
+| `SushiAI/graph/lowering/mask.hpp` | `K_MASK_LOWERINGS` |
+| `SushiAI/graph/lowering/matmul.hpp` | `K_MATMUL_LOWERINGS` |
 | `SushiAI/graph/lowering/loss.hpp` | `K_LOSS_LOWERINGS` |
 | `SushiAI/graph/lowering/norm.hpp` | `K_NORM_LOWERINGS` |
 | `SushiAI/graph/lowering/random.hpp` | `K_RANDOM_LOWERINGS` |
+| `SushiAI/graph/lowering/row_index.hpp` | `K_ROW_INDEX_LOWERINGS` |
 | `SushiAI/graph/lowering/rule.hpp` | `LoweringRule`, `LoweringEntry`, `concat_lowerings` |
 | `SushiAI/graph/lowering/shape.hpp` | `K_SHAPE_LOWERINGS` |
 | `SushiAI/graph/lowering/spatial.hpp` | `K_SPATIAL_LOWERINGS` |
 | `SushiAI/graph/lowering/unlowered.hpp` | `K_UNLOWERED` |
+| `SushiAI/graph/permuted_copy.hpp` | `PermutedCopy`, `CopyAxis`, `K_COPY_AXES`, `is_axis_permutation`, `inverse_axis_permutation`, `permutation_of`, `plan_permuted_copy` |
 
 ## Seams for tests without a device
 
@@ -89,9 +94,10 @@ Each seam keeps the default behaviour: a `TensorPool` built over an `Engine` all
 - `HostEvaluator(graph)` computes a graph on the host with no engine. `write(leaf, elements)`
   fills a leaf, `run()` evaluates the nodes in insertion order and `read(value)` returns a value's
   elements. Every value is held as double, so the result is the host reference of the graph, not
-  the rounding of a device run. It has a rule for 34 operations: ZERO, CONSTANT, CAST to float32
-  or float64, ADD, SUB, MUL, SCALE, EXP, LESS_EQUAL, SELECT, GELU, SILU, RELU, ABS, SOFTPLUS, MATMUL, BIAS_ADD, SUM_ROWS,
-  SCATTER_ADD_ROWS, CAUSAL_MASK,
+  the rounding of a device run. It has a rule for 47 operations: ZERO, CONSTANT, CAST to float32
+  or float64, ADD, SUB, MUL, DIV, MAXIMUM, SQRT, LOG, POW, SCALE, EXP, LESS_EQUAL, SELECT, GELU, SILU, RELU, ABS, SOFTPLUS, MATMUL, BIAS_ADD, SUM_ROWS,
+  SCATTER_ADD_ROWS, CAUSAL_MASK, TAKE_ALONG, PUT_ALONG, ARGMAX_ROWS, BROADCAST_ADD, BROADCAST_SUB,
+  BROADCAST_MUL, BROADCAST_DIV, SUM_ALONG,
   RESHAPE, GATHER_ROWS, SLICE_CHANNELS, CONCAT_CHANNELS, CHANNEL_AFFINE, LOG_SOFTMAX, NLL_LOSS, LAYER_NORM,
   BATCHNORM2D, BATCHNORM_FOLD, IM2COL, DEPTHWISE_CONV2D, MAXPOOL2D and UPSAMPLE2D. A
   convolution has no node of its own: the builder emits IM2COL, MATMUL, BIAS_ADD and RESHAPE. `run()` returns `Unsupported` for any other operation, and
@@ -166,18 +172,70 @@ proven graph and stops the process on one that is not.
 ## Row gathers and integer leaves
 
 `GraphBuilder::gather_rows` and `scatter_add_rows` refuse as every emitter does (see
-"Emitting and refusing"). Both lower to
-`SushiBLAS::SparseOps::spmm` over a CSR matrix that holds a single one in each row, at the
-column the index names. The gather is the plain product, which copies rows. The scatter-add is
-the transposed product, which adds the rows in index order inside one work-item per column, so
-a repeated index gives the same bytes on every run. The row offsets of that matrix are an INT32
-scratch of the node, filled on the host when the node is lowered.
+"Emitting and refusing"). Both lower to `SushiBLAS::RowIndexOps`: the gather is `take_rows` and
+the scatter-add is `add_rows` with a `beta` of zero, which writes every element of the result and
+adds the rows in index order, so a repeated index gives the same bytes on every run. An index of
+any rank is read as a list of one entry per row, through a view over the same storage; neither
+operation needs a scratch value.
 
-A leaf may be INT32: `GraphBuilder::input` takes the element type. The cast pass leaves a leaf
-and any operand that is not a real float as declared, and `Graph::finalise` gives an input no
-gradient, so an index needs no special case in either. Neither row operation narrows under
-`MixedPrecisionPolicy`. SushiBLAS checks an index against the table only in the reference kernel
-of a build without `NDEBUG`; elsewhere an index outside `[0, V)` reads or writes outside it.
+The index of the two row operations and of `take_along` and `put_along` is INT32 or INT64. An
+index outside its range selects nothing, on both SushiBLAS paths and in every build type: the
+gather reads a row of zeros for it, the scatter-add skips its row, `take_along` reads a zero and
+`put_along` leaves its row zero. Nothing is reported, because the content of an index is not known
+when the step is recorded. A negative index is out of range, and so is the table's row count, or a
+row's column count for the two along operations.
+
+A leaf may be INT32 or INT64: `GraphBuilder::input` takes the element type. The cast pass leaves a
+leaf and any operand that is not a real float as declared, and `Graph::finalise` gives an input no
+gradient, so an index needs no special case in either. None of the four index operations narrows
+under `MixedPrecisionPolicy`.
+
+`GraphBuilder::take_along` picks `values[r, index[r]]` from an `[R, C]` value into an `[R]` result,
+and `put_along` writes `picked[r]` at column `index[r]` of a zeroed `[R, columns]` result, the
+column count in attribute slot 0. Each is the other's gradient: the rule of one emits the other.
+`GraphBuilder::argmax_rows` is `K_ARGMAX_ROWS`, a gradient barrier: it gives the lowest column of
+each row's largest element as an INT64 `[R]` value, through `ReductionOps::argmax_along` with
+axis 1, and does not narrow under `MixedPrecisionPolicy`.
+
+## Square root, logarithm, power and the bilinear upsample
+
+`sqrt`, `log` and `pow` emit `K_SQRT`, `K_LOG` and `K_POW`, shaped like `exp`; the exponent of the
+power is attribute slot 0 and must be finite. `sqrt` and `log` lower as `exp` does, through a copy
+and an in-place kernel, and `pow` records the copy and `ElementwiseOps::pow`. The graph adds no
+domain check: an element outside a function's domain gives what the kernel gives, a NaN or an
+infinity. A reciprocal root is `pow(x, -0.5)`.
+
+`upsample2d_bilinear` and `upsample2d_bilinear_backward` are two operations beside the nearest
+pair, not a mode of it, so no existing row carries a mode switch. They lower to
+`SpatialOps::upsample_bilinear` and `upsample_bilinear_backward`, which interpolate from the four
+pixels around a half-pixel centre. Both read NHWC and refuse a scale below one.
+
+## Transposing the per-sample axes
+
+`GraphBuilder::transpose` emits `K_TRANSPOSE`: a copy of a half, float32 or float64 value with its
+non-batch axes in the order of a permutation, which sits in attribute slots 0 to 4 and leaves the
+batch axis first. Its gradient is the same node with the inverse permutation.
+`source/lowering/shape.cpp` records it as one `SpatialOps::layout_convert`, SushiBLAS's copy by
+logical position over two stride sets, with the result's extents on both views. The operand is
+viewed with the strides of the axes in result order, and `plan_permuted_copy` joins axes that were
+neighbours in the operand and drops axes of extent 1, because `layout_convert` reads four axes. A
+permutation that leaves more than four runs of axes is refused by the builder. Any value of rank 4
+or less passes, and a value of rank 5 or 6 passes when its batch extent is 1 or its axes stay
+joined enough. The host rule indexes the
+operand by the same permutation.
+
+## Broadcast arithmetic and the sum along
+
+`broadcast_add`, `broadcast_sub`, `broadcast_mul` and `broadcast_div` combine a tensor with a
+vector whose shape is a prefix (`BroadcastSide::Leading`) or a suffix (`Trailing`) of the tensor's.
+The side is attribute flag 0, `broadcast_side` reads it back, and the result has the tensor's
+shape, type and layout. The four lower to `SushiBLAS::BroadcastOps`. `sum_along(x, kept, side)`
+sums a tensor down to `kept`, a prefix or a suffix of its shape, as `ReductionOps::sum_along` over
+an `[outer, inner]` view of the operand, axis 1 to keep a prefix and axis 0 to keep a suffix. The
+equal-shape operations and the fusion patterns that match them are unchanged.
+
+A position table `[T, D]` is added to a `[B, T, D]` value by `broadcast_add(x, table, Trailing)`; a
+test holds the result equal, bit for bit, to the `[B, T * D]` reshape form.
 
 ## Layer normalisation and the causal mask
 
@@ -189,20 +247,24 @@ gathers do. The operation is its own node because the IR has no square root and 
 elementwise operations take equal shapes: a composition would spell each broadcast as a product
 with a vector of ones and still lack the root.
 
-The lowering views the operand as `[rows, D]` and records 14 SushiBLAS tasks; the gradient
-records 19. A value per row is broadcast by `SpatialOps::channel_affine` over a transposed
-`[1, 1, D, rows]` view, whose channel axis is the row, and a value per column by the same kernel
-over `[rows, 1, 1, D]`. Row sums are `ReductionOps::sum_along` with axis 1. SushiBLAS needed no
-new primitive.
+The lowering records 8 SushiBLAS tasks and keeps no scratch; the gradient records 19. The row
+sums are `ReductionOps::sum_along` with axis 1 over a `[rows, D]` view. Two `execute_broadcast`
+calls carry the rest: the first writes the squared deviation plus the epsilon into the result,
+with the mean as a leading vector, so that the row sum scaled by `1 / D` is the variance plus the
+epsilon; the second writes `(x - mean) * inverse_deviation * gamma + beta` with the mean and the
+inverse deviation leading and gamma and beta trailing. The gradient still broadcasts through
+`SpatialOps::channel_affine` over a transposed `[1, 1, D, rows]` view.
 
 `GraphBuilder::causal_mask` emits one `K_CAUSAL_MASK` over `[..., T, T]` scores, with the fill
 in attribute slot 0: an entry above the diagonal of the last two axes becomes the fill, and
 every other entry is copied. It is its own node because `K_CONSTANT` fills a tensor with one
 value and nothing adds a `[T, T]` value to each matrix of a batch. The lowering is one
-`channel_affine` over a `[matrices, 1, 1, T * T]` view, with a scale of one and a shift of zero
-where an entry is kept and a scale of zero and a shift of the fill where it is not. The two
-`[T * T]` vectors are FLOAT32 scratch of the node, filled on the host when the node is lowered,
-and converted once when the operand is not FLOAT32. Its backward rule emits the same node over
+`execute_broadcast` whose trailing vector is a `[T * T]` keep table and whose functor is
+`keep != 0 ? x : fill`, so a masked entry is replaced even when it is infinite. The table is
+scratch of the node in the operand's type, filled on the host when the node is lowered. The
+lowering bounds the fill below by the lowest finite value of the operand's type, so a HALF mask
+holds -65504 and never minus infinity.
+Its backward rule emits the same node over
 the gradient with a fill of zero. Neither operation narrows under `MixedPrecisionPolicy`.
 
 ## A step over part of a graph
@@ -266,36 +328,28 @@ elements are 0 or `1 / (1 - rate)`. The backward rule in `autograd` multiplies t
 gradient by that saved mask, so the forward and the gradient of one replay use one draw. The
 rate lies in `(0, 1)`; the layer above emits no node at a rate of 0.
 
-The row is in `lowering/random.hpp`. It records three tasks: a copy of the node's FLOAT32 draw
-scratch into the mask (a converting copy when the operand is HALF or FLOAT64), a scale of the
-mask by `1 / (1 - rate)`, and the product with `x`. A replay prelude fills the scratch with ones
-and zeros before each replay. The mask is a planned value written by a task, so the memory plan
-may pack it; only the scratch, which the pool never packs, is written from the host. The
-operation does not narrow under `MixedPrecisionPolicy`.
+The row is in `lowering/random.hpp`. It allocates an INT64 `[2]` scratch, the position, and
+registers a replay prelude that writes it before each replay. It then records three tasks: one
+`PositionedRandomOps::bernoulli` of probability `1 - rate` into the mask, a scale of the mask by
+`1 / (1 - rate)`, and the product with `x`. A HALF mask is drawn into a FLOAT32 scratch and
+converted, which adds a fourth task. The position is the only thing the host writes. The mask is
+a planned value written by a task, so the memory plan may pack it; the position, which the pool
+never packs, is not. The operation does not narrow under `MixedPrecisionPolicy`.
 
-The draws come from `dropout_mask.hpp`. `splitmix64_at(state, n)` is output `n` of the
-SplitMix64 sequence seeded with `state`: the finaliser applied to
-`state + (n + 1) * 0x9E3779B97F4A7C15`. A site seed is `splitmix64_at(trace_seed, site)`, the
-key of a run is `splitmix64_at(site_seed, run)`, and the bits of an element are
-`splitmix64_at(run_key, element)`. An element is kept when the top 53 bits, read as a number in
-`[0, 1)`, are below `1 - rate`. A draw is therefore a function of the site seed, the run index
-and the element index: it does not depend on a thread, on the engine's `RNGStream`, on the node
-id or on what other sites exist, and a node copied with its attributes draws the same mask.
-`core/data` and `vision` hold the same three SplitMix64 constants in units `core/graph` may not
-depend on, so they are repeated here.
+The prelude writes `{splitmix64_at(engine seed, node seed), run}` through `write_rng_position`,
+where the engine seed is the seed of the engine's `RNGStream` at that replay, the node seed is the
+seed the node holds and `run` is the index the prelude is given. A draw is therefore a function
+of the engine's seed, the site, the run index and the element index: two steps on streams seeded
+alike draw equal masks at equal run indices, two sites of one engine draw different masks, and
+`run_at(index)` draws the mask of `index`. The row never reserves an offset from the stream, so
+a step draws the same masks whatever else records random work on the engine. A step with a
+dropout node needs an engine whose stream the caller seeded. `splitmix64_at(state, n)` in
+`dropout_mask.hpp` is output `n` of the SplitMix64 sequence seeded with `state`: the finaliser
+applied to `state + (n + 1) * 0x9E3779B97F4A7C15`; the layer above derives a site seed with
+`dropout_site_seed`.
 
-The host writes one FLOAT32 per element of `x` per replay. For a `[32, 256, 384]` activation
-that is 3 145 728 elements and 12 582 912 bytes per site per step, and the copy moves the same
-bytes once more on the device. The fill is a single-threaded loop of one finaliser, one
-comparison and one store per element; at an estimated 1.5 to 2.5 ns per element it costs 5 to
-8 ms per site per step. That figure is an estimate and no benchmark has measured it.
-
-`record_keep_draw` in `source/lowering/random.cpp` is the one function that knows where the
-ones and zeros come from. When SushiBLAS gains the positioned Bernoulli fill
-(`docs/design/GRAPH_CAPABILITIES/BLAS_RANDOM_AND_INDEX.md`, B1), its body becomes an INT64 `[2]` position scratch, a
-prelude that writes the position, and one `PositionedRandomOps::bernoulli` into the mask. Its
-signature, the row, the operation, the emitter and the backward rule stay as they are; the
-masks themselves change, because Philox replaces SplitMix64.
+The prelude writes 16 bytes per site per replay and no per-element data, so the host cost does
+not grow with the activation.
 
 ## The gradient of a log-softmax
 
@@ -307,11 +361,10 @@ absorbed, which is how `softmax` (`RESHAPE`, `LOG_SOFTMAX`, `EXP`, `RESHAPE`) is
 It is one node and not a composition. Composed from `K_CONSTANT`, `K_MATMUL`, `K_EXP`, `K_MUL`
 and `K_SUB`, the rule would add seven nodes and three `[N, C]` values beside the result: the row
 sums spread back over the columns, the exponential and their product. In an attention `[N, C]`
-is `[batch * T, T]` per head, the largest values of the block. The lowering records 7 SushiBLAS
-tasks and keeps one `[N, C]` scratch and one `[N]` scratch: `gemv` with a vector of ones sums the
-rows, `ger` writes minus that sum into every column of the zeroed scratch, the result takes
-`exp(log_probs)`, and an in-place `mul` and an `axpy` finish it. SushiBLAS has no kernel that
-scales each row of a matrix by its own scalar in place; with one the `[N, C]` scratch would go.
+is `[batch * T, T]` per head, the largest values of the block. The lowering records 5 SushiBLAS
+tasks and keeps one `[N]` scratch: `sum_along` sums the rows, the result takes
+`exp(log_probs)`, one in-place `execute_broadcast` with the row sums as a leading vector writes
+`-exp(log_probs) * rowsum(dy)`, and an `axpy` of `dy` finishes it.
 The operation does not narrow under `MixedPrecisionPolicy`.
 
 ## Designs

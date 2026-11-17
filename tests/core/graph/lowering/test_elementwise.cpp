@@ -29,7 +29,9 @@
  */
 
 #include <array>
+#include <cmath>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -90,6 +92,31 @@ namespace
         return result;
     }
 
+    /** @brief Returns @p function applied to every element of @p values, taken on the host. */
+    std::vector<double> host_map(const std::vector<double>& values, double (*function)(double))
+    {
+        std::vector<double> result;
+        for (const double value : values)
+            result.push_back(function(value));
+        return result;
+    }
+
+    /** @brief Returns the host power of every element of @p values at @p exponent. */
+    std::vector<double> host_power(const std::vector<double>& values, double exponent)
+    {
+        std::vector<double> result;
+        for (const double value : values)
+            result.push_back(std::pow(value, exponent));
+        return result;
+    }
+
+    /** @brief Runs the power case once per exponent. */
+    class Medium_ElementwisePow : public SaTest::EngineTest,
+                                  public ::testing::WithParamInterface<double>
+    {
+
+    };
+
     /** @brief Pairs an operation with the row the header names for it. */
     struct ExpectedRow
     {
@@ -105,7 +132,7 @@ namespace
     };
 
     /** @brief Lists the rows of the elementwise table in the order the header writes them. */
-    const std::array<ExpectedRow, 17> K_EXPECTED_ROWS = {{
+    const std::array<ExpectedRow, 20> K_EXPECTED_ROWS = {{
         {0, Ops::K_ADD.id, &Graph::lower_add},
         {1, Ops::K_SUB.id, &Graph::lower_sub},
         {2, Ops::K_MUL.id, &Graph::lower_mul},
@@ -123,6 +150,9 @@ namespace
         {14, Ops::K_CONSTANT.id, &Graph::lower_constant},
         {15, Ops::K_ACCUMULATE.id, &Graph::lower_accumulate},
         {16, Ops::K_CAST.id, &Graph::lower_cast},
+        {17, Ops::K_SQRT.id, &Graph::lower_sqrt},
+        {18, Ops::K_LOG.id, &Graph::lower_log},
+        {19, Ops::K_POW.id, &Graph::lower_pow},
     }};
 } // namespace
 
@@ -206,4 +236,96 @@ TEST_F(Medium_ElementwiseLowerings, CastConvertsEachElementToTheResultType)
 
     EXPECT_EQ(pool.tensor(wide).dtype, DType::Float64);
     EXPECT_EQ(SaTest::read_tensor(pool.tensor(wide)), values);
+}
+
+/** @brief Tests that SQRT writes the host square root of each element of its operand. */
+TEST_F(Medium_ElementwiseLowerings, SqrtWritesTheRootOfEachElement)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.sqrt(x));
+
+    const std::vector<double> values = {0.25, 1.0, 2.0, 4.0};
+
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    SaTest::write_tensor(pool.tensor(x), values);
+
+    std::unique_ptr<CompiledStep> step;
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
+    SA_EXPECT_OK(step->run());
+
+    expect_elements(SaTest::read_tensor(pool.tensor(y)), host_map(values, &std::sqrt),
+                    K_ABSOLUTE_TOLERANCE);
+}
+
+/** @brief Tests that LOG writes the host natural logarithm of each element of its operand. */
+TEST_F(Medium_ElementwiseLowerings, LogWritesTheLogarithmOfEachElement)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.log(x));
+
+    const std::vector<double> values = {0.5, 1.0, 2.0, 4.0};
+
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    SaTest::write_tensor(pool.tensor(x), values);
+
+    std::unique_ptr<CompiledStep> step;
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
+    SA_EXPECT_OK(step->run());
+
+    expect_elements(SaTest::read_tensor(pool.tensor(y)), host_map(values, &std::log),
+                    K_ABSOLUTE_TOLERANCE);
+}
+
+/** @brief Tests that POW writes the host power of each element at the exponent of the case. */
+TEST_P(Medium_ElementwisePow, PowWritesTheHostPowerAtTheExponent)
+{
+    const double exponent = GetParam();
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID power, builder.pow(x, exponent));
+
+    const std::vector<double> values = {0.5, 1.0, 1.5, 2.0};
+
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    SaTest::write_tensor(pool.tensor(x), values);
+
+    std::unique_ptr<CompiledStep> step;
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
+    SA_EXPECT_OK(step->run());
+
+    expect_elements(SaTest::read_tensor(pool.tensor(power)), host_power(values, exponent),
+                    K_ABSOLUTE_TOLERANCE);
+}
+
+INSTANTIATE_TEST_SUITE_P(Exponents, Medium_ElementwisePow, ::testing::Values(2.0, 0.5, -0.5),
+                         [](const ::testing::TestParamInfo<double>& info)
+                         {
+                             return ::SushiAI::Test::parameter_name(
+                                 info.param == 2.0 ? "Two"
+                                                   : (info.param > 0.0 ? "OneHalf" : "MinusOneHalf"));
+                         });
+
+/** @brief Tests that POW refuses an exponent that is not finite and emits nothing. */
+TEST(Small_ElementwiseLowerings, PowRefusesAnExponentThatIsNotFinite)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{4}, "x");
+    const std::size_t nodes = graph.node_count();
+
+    SA_EXPECT_FAILURE(builder.pow(x, std::numeric_limits<double>::infinity()),
+                      StatusCode::InvalidDescription, "finite exponent");
+    EXPECT_EQ(graph.node_count(), nodes);
 }

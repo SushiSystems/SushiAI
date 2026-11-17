@@ -45,6 +45,9 @@ namespace SushiAI
          */
         [[nodiscard]] Status lower_reshape(const LoweringContext& context) noexcept;
 
+        /** @brief Records the copy of one operand into the result with its non-batch axes permuted. */
+        [[nodiscard]] Status lower_transpose(const LoweringContext& context) noexcept;
+
         /** @brief Records the conversion of one operand between the NCHW and NHWC layouts. */
         [[nodiscard]] Status lower_layout_convert(const LoweringContext& context) noexcept;
 
@@ -52,9 +55,10 @@ namespace SushiAI
         [[nodiscard]] Status lower_stop_gradient(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each shape operation with the row that lowers it. */
-        inline constexpr std::array<LoweringEntry, 4> K_SHAPE_LOWERINGS = {{
+        inline constexpr std::array<LoweringEntry, 5> K_SHAPE_LOWERINGS = {{
             {Ops::K_LEAF.id, &lower_leaf},
             {Ops::K_RESHAPE.id, &lower_reshape},
+            {Ops::K_TRANSPOSE.id, &lower_transpose},
             {Ops::K_LAYOUT_CONVERT.id, &lower_layout_convert},
             {Ops::K_STOP_GRADIENT.id, &lower_stop_gradient},
         }};

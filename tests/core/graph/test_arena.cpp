@@ -176,8 +176,9 @@ TEST_F(Medium_Arena, TwoPackedTensorsShareOneAllocation)
     const SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::Float32);
     const SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::Float32);
 
+    ASSERT_FALSE(first.region().base.is_null());
     EXPECT_EQ(first.region().base, second.region().base);
-    EXPECT_EQ(first.region().base, second.storage->allocation_base());
+    EXPECT_EQ(first.region().base, second.storage->global_handle());
 }
 
 /** @brief Tests that the regions of two packed views share no byte and sit at their offsets. */

@@ -1393,18 +1393,31 @@ TEST(Small_GatherOps, GatherRowsRefusesATableThatIsNotRankTwo)
     expect_refused(graph, builder.gather_rows(cube, indices), nodes, "[7, 2, 3]");
 }
 
-/** @brief Tests that a FLOAT32 index and an INT64 index are both refused. */
-TEST(Small_GatherOps, GatherRowsRefusesAnIndexThatIsNotInt32)
+/** @brief Tests that a FLOAT32 index is refused, whatever its extent. */
+TEST(Small_GatherOps, GatherRowsRefusesAnIndexThatIsNotAnInteger)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
     const ValueID real = builder.input(Shape{5}, "real", DType::Float32);
-    const ValueID wide = builder.input(Shape{5}, "wide", DType::Int64);
     const std::size_t nodes = graph.node_count();
 
-    expect_refused(graph, builder.gather_rows(table, real), nodes, "INT32 index");
-    expect_refused(graph, builder.gather_rows(table, wide), nodes, "INT32 index");
+    expect_refused(graph, builder.gather_rows(table, real), nodes, "INT32 or INT64 index");
+}
+
+/** @brief Tests that an INT64 index is accepted and gives the shape an INT32 index gives. */
+TEST(Small_GatherOps, GatherRowsAcceptsAnInt64Index)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
+    const ValueID wide = builder.input(Shape{5}, "wide", DType::Int64);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out, builder.gather_rows(table, wide));
+
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(graph.value(out.value()).shape, (Shape{5, K_ROW_LENGTH}));
+    expect_produced_by(graph, out.value(), Ops::K_GATHER_ROWS.id, {table, wide});
 }
 
 /** @brief Tests that an integer table is refused. */
@@ -1487,7 +1500,7 @@ namespace
         {"IntegerRows", Shape{5, K_ROW_LENGTH}, DType::Int32, Shape{5}, DType::Int32,
          K_TABLE_ROWS, "half, float32 or float64 rows"},
         {"RealIndex", Shape{5, K_ROW_LENGTH}, DType::Float32, Shape{5}, DType::Float32,
-         K_TABLE_ROWS, "INT32 index"},
+         K_TABLE_ROWS, "INT32 or INT64 index"},
         {"ShortIndex", Shape{5, K_ROW_LENGTH}, DType::Float32, Shape{4}, DType::Int32,
          K_TABLE_ROWS, "one index per row"},
         {"EmptyTable", Shape{5, K_ROW_LENGTH}, DType::Float32, Shape{5}, DType::Int32, 0,
@@ -1518,6 +1531,22 @@ TEST_P(Small_ScatterAddRefusal, ScatterAddRowsRefusesOperandsThatDoNotFit)
 
 INSTANTIATE_TEST_SUITE_P(, Small_ScatterAddRefusal, ::testing::ValuesIn(K_SCATTER_REFUSALS),
                          row_name<ScatterRefusal>);
+
+/** @brief Tests that a scatter-add accepts an INT64 index and gives the table shape. */
+TEST(Small_GatherOps, ScatterAddRowsAcceptsAnInt64Index)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID rows = builder.input(Shape{2, 4, K_ROW_LENGTH}, "rows", DType::Float64);
+    const ValueID indices = builder.input(Shape{2, 4}, "indices", DType::Int64);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out,
+                            builder.scatter_add_rows(rows, indices, K_TABLE_ROWS));
+
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(graph.value(out.value()).shape, (Shape{K_TABLE_ROWS, K_ROW_LENGTH}));
+    expect_produced_by(graph, out.value(), Ops::K_SCATTER_ADD_ROWS.id, {rows, indices});
+}
 
 /** @brief Tests that finalise leaves an INT32 input without a gradient and marks the gather. */
 TEST(Small_GatherOps, AnInt32InputLeafRequiresNoGradient)
@@ -2228,4 +2257,253 @@ TEST(Small_RefusalFamilies, ChannelAndBatchNormEmittersRefuse)
                    nodes, "rank-4 [N,H,W,C] output gradient");
     expect_refused(bench.graph, builder.batchnorm_fold(gamma, wide, gamma, gamma, 1e-5), nodes,
                    "beta shaped like gamma");
+}
+
+using Graph::BroadcastSide;
+
+namespace
+{
+    /** @brief Holds a graph, its builder and the leaves the emitters of the new operations read. */
+    struct NewOperationBench
+    {
+        Graph::Graph graph;                            /**< The graph the emitters append to. */
+        GraphBuilder builder{graph};                   /**< The builder over the graph. */
+        ValueID matrix = builder.input(Shape{4, 5}, "matrix");        /**< A float32 [4, 5]. */
+        ValueID cube = builder.input(Shape{2, 4, 5}, "cube");         /**< A float32 [2, 4, 5]. */
+        ValueID picks = builder.input(Shape{4}, "picks", DType::Int32);  /**< An int32 [4]. */
+        ValueID wide_picks = builder.input(Shape{4}, "wide", DType::Int64); /**< An int64 [4]. */
+        ValueID reals = builder.input(Shape{4}, "reals");             /**< A float32 [4]. */
+        ValueID image = builder.input(Shape{1, 2, 3, 2}, "image");    /**< A float32 [1, 2, 3, 2]. */
+    };
+
+    /** @brief Expects the refusal @p refused to name @p part and to leave no node behind. */
+    void expect_new_refusal(const NewOperationBench& bench, const Traced& refused,
+                            std::size_t nodes, const char* part)
+    {
+        SA_EXPECT_FAILURE(refused, StatusCode::InvalidDescription, part);
+        EXPECT_EQ(bench.graph.node_count(), nodes) << "a refused call left a node behind";
+        EXPECT_TRUE(bench.graph.has_refusal());
+    }
+}
+
+/** @brief Tests that the root and the logarithm write their identity, described like the operand. */
+TEST(Small_NewOperationEmitters, SqrtAndLogWriteTheirIdentityDescribedLikeTheirOperand)
+{
+    NewOperationBench bench;
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID root, bench.builder.sqrt(bench.matrix));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID logarithm, bench.builder.log(bench.matrix));
+
+    expect_produced_by(bench.graph, root, Ops::K_SQRT.id, {bench.matrix});
+    expect_produced_by(bench.graph, logarithm, Ops::K_LOG.id, {bench.matrix});
+    expect_described_like(bench.graph, root, bench.matrix);
+    expect_described_like(bench.graph, logarithm, bench.matrix);
+}
+
+/** @brief Tests that the power keeps its exponent in attribute slot 0. */
+TEST(Small_NewOperationEmitters, PowKeepsItsExponentInSlotZero)
+{
+    NewOperationBench bench;
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID power, bench.builder.pow(bench.matrix, -0.5));
+
+    expect_produced_by(bench.graph, power, Ops::K_POW.id, {bench.matrix});
+    expect_described_like(bench.graph, power, bench.matrix);
+    const Graph::Node& node = bench.graph.node(bench.graph.value(power).producer);
+    EXPECT_EQ(node.attributes.get(0), -0.5);
+}
+
+/** @brief Tests that the bilinear upsample multiplies the spatial extents and keeps its scales. */
+TEST(Small_NewOperationEmitters, UpsampleBilinearMultipliesTheSpatialExtentsAndKeepsItsScales)
+{
+    NewOperationBench bench;
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID up, bench.builder.upsample2d_bilinear(bench.image, 3, 2));
+
+    expect_produced_by(bench.graph, up, Ops::K_UPSAMPLE2D_BILINEAR.id, {bench.image});
+    EXPECT_EQ(bench.graph.value(up).shape, (Shape{1, 6, 6, 2}));
+    const Graph::Node& node = bench.graph.node(bench.graph.value(up).producer);
+    EXPECT_EQ(node.attributes.get(0), 3.0);
+    EXPECT_EQ(node.attributes.get(1), 2.0);
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID down,
+                            bench.builder.upsample2d_bilinear_backward(up, Shape{1, 2, 3, 2}, 3, 2));
+    expect_produced_by(bench.graph, down, Ops::K_UPSAMPLE2D_BILINEAR_BACKWARD.id, {up});
+    EXPECT_EQ(bench.graph.value(down).shape, (Shape{1, 2, 3, 2}));
+}
+
+/** @brief Tests that the bilinear upsample refuses a scale below one and a rank-2 operand. */
+TEST(Small_NewOperationEmitters, UpsampleBilinearRefusesAScaleBelowOneAndAnOperandOfTheWrongRank)
+{
+    NewOperationBench bench;
+    const std::size_t nodes = bench.graph.node_count();
+
+    expect_new_refusal(bench, bench.builder.upsample2d_bilinear(bench.image, 0, 2), nodes,
+                       "scales of at least one");
+    expect_new_refusal(bench, bench.builder.upsample2d_bilinear(bench.matrix, 2, 2), nodes,
+                       "rank-4");
+}
+
+/** @brief Tests that the argmax yields an INT64 [R] value and refuses what is not [R, C]. */
+TEST(Small_NewOperationEmitters, ArgmaxRowsYieldsAnInt64ColumnPerRow)
+{
+    NewOperationBench bench;
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID columns, bench.builder.argmax_rows(bench.matrix));
+
+    expect_produced_by(bench.graph, columns, Ops::K_ARGMAX_ROWS.id, {bench.matrix});
+    EXPECT_EQ(bench.graph.value(columns).shape, (Shape{4}));
+    EXPECT_EQ(bench.graph.value(columns).dtype, DType::Int64);
+
+    const std::size_t nodes = bench.graph.node_count();
+    expect_new_refusal(bench, bench.builder.argmax_rows(bench.cube), nodes, "rank 2");
+    expect_new_refusal(bench, bench.builder.argmax_rows(bench.picks), nodes, "rank 2");
+}
+
+/** @brief Tests that the pick and the put write their identities and keep the column count. */
+TEST(Small_NewOperationEmitters, TakeAlongAndPutAlongWriteTheirIdentitiesOverAnIndexPerRow)
+{
+    NewOperationBench bench;
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID picked,
+                            bench.builder.take_along(bench.matrix, bench.picks));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID values,
+                            bench.builder.put_along(bench.reals, bench.wide_picks, 5));
+
+    expect_produced_by(bench.graph, picked, Ops::K_TAKE_ALONG.id, {bench.matrix, bench.picks});
+    EXPECT_EQ(bench.graph.value(picked).shape, (Shape{4}));
+    expect_produced_by(bench.graph, values, Ops::K_PUT_ALONG.id, {bench.reals, bench.wide_picks});
+    EXPECT_EQ(bench.graph.value(values).shape, (Shape{4, 5}));
+    const Graph::Node& node = bench.graph.node(bench.graph.value(values).producer);
+    EXPECT_EQ(node.attributes.get(0), 5.0);
+}
+
+/** @brief Tests that the pick and the put refuse an index of the wrong type or extent. */
+TEST(Small_NewOperationEmitters, TakeAlongAndPutAlongRefuseAnIndexThatDoesNotFit)
+{
+    NewOperationBench bench;
+    const std::size_t nodes = bench.graph.node_count();
+
+    expect_new_refusal(bench, bench.builder.take_along(bench.matrix, bench.reals), nodes,
+                       "INT32 or INT64 index");
+    expect_new_refusal(bench, bench.builder.take_along(bench.cube, bench.picks), nodes,
+                       "rank 2");
+    expect_new_refusal(bench, bench.builder.put_along(bench.reals, bench.reals, 5), nodes,
+                       "INT32 or INT64 index");
+    expect_new_refusal(bench, bench.builder.put_along(bench.reals, bench.picks, 0), nodes,
+                       "at least one column");
+}
+
+/** @brief Tests that a broadcast keeps its side in flag 0 and the tensor's description. */
+TEST(Small_NewOperationEmitters, BroadcastKeepsItsSideInFlagZeroAndTheTensorsDescription)
+{
+    NewOperationBench bench;
+    const ValueID rows = bench.builder.input(Shape{2, 4}, "rows");
+    const ValueID columns = bench.builder.input(Shape{4, 5}, "columns");
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID leading,
+                            bench.builder.broadcast_sub(bench.cube, rows, BroadcastSide::Leading));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID trailing,
+                            bench.builder.broadcast_div(bench.cube, columns,
+                                                        BroadcastSide::Trailing));
+
+    expect_produced_by(bench.graph, leading, Ops::K_BROADCAST_SUB.id, {bench.cube, rows});
+    expect_produced_by(bench.graph, trailing, Ops::K_BROADCAST_DIV.id, {bench.cube, columns});
+    expect_described_like(bench.graph, leading, bench.cube);
+    expect_described_like(bench.graph, trailing, bench.cube);
+
+    const Graph::Node& leading_node = bench.graph.node(bench.graph.value(leading).producer);
+    const Graph::Node& trailing_node = bench.graph.node(bench.graph.value(trailing).producer);
+    EXPECT_EQ(Graph::broadcast_side(leading_node.attributes), BroadcastSide::Leading);
+    EXPECT_EQ(Graph::broadcast_side(trailing_node.attributes), BroadcastSide::Trailing);
+}
+
+/** @brief Tests that a broadcast refuses a vector of the wrong type, side or extent. */
+TEST(Small_NewOperationEmitters, BroadcastRefusesAVectorThatDoesNotFit)
+{
+    NewOperationBench bench;
+    const ValueID rows = bench.builder.input(Shape{2, 4}, "rows");
+    const ValueID doubles = bench.builder.input(Shape{4, 5}, "doubles", DType::Float64);
+    const std::size_t nodes = bench.graph.node_count();
+
+    expect_new_refusal(bench,
+                       bench.builder.broadcast_add(bench.cube, doubles, BroadcastSide::Trailing),
+                       nodes, "element type");
+    expect_new_refusal(bench,
+                       bench.builder.broadcast_mul(bench.cube, rows, BroadcastSide::Trailing),
+                       nodes, "a suffix");
+    expect_new_refusal(bench, bench.builder.broadcast_add(bench.matrix, bench.cube,
+                                                           BroadcastSide::Leading),
+                       nodes, "a prefix");
+}
+
+/** @brief Tests that the transpose permutes the per-sample extents and keeps the permutation. */
+TEST(Small_NewOperationEmitters, TransposePermutesThePerSampleExtentsAndKeepsThePermutation)
+{
+    NewOperationBench bench;
+    const std::array<int64_t, 2> swap = {1, 0};
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID moved,
+                            bench.builder.transpose(bench.cube, SushiRuntime::span<const int64_t>(
+                                                                    swap.data(), swap.size())));
+
+    expect_produced_by(bench.graph, moved, Ops::K_TRANSPOSE.id, {bench.cube});
+    EXPECT_EQ(bench.graph.value(moved).shape, (Shape{2, 5, 4}));
+    EXPECT_EQ(bench.graph.value(moved).dtype, DType::Float32);
+    const Graph::Node& node = bench.graph.node(bench.graph.value(moved).producer);
+    EXPECT_EQ(node.attributes.get(0), 1.0);
+    EXPECT_EQ(node.attributes.get(1), 0.0);
+}
+
+/** @brief Tests that the transpose refuses what is no permutation, no real value or too tangled. */
+TEST(Small_NewOperationEmitters, TransposeRefusesAPermutationThatDoesNotFit)
+{
+    NewOperationBench bench;
+    const ValueID tangled = bench.builder.input(Shape{1, 2, 3, 2, 3, 2}, "tangled");
+    const ValueID ints = bench.builder.input(Shape{2, 3, 4}, "ints", DType::Int32);
+    const std::array<int64_t, 1> single = {0};
+    const std::array<int64_t, 2> repeated = {0, 0};
+    const std::array<int64_t, 5> reversed = {4, 3, 2, 1, 0};
+    const std::size_t nodes = bench.graph.node_count();
+
+    expect_new_refusal(bench, bench.builder.transpose(bench.reals,
+                                                      SushiRuntime::span<const int64_t>(
+                                                          single.data(), single.size())),
+                       nodes, "batch axis");
+    expect_new_refusal(bench, bench.builder.transpose(bench.cube,
+                                                      SushiRuntime::span<const int64_t>(
+                                                          single.data(), single.size())),
+                       nodes, "per-sample axes");
+    expect_new_refusal(bench, bench.builder.transpose(bench.cube,
+                                                      SushiRuntime::span<const int64_t>(
+                                                          repeated.data(), repeated.size())),
+                       nodes, "per-sample axes");
+    expect_new_refusal(bench, bench.builder.transpose(ints,
+                                                      SushiRuntime::span<const int64_t>(
+                                                          single.data(), single.size())),
+                       nodes, "half, float32 or float64");
+    expect_new_refusal(bench, bench.builder.transpose(tangled,
+                                                      SushiRuntime::span<const int64_t>(
+                                                          reversed.data(), reversed.size())),
+                       nodes, "runs of axes");
+}
+
+/** @brief Tests that the sum along takes the kept shape as its result, on either side. */
+TEST(Small_NewOperationEmitters, SumAlongYieldsTheKeptShapeOnEitherSide)
+{
+    NewOperationBench bench;
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID prefix,
+                            bench.builder.sum_along(bench.cube, Shape{2, 4},
+                                                    BroadcastSide::Leading));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID suffix,
+                            bench.builder.sum_along(bench.cube, Shape{4, 5},
+                                                    BroadcastSide::Trailing));
+
+    expect_produced_by(bench.graph, prefix, Ops::K_SUM_ALONG.id, {bench.cube});
+    EXPECT_EQ(bench.graph.value(prefix).shape, (Shape{2, 4}));
+    EXPECT_EQ(bench.graph.value(suffix).shape, (Shape{4, 5}));
+    EXPECT_EQ(Graph::broadcast_side(
+                  bench.graph.node(bench.graph.value(suffix).producer).attributes),
+              BroadcastSide::Trailing);
 }

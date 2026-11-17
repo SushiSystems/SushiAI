@@ -113,7 +113,7 @@ namespace
     };
 
     /** @brief Lists the rows of the spatial table in the order the header writes them. */
-    const std::array<ExpectedRow, 15> K_EXPECTED_ROWS = {{
+    const std::array<ExpectedRow, 17> K_EXPECTED_ROWS = {{
         {0, Ops::K_IM2COL.id, &Graph::lower_im2col},
         {1, Ops::K_COL2IM.id, &Graph::lower_col2im},
         {2, Ops::K_MAXPOOL2D.id, &Graph::lower_maxpool2d},
@@ -131,6 +131,9 @@ namespace
          &Graph::lower_depthwise_conv2d_backward_input},
         {14, Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id,
          &Graph::lower_depthwise_conv2d_backward_weight},
+        {15, Ops::K_UPSAMPLE2D_BILINEAR.id, &Graph::lower_upsample2d_bilinear},
+        {16, Ops::K_UPSAMPLE2D_BILINEAR_BACKWARD.id,
+         &Graph::lower_upsample2d_bilinear_backward},
     }};
 } // namespace
 
@@ -195,4 +198,47 @@ TEST_F(Medium_SpatialLowerings, SpatialMeanGradientSpreadsEvenlyOverThePlane)
     const std::vector<double> expected = {1.0, -0.5, 1.0, -0.5, 1.0, -0.5, 1.0, -0.5};
 
     expect_elements(run_one(backend(), graph, dy, upstream, dx), expected, K_ABSOLUTE_TOLERANCE);
+}
+
+/**
+ * @brief Tests that the bilinear upsample of a 2 x 2 image at scale 2 gives the sixteen hand values.
+ *
+ * Along one axis at scale 2 the output pixels read, in order, 1.0 of x0; 0.75 of x0 and 0.25 of x1;
+ * 0.25 of x0 and 0.75 of x1; 1.0 of x1. The columns of the rows (0, 8) and (16, 40) give
+ * (0, 2, 6, 8) and (16, 22, 34, 40), and each output row mixes those two with the same four
+ * weight pairs. These are the values SushiBLAS's own test holds, so the lowering adds nothing to them.
+ */
+TEST_F(Medium_SpatialLowerings, BilinearUpsampleGivesTheHandValuesOfSushiBLAS)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.upsample2d_bilinear(x, 2, 2));
+
+    const std::vector<double> image = {0.0, 8.0, 16.0, 40.0};
+    const std::vector<double> expected = {0, 2, 6, 8,
+                                          4, 7, 13, 16,
+                                          12, 17, 27, 32,
+                                          16, 22, 34, 40};
+
+    EXPECT_EQ(graph.value(y).shape, (Shape{1, 4, 4, 1}));
+    expect_elements(run_one(backend(), graph, x, image, y), expected, K_ABSOLUTE_TOLERANCE);
+}
+
+/** @brief Tests that the bilinear gradient of ones gives each pixel the product of the scales. */
+TEST_F(Medium_SpatialLowerings, BilinearGradientOfOnesGivesEachPixelTheScaleProduct)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID dy = builder.input(Shape{1, 6, 4, 1}, "dy");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID dx,
+                            builder.upsample2d_bilinear_backward(dy, Shape{1, 2, 2, 1}, 3, 2));
+
+    // Each output pixel hands out weights summing to one, so an input pixel gathers 3 * 2 = 6.
+    const std::vector<double> ones(24, 1.0);
+    const std::vector<double> expected = {6.0, 6.0, 6.0, 6.0};
+
+    expect_elements(run_one(backend(), graph, dy, ones, dx), expected, K_ABSOLUTE_TOLERANCE);
 }

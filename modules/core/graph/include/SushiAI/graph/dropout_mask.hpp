@@ -23,13 +23,12 @@
 
 /**
  * @file dropout_mask.hpp
- * @brief Declares the counter-based generator that draws the keep mask of a dropout site.
+ * @brief Declares the counter-based generator that seeds the draws of a dropout site.
  * @author Mustafa Garip
  */
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 
 namespace SushiAI
@@ -50,28 +49,6 @@ namespace SushiAI
          */
         [[nodiscard]] std::uint64_t dropout_site_seed(std::uint64_t seed,
                                                       std::uint64_t site) noexcept;
-
-        /**
-         * @brief Returns the 64 bits a site draws for one element in one run.
-         * @param seed The site seed; @p run The replays finished before this one.
-         */
-        [[nodiscard]] std::uint64_t dropout_bits(std::uint64_t seed, std::uint64_t run,
-                                                 std::uint64_t element) noexcept;
-
-        /**
-         * @brief Returns whether a site keeps one element in one run.
-         * @param keep The probability of keeping; the top 53 bits of the draw, as a number
-         *        in [0, 1), are compared against it.
-         */
-        [[nodiscard]] bool dropout_keeps(std::uint64_t seed, std::uint64_t run,
-                                         std::uint64_t element, double keep) noexcept;
-
-        /**
-         * @brief Writes 1 for each kept element of one run of a site and 0 for the others.
-         * @param mask Holds @p count elements; element i is 1 when dropout_keeps() holds for i.
-         */
-        void fill_keep_mask(float* mask, std::size_t count, std::uint64_t seed,
-                            std::uint64_t run, double keep) noexcept;
 
     } // namespace Graph
 } // namespace SushiAI

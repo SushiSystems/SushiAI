@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -51,7 +52,6 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
-#include <SushiAI/graph/dropout_mask.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/node_range.hpp>
@@ -61,13 +61,10 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
-#include <support/splitmix64.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/graph/README.md.
 namespace SaTest = SushiAI::Test;
-using TestSupport::reference_splitmix64;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
@@ -101,11 +98,8 @@ namespace
     /** @brief Holds the site seed of the one dropout of every case. */
     constexpr std::uint64_t K_SEED = 0x5EEDC0DE20261011ull;
 
-    /**
-     * @brief Bounds a FLOAT32 scale read back as a double; 32 unit roundoffs of float, the smallest
-     * power of two that covers 1e-6.
-     */
-    constexpr double K_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
+    /** @brief Holds the value a kept element of the mask carries, as FLOAT32 stores it. */
+    constexpr double K_KEPT_VALUE = static_cast<double>(static_cast<float>(1.0 / K_KEEP));
 
     /** @brief Holds a compiled step that masks a leaf of ones, so its output is the mask. */
     struct MaskedOnes
@@ -146,39 +140,25 @@ namespace
         return std::move(made);
     }
 
-    /**
-     * @brief Returns the mask the published rule gives for run @p run of K_SEED: an element is
-     * kept, and scaled by 1 / K_KEEP, when the top 53 bits of its draw, as a number in [0, 1),
-     * fall below K_KEEP.
-     */
-    std::vector<double> reference_mask_of_run(std::uint64_t run)
+    /** @brief Expects every element of @p mask to be 0 or K_KEPT_VALUE. */
+    void expect_zero_or_scale(const std::vector<double>& mask)
     {
-        std::vector<double> mask(K_ELEMENTS, 0.0);
-        for (std::size_t element = 0; element < K_ELEMENTS; ++element)
-        {
-            const std::uint64_t bits =
-                reference_splitmix64(reference_splitmix64(K_SEED, run), element);
-            const double unit = static_cast<double>(bits >> 11) / 9007199254740992.0;
-            mask[element] = unit < K_KEEP ? 1.0 / K_KEEP : 0.0;
-        }
-
-        return mask;
+        EXPECT_TRUE(std::all_of(mask.begin(), mask.end(),
+                                [](double value) { return value == 0.0 || value == K_KEPT_VALUE; }));
     }
 
-    /** @brief Expects @p mask to hold what the published rule draws for K_SEED in run @p run. */
-    void expect_mask_of_run(const std::vector<double>& mask, std::uint64_t run)
-    {
-        const std::vector<double> expected = reference_mask_of_run(run);
-        ASSERT_EQ(mask.size(), expected.size());
-        for (std::size_t element = 0; element < expected.size(); ++element)
-            EXPECT_NEAR(mask[element], expected[element], K_TOLERANCE) << "at element " << element;
-    }
-
-    /** @brief Runs @p made once and expects the masked value to hold the mask of run @p run. */
-    void run_and_expect_mask_of_run(MaskedOnes& made, std::uint64_t run)
+    /** @brief Runs @p made once and returns the masked value, which is the mask of that run. */
+    std::vector<double> run_and_read(MaskedOnes& made)
     {
         SA_EXPECT_OK(made.step->run());
-        expect_mask_of_run(SaTest::read_tensor(made.pool.tensor(made.masked)), run);
+        return SaTest::read_tensor(made.pool.tensor(made.masked));
+    }
+
+    /** @brief Runs @p made at run index @p run and returns the mask of that run. */
+    std::vector<double> run_at_and_read(MaskedOnes& made, std::uint64_t run)
+    {
+        SA_EXPECT_OK(made.step->run_at(run));
+        return SaTest::read_tensor(made.pool.tensor(made.masked));
     }
 } // namespace
 
@@ -202,30 +182,45 @@ TEST_F(Medium_CompiledStep, ARestoredRunCountIsTheIndexOfTheNextRun)
 
     EXPECT_EQ(resumed->step->run_count(), 3u);
     EXPECT_EQ(SaTest::read_tensor(resumed->pool.tensor(resumed->masked)), third);
-    expect_mask_of_run(third, 2);
+    expect_zero_or_scale(third);
 }
 
-/** @brief Tests that run() draws the mask of its run count, so single-machine draws stay put. */
-TEST_F(Medium_CompiledStep, RunDrawsTheMaskOfItsRunCount)
+/** @brief Tests that three runs of one compiled step draw three different masks. */
+TEST_F(Medium_CompiledStep, RunDrawsADifferentMaskAtEachRunCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(backend()));
 
-    run_and_expect_mask_of_run(*made, 0);
-    run_and_expect_mask_of_run(*made, 1);
-    run_and_expect_mask_of_run(*made, 2);
+    const std::vector<double> first = run_and_read(*made);
+    const std::vector<double> second = run_and_read(*made);
+    const std::vector<double> third = run_and_read(*made);
+
+    expect_zero_or_scale(first);
+    expect_zero_or_scale(second);
+    expect_zero_or_scale(third);
+    EXPECT_NE(first, second);
+    EXPECT_NE(second, third);
+    EXPECT_NE(first, third);
+    EXPECT_EQ(made->step->compile_count(), 1u);
 }
 
 /** @brief Tests that run_at() draws the mask of the index it is given and counts the run. */
 TEST_F(Medium_CompiledStep, RunAtDrawsTheMaskOfItsIndexAndCountsTheRun)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(backend()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> counted,
+                            make_masked_ones(backend()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> indexed,
+                            make_masked_ones(backend()));
 
-    SA_EXPECT_OK(made->step->run_at(7));
-    expect_mask_of_run(SaTest::read_tensor(made->pool.tensor(made->masked)), 7);
+    const std::vector<double> seventh = run_at_and_read(*made, 7);
     EXPECT_EQ(made->step->run_count(), 1u);
+    const std::vector<double> after = run_and_read(*made);
 
-    SA_EXPECT_OK(made->step->run());
-    expect_mask_of_run(SaTest::read_tensor(made->pool.tensor(made->masked)), 1);
+    // A fresh step reaches run index 1 by counting, and index 7 by being told.
+    static_cast<void>(run_and_read(*counted));
+    EXPECT_EQ(run_and_read(*counted), after);
+    EXPECT_EQ(run_at_and_read(*indexed, 7), seventh);
+    EXPECT_NE(seventh, after);
 }
 
 /** @brief Tests that a step that has run refuses a restore and keeps its count. */
@@ -641,4 +636,67 @@ TEST_F(Small_CompiledStepAttribution, AViewLeavesNoOriginOpen)
     EXPECT_EQ(origins.count(origin_of_producer(chain->graph, chain->view)), 0u);
     EXPECT_EQ(origins.count(std::string()), 0u);
     EXPECT_GE(origins.count(origin_of_producer(chain->graph, chain->second)), 1u);
+}
+
+namespace
+{
+    /** @brief Holds the element count of the tensor the scaling recorder scales. */
+    constexpr int64_t K_SCALED_ELEMENTS = 4;
+
+    /** @brief Holds the factor each replay of the scaling recorder multiplies by. */
+    constexpr float K_SCALE = 2.0f;
+
+    /** @brief Records one scal of a tensor, the work of a step that holds no graph node. */
+    class ScaleInPlace final : public Graph::StepRecorder
+    {
+        public:
+            /** @brief Binds the recorder to @p target, which outlives it. */
+            explicit ScaleInPlace(SushiBLAS::Tensor& target) : target_(&target)
+            {
+
+            }
+
+            /** @brief Records one scal and reports one task. */
+            [[nodiscard]] Result<std::size_t> record_into_step(
+                const Graph::StepRecording& recording) override
+            {
+                SushiBLAS::BLASOps blas(recording.tasks());
+                blas.scal(K_SCALE, *target_);
+                return std::size_t{1};
+            }
+
+        private:
+            /// @brief The tensor scaled.
+            SushiBLAS::Tensor* target_;
+    };
+} // namespace
+
+/** @brief Tests that a step of an empty graph and one recorder runs the recorder every replay. */
+TEST_F(Small_CompiledStep, AnEmptyGraphWithATrailingRecorderRunsTheRecorderEachRun)
+{
+    // The tensor lives in a pool that another graph's leaf materialised; the step's graph is empty.
+    Graph::Graph holder;
+    const GraphBuilder holder_builder(holder);
+    const ValueID leaf = holder_builder.parameter(Shape{K_SCALED_ELEMENTS}, "leaf");
+    TensorPool pool(backend.engine());
+    SA_EXPECT_OK(pool.materialise_leaves(holder));
+    SaTest::write_tensor(pool.tensor(leaf),
+                         std::vector<double>(static_cast<std::size_t>(K_SCALED_ELEMENTS), 1.0));
+
+    const Graph::Graph empty;
+    ScaleInPlace recorder(pool.tensor(leaf));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<CompiledStep> step,
+                            CompiledStep::compile(backend, empty, pool, &recorder));
+
+    EXPECT_EQ(step->operation_count(), 1u);
+    EXPECT_FALSE(step->empty());
+
+    const std::size_t elements = static_cast<std::size_t>(K_SCALED_ELEMENTS);
+    SA_EXPECT_OK(step->run());
+    EXPECT_EQ(SaTest::read_tensor(pool.tensor(leaf)), std::vector<double>(elements, 2.0));
+    SA_EXPECT_OK(step->run());
+    EXPECT_EQ(SaTest::read_tensor(pool.tensor(leaf)), std::vector<double>(elements, 4.0));
+    SA_EXPECT_OK(step->run());
+    EXPECT_EQ(SaTest::read_tensor(pool.tensor(leaf)), std::vector<double>(elements, 8.0));
+    EXPECT_EQ(step->run_count(), 3u);
 }

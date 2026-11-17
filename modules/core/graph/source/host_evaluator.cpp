@@ -43,13 +43,18 @@ namespace SushiAI
         namespace
         {
             /** @brief Lists every operation HostEvaluator computes, with its rule. */
-            constexpr std::array<Detail::HostRuleEntry, 34> K_HOST_RULES = {{
+            constexpr std::array<Detail::HostRuleEntry, 48> K_HOST_RULES = {{
                 {Ops::K_ZERO.id, &Detail::host_zero},
                 {Ops::K_CONSTANT.id, &Detail::host_constant},
                 {Ops::K_CAST.id, &Detail::host_cast},
                 {Ops::K_ADD.id, &Detail::host_add},
                 {Ops::K_SUB.id, &Detail::host_sub},
                 {Ops::K_MUL.id, &Detail::host_mul},
+                {Ops::K_DIV.id, &Detail::host_div},
+                {Ops::K_MAXIMUM.id, &Detail::host_maximum},
+                {Ops::K_SQRT.id, &Detail::host_sqrt},
+                {Ops::K_LOG.id, &Detail::host_log},
+                {Ops::K_POW.id, &Detail::host_pow},
                 {Ops::K_SCALE.id, &Detail::host_scale},
                 {Ops::K_EXP.id, &Detail::host_exp},
                 {Ops::K_LESS_EQUAL.id, &Detail::host_less_equal},
@@ -64,7 +69,16 @@ namespace SushiAI
                 {Ops::K_SUM_ROWS.id, &Detail::host_sum_rows},
                 {Ops::K_SCATTER_ADD_ROWS.id, &Detail::host_scatter_add_rows},
                 {Ops::K_CAUSAL_MASK.id, &Detail::host_causal_mask},
+                {Ops::K_TAKE_ALONG.id, &Detail::host_take_along},
+                {Ops::K_PUT_ALONG.id, &Detail::host_put_along},
+                {Ops::K_ARGMAX_ROWS.id, &Detail::host_argmax_rows},
+                {Ops::K_BROADCAST_ADD.id, &Detail::host_broadcast_add},
+                {Ops::K_BROADCAST_SUB.id, &Detail::host_broadcast_sub},
+                {Ops::K_BROADCAST_MUL.id, &Detail::host_broadcast_mul},
+                {Ops::K_BROADCAST_DIV.id, &Detail::host_broadcast_div},
+                {Ops::K_SUM_ALONG.id, &Detail::host_sum_along},
                 {Ops::K_RESHAPE.id, &Detail::host_reshape},
+                {Ops::K_TRANSPOSE.id, &Detail::host_transpose},
                 {Ops::K_GATHER_ROWS.id, &Detail::host_gather_rows},
                 {Ops::K_SLICE_CHANNELS.id, &Detail::host_slice_channels},
                 {Ops::K_CONCAT_CHANNELS.id, &Detail::host_concat_channels},

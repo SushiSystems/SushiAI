@@ -215,6 +215,40 @@ namespace SushiAI
             return Status();
         }
 
+        Status lower_upsample2d_bilinear(const LoweringContext& context) noexcept
+        {
+            context.require_arity(1, 1);
+
+            const Node& node = context.node();
+            const int64_t scale_h = static_cast<int64_t>(node.attributes.get(0));
+            const int64_t scale_w = static_cast<int64_t>(node.attributes.get(1));
+
+            const SushiBLAS::Tensor& in = context.input(0);
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& out, context.output(0));
+
+            SushiBLAS::SpatialOps spatial(context.recorder());
+            spatial.upsample_bilinear(in, out, scale_h, scale_w);
+            context.count(1);
+            return Status();
+        }
+
+        Status lower_upsample2d_bilinear_backward(const LoweringContext& context) noexcept
+        {
+            context.require_arity(1, 1);
+
+            const Node& node = context.node();
+            const int64_t scale_h = static_cast<int64_t>(node.attributes.get(0));
+            const int64_t scale_w = static_cast<int64_t>(node.attributes.get(1));
+
+            const SushiBLAS::Tensor& dy = context.input(0);
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& dx, context.output(0));
+
+            SushiBLAS::SpatialOps spatial(context.recorder());
+            spatial.upsample_bilinear_backward(dy, dx, scale_h, scale_w);
+            context.count(1);
+            return Status();
+        }
+
         Status lower_spatial_mean(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);

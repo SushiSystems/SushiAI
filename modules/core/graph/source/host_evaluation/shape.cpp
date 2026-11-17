@@ -23,16 +23,20 @@
 
 /**
  * @file shape.cpp
- * @brief Defines the host rules over rows and channels: reshape, gather, slice, concat, affine.
+ * @brief Defines the host rules over rows and channels: reshape, transpose, gather, slice, concat,
+ *        affine.
  * @author Mustafa Garip
  */
 
 #include "rules.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/graph/permuted_copy.hpp>
 #include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
@@ -54,6 +58,52 @@ namespace SushiAI
             {
                 const std::vector<double>& x = context.input(0);
                 std::copy(x.begin(), x.end(), context.output(0).begin());
+                return Status();
+            }
+
+            Status host_transpose(const HostNodeContext& context) noexcept
+            {
+                const std::vector<double>& x = context.input(0);
+                const Shape& source = context.input_shape(0);
+                const Shape& result = context.output_value(0).shape;
+                const int32_t rank = source.rank();
+
+                // The step in the operand of each per-sample axis, then of each result axis.
+                std::array<int64_t, static_cast<std::size_t>(K_MAX_RANK)> steps{};
+                int64_t running = 1;
+                for (int32_t axis = rank; axis-- > 0;)
+                {
+                    steps[static_cast<std::size_t>(axis)] = running;
+                    running *= source[axis];
+                }
+
+                const auto permutation = permutation_of(
+                    context.node(), static_cast<std::size_t>(rank - 1));
+                std::array<int64_t, static_cast<std::size_t>(K_MAX_RANK)> result_steps{};
+                result_steps[0] = steps[0];
+                for (int32_t axis = 1; axis < rank; ++axis)
+                {
+                    const std::size_t taken =
+                        static_cast<std::size_t>(permutation[static_cast<std::size_t>(axis - 1)]);
+                    result_steps[static_cast<std::size_t>(axis)] = steps[taken + 1];
+                }
+
+                std::vector<double>& y = context.output(0);
+                for (std::size_t at = 0; at < y.size(); ++at)
+                {
+                    std::size_t rest = at;
+                    int64_t from = 0;
+                    for (int32_t axis = rank; axis-- > 0;)
+                    {
+                        const std::size_t extent = static_cast<std::size_t>(result[axis]);
+                        from += static_cast<int64_t>(rest % extent)
+                                * result_steps[static_cast<std::size_t>(axis)];
+                        rest /= extent;
+                    }
+
+                    y[at] = x[static_cast<std::size_t>(from)];
+                }
+
                 return Status();
             }
 

@@ -3,8 +3,8 @@
 
 Suites: `Medium_LoweredOperations`.
 
-This file runs fourteen lowerings through a compiled step and compares the result with values
-computed on the host: twelve forward cases on FLOAT32 and two gradient cases on FLOAT64. Each case
+This file runs fifteen lowerings through a compiled step and compares the result with values
+computed on the host: thirteen forward cases on FLOAT32 and two gradient cases on FLOAT64. Each case
 builds a graph with one operation, compiles it with `CompiledStep::compile` over the `backend()` of
 the fixture, runs it, and reads the result back. The gradient cases reach the gradient through `Autograd::differentiate`, on a
 negative log-likelihood root, and compare it with the closed-form derivative.
@@ -74,6 +74,18 @@ closed-form derivative of softplus.
 
 STOP_GRADIENT copies its operand forward unchanged, element for element. The case checks only that forward copy. It does
 not check that the gradient is blocked on the device.
+
+## TransposeOfACycleAgreesWithTheHostEvaluator
+
+TRANSPOSE of a FLOAT32 [2, 3, 4, 5] value by the cycle (1, 2, 0) holds the integers 0 to 119, which
+FLOAT32 stores exactly, so the device result is compared with the result of the host rule of the
+same graph with no tolerance. The cycle keeps the last two per-sample axes side by side, so the
+lowering joins them and walks three runs of axes.
+
+## TransposeOfAReversalAgreesWithTheHostEvaluator
+
+The reversal (2, 1, 0) of the same value joins nothing, so the lowering walks four runs of axes, the
+most one copy walks. The comparison is the same exact one against the host rule.
 
 ## BatchNormFoldWritesTheScaleAndTheShift
 

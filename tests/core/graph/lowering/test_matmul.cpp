@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_linalg.cpp                                                        */
+/* test_matmul.cpp                                                        */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,9 +23,9 @@
 
 
 /**
- * @file test_linalg.cpp
- * @brief Tests the linear algebra lowerings on a device: the rank-3 product, the softmax and the
- *        product's gradient.
+ * @file test_matmul.cpp
+ * @brief Tests the matmul, bias add and sum rows lowerings on a device, with the softmax and the
+ *        product's gradient of the attention operations.
  * @author Mustafa Garip
  */
 
@@ -34,6 +34,7 @@
 #include <cmath>
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -43,8 +44,13 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/graph/lowering/all.hpp>
+#include <SushiAI/graph/lowering/matmul.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/test_names.hpp>
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
@@ -52,6 +58,7 @@ using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
+using Graph::LoweringRule;
 using Graph::TensorPool;
 using Graph::ValueID;
 using SaTest::read_tensor;
@@ -200,6 +207,37 @@ namespace
         }
         return out;
     }
+
+    /** @brief Pairs an operation with the row the header names for it. */
+    struct ExpectedRow
+    {
+        OpID op;           /**< The operation. */
+        LoweringRule rule; /**< The row that lowers it. */
+    };
+
+    /** @brief Runs once per row the header names for the table. */
+    class Small_MatmulRow : public ::testing::TestWithParam<ExpectedRow>
+    {
+
+    };
+
+    /** @brief Lists the rows of the table. */
+    const std::array<ExpectedRow, 3> K_EXPECTED_ROWS = {{
+        {Ops::K_MATMUL.id, &Graph::lower_matmul},
+        {Ops::K_BIAS_ADD.id, &Graph::lower_bias_add},
+        {Ops::K_SUM_ROWS.id, &Graph::lower_sum_rows},
+    }};
+
+    /** @brief Returns the row of @p op in the table, or nullptr when none names it. */
+    const Graph::LoweringEntry* find_entry(OpID op)
+    {
+        for (const Graph::LoweringEntry& entry : Graph::K_MATMUL_LOWERINGS)
+        {
+            if (entry.op == op)
+                return &entry;
+        }
+        return nullptr;
+    }
 }
 
 /** @brief Tests that a rank-3 product with a transposed right operand matches the host product. */
@@ -295,3 +333,30 @@ TEST_F(Medium_AttentionOperations, BatchedProductGradientsHaveTheOperandShapesAn
     expect_elements(read_tensor(pool.tensor(gradients[0])), expected_a, K_ABSOLUTE_TOLERANCE);
     expect_elements(read_tensor(pool.tensor(gradients[1])), expected_b, K_ABSOLUTE_TOLERANCE);
 }
+
+/** @brief Tests that the table holds one row for each row the header names, and no other. */
+TEST(Small_MatmulLowerings, TheTableHoldsExactlyTheRowsTheHeaderNames)
+{
+    EXPECT_EQ(Graph::K_MATMUL_LOWERINGS.size(), K_EXPECTED_ROWS.size());
+}
+
+/** @brief Tests that a row pairs its operation with the function the header names. */
+TEST_P(Small_MatmulRow, EachRowPairsItsOperationWithItsLowering)
+{
+    const ExpectedRow row = GetParam();
+    const std::string name(Ops::name_of(row.op));
+    const Graph::LoweringEntry* entry = find_entry(row.op);
+    ASSERT_NE(entry, nullptr) << name;
+
+    EXPECT_EQ(entry->rule, row.rule) << name;
+    EXPECT_EQ(entry->scratch, nullptr) << name;
+    EXPECT_EQ(Graph::find_lowering(row.op), row.rule) << name;
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_MatmulRow, ::testing::ValuesIn(K_EXPECTED_ROWS),
+                         [](const ::testing::TestParamInfo<ExpectedRow>& info)
+                         {
+                             std::string name(Ops::name_of(info.param.op));
+                             name.replace(0, name.find('.') + 1, "");
+                             return ::SushiAI::Test::parameter_name(name);
+                         });

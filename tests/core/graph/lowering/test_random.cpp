@@ -24,30 +24,45 @@
 
 /**
  * @file test_random.cpp
- * @brief Tests the shape rule and the emitted IR of DROPOUT, and its row of the lowering table.
+ * @brief Tests the shape rule and the emitted IR of DROPOUT, its row of the lowering table, and
+ *        the masks its lowered step draws on an engine.
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
-#include <SushiAI/graph/lowering/random.hpp>
+#include <SushiAI/graph/lowering/random.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
+
 #include <support/test_names.hpp>
 
+
 using namespace SushiAI;
+// SaTest stays reachable inside a TEST_F body; see tests/core/graph/README.md.
+namespace SaTest = SushiAI::Test;
+using Graph::CompiledStep;
 using Graph::DropoutResult;
 using Graph::GraphBuilder;
+using Graph::TensorPool;
 using Graph::ValueID;
 
 namespace
@@ -97,6 +112,81 @@ namespace
     {
 
     };
+
+    /** @brief Holds the side of the square mask of the kept-fraction case. */
+    constexpr int64_t K_SIDE = 1024;
+
+    /** @brief Holds the probability that an element is kept. */
+    constexpr double K_KEEP = 1.0 - K_RATE;
+
+    /** @brief Holds the engine seed of the cases that compare two engines' draws. */
+    constexpr std::uint64_t K_ENGINE_SEED = 20261116ull;
+
+    /**
+     * @brief Bounds the distance of the kept fraction from K_KEEP: ten standard deviations of a
+     * fraction of K_SIDE * K_SIDE draws, whose deviation is at most 0.5 / K_SIDE. The two-sided
+     * false-failure rate of a fair draw is below 1e-22, and the bound lies under the design's 0.005.
+     */
+    constexpr double K_FRACTION_BOUND = 10.0 * 0.5 / static_cast<double>(K_SIDE);
+
+    /** @brief Provides the Engine every drawing case compiles on. */
+    class Medium_DropoutDraw : public SaTest::EngineTest
+    {
+
+    };
+
+    /** @brief Holds a compiled dropout over a leaf, and what a case reads of it. */
+    struct MaskedLeaf
+    {
+        /** @brief Builds the pool on @p engine; make_masked_leaf() fills the rest. */
+        explicit MaskedLeaf(SushiBLAS::Engine& engine) : pool(engine)
+        {
+
+        }
+
+        /** @brief Runs the step once and returns the mask it saved. */
+        std::vector<double> run_and_read_mask()
+        {
+            SA_EXPECT_OK(step->run());
+            return SaTest::read_tensor(pool.tensor(mask));
+        }
+
+        /** @brief Holds the forward node. */
+        Graph::Graph graph;
+
+        /** @brief Holds the tensor of each value. */
+        TensorPool pool;
+
+        /** @brief Names the mask the node saves. */
+        ValueID mask = Graph::K_NO_VALUE;
+
+        /** @brief Holds the compiled step. */
+        std::unique_ptr<CompiledStep> step;
+    };
+
+    /** @brief Compiles a dropout of rate K_RATE and site seed K_SEED over a leaf of @p shape. */
+    Result<std::unique_ptr<MaskedLeaf>> make_masked_leaf(SushiAI::ExecutionBackend& backend,
+                                                         const Shape& shape)
+    {
+        std::unique_ptr<MaskedLeaf> made = std::make_unique<MaskedLeaf>(backend.engine());
+        const GraphBuilder builder(made->graph);
+
+        const ValueID x = builder.parameter(shape, "x");
+        SA_TRY_ASSIGN(const DropoutResult dropped, builder.dropout(x, K_RATE, K_SEED));
+        made->mask = dropped.saved_mask;
+
+        SA_TRY(made->pool.materialise_leaves(made->graph));
+        SA_TRY_ASSIGN(made->step, CompiledStep::compile(backend, made->graph, made->pool));
+        return std::move(made);
+    }
+
+    /** @brief Returns the fraction of elements of @p mask that are not zero. */
+    double kept_fraction(const std::vector<double>& mask)
+    {
+        const auto kept = std::count_if(mask.begin(), mask.end(),
+                                        [](double value) { return value != 0.0; });
+        return static_cast<double>(kept) / static_cast<double>(mask.size());
+    }
 
     /** @brief Expects @p id to be shaped like [2, 3, 4], typed float64 and an activation. */
     void expect_dropout_output(const Graph::Graph& graph, ValueID id)
@@ -197,4 +287,60 @@ TEST(Small_DropoutOps, DropoutHasTheRowOfTheRandomTable)
     EXPECT_EQ(Graph::find_lowering(Ops::K_DROPOUT.id), &Graph::lower_dropout);
     EXPECT_EQ(Graph::lowering_row_count(Ops::K_DROPOUT.id), 1u);
     EXPECT_FALSE(Graph::is_unlowered(Ops::K_DROPOUT.id));
+}
+
+/** @brief Tests that one compiled step draws a new mask at its second run, with one compile. */
+TEST_F(Medium_DropoutDraw, OneCompiledStepDrawsADifferentMaskAtEachRun)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedLeaf> leaf,
+                            make_masked_leaf(backend(), Shape{64, 64}));
+
+    const std::vector<double> first = leaf->run_and_read_mask();
+    const std::vector<double> second = leaf->run_and_read_mask();
+
+    EXPECT_NE(first, second);
+    EXPECT_EQ(leaf->step->compile_count(), 1u);
+    EXPECT_EQ(leaf->step->replay_prelude_count(), 1u);
+}
+
+/** @brief Tests that a stream seeded alike gives equal masks at equal run indices. */
+TEST_F(Medium_DropoutDraw, TwoStepsOnAStreamSeededAlikeGiveEqualMasksAtEqualRunIndices)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedLeaf> first,
+                            make_masked_leaf(backend(), Shape{64, 64}));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedLeaf> second,
+                            make_masked_leaf(backend(), Shape{64, 64}));
+
+    engine->rng().reseed(K_ENGINE_SEED);
+    const std::vector<double> first_run0 = first->run_and_read_mask();
+    const std::vector<double> first_run1 = first->run_and_read_mask();
+
+    engine->rng().reseed(K_ENGINE_SEED);
+    EXPECT_EQ(second->run_and_read_mask(), first_run0);
+    EXPECT_EQ(second->run_and_read_mask(), first_run1);
+}
+
+/** @brief Tests that another stream seed gives another mask at the same run index. */
+TEST_F(Medium_DropoutDraw, AnotherStreamSeedGivesAnotherMaskAtTheSameRunIndex)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedLeaf> first,
+                            make_masked_leaf(backend(), Shape{64, 64}));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedLeaf> second,
+                            make_masked_leaf(backend(), Shape{64, 64}));
+
+    engine->rng().reseed(K_ENGINE_SEED);
+    const std::vector<double> seeded = first->run_and_read_mask();
+
+    engine->rng().reseed(K_ENGINE_SEED + 1);
+    EXPECT_NE(second->run_and_read_mask(), seeded);
+}
+
+/** @brief Tests that the kept fraction of a [1024, 1024] mask is within K_FRACTION_BOUND of keep. */
+TEST_F(Medium_DropoutDraw, TheKeptFractionOfALargeMaskIsTheKeepProbability)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedLeaf> leaf,
+                            make_masked_leaf(backend(), Shape{K_SIDE, K_SIDE}));
+    engine->rng().reseed(K_ENGINE_SEED);
+
+    EXPECT_NEAR(kept_fraction(leaf->run_and_read_mask()), K_KEEP, K_FRACTION_BOUND);
 }
