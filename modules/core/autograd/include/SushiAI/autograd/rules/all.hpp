@@ -40,6 +40,7 @@
 #include <SushiAI/autograd/rules/spatial.hpp>
 #include <SushiAI/autograd/rules/norm.hpp>
 #include <SushiAI/autograd/rules/random.hpp>
+#include <SushiAI/autograd/rules/broadcast.hpp>
 
 namespace SushiAI
 {
@@ -53,11 +54,13 @@ namespace SushiAI
          */
         inline constexpr auto K_RULES = concat_rules(
             concat_rules(
-                concat_rules(K_ELEMENTWISE_RULES, K_LINALG_RULES),
-                concat_rules(K_ACTIVATION_RULES, K_LOSS_RULES)),
-            concat_rules(
-                concat_rules(K_SHAPE_RULES, K_SPATIAL_RULES),
-                concat_rules(K_NORM_RULES, K_RANDOM_RULES)));
+                concat_rules(
+                    concat_rules(K_ELEMENTWISE_RULES, K_LINALG_RULES),
+                    concat_rules(K_ACTIVATION_RULES, K_LOSS_RULES)),
+                concat_rules(
+                    concat_rules(K_SHAPE_RULES, K_SPATIAL_RULES),
+                    concat_rules(K_NORM_RULES, K_RANDOM_RULES))),
+            K_BROADCAST_RULES);
 
         /** @brief Whether @p op has a rule in @ref K_RULES. */
         constexpr bool has_rule(OpID op) noexcept

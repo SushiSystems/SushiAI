@@ -1,24 +1,25 @@
-# tests/core/autograd/rules/test_elementwise.cpp
+# tests/core/autograd/rules/test_elementwise/test_rules.cpp
 
 
 Suites: `Small_ElementwiseRules`, `Small_ElementwiseRuleRow` (one case per expected operation).
 
 Tests the table `K_ELEMENTWISE_RULES`. The arithmetic of each rule is covered by
-`rules/test_all.cpp` and `test_backward.cpp`; this file pins that each operation reaches the rule
+`rules/test_elementwise/test_gradients.cpp` and `test_backward.cpp`; this file pins that each operation reaches the rule
 `modules/core/autograd/include/SushiAI/autograd/rules/elementwise.hpp` declares for it.
 
 ## EveryRowPairsItsOperationWithItsOwnRule
 
 One case per expected operation. The table holds the operation in exactly one row, and that row
-carries the rule declared for it. The twelve pairs are K_ADD with `add_backward`, K_SUB with `sub_backward`,
+carries the rule declared for it. The fifteen pairs are K_ADD with `add_backward`, K_SUB with `sub_backward`,
 K_MUL with `mul_backward`, K_SCALE with `scale_backward`, K_EXP with `exp_backward`,
 K_ACCUMULATE with `accumulate_backward`, K_DIV with `div_backward`, K_MINIMUM with
 `minimum_backward`, K_MAXIMUM with `maximum_backward`, K_ABS with `abs_backward`, K_ATAN with
-`atan_backward` and K_SELECT with `select_backward`. A swap of two rules fails two cases.
+`atan_backward`, K_SELECT with `select_backward`, K_SQRT with `sqrt_backward`, K_LOG with
+`log_backward` and K_POW with `pow_backward`. A swap of two rules fails two cases.
 
 ## TheTableHoldsOneRowPerExpectedOperation
 
-The table has twelve rows, as many as the expected pairs, so a row with no expected pair fails.
+The table has fifteen rows, as many as the expected pairs, so a row with no expected pair fails.
 
 `rules/compile_elementwise.cpp` checks at build time that no two rows name the same operation.
 

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_norm.cpp                                                          */
+/* test_rules.cpp                                                          */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,7 +23,7 @@
 
 
 /**
- * @file test_norm.cpp
+ * @file test_rules.cpp
  * @brief Tests the IR the backward rule of LAYER_NORM appends, and which operands it reaches.
  * @author Mustafa Garip
  */

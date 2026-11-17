@@ -1,4 +1,4 @@
-# tests/core/autograd/rules/test_norm.cpp
+# tests/core/autograd/rules/test_norm/test_rules.cpp
 
 
 Suites: `Small_LayerNormBackward`.

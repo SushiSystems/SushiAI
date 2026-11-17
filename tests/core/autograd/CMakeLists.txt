@@ -10,15 +10,23 @@ sushiai_add_test_program(OWNER autograd
         compile_rule.cpp
         compile_tape.cpp
         rules/compile_elementwise.cpp
-        rules/test_activation.cpp
+        rules/test_activation/test_gradients.cpp
+        rules/test_activation/test_rules.cpp
         rules/test_all.cpp
-        rules/test_elementwise.cpp
-        rules/test_linalg.cpp
-        rules/test_loss.cpp
-        rules/test_norm.cpp
+        rules/test_broadcast.cpp
+        rules/test_elementwise/test_gradients.cpp
+        rules/test_elementwise/test_rules.cpp
+        rules/test_linalg/test_gradients.cpp
+        rules/test_linalg/test_rules.cpp
+        rules/test_loss/test_gradients.cpp
+        rules/test_loss/test_rules.cpp
+        rules/test_norm/test_gradients.cpp
+        rules/test_norm/test_rules.cpp
         rules/test_random.cpp
-        rules/test_shape.cpp
-        rules/test_spatial.cpp
+        rules/test_shape/test_gradients.cpp
+        rules/test_shape/test_rules.cpp
+        rules/test_spatial/test_gradients.cpp
+        rules/test_spatial/test_rules.cpp
         test_backward.cpp
         test_gradcheck.cpp
         test_provenance.cpp

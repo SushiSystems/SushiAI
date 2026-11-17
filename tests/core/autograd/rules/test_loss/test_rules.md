@@ -1,4 +1,4 @@
-# tests/core/autograd/rules/test_loss.cpp
+# tests/core/autograd/rules/test_loss/test_rules.cpp
 
 
 Suites: `Small_LossRules`, `Small_LossRuleRow` (one case per row of the table).

@@ -186,6 +186,20 @@ namespace SushiAI
                 static_cast<int64_t>(node.attributes.get(1))));
         }
 
+        void upsample2d_bilinear_backward(const GradientTape& tape) noexcept
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+
+            const Graph::Node& node = tape.node();
+            tape.contribute_input(0, tape.builder().upsample2d_bilinear_backward(
+                dy, tape.graph().value(node.inputs[0]).shape,
+                static_cast<int64_t>(node.attributes.get(0)),
+                static_cast<int64_t>(node.attributes.get(1))));
+        }
+
         void spatial_mean_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;

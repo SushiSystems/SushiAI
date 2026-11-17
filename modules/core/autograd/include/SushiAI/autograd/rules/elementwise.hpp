@@ -60,9 +60,15 @@ namespace SushiAI
         void atan_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates selection: dy goes to a where the condition holds, else to b. */
         void select_backward(const GradientTape& tape) noexcept;
+        /** @brief Differentiates the square root: d(sqrt x) = dy / (2 * sqrt x). */
+        void sqrt_backward(const GradientTape& tape) noexcept;
+        /** @brief Differentiates the logarithm: d(log x) = dy / x. */
+        void log_backward(const GradientTape& tape) noexcept;
+        /** @brief Differentiates the power: d(x^e) = dy * e * x^(e - 1). */
+        void pow_backward(const GradientTape& tape) noexcept;
 
         /** @brief Holds backward rule entries for elementwise operations. */
-        inline constexpr std::array<RuleEntry, 12> K_ELEMENTWISE_RULES = {{
+        inline constexpr std::array<RuleEntry, 15> K_ELEMENTWISE_RULES = {{
             {Ops::K_ADD.id,        &add_backward},
             {Ops::K_SUB.id,        &sub_backward},
             {Ops::K_MUL.id,        &mul_backward},
@@ -75,6 +81,9 @@ namespace SushiAI
             {Ops::K_ABS.id,        &abs_backward},
             {Ops::K_ATAN.id,       &atan_backward},
             {Ops::K_SELECT.id,     &select_backward},
+            {Ops::K_SQRT.id,       &sqrt_backward},
+            {Ops::K_LOG.id,        &log_backward},
+            {Ops::K_POW.id,        &pow_backward},
         }};
     }
 }

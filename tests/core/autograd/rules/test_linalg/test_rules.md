@@ -1,4 +1,4 @@
-# tests/core/autograd/rules/test_linalg.cpp
+# tests/core/autograd/rules/test_linalg/test_rules.cpp
 
 
 Suites: `Small_CausalMaskBackward`.

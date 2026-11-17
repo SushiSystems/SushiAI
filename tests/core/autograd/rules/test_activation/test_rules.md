@@ -1,10 +1,10 @@
-# tests/core/autograd/rules/test_activation.cpp
+# tests/core/autograd/rules/test_activation/test_rules.cpp
 
 
 Suites: `Small_ActivationRules`, `Small_ActivationRuleRow` (one case per row of the table).
 
 Tests the table `K_ACTIVATION_RULES`. What the rule computes for each activation is covered by
-`rules/test_all.cpp` and `test_backward.cpp`; this file pins the table itself.
+`rules/test_activation/test_gradients.cpp` and `test_backward.cpp`; this file pins the table itself.
 
 ## TheTableListsTheSevenActivations
 

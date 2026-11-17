@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_linalg.cpp                                                        */
+/* test_rules.cpp                                                        */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,7 +23,7 @@
 
 
 /**
- * @file test_linalg.cpp
+ * @file test_rules.cpp
  * @brief Tests the backward rules of the linear-algebra table: the causal mask and the row gather.
  * @author Mustafa Garip
  */

@@ -10,6 +10,7 @@ sushiai_add_module(NAME autograd TIER core
         source/differentiator.cpp
         source/gradcheck.cpp
         source/rules/activation.cpp
+        source/rules/broadcast.cpp
         source/rules/elementwise.cpp
         source/rules/linalg.cpp
         source/rules/loss.cpp
@@ -19,5 +20,6 @@ sushiai_add_module(NAME autograd TIER core
         source/rules/spatial.cpp
         source/tape.cpp
     PUBLIC_DEPENDS failure graph ops
+    PRIVATE_DEPENDS dtype
     EXTERNAL_PUBLIC SushiRuntime::core
     EXTERNAL_PRIVATE_LINKS SushiLog::text)

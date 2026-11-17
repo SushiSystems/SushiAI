@@ -27,13 +27,14 @@ Each header is named by its include path under `include/`.
 | `SushiAI/autograd/tape.hpp` | `GradientTape` |
 | `SushiAI/autograd/rules/activation.hpp` | `activation_backward`, `K_ACTIVATION_RULES` |
 | `SushiAI/autograd/rules/all.hpp` | `K_RULES`, `has_rule`, `every_differentiable_op_has_a_rule`, `no_gradient_barrier_has_a_rule` |
-| `SushiAI/autograd/rules/elementwise.hpp` | `add_backward`, `sub_backward`, `mul_backward`, `scale_backward`, `exp_backward`, `accumulate_backward`, `div_backward`, `minimum_backward`, `maximum_backward`, `abs_backward`, `atan_backward`, `select_backward`, `K_ELEMENTWISE_RULES` |
-| `SushiAI/autograd/rules/linalg.hpp` | `matmul_backward`, `bias_add_backward`, `sum_rows_backward`, `gather_rows_backward`, `scatter_add_rows_backward`, `causal_mask_backward`, `K_LINALG_RULES` |
+| `SushiAI/autograd/rules/elementwise.hpp` | `add_backward`, `sub_backward`, `mul_backward`, `scale_backward`, `exp_backward`, `accumulate_backward`, `div_backward`, `minimum_backward`, `maximum_backward`, `abs_backward`, `atan_backward`, `select_backward`, `sqrt_backward`, `log_backward`, `pow_backward`, `K_ELEMENTWISE_RULES` |
+| `SushiAI/autograd/rules/linalg.hpp` | `matmul_backward`, `bias_add_backward`, `sum_rows_backward`, `gather_rows_backward`, `scatter_add_rows_backward`, `take_along_backward`, `put_along_backward`, `causal_mask_backward`, `K_LINALG_RULES` |
+| `SushiAI/autograd/rules/broadcast.hpp` | `broadcast_add_backward`, `broadcast_sub_backward`, `broadcast_mul_backward`, `broadcast_div_backward`, `sum_along_backward`, `K_BROADCAST_RULES` |
 | `SushiAI/autograd/rules/loss.hpp` | `log_softmax_backward`, `nll_loss_backward`, `starts_from_implicit_seed`, `K_LOSS_RULES` |
 | `SushiAI/autograd/rules/norm.hpp` | `batchnorm2d_backward`, `channel_affine_backward`, `layer_norm_backward`, `K_NORM_RULES` |
 | `SushiAI/autograd/rules/random.hpp` | `dropout_backward`, `K_RANDOM_RULES` |
-| `SushiAI/autograd/rules/shape.hpp` | `reshape_backward`, `layout_convert_backward`, `K_SHAPE_RULES` |
-| `SushiAI/autograd/rules/spatial.hpp` | `im2col_backward`, `col2im_backward`, `maxpool2d_backward`, `avgpool2d_backward`, `upsample2d_backward`, `spatial_mean_backward`, `concat_channels_backward`, `slice_channels_backward`, `K_SPATIAL_RULES` |
+| `SushiAI/autograd/rules/shape.hpp` | `reshape_backward`, `transpose_backward`, `layout_convert_backward`, `K_SHAPE_RULES` |
+| `SushiAI/autograd/rules/spatial.hpp` | `im2col_backward`, `col2im_backward`, `maxpool2d_backward`, `avgpool2d_backward`, `upsample2d_backward`, `upsample2d_bilinear_backward`, `spatial_mean_backward`, `concat_channels_backward`, `slice_channels_backward`, `K_SPATIAL_RULES` |
 
 ## A refusal inside a rule
 
@@ -51,6 +52,22 @@ graph that already holds a refusal before it appends a node, then returns the fa
 `Graph::finalise`, of a root that cannot be seeded, of a requested buffer, of a node without a
 rule, and last the first failure a rule observed. A rule that breaks the tape's contract, by an
 index past the node's operands or a contribution of the wrong shape, stops the process.
+
+## Rules of the graph capabilities
+
+`sqrt_backward` contributes `scale(div(dy, y), 0.5)` with `y` the forward result,
+`log_backward` contributes `div(dy, x)` and `pow_backward` contributes
+`scale(mul(dy, pow(x, e - 1)), e)`. A value outside a function's domain gives what the kernel
+gives; no rule checks one.
+
+The broadcast rules write `S` for `sum_along` down to the vector's shape on the node's side. `add`
+gives `dy` to the tensor and `S(dy)` to the vector; `sub` gives `dy` and `-S(dy)`; `mul` gives
+`broadcast_mul(dy, v)` and `S(mul(dy, x))`; `div` gives `broadcast_div(dy, v)` and
+`-S(mul(dy, broadcast_div(y, v)))`, with `y` the forward result. `sum_along_backward` adds `dy`
+to zeros of the operand's shape through `broadcast_add`. `take_along_backward` and
+`put_along_backward` emit `put_along` and `take_along`; the index gets no gradient.
+`upsample2d_bilinear_backward` emits the bilinear gradient operation with the forward's scales.
+`K_ARGMAX_ROWS` is a gradient barrier and has no rule.
 
 ## Log-softmax and the fused cross-entropy
 

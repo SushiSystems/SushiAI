@@ -205,6 +205,49 @@ namespace SushiAI
             tape.contribute_input(0, builder.div(dy, denominator));
         }
 
+        void sqrt_backward(const GradientTape& tape) noexcept
+        {
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE)
+                return;
+            if (!tape.input_requires_grad(0))
+                return;
+
+            // d/dx sqrt(x) = 1 / (2 * sqrt(x)), and the forward result is already sqrt(x).
+            constexpr double K_HALF = 0.5;
+
+            const Graph::GraphBuilder& builder = tape.builder();
+            tape.contribute_input(0, builder.scale(builder.div(dy, tape.output(0)), K_HALF));
+        }
+
+        void log_backward(const GradientTape& tape) noexcept
+        {
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE)
+                return;
+            if (!tape.input_requires_grad(0))
+                return;
+
+            tape.contribute_input(0, tape.builder().div(dy, tape.input(0)));
+        }
+
+        void pow_backward(const GradientTape& tape) noexcept
+        {
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE)
+                return;
+            if (!tape.input_requires_grad(0))
+                return;
+
+            // The exponent is copied out before the first emission grows the graph.
+            const double exponent = tape.node().attributes.get(0);
+            const Graph::GraphBuilder& builder = tape.builder();
+
+            // d/dx x^e = e * x^(e - 1).
+            const Graph::Traced lowered = builder.pow(tape.input(0), exponent - 1.0);
+            tape.contribute_input(0, builder.scale(builder.mul(dy, lowered), exponent));
+        }
+
         void select_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_loss.cpp                                                          */
+/* test_rules.cpp                                                    */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,64 +23,69 @@
 
 
 /**
- * @file test_loss.cpp
- * @brief Tests the loss rule table and which rule starts from the implicit scalar seed.
+ * @file test_rules.cpp
+ * @brief Tests that the activation rule table sends each activation to activation_backward.
  * @author Mustafa Garip
  */
 
-#include <algorithm>
+#include <cstddef>
 #include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
-#include <SushiAI/autograd/rules/loss.hpp>
+#include <SushiAI/autograd/rules/activation.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <support/test_names.hpp>
 
-using SushiAI::Autograd::K_LOSS_RULES;
-using SushiAI::Autograd::starts_from_implicit_seed;
+using SushiAI::Autograd::K_ACTIVATION_RULES;
 namespace Autograd = SushiAI::Autograd;
 namespace Ops = SushiAI::Ops;
 
-/** @brief Tests that the table pairs log-softmax and the NLL loss with their own rules. */
-TEST(Small_LossRules, TheTablePairsEachLossOperationWithItsRule)
+namespace
 {
-    ASSERT_EQ(K_LOSS_RULES.size(), 2u);
-    EXPECT_EQ(K_LOSS_RULES[0].op, Ops::K_LOG_SOFTMAX.id);
-    EXPECT_EQ(K_LOSS_RULES[0].rule, &Autograd::log_softmax_backward);
-    EXPECT_EQ(K_LOSS_RULES[1].op, Ops::K_NLL_LOSS.id);
-    EXPECT_EQ(K_LOSS_RULES[1].rule, &Autograd::nll_loss_backward);
+    /** @brief Holds the operations the table lists, in table order. */
+    const Ops::OpName K_EXPECTED[] = {
+        Ops::K_RELU, Ops::K_GELU, Ops::K_SIGMOID, Ops::K_TANH,
+        Ops::K_LEAKY_RELU, Ops::K_SILU, Ops::K_SOFTPLUS,
+    };
+} // namespace
+
+/** @brief Tests that the table lists the seven activations, each declared differentiable. */
+TEST(Small_ActivationRules, TheTableListsTheSevenActivations)
+{
+    ASSERT_EQ(K_ACTIVATION_RULES.size(), sizeof(K_EXPECTED) / sizeof(K_EXPECTED[0]));
+    for (std::size_t i = 0; i < K_ACTIVATION_RULES.size(); ++i)
+    {
+        EXPECT_EQ(K_ACTIVATION_RULES[i].op, K_EXPECTED[i].id) << "row " << i;
+        EXPECT_TRUE(K_EXPECTED[i].differentiable) << K_EXPECTED[i].name;
+    }
 }
 
 namespace
 {
-/** @brief Holds one row of the loss rule table as the test parameter. */
-class Small_LossRuleRow : public ::testing::TestWithParam<Autograd::RuleEntry>
+/** @brief Holds one row of the activation rule table as the test parameter. */
+class Small_ActivationRuleRow : public ::testing::TestWithParam<Autograd::RuleEntry>
 {
 };
 } // namespace
 
-/** @brief Tests that the library reports a backward rule for the operation of the row. */
-TEST_P(Small_LossRuleRow, EachLossRowHasABackwardRule)
+/** @brief Tests that the row's rule is activation_backward and the library reports it. */
+TEST_P(Small_ActivationRuleRow, OneRuleServesTheActivation)
 {
-    EXPECT_TRUE(Autograd::has_backward_rule(GetParam().op)) << Ops::name_of(GetParam().op);
+    const Autograd::RuleEntry& entry = GetParam();
+
+    EXPECT_EQ(entry.rule, &Autograd::activation_backward);
+    EXPECT_TRUE(Autograd::has_backward_rule(entry.op));
 }
 
-INSTANTIATE_TEST_SUITE_P(Rows, Small_LossRuleRow,
-                         ::testing::ValuesIn(K_LOSS_RULES.begin(), K_LOSS_RULES.end()),
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ActivationRuleRow,
+                         ::testing::ValuesIn(K_ACTIVATION_RULES.begin(), K_ACTIVATION_RULES.end()),
                          [](const ::testing::TestParamInfo<Autograd::RuleEntry>& info)
                          {
                              std::string name(Ops::name_of(info.param.op));
-                             std::replace(name.begin(), name.end(), '.', '_');
+                             for (char& letter : name)
+                             {
+                                 if (letter == '.')
+                                     letter = '_';
+                             }
                              return ::SushiAI::Test::parameter_name(name);
                          });
-
-/** @brief Tests that only the NLL loss seeds itself; its neighbour and other roots do not. */
-TEST(Small_LossRules, OnlyTheNLLLossStartsFromTheImplicitSeed)
-{
-    static_assert(starts_from_implicit_seed(Ops::K_NLL_LOSS.id), "the check is constexpr");
-
-    EXPECT_TRUE(starts_from_implicit_seed(Ops::K_NLL_LOSS.id));
-    EXPECT_FALSE(starts_from_implicit_seed(Ops::K_LOG_SOFTMAX.id));
-    EXPECT_FALSE(starts_from_implicit_seed(Ops::K_ADD.id));
-    EXPECT_FALSE(starts_from_implicit_seed(Ops::K_SCALE.id));
-}

@@ -71,6 +71,13 @@ namespace SushiAI
         void upsample2d_backward(const GradientTape& tape) noexcept;
 
         /**
+         * @brief UPSAMPLE2D_BILINEAR's gradient: each input pixel gathers the output gradients
+         *        it contributed to, each by the weight the forward gave it.
+         * @param tape The differentiation state for this node.
+         */
+        void upsample2d_bilinear_backward(const GradientTape& tape) noexcept;
+
+        /**
          * @brief SPATIAL_MEAN's gradient: broadcasts the [N,C] gradient back
          *        over [N,H,W,C], scaled by 1/(H*W).
          * @param tape The differentiation state for this node.
@@ -101,7 +108,7 @@ namespace SushiAI
         void depthwise_conv2d_backward(const GradientTape& tape) noexcept;
 
         /** @brief Spatial operations' backward rules. */
-        inline constexpr std::array<RuleEntry, 9> K_SPATIAL_RULES = {{
+        inline constexpr std::array<RuleEntry, 10> K_SPATIAL_RULES = {{
             {Ops::K_IM2COL.id, &im2col_backward},
             {Ops::K_COL2IM.id, &col2im_backward},
             {Ops::K_MAXPOOL2D.id, &maxpool2d_backward},
@@ -111,6 +118,7 @@ namespace SushiAI
             {Ops::K_CONCAT_CHANNELS.id, &concat_channels_backward},
             {Ops::K_SLICE_CHANNELS.id, &slice_channels_backward},
             {Ops::K_DEPTHWISE_CONV2D.id, &depthwise_conv2d_backward},
+            {Ops::K_UPSAMPLE2D_BILINEAR.id, &upsample2d_bilinear_backward},
         }};
     }
 }

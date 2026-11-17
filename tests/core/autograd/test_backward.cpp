@@ -507,6 +507,8 @@ TEST(Small_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
         Ops::K_ADAMW_UPDATE.id, Ops::K_SGD_UPDATE.id, Ops::K_CLIP_SCALE.id,
         // The twenty-three spatial identities keep the default; see tests/core/autograd/README.md.
         Ops::K_RESHAPE.id, Ops::K_LAYOUT_CONVERT.id,
+        // A permuting copy moves elements and keeps the operand's type.
+        Ops::K_TRANSPOSE.id,
         Ops::K_IM2COL.id, Ops::K_COL2IM.id,
         Ops::K_DEPTHWISE_CONV2D.id, Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id,
         Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id,
@@ -527,10 +529,22 @@ TEST(Small_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
         Ops::K_GATHER_ROWS.id, Ops::K_SCATTER_ADD_ROWS.id,
         // The mask copies its kept entries, and a layer normalisation takes a square root.
         Ops::K_CAUSAL_MASK.id, Ops::K_LAYER_NORM.id, Ops::K_LAYER_NORM_BACKWARD.id,
+        // The two tasks of LAYER_NORM run its square root path, so they stay wide as it does.
+        Ops::K_LAYER_NORM_DEVIATION.id, Ops::K_LAYER_NORM_APPLY.id,
         // DROPOUT multiplies by a mask of its operand's type, so it keeps that type.
         Ops::K_DROPOUT.id,
         // The gradient of LOG_SOFTMAX sums a row and takes an exponential, as its forward does.
         Ops::K_LOG_SOFTMAX_BACKWARD.id,
+        // The root, the logarithm and the power are elementwise math, so they keep the default.
+        Ops::K_SQRT.id, Ops::K_LOG.id, Ops::K_POW.id,
+        // The bilinear upsample and its gradient interpolate in the operand's own type.
+        Ops::K_UPSAMPLE2D_BILINEAR.id, Ops::K_UPSAMPLE2D_BILINEAR_BACKWARD.id,
+        // A pick, a put and a broadcast move or combine elements and keep the operand's type.
+        Ops::K_TAKE_ALONG.id, Ops::K_PUT_ALONG.id,
+        Ops::K_BROADCAST_ADD.id, Ops::K_BROADCAST_SUB.id,
+        Ops::K_BROADCAST_MUL.id, Ops::K_BROADCAST_DIV.id, Ops::K_SUM_ALONG.id,
+        // The class of a row is an index, so the argmax reads its operand as it is.
+        Ops::K_ARGMAX_ROWS.id,
     };
 
     for (OpID op : stays)
@@ -1746,8 +1760,20 @@ TEST(Small_Backward, EveryImplementedOperationHasARule)
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SOFTPLUS.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SELECT.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SILU.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SQRT.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_LOG.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_POW.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_UPSAMPLE2D_BILINEAR.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_TAKE_ALONG.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_PUT_ALONG.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_BROADCAST_ADD.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_BROADCAST_SUB.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_BROADCAST_MUL.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_BROADCAST_DIV.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SUM_ALONG.id));
 
     // A gradient barrier is stepped over by the reverse walk, so no rule is ever asked of it.
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_ARGMAX_ROWS.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_LESS_EQUAL.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_CONSTANT.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_STOP_GRADIENT.id));
@@ -1831,6 +1857,8 @@ namespace
          "Medium_AttentionGradient.ACausalAttentionDifferentiatesAtItsProjectionWeight"},
 
         {Ops::K_RESHAPE.id,        "Medium_Autograd.ReshapeMovesItsGradientBackUnchanged"},
+        {Ops::K_TRANSPOSE.id,
+         "Medium_Autograd.TransposeMovesItsGradientBackThroughTheInversePermutation"},
         {Ops::K_LAYOUT_CONVERT.id, "Medium_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
 
         {Ops::K_IM2COL.id, "Medium_Autograd.AWholeConvolutionDifferentiatesThroughIm2colAndMatmul"},
@@ -1852,6 +1880,30 @@ namespace
         {Ops::K_CHANNEL_AFFINE.id, "Medium_Autograd.ChannelAffineDifferentiatesAtItsInput"},
         {Ops::K_CHANNEL_AFFINE.id, "Medium_Autograd.ChannelAffinesScaleGradientSumsOverNHAndW"},
         {Ops::K_CHANNEL_AFFINE.id, "Medium_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
+
+        {Ops::K_SQRT.id, "Medium_Autograd.SquareRootReadsItsForwardResult"},
+        {Ops::K_LOG.id, "Medium_Autograd.LogarithmDividesByItsInput"},
+        {Ops::K_POW.id,
+         "Exponents/Medium_AutogradPow.ThePowerDifferentiatesAtEachExponent/Two"},
+        {Ops::K_UPSAMPLE2D_BILINEAR.id,
+         "Scales/Medium_AutogradBilinear.TheBilinearUpsampleDifferentiatesAtEachScale/ScaleTwo"},
+        {Ops::K_BROADCAST_ADD.id,
+         "Cases/Medium_AutogradBroadcast.TheBroadcastDifferentiatesAtEachOperand/"
+         "AddLeadingRank2Tensor"},
+        {Ops::K_BROADCAST_SUB.id,
+         "Cases/Medium_AutogradBroadcast.TheBroadcastDifferentiatesAtEachOperand/"
+         "SubTrailingRank3Vector"},
+        {Ops::K_BROADCAST_MUL.id,
+         "Cases/Medium_AutogradBroadcast.TheBroadcastDifferentiatesAtEachOperand/"
+         "MulLeadingRank3Vector"},
+        {Ops::K_BROADCAST_DIV.id,
+         "Cases/Medium_AutogradBroadcast.TheBroadcastDifferentiatesAtEachOperand/"
+         "DivTrailingRank2Vector"},
+        {Ops::K_SUM_ALONG.id,
+         "Cases/Medium_AutogradSumAlong.TheSumAlongDifferentiatesAtEachSideAndRank/"
+         "LeadingRank2"},
+        {Ops::K_TAKE_ALONG.id, "Medium_Autograd.TakeAlongPutsItsGradientAtThePickedColumn"},
+        {Ops::K_PUT_ALONG.id, "Medium_Autograd.PutAlongTakesItsGradientFromThePutColumn"},
     };
 
     /** @brief Holds the rules that no finite-difference case names; an entry leaves when one does. */

@@ -1,4 +1,4 @@
-# tests/core/autograd/rules/test_spatial.cpp
+# tests/core/autograd/rules/test_spatial/test_rules.cpp
 
 
 Suites: `Small_SpatialShapes`, `Small_BatchNormFoldMismatch` (one case per refused operand set).

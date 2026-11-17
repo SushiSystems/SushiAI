@@ -29,6 +29,13 @@
 
 #include <SushiAI/autograd/rules/shape.hpp>
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/graph/permuted_copy.hpp>
+
 namespace SushiAI
 {
     namespace Autograd
@@ -42,6 +49,24 @@ namespace SushiAI
 
             const Graph::ValueID x = tape.node().inputs[0];
             tape.contribute_input(0, tape.builder().reshape(dy, tape.graph().value(x).shape));
+        }
+
+        void transpose_backward(const GradientTape& tape) noexcept
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+
+            // The adjoint of a permuting copy is the copy by the inverse permutation.
+            const Graph::ValueID x = tape.node().inputs[0];
+            const std::size_t count =
+                static_cast<std::size_t>(tape.graph().value(x).shape.rank()) - 1;
+            const auto permutation = Graph::permutation_of(tape.node(), count);
+            const auto inverse = Graph::inverse_axis_permutation(
+                SushiRuntime::span<const std::int64_t>(permutation.data(), count));
+            tape.contribute_input(0, tape.builder().transpose(
+                dy, SushiRuntime::span<const std::int64_t>(inverse.data(), count)));
         }
 
         void layout_convert_backward(const GradientTape& tape) noexcept

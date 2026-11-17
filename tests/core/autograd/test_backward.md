@@ -185,6 +185,10 @@ K_SILU, K_SILU_BACKWARD, K_SOFTPLUS and K_SOFTPLUS_BACKWARD are in `stays`. K_SI
 their input, so neither they nor their gradients narrow. K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN,
 K_LESS_EQUAL, K_SELECT, K_STOP_GRADIENT and K_CONSTANT are in `stays` under the same default.
 
+K_SQRT, K_LOG, K_POW, the two bilinear upsample identities, K_TAKE_ALONG, K_PUT_ALONG, the four
+K_BROADCAST_* identities, K_SUM_ALONG and K_ARGMAX_ROWS are in `stays` too. The argmax is an
+index and no policy may narrow its operand; the others keep their operand's type.
+
 K_BATCHNORM_FOLD is in `stays`. It takes the square root of a variance plus epsilon.
 
 The closing `EXPECT_EQ` on the two list sizes holds because every identity is accounted for by

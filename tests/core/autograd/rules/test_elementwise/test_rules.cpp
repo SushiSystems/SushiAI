@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_elementwise.cpp                                                   */
+/* test_rules.cpp                                                   */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,7 +23,7 @@
 
 
 /**
- * @file test_elementwise.cpp
+ * @file test_rules.cpp
  * @brief Tests that the elementwise rule table pairs each operation with its own rule.
  * @author Mustafa Garip
  */
@@ -67,6 +67,9 @@ namespace
         {Ops::K_ABS, &Autograd::abs_backward},
         {Ops::K_ATAN, &Autograd::atan_backward},
         {Ops::K_SELECT, &Autograd::select_backward},
+        {Ops::K_SQRT, &Autograd::sqrt_backward},
+        {Ops::K_LOG, &Autograd::log_backward},
+        {Ops::K_POW, &Autograd::pow_backward},
     };
 } // namespace
 

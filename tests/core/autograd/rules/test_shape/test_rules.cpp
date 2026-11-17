@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_shape.cpp                                                         */
+/* test_rules.cpp                                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,7 +23,7 @@
 
 
 /**
- * @file test_shape.cpp
+ * @file test_rules.cpp
  * @brief Tests that the shape rule table pairs reshape and layout conversion with their rules.
  * @author Mustafa Garip
  */
@@ -37,12 +37,14 @@ using SushiAI::Autograd::K_SHAPE_RULES;
 namespace Autograd = SushiAI::Autograd;
 namespace Ops = SushiAI::Ops;
 
-/** @brief Tests that the table pairs reshape and layout conversion with their own rules. */
+/** @brief Tests that the table pairs reshape, transpose and layout conversion with their own rules. */
 TEST(Small_ShapeRules, TheTablePairsEachStructuralOperationWithItsRule)
 {
-    ASSERT_EQ(K_SHAPE_RULES.size(), 2u);
+    ASSERT_EQ(K_SHAPE_RULES.size(), 3u);
     EXPECT_EQ(K_SHAPE_RULES[0].op, Ops::K_RESHAPE.id);
     EXPECT_EQ(K_SHAPE_RULES[0].rule, &Autograd::reshape_backward);
-    EXPECT_EQ(K_SHAPE_RULES[1].op, Ops::K_LAYOUT_CONVERT.id);
-    EXPECT_EQ(K_SHAPE_RULES[1].rule, &Autograd::layout_convert_backward);
+    EXPECT_EQ(K_SHAPE_RULES[1].op, Ops::K_TRANSPOSE.id);
+    EXPECT_EQ(K_SHAPE_RULES[1].rule, &Autograd::transpose_backward);
+    EXPECT_EQ(K_SHAPE_RULES[2].op, Ops::K_LAYOUT_CONVERT.id);
+    EXPECT_EQ(K_SHAPE_RULES[2].rule, &Autograd::layout_convert_backward);
 }

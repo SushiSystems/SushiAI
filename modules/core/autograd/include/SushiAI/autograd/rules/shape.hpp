@@ -38,12 +38,15 @@ namespace SushiAI
     {
         /** @brief Differentiates reshape operations by restoring operand shape on incoming gradients. */
         void reshape_backward(const GradientTape& tape) noexcept;
+        /** @brief Differentiates axis permutations by permuting incoming gradients back. */
+        void transpose_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates layout conversions by restoring operand layout on incoming gradients. */
         void layout_convert_backward(const GradientTape& tape) noexcept;
 
         /** @brief Holds backward rule entries for structural shape and layout operations. */
-        inline constexpr std::array<RuleEntry, 2> K_SHAPE_RULES = {{
+        inline constexpr std::array<RuleEntry, 3> K_SHAPE_RULES = {{
             {Ops::K_RESHAPE.id,        &reshape_backward},
+            {Ops::K_TRANSPOSE.id,      &transpose_backward},
             {Ops::K_LAYOUT_CONVERT.id, &layout_convert_backward},
         }};
     }

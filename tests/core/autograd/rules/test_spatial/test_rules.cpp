@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_spatial.cpp                                                       */
+/* test_rules.cpp                                                       */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,7 +23,7 @@
 
 
 /**
- * @file test_spatial.cpp
+ * @file test_rules.cpp
  * @brief Tests the shapes the builder infers for spatial operations and the layouts it refuses.
  * @author Mustafa Garip
  */

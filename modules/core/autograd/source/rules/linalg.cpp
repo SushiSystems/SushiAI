@@ -117,6 +117,31 @@ namespace SushiAI
             tape.contribute_input(0, tape.builder().gather_rows(dy, indices));
         }
 
+        void take_along_backward(const GradientTape& tape) noexcept
+        {
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+            if (!tape.input_requires_grad(0)) return;
+
+            // The id and the column count are copied out before the emission grows the graph.
+            const Graph::ValueID index = tape.input(1);
+            const int64_t columns = tape.graph().value(tape.input(0)).shape[1];
+
+            tape.contribute_input(0, tape.builder().put_along(dy, index, columns));
+        }
+
+        void put_along_backward(const GradientTape& tape) noexcept
+        {
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+            if (!tape.input_requires_grad(0)) return;
+
+            // The id is copied out before the emission grows the graph.
+            const Graph::ValueID index = tape.input(1);
+
+            tape.contribute_input(0, tape.builder().take_along(dy, index));
+        }
+
         void causal_mask_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
