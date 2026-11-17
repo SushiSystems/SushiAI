@@ -190,14 +190,15 @@ in float32. The exporter exits 1 with one line on stderr when a file cannot be r
 
 ## SACP layout as written
 
-SACP is SushiAI's checkpoint container. The exporter writes version 1 and nothing else, with
+SACP is SushiAI's checkpoint container. The exporter writes version 2 and nothing else, with
 every integer little-endian and no padding or alignment between fields.
 
 | Field | Type | Value | Taken from |
 | --- | --- | --- | --- |
 | Magic | `u32` | `0x50434153`, the bytes `SACP` | `modules/layers/io/include/SushiAI/io/checkpoint_format.hpp:47`, written at `modules/layers/io/source/checkpoint_format.cpp:129` |
-| Version | `u32` | 1 | `checkpoint_format.hpp:54`, `checkpoint_format.cpp:130` |
+| Version | `u32` | 2 | `checkpoint_format.hpp:54`, `checkpoint_format.cpp:130` |
 | Tensor count | `u32` | At most 4096 | `checkpoint_format.hpp:57`, `checkpoint_format.cpp:131` |
+| Run-state count | `u32` | 0: the files hold model state alone, so no owner name follows the records | `modules/layers/io/README.md`, section "The file, byte by byte" |
 
 Then, per tensor, in order:
 
@@ -230,7 +231,7 @@ Whether the C++ reader accepts a rank-0 record was not checked, so the one scala
 | --- | --- |
 | `ultralytics_commit`, `ultralytics_version`, `torch_version`, `python_version` | Read from the installed packages; the run fails if the commit is not the pinned one |
 | `seed`, `thread_count`, `deterministic_algorithms` | The run's settings, read back from torch |
-| `files[].name`, `sha256`, `size_bytes`, `location` | One entry per SACP file; `location` is `output_directory` or `external` |
+| `files[].name`, `sha256`, `size_bytes`, `location` | One entry per SACP file; `location` is `fixture_folder` or `external` |
 | `files[].context` | The conditions of that file: mode, BatchNorm statistics used, level geometry, gains, assigner settings, box formats, validation row counts, suppression arguments and counts, running-variance candidates |
 | `files[].tensors[]` | `name`, `dtype`, `shape`, `original_shape`, `layout`, `source`, `min`, `max`, `mean` |
 
@@ -241,3 +242,118 @@ written; the mean is accumulated in float64.
 | Version | Shipped in | Change |
 | --- | --- | --- |
 | 1 | Unreleased | First version |
+
+## export_yolox_reference.py
+
+Runs ByteTrack's YOLOX-X with one class under PyTorch and writes the raw head outputs of one image,
+the reference for `applications/examples/yolox_x`. It imports `yolox`, which this repository does not
+carry, so the script runs in the environment that has ByteTrack's YOLOX installed.
+
+```
+python tools/reference/export_yolox_reference.py mot17x.pth.tar frame.jpg build/yolox_ref
+```
+
+| Argument | Meaning |
+| --- | --- |
+| `CHECKPOINT` | ByteTrack's `mot17x.pth.tar`; the `model` state dictionary is loaded |
+| `IMAGE` | One MOT17 frame |
+| `OUTPUT_DIR` | Receives the two files below |
+| `--size HEIGHT WIDTH` | The network input; default 800 1440 |
+| `--mean R G B`, `--std R G B` | Passed to the installed `preproc` when it takes them, as ByteTrack's does; both are left out by default |
+
+The image goes through the installed `yolox.data.data_augment.preproc`, so the pad value, the
+position of the image in the input and any colour swap or normalisation are the ones YOLOX applies.
+The model runs in eval mode and a forward hook on each of the nine predictors (`cls_preds`,
+`reg_preds` and `obj_preds` of three levels) takes its output before any sigmoid or grid decoding.
+
+| File | Contents |
+| --- | --- |
+| `yolox_x_reference.sacp` | `input`, the network input `[1, H, W, 3]` as the model received it, then `level0.classes`, `level0.boxes`, `level0.objectness` and the same for levels 1 and 2, all NHWC float32 |
+| `yolox_x_reference.json` | The checkpoint and image names, the input size, the resize ratio and size, the pad value, the mean and std used and the yolox version |
+
+The names are those `yolox_head_contract.hpp` fixes and `model.json` publishes. The torch-free parts
+(names, letterbox geometry, the NCHW to NHWC move, the head records and the written files) are
+tested by `tools/tests/test_export_yolox_reference.py`. The exporter exits 1 with one line on stderr
+on any failure, 0 otherwise.
+
+## export_yolox_onnx_reference.py
+
+Runs a YOLOX ONNX file on the CPU and writes the detections it makes on letterboxed images, the
+reference of `tests/vision/importers/test_onnx_import/test_yolox_detections.cpp`. It needs `onnx`,
+`numpy` and `opencv-python`, and uses onnxruntime when it is installed; otherwise it runs the file
+with `onnx.reference.ReferenceEvaluator`, which is slow on YOLOX-X but needs nothing more. It does
+not import `yolox`.
+
+```
+python tools/reference/export_yolox_onnx_reference.py DATA_DIR frame1.jpg frame2.jpg
+```
+
+`DATA_DIR` holds `yolox_x.onnx` (`--onnx` names another file) and is the folder the test reads from
+`SA_YOLOX_DATA_DIR`. The file must publish the nine raw head outputs, NCHW, under the names
+`level<l>.classes`, `level<l>.boxes` and `level<l>.objectness`; the script stops with one line on
+stderr when one is missing. The export is made outside this repository, from a YOLOX checkpoint,
+with `torch.onnx.export` over a wrapper that returns those nine head outputs before any sigmoid or
+grid decoding, since the importer reads no constant operand and no spatial `Slice`.
+
+| Argument | Meaning |
+| --- | --- |
+| `--size HEIGHT WIDTH` | The network input; default 800 1440 |
+| `--mean R G B`, `--std R G B` | The normalisation `(byte / 255 - mean) / std`; defaults 0.485 0.456 0.406 and 0.229 0.224 0.225, the values of `applications/examples/yolox_x/model.json` |
+| `--score`, `--iou` | The score a detection must exceed and the IoU above which a box of its class is suppressed; defaults 0.1 and 0.7, the task of that model file |
+
+Each image is fitted as YOLOX's `preproc` fits it (top left, padded right and bottom with 114) and
+written to `DATA_DIR/references/images/<stem>.png`; the file `yolox_x_onnx.json` beside it holds the
+normalisation, the thresholds, the runtime and its version, and per image the rows class, score, x1,
+y1, x2, y2 in input pixels. Decoding and per-class suppression are done in the script, with the
+semantics of `select_yolox_detections`. The runtime-free parts are tested by
+`tools/tests/test_export_yolox_onnx_reference.py`. The exporter exits 1 with one line on stderr on any
+failure, 0 otherwise.
+
+## make_caffe_lenet_fixture.py and export_caffe_reference.py
+
+`make_caffe_lenet_fixture.py` writes the fixture of the Caffe importer into
+`tests/vision/importers/fixtures/caffe/`: `lenet.prototxt`, the layers of Caffe's `examples/mnist`
+LeNet at widths of 4, 8 and 32 channels, and `lenet.caffemodel` with weights drawn from a seeded
+generator. The caffemodel is encoded by the protobuf runtime over a descriptor built from the field
+numbers of BVLC `caffe.proto`; nothing is compiled and no Caffe source is used.
+
+`export_caffe_reference.py` runs OpenCV's `cv2.dnn.readNetFromCaffe` on that fixture for one fixed
+input and writes `lenet.expected.json`: the input, the scores of `ip2` and the probabilities of
+`prob`. OpenCV 5 removed the Caffe reader, so the run needs an `opencv-python` 4.x build; the
+exporter stops with one line on stderr when `readNetFromCaffe` is missing.
+
+```
+python tools/reference/make_caffe_lenet_fixture.py tests/vision/importers/fixtures/caffe
+python tools/reference/export_caffe_reference.py tests/vision/importers/fixtures/caffe
+```
+
+`tools/tests/test_make_caffe_lenet_fixture.py` and `tools/tests/test_export_caffe_reference.py`
+test both; the run under OpenCV is skipped where no 4.x build is installed.
+
+## make_onnx_fixture.py
+
+Writes the fixture of the ONNX importer, `tests/vision/importers/fixtures/onnx/silu_resize.onnx`,
+and `silu_resize.expected.json` beside it. The graph is opset 17: a strided `Conv`,
+`BatchNormalization`, a `Sigmoid` and `Mul` (SiLU), a nearest `Resize`, a `Concat` with the input,
+a 1x1 `Conv` and a `Reshape` to one row. The weights come from a numpy generator seeded with
+`--seed`, default 7. The expected output is what `onnx.reference.ReferenceEvaluator` computes on
+the fixed input, 0, 1, 2, ... scaled to [0, 1); no number is typed.
+
+```
+python tools/reference/make_onnx_fixture.py tests/vision/importers/fixtures/onnx
+```
+
+| Argument | Meaning |
+| --- | --- |
+| `OUTPUT_DIR` | Receives the `.onnx` and the expected JSON; created when absent |
+| `--seed N` | Seed of the weights; default 7 |
+
+| File | Contents |
+| --- | --- |
+| `silu_resize.onnx` | The model, under 2 KB |
+| `silu_resize.expected.json` | `input` and `output`, each with `name`, `shape` and `values` in the ONNX layout, `[N, C, H, W]` and `[N, F]` row-major |
+
+The script needs numpy and onnx with `onnx.reference`; on the owner's machine that is the conda
+environment `sushiai-yolo26-ref`. It exits 1 with one line on stderr when a package is missing or
+the folder cannot be written. `tools/tests/test_make_onnx_fixture.py` tests it and skips where the
+packages are absent.

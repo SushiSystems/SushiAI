@@ -78,23 +78,23 @@ class EncodeSacpTest(unittest.TestCase):
         data = encode_sacp([first, second])
 
         self.assertEqual(data[:4], b"SACP")
-        self.assertEqual(struct.unpack_from("<III", data, 0), (0x50434153, 1, 2))
-        self.assertEqual(struct.unpack_from("<I", data, 12), (8,))
-        self.assertEqual(data[16:24], b"a.weight")
-        self.assertEqual(struct.unpack_from("<II", data, 24), (1, 2))
-        self.assertEqual(struct.unpack_from("<2q", data, 32), (2, 3))
-        self.assertEqual(struct.unpack_from("<6f", data, 48), (1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
-        self.assertEqual(struct.unpack_from("<I", data, 72), (3,))
-        self.assertEqual(data[76:79], b"idx")
-        self.assertEqual(struct.unpack_from("<II", data, 79), (6, 1))
-        self.assertEqual(struct.unpack_from("<q", data, 87), (2,))
-        self.assertEqual(struct.unpack_from("<2q", data, 95), (7, -1))
-        self.assertEqual(len(data), 111)
+        self.assertEqual(struct.unpack_from("<IIII", data, 0), (0x50434153, 2, 2, 0))
+        self.assertEqual(struct.unpack_from("<I", data, 16), (8,))
+        self.assertEqual(data[20:28], b"a.weight")
+        self.assertEqual(struct.unpack_from("<II", data, 28), (1, 2))
+        self.assertEqual(struct.unpack_from("<2q", data, 36), (2, 3))
+        self.assertEqual(struct.unpack_from("<6f", data, 52), (1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+        self.assertEqual(struct.unpack_from("<I", data, 76), (3,))
+        self.assertEqual(data[80:83], b"idx")
+        self.assertEqual(struct.unpack_from("<II", data, 83), (6, 1))
+        self.assertEqual(struct.unpack_from("<q", data, 91), (2,))
+        self.assertEqual(struct.unpack_from("<2q", data, 99), (7, -1))
+        self.assertEqual(len(data), 115)
 
     def test_encode_writes_int32_with_its_code(self) -> None:
         """Checks the dtype code of an int32 record."""
         data = encode_sacp([SacpRecord("m", "int32", (1,), struct.pack("<i", 1))])
-        self.assertEqual(struct.unpack_from("<II", data, 17), (5, 1))
+        self.assertEqual(struct.unpack_from("<II", data, 21), (5, 1))
 
     def test_encode_rejects_payload_of_wrong_size(self) -> None:
         """Checks that a payload shorter than the shape needs is refused."""

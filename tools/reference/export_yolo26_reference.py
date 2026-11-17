@@ -65,7 +65,8 @@ K_FEATURE_ROWS = (9, 10, 16, 19, 21, 22)
 K_FEATURE_PREFIX = "features"
 
 K_SACP_MAGIC = 0x50434153
-K_SACP_VERSION = 1
+K_SACP_VERSION = 2
+K_SACP_RUN_STATE_COUNT = 0
 K_SACP_MAX_TENSOR_COUNT = 4096
 K_SACP_MAX_NAME_LENGTH = 256
 K_SACP_MAX_RANK = 6
@@ -209,14 +210,19 @@ class ReferenceFile:
 
 
 def encode_sacp(records: Sequence[SacpRecord]) -> bytes:
-    """Returns the bytes of a SACP file holding the records in order.
+    """Returns the bytes of a version 2 SACP file holding the records in order.
+
+    The header is the magic, the version, the model-state record count and a run-state record
+    count of 0, so the file is model state alone.
 
     Raises:
         SacpFormatError: A record breaks a bound of the format, or a name repeats.
     """
     if len(records) > K_SACP_MAX_TENSOR_COUNT:
         raise SacpFormatError(f"{len(records)} tensors; a file holds {K_SACP_MAX_TENSOR_COUNT}")
-    chunks = [struct.pack("<III", K_SACP_MAGIC, K_SACP_VERSION, len(records))]
+    chunks = [
+        struct.pack("<IIII", K_SACP_MAGIC, K_SACP_VERSION, len(records), K_SACP_RUN_STATE_COUNT),
+    ]
     seen: set[str] = set()
     for record in records:
         if record.name in seen:

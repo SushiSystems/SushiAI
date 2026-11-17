@@ -355,7 +355,8 @@ def import_model(ctx: typer.Context) -> None:
 
     Usage: sa import <format> <files...> --output <directory> [--force]. The
     format names an importer; darknet takes a .cfg and optionally a .weights,
-    ultralytics takes one .pt.
+    ultralytics takes one .pt, onnx takes one .onnx, caffe takes a .prototxt
+    and optionally a .caffemodel.
     Arguments are forwarded verbatim to the program, --help included once it
     is built.
     """

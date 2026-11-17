@@ -108,6 +108,14 @@ class TestSizesRuleTest(unittest.TestCase):
             [("tests/ShapeTests.cs", 6), ("tests/ShapeTests.cs", 10)],
         )
 
+    def test_csharp_rule_takes_a_nested_stub_for_no_fixture_and_a_benchmark_needs_no_size(self) -> None:
+        text = ("[TestFixture, Category(\"small\")]\npublic sealed class TrafficTests {\n"
+                "  private sealed class Table : IMoverRank {\n    public int Rank(int id) => id;\n  }\n"
+                "  [Test] public void A() {}\n}\n"
+                "[Category(\"benchmark\"), Explicit(\"slow\")]\npublic class WaveRun {\n  [Test] public void B() {}\n}\n"
+                "public class Unsized {\n  [Test] public void C() {}\n}\n")
+        self.assertEqual(found(rule_unsized_csharp_fixture, {"tests/T.cs": text}), [("tests/T.cs", 12)])
+
     def test_a_characterization_suite_names_its_size_after_the_word(self) -> None:
         files = {"tests/test_a.cpp": "TEST(Characterization_Medium_Exit, Pin) {}\nTEST(Characterization_Exit, Pin) {}\n"}
         self.assertEqual(found(rule_unsized_cpp_suite, files), [("tests/test_a.cpp", 2)])
@@ -134,6 +142,8 @@ class TestSizesShellTest(unittest.TestCase):
             "tools/tests/test_a.py": "def test_x():\n    pass\n",
             "app/gui/tests/test_b.py": "def test_y():\n    pass\n",
             "web/src/__tests__/camera.test.ts": "describe('orbit', () => {});\n",
+            "Assets/Game/Tests/Features/ShapeTests.cs": "public class ShapeTests {\n  [Test] public void A() {}\n}\n",
+            "Assets/Game/Runtime/Shape.cs": "public class Shape {\n  [Test] public void A() {}\n}\n",
             "src/test_c.py": "def test_z():\n    pass\n",
         }
         with tempfile.TemporaryDirectory() as folder:
@@ -145,6 +155,8 @@ class TestSizesShellTest(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 code = run(K_CHECKER, [str(root)])
         self.assertEqual((code, output.getvalue().splitlines()), (1, [
+            "Assets/Game/Tests/Features/ShapeTests.cs:1: rule_unsized_csharp_fixture: "
+            "fixture ShapeTests carries no [Category(\"small\")], medium or large",
             "app/gui/tests/test_b.py:1: rule_unsized_python_test: "
             "test_y carries no size, and the file sets none",
             "tools/tests/test_a.py:1: rule_unsized_python_test: "

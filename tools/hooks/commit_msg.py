@@ -6,8 +6,7 @@
 
 Usage: python tools/hooks/commit_msg.py MESSAGE_FILE
 
-Git runs it through the commit-msg hook. It checks the `Backlog:` line when K_TRAILER_SINCE is set and
-the pages that follow the change when K_DOCS_FOLLOW_SINCE is set; a merge commit is left alone.
+Git runs it through the commit-msg hook: the `Backlog:` line, the pages and the test, each when its setting is on.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from commits import check_backlog_trailer  # noqa: E402
+from commits import check_backlog_trailer, tests_trailer  # noqa: E402
 from commits.history import git  # noqa: E402
 from documentation import docs_follow  # noqa: E402
 from documentation.docs_follow import Follow  # noqa: E402
@@ -86,6 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     root = Path.cwd()
     problems = commit_problems(
         message, _read_known(root), check_backlog_trailer.K_ID_PATTERN, _read_follow(root, message))
+    if tests_trailer.K_TESTS_LINE:
+        staged = (git(root, "diff", "--cached", "--name-only") or "").splitlines()
+        problems += tests_trailer.tests_problems(message, staged)
     for line in refusal_lines(problems):
         print(line, file=sys.stderr)
     return K_EXIT_REFUSED if problems else K_EXIT_CLEAN

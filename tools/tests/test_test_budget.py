@@ -27,11 +27,25 @@ from testing.test_budget import (  # noqa: E402
     parse_gtest_xml,
     parse_junit,
     parse_programs,
+    parse_results,
     render,
     suite_and_size,
 )
 
 K_LIMITS = {"small_test_s": 1, "medium_test_s": 10, "large_test_s": 60, "pre_merge_s": 300}
+
+
+def nunit(fixtures: dict[str, tuple[str, dict[str, tuple[float, str]]]]) -> str:
+    """Returns the text of an NUnit 3 results file: fixture name -> (category, {test: (seconds, result)})."""
+    suites = ""
+    for fixture, (category, tests) in fixtures.items():
+        properties = f'<properties><property name="Category" value="{category}" /></properties>' if category else ""
+        cases = "".join(
+            f'<test-case name="{test}" fullname="G.{fixture}.{test}" classname="G.{fixture}" result="{result}" '
+            f'duration="{seconds}" />' for test, (seconds, result) in tests.items())
+        suites += f'<test-suite type="TestFixture" name="{fixture}" fullname="G.{fixture}">{properties}{cases}</test-suite>'
+    return ('<?xml version="1.0" encoding="utf-8"?><test-run id="2" result="Passed"><test-suite type="Assembly" name="G.dll">'
+            f'<properties><property name="platform" value="EditMode" /></properties>{suites}</test-suite></test-run>')
 
 
 def junit(cases: dict[str, float], skipped: tuple[str, ...] = ()) -> str:
@@ -82,6 +96,31 @@ class TestReadingAndNames(unittest.TestCase):
         text = gtest_xml({("Small_A", "One"): 0.002, ("Rows/Medium_B", "Two/3"): 0.5}, skipped=(("Large_C", "Gpu"),))
         self.assertEqual(parse_gtest_xml(text.encode(), "s.xml"),
                          [Timing("Small_A.One", 0.002), Timing("Rows/Medium_B.Two/3", 0.5)])
+
+    def test_reads_an_nunit_test_with_the_size_of_its_fixture_and_leaves_out_a_skipped_one(self) -> None:
+        text = nunit({"ShapeTests": ("small", {"One": (0.25, "Passed"), "Gone": (0.0, "Skipped")}),
+                      "OtherTests": ("", {"Two": (1.5, "Failed")}), "WaveRun": ("benchmark", {"Run": (9.0, "Passed")})})
+        self.assertEqual(parse_results(text.encode(), "edit.xml"),
+                         [Timing("G.ShapeTests.One", 0.25, "small", "G.ShapeTests"),
+                          Timing("G.OtherTests.Two", 1.5, None, "G.OtherTests"),
+                          Timing("G.WaveRun.Run", 9.0, None, "G.WaveRun")])
+
+    def test_a_test_category_beats_the_fixture_category_in_an_nunit_file(self) -> None:
+        text = ('<test-run><test-suite type="TestFixture" name="A"><properties><property name="Category" value="small" />'
+                '</properties><test-case name="T" fullname="A.T" classname="A" result="Passed" duration="2">'
+                '<properties><property name="Category" value="medium" /></properties></test-case></test-suite></test-run>')
+        self.assertEqual(parse_results(text.encode(), "edit.xml"), [Timing("A.T", 2.0, "medium", "A")])
+
+    def test_two_nunit_cases_that_share_a_set_name_are_told_apart_by_their_method(self) -> None:
+        case = ('<test-case name="Suburb" fullname="A.Suburb" methodname="{0}" classname="A" result="Passed" '
+                'duration="1" />')
+        text = ('<test-run><test-suite type="TestFixture" name="A">' + case.format("Fits") + case.format("Keeps")
+                + '</test-suite></test-run>')
+        self.assertEqual([timing.name for timing in parse_results(text.encode(), "edit.xml")],
+                         ["A.Fits.Suburb", "A.Keeps.Suburb"])
+
+    def test_a_junit_file_is_still_read_as_junit_by_the_results_reader(self) -> None:
+        self.assertEqual(parse_results(junit({"Small_A.One": 0.25}).encode(), "a.xml"), [Timing("Small_A.One", 0.25)])
 
     def test_refuses_a_file_with_a_doctype_or_an_entity(self) -> None:
         with self.assertRaises(SystemExit):
@@ -258,6 +297,20 @@ class TestMainCommand(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             code = main([str(self.junit), "--gate", "--list-over", str(listed)], budget=K_LIMITS)
         self.assertEqual((code, out.getvalue(), listed.read_text(encoding="utf-8")), (0, "", "Small_A.Slow\n"))
+
+    def test_reads_an_nunit_results_file_and_names_each_test_over_the_limit_of_its_size(self) -> None:
+        run = Path(self._folder.name) / "edit.xml"
+        run.write_text(nunit({"ShapeTests": ("small", {"Fast": (0.01, "Passed"), "Slow": (5.0, "Passed")}),
+                              "LoadTests": ("medium", {"Load": (5.0, "Passed")}),
+                              "WaveRun": ("benchmark", {"Run": (50.0, "Passed")})}), encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = main([str(run), "--scope", "default", "--gate"], budget=K_LIMITS)
+        self.assertEqual((code, out.getvalue().splitlines()), (1, [
+            "budget: small 5.0 s (no program map), pre-merge 10 s sum of 300 s, shape 67% small, 33% medium, 0% large",
+            "rerun: ^(G\\.ShapeTests\\.Slow)$",
+            "G.ShapeTests.Slow: 5.0 s, over the small limit of 1 s (not rerun)",
+        ]))
 
     def test_joins_the_times_of_every_rerun_file(self) -> None:
         first = Path(self._folder.name) / "first.xml"

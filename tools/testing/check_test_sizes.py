@@ -23,6 +23,7 @@ from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.source_file import SourceFile, line_of, read_files  # noqa: E402
 from checking.tests_tree import discover  # noqa: E402
 from testing.case_reader import class_size, is_test_class  # noqa: E402
+from testing.csharp_fixtures import fixtures_of  # noqa: E402
 
 K_SIZES = ("small", "medium", "large")
 K_BENCHMARK_PREFIX = "Benchmark_"
@@ -35,14 +36,7 @@ K_CPP_SUITE = re.compile(
 K_CPP_PREFIXES = tuple(f"{size.capitalize()}_" for size in K_SIZES)
 K_TS_DESCRIBE = re.compile(r"^describe\s*\(\s*([\"'`])(.*?)\1", re.MULTILINE)
 K_TS_PREFIXES = tuple(f"{size}:" for size in K_SIZES)
-K_CS_CLASS = re.compile(
-    r"^[ \t]*((?:\[[^\]\n]*\][ \t]*\n?[ \t]*)*)"
-    r"((?:(?:public|internal|private|protected|sealed|static|abstract|partial)\s+)*)"
-    r"class\s+(\w+)",
-    re.MULTILINE,
-)
-K_CS_TEST_ATTRIBUTE = re.compile(r"\[\s*(?:Test|UnityTest|TestCase|TestCaseSource|Theory)\b")
-K_CS_CATEGORY = re.compile(r"Category\s*\(\s*\"(\w+)\"\s*\)")
+K_BENCHMARK = "benchmark"
 
 
 def _is_cpp_test(path: Path) -> bool:
@@ -161,24 +155,16 @@ def rule_unsized_typescript_suite(files: Sequence[SourceFile]) -> Iterator[Issue
 
 
 def rule_unsized_csharp_fixture(files: Sequence[SourceFile]) -> Iterator[Issue]:
-    """Yields an issue for each NUnit fixture class with no size category."""
+    """Yields an issue for each NUnit fixture class with no size category; a benchmark carries none."""
     for file in _files_matching(files, _is_csharp_source):
-        text = file.text
-        declarations = list(K_CS_CLASS.finditer(text))
-        for index, match in enumerate(declarations):
-            end = declarations[index + 1].start() if index + 1 < len(declarations) else len(text)
-            name = match.group(3)
-            is_fixture = "TestFixture" in match.group(1) \
-                or K_CS_TEST_ATTRIBUTE.search(text, match.end(), end)
-            is_abstract = "abstract" in match.group(2).split()
-            if not is_fixture or is_abstract or name.startswith(K_BENCHMARK_PREFIX):
+        for fixture in fixtures_of(file.text):
+            if fixture.name.startswith(K_BENCHMARK_PREFIX) or K_BENCHMARK in fixture.categories:
                 continue
-            if not set(K_CS_CATEGORY.findall(match.group(1))) & set(K_SIZES):
-                opening = match.start(1) if match.group(1) else match.start(3)
+            if not fixture.categories & set(K_SIZES):
                 yield Issue(
                     file.path,
-                    line_of(text, opening),
-                    f"fixture {name} carries no [Category(\"small\")], medium or large",
+                    line_of(file.text, fixture.start),
+                    f"fixture {fixture.name} carries no [Category(\"small\")], medium or large",
                 )
 
 

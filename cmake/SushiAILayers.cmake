@@ -54,6 +54,7 @@ set(SUSHIAI_MODULE_TIERS
     darknet_reference    core
     nn                   layers
     io                   layers
+    interchange          layers
     train                layers
     umbrella             layers
     layer_rows           layers
@@ -82,4 +83,5 @@ set(SUSHIAI_MODULE_TIERS
     language/registration language
     language/umbrella    language
     language/decoder_models language
+    language/decision_models language
 )

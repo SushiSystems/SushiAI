@@ -4,7 +4,7 @@
 # Licensed under the Apache License 2.0. See LICENSE.
 """Reads the test cases of a source file and what each one asserts, compares to a literal and sleeps on.
 
-Supports C++ (GoogleTest), Python (pytest and unittest) and TypeScript (describe, it and test).
+Supports C++ (GoogleTest), Python (pytest and unittest), TypeScript (describe, it and test) and C# (NUnit).
 """
 
 from __future__ import annotations
@@ -16,10 +16,14 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from testing.csharp_fixtures import fixtures_of
+from testing.source_blanking import blank, matching_brace
+
 K_SIZES = ("small", "medium", "large")
 K_BENCHMARK = "benchmark"
 K_CPP_SUFFIXES = frozenset({".cpp", ".cc", ".cxx"})
 K_TS_SUFFIXES = (".test.ts", ".test.tsx")
+K_CS_SUFFIX = ".cs"
 K_CPP_CASE = re.compile(
     r"^[ \t]*(?:TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P)[ \t]*\(\s*(\w+)\s*,\s*(\w+)\s*\)\s*\{",
     re.MULTILINE)
@@ -45,8 +49,16 @@ K_TS_SLEEP = re.compile(r"\bsetTimeout\s*\(|\bsleep\s*\(")
 K_TS_LITERAL = re.compile(
     r"\bexpect\(\s*(true|false|\d+)\s*\)\s*\.\s*(?:toBe|toEqual|toStrictEqual)\(\s*\1\s*\)"
     r"|\bexpect\(\s*true\s*\)\s*\.\s*toBeTruthy\(")
-K_RAW_STRING = re.compile(r'R"([^()\\ ]*)\(')
 K_TESTCASE_BASES = frozenset({"TestCase", "unittest.TestCase"})
+K_CS_ASSERT = re.compile(r"\b(?:Assert|Assume|CollectionAssert|StringAssert|FileAssert|DirectoryAssert)\.\w+\s*\(|\bAssert[A-Z]\w*\s*\(")
+K_CS_WEAK = re.compile(r"\bAssert\.(?:DoesNotThrow|DoesNotThrowAsync|Pass)\s*\(")
+K_CS_SLEEP = re.compile(r"\b(?:Thread\.Sleep|Task\.Delay)\s*\(|\bnew\s+WaitForSeconds\w*\s*\(")
+K_CS_LITERAL = re.compile(
+    r"\bAssert\.(?:IsTrue|True)\s*\(\s*true\s*\)|\bAssert\.(?:IsFalse|False)\s*\(\s*false\s*\)"
+    r"|\bAssert\.AreEqual\s*\(\s*(-?\d[\w.]*|true|false|\"[^\"]*\")\s*,\s*\1\s*\)")
+K_CS_TOLERANCE = re.compile(
+    rf"\.Within\s*\(\s*{K_NUMBER_LITERAL}\s*\)"
+    rf"|\bAssert\.AreEqual\s*\((?:[^;(),]|\([^;()]*\))+,(?:[^;(),]|\([^;()]*\))+,\s*{K_NUMBER_LITERAL}\s*\)")
 K_PYTHON_ASSERTING = frozenset({"raises", "warns", "approx", "fail"})
 K_PYTHON_TOLERANCE_KEYWORDS = frozenset({"abs", "rel", "delta", "atol", "rtol"})
 
@@ -72,7 +84,7 @@ def is_test_file(path: Path) -> bool:
     """Returns whether a file under a test folder declares test cases, by its name."""
     if path.suffix in K_CPP_SUFFIXES or path.suffix == ".py":
         return path.name.startswith("test_")
-    return path.name.endswith(K_TS_SUFFIXES)
+    return path.suffix == K_CS_SUFFIX or path.name.endswith(K_TS_SUFFIXES)
 
 
 def cases_of(path: Path, text: str) -> list[Case]:
@@ -83,6 +95,8 @@ def cases_of(path: Path, text: str) -> list[Case]:
         return list(_python_cases(path, text))
     if path.name.endswith(K_TS_SUFFIXES):
         return list(_typescript_cases(path, text))
+    if path.suffix == K_CS_SUFFIX:
+        return list(_csharp_cases(path, text))
     return []
 
 
@@ -94,72 +108,6 @@ def _digest(body: str) -> str:
 def _line(text: str, offset: int) -> int:
     """Returns the line number of a character offset."""
     return text.count("\n", 0, offset) + 1
-
-
-def _ends_word(text: str, index: int) -> bool:
-    """Returns whether the character before *index* belongs to a name, so a `R` there is not a prefix."""
-    return index > 0 and (text[index - 1].isalnum() or text[index - 1] == "_")
-
-
-def _blank(text: str, *, backtick: bool, raw: bool) -> str:
-    """Returns the text with comments and the insides of string literals turned into spaces.
-
-    Offsets and newlines stay, so a position in the result is a position in the text.
-    """
-    out = list(text)
-    length = len(text)
-
-    def erase(start: int, end: int) -> None:
-        for index in range(start, min(end, length)):
-            if out[index] != "\n":
-                out[index] = " "
-
-    index = 0
-    while index < length:
-        char = text[index]
-        following = text[index + 1] if index + 1 < length else ""
-        if char == "/" and following == "/":
-            end = text.find("\n", index)
-            end = length if end == -1 else end
-            erase(index, end)
-            index = end
-        elif char == "/" and following == "*":
-            end = text.find("*/", index + 2)
-            end = length if end == -1 else end + 2
-            erase(index, end)
-            index = end
-        elif raw and char == "R" and following == '"' and not _ends_word(text, index):
-            opening = K_RAW_STRING.match(text, index)
-            if opening is None:
-                index += 1
-                continue
-            closing = ")" + opening.group(1) + '"'
-            end = text.find(closing, opening.end())
-            end = length if end == -1 else end
-            erase(opening.end(), end)
-            index = end + len(closing)
-        elif char in "\"'" or (backtick and char == "`"):
-            end = index + 1
-            while end < length and text[end] != char:
-                end += 2 if text[end] == "\\" else 1
-            erase(index + 1, end)
-            index = end + 1
-        else:
-            index += 1
-    return "".join(out)
-
-
-def _matching_brace(code: str, opening: int) -> int | None:
-    """Returns the offset of the brace that closes the one at *opening*, in text with strings blanked."""
-    depth = 0
-    for index in range(opening, len(code)):
-        if code[index] == "{":
-            depth += 1
-        elif code[index] == "}":
-            depth -= 1
-            if depth == 0:
-                return index
-    return None
 
 
 def _lines_of(pattern: re.Pattern[str], text: str, code: str, start: int, end: int) -> tuple[int, ...]:
@@ -181,10 +129,10 @@ def _cpp_size(suite: str) -> str | None:
 
 def _cpp_cases(path: Path, text: str) -> Iterator[Case]:
     """Yields the GoogleTest cases of a C++ file."""
-    code = _blank(text, backtick=False, raw=True)
+    code = blank(text, backtick=False, raw=True)
     for match in K_CPP_CASE.finditer(code):
         opening = match.end() - 1
-        closing = _matching_brace(code, opening)
+        closing = matching_brace(code, opening)
         if closing is None:
             continue
         body = code[opening + 1:closing]
@@ -314,11 +262,11 @@ def _typescript_size(name: str) -> str | None:
 
 def _typescript_cases(path: Path, text: str) -> Iterator[Case]:
     """Yields the `it` and `test` cases of a TypeScript file, each sized by the describe above it."""
-    code = _blank(text, backtick=True, raw=False)
+    code = blank(text, backtick=True, raw=False)
     describes = [(match.start(), _typescript_size(match.group(2))) for match in K_TS_DESCRIBE.finditer(text)]
     for match in K_TS_CASE.finditer(code):
         opening = match.end() - 1
-        closing = _matching_brace(code, opening)
+        closing = matching_brace(code, opening)
         if closing is None:
             continue
         size = next((found for start, found in reversed(describes) if start < match.start()), None)
@@ -334,3 +282,30 @@ def _typescript_cases(path: Path, text: str) -> Iterator[Case]:
             sleep_lines=_lines_of(K_TS_SLEEP, text, code, opening + 1, closing),
             digest=_digest(text[opening + 1:closing]),
         )
+
+
+def _csharp_size(categories: frozenset[str]) -> str | None:
+    """Returns `benchmark`, or the one size a set of NUnit categories holds, or None."""
+    return K_BENCHMARK if K_BENCHMARK in categories else _size_among(set(categories))
+
+
+def _csharp_cases(path: Path, text: str) -> Iterator[Case]:
+    """Yields the NUnit test methods of a C# file, each sized by its own category or its fixture's."""
+    code = blank(text, backtick=False, raw=False)
+    for fixture in fixtures_of(text):
+        for method in fixture.methods:
+            body = code[method.opening + 1:method.closing]
+            asserts = K_CS_ASSERT.findall(body)
+            yield Case(
+                path=path,
+                name=f"{fixture.name}.{method.name}",
+                first=_line(code, method.start),
+                last=_line(code, method.closing),
+                size=_csharp_size(method.categories) or _csharp_size(fixture.categories),
+                assertions=len(asserts),
+                literal_lines=_lines_of(K_CS_LITERAL, text, code, method.opening + 1, method.closing),
+                sleep_lines=_lines_of(K_CS_SLEEP, text, code, method.opening + 1, method.closing),
+                digest=_digest(text[method.opening + 1:method.closing]),
+                weak_only=0 < len(asserts) == len(K_CS_WEAK.findall(body)),
+                tolerance_lines=_lines_of(K_CS_TOLERANCE, text, code, method.opening + 1, method.closing),
+            )

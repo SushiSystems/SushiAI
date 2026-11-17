@@ -165,7 +165,7 @@ class HookTest(unittest.TestCase):
         self.repo.write("docs/GUIDE.md", K_PAGE + "More.\n")
         self.repo.write("docs/backlog/GENERAL.md", "| ID | Pri |\n| --- | --- |\n| AB-1 | P1 |\n| AB-30 | P1 |\n")
         self.repo.git("add", "-A")
-        self.assertEqual(self._run("fix: change a\n\nBacklog: AB-30\n# Please enter the message\n"), (0, ""))
+        self.assertEqual(self._run("fix: change a\n\nTests: none (the hook test)\nBacklog: AB-30\n# Please enter the message\n"), (0, ""))
 
     def test_the_hook_refuses_a_message_without_the_line(self) -> None:
         self.assertEqual(self._run("fix: change a\n")[0], 1)

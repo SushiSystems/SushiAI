@@ -17,6 +17,7 @@ from testing.case_reader import cases_of  # noqa: E402
 K_CPP = Path("tests/core/test_shape.cpp")
 K_PY = Path("tests/test_shape.py")
 K_TS = Path("tests/web/camera.test.ts")
+K_CS = Path("Assets/Game/Tests/ShapeTests.cs")
 
 
 K_TEST_SIZE = "small"
@@ -123,6 +124,44 @@ class TypeScriptCasesTest(unittest.TestCase):
         case = one(K_TS, "describe('medium: a', () => {\n  test('x', async () => {\n    const s = `}${y}`;\n"
                          "    expect(s).toBe('}');\n  });\n});\n")
         self.assertEqual(case.assertions, 1)
+
+
+class CSharpCasesTest(unittest.TestCase):
+    """Reads NUnit fixtures."""
+
+    K_FIXTURE = ("[TestFixture, Category(\"small\")]\npublic class ShapeTests {\n"
+                 "  [Test] public void Ranks() {\n    Assert.AreEqual(a, b);\n    Assert.That(c, Is.True);\n  }\n}\n")
+
+    def test_reads_name_size_span_and_assertions(self) -> None:
+        case = one(K_CS, self.K_FIXTURE)
+        self.assertEqual((case.name, case.size, case.first, case.last, case.assertions),
+                         ("ShapeTests.Ranks", "small", 3, 6, 2))
+
+    def test_a_method_category_beats_the_fixture_and_a_benchmark_has_no_size(self) -> None:
+        text = ("[Category(\"small\")]\npublic class A {\n  [Test, Category(\"medium\")] public void M() {}\n}\n"
+                "[Category(\"benchmark\")]\npublic class B {\n  [Test] public void N() {}\n}\n")
+        self.assertEqual([(case.name, case.size) for case in cases_of(K_CS, text)],
+                         [("A.M", "medium"), ("B.N", "benchmark")])
+
+    def test_reads_a_sleep_a_literal_assertion_and_a_tolerance_on_their_lines(self) -> None:
+        text = ("[Category(\"small\")]\npublic class A {\n  [Test] public void M() {\n    Thread.Sleep(5);\n"
+                "    Assert.IsTrue(true);\n    Assert.AreEqual(1.0f, x, 0.01f);\n  }\n}\n")
+        case = one(K_CS, text)
+        self.assertEqual((case.sleep_lines, case.literal_lines, case.tolerance_lines), ((4,), (5,), (6,)))
+
+    def test_a_call_to_a_helper_named_assert_something_counts_as_an_assertion(self) -> None:
+        text = "public class A {\n  [Test] public void M() {\n    AssertBeside(plan);\n  }\n}\n"
+        self.assertEqual(one(K_CS, text).assertions, 1)
+
+    def test_reads_a_unity_test_and_a_test_case(self) -> None:
+        text = ("[Category(\"medium\")]\npublic class A {\n  [UnityTest] public IEnumerator M() {\n    yield return null;\n  }\n"
+                "  [TestCase(1)] public void N(int x) {\n    Assert.That(x, Is.EqualTo(1));\n  }\n}\n")
+        self.assertEqual([(case.name, case.size) for case in cases_of(K_CS, text)],
+                         [("A.M", "medium"), ("A.N", "medium")])
+
+    def test_a_nested_stub_class_adds_no_case(self) -> None:
+        text = self.K_FIXTURE.replace("  [Test]", "  private class Stub {\n    [Test] public void X() {}\n  }\n  [Test]")
+        self.assertEqual([case.name for case in cases_of(K_CS, text)], ["ShapeTests.Ranks"])
 
 
 class OtherFilesTest(unittest.TestCase):

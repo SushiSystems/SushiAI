@@ -2,7 +2,10 @@
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under the Apache License 2.0. See LICENSE.
-"""Finds the test files a repository holds, for the checkers that read them."""
+"""Finds the test files a repository holds, for the checkers that read them.
+
+A test folder is any folder named `tests` or `__tests__`, and `Assets/<Project>/Tests` of a Unity project.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +17,8 @@ from pathlib import Path
 from checking.ignored_paths import drop_ignored, ignored_folders
 
 K_TEST_FOLDERS = frozenset({"tests", "__tests__"})
+K_UNITY_TEST_FOLDER = "Tests"
+K_UNITY_ASSETS_FOLDER = "Assets"
 K_SKIPPED_FOLDERS = frozenset({".git", "node_modules"})
 
 
@@ -29,6 +34,12 @@ class TestTree:
         return (path for path in self.files if is_kind(path))
 
 
+def _is_test_folder(parent: Path, name: str) -> bool:
+    """Returns whether a folder is a test folder: named like one, or `Tests` of a Unity project, `Assets/<Project>/Tests`."""
+    return name in K_TEST_FOLDERS or (
+        name == K_UNITY_TEST_FOLDER and parent.parent.name == K_UNITY_ASSETS_FOLDER)
+
+
 def _test_folders(root: Path) -> Iterator[Path]:
     """Yields every test folder below a repository, skipping ignored and nested ones."""
     ignored = ignored_folders(root)
@@ -37,7 +48,7 @@ def _test_folders(root: Path) -> Iterator[Path]:
             name for name in names
             if name not in K_SKIPPED_FOLDERS and (Path(current) / name).resolve() not in ignored
         )
-        found = [name for name in names if name in K_TEST_FOLDERS]
+        found = [name for name in names if _is_test_folder(Path(current), name)]
         for name in found:
             yield Path(current) / name
         names[:] = [name for name in names if name not in found]

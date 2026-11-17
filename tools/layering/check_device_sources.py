@@ -29,6 +29,7 @@ from settings import K_MODULE_FUNCTION  # noqa: E402
 
 # Include paths (fnmatch patterns) of the headers that launch a kernel; a unit reaching one needs -fsycl.
 K_KERNEL_HEADERS = (
+    "SushiBLAS/broadcast/dispatch.hpp",
     "SushiBLAS/elementwise/dispatch.hpp",
     "SushiBLAS/functor_map/*",
     "SushiBLAS/launch/launch_1d.hpp",

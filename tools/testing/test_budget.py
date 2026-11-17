@@ -2,9 +2,9 @@
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under the Apache License 2.0. See LICENSE.
-"""Applies the time limits of `testing` to the times of one test run and prints a line and the findings.
+"""Applies the time limits of `testing` to a run (JUnit, NUnit 3 or GoogleTest XML) and prints a line and the findings.
 
-Usage: python tools/testing/test_budget.py JUNIT [--cases FOLDER] [--programs MAP] [--exemptions TOML]
+Usage: python tools/testing/test_budget.py RESULTS [--cases FOLDER] [--programs MAP] [--exemptions TOML]
            [--rerun JUNIT_OR_FOLDER ...] [--scope default|large|partial] [--wall SECONDS] [--root ROOT --base REVISION]
            [--not-rebuilt] [--gate] [--factor N] [--list-over FILE]
 """
@@ -27,6 +27,8 @@ import settings  # noqa: E402
 from commits.check_backlog_trailer import K_ID_PATTERN, open_ids  # noqa: E402
 from commits.history import commits_since  # noqa: E402
 from testing.added_tests import added_cases  # noqa: E402
+from testing.nunit_results import K_ROOT_TAG, parse_nunit  # noqa: E402
+from testing.timing import Timing  # noqa: E402
 
 K_BUDGET: dict[str, float] = getattr(settings, "K_TEST_TIMES", {})
 K_NOISE_FACTOR: float = getattr(settings, "K_TEST_NOISE_FACTOR", 1.25)
@@ -35,15 +37,6 @@ K_TEST_LIMITS = {"small": "small_test_s", "medium": "medium_test_s", "large": "l
 K_EXIT_CLEAN = 0
 K_EXIT_FINDINGS = 1
 K_EXIT_USAGE = 2
-
-
-@dataclass(frozen=True, slots=True)
-class Timing:
-    """Holds the time one test took in one run, and its size when the JUnit file gives one as a property."""
-
-    name: str
-    seconds: float
-    size: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,13 +65,21 @@ def _was_skipped(case: ElementTree.Element) -> bool:
             or case.get("result") in ("skipped", "suppressed"))
 
 
+def _junit_timings(root: ElementTree.Element) -> list[Timing]:
+    """Returns the time of each test that ran under a JUnit root; skipped and not-run tests are left out."""
+    return [Timing(case.get("name", ""), float(case.get("time", "0") or 0), _property_size(case))
+            for case in root.iter("testcase") if not _was_skipped(case)]
+
+
 def parse_junit(data: bytes, name: str) -> list[Timing]:
     """Returns the time of each test that ran in a JUnit file; skipped and not-run tests are left out."""
-    timings: list[Timing] = []
-    for case in _parse_root(data, name).iter("testcase"):
-        if not _was_skipped(case):
-            timings.append(Timing(case.get("name", ""), float(case.get("time", "0") or 0), _property_size(case)))
-    return timings
+    return _junit_timings(_parse_root(data, name))
+
+
+def parse_results(data: bytes, name: str) -> list[Timing]:
+    """Returns the times in a results file, read by the reader of its format: NUnit 3 `test-run` or JUnit."""
+    root = _parse_root(data, name)
+    return parse_nunit(root) if root.tag == K_ROOT_TAG else _junit_timings(root)
 
 
 def parse_gtest_xml(data: bytes, name: str) -> list[Timing]:
@@ -95,9 +96,9 @@ def parse_gtest_xml(data: bytes, name: str) -> list[Timing]:
     return timings
 
 
-def read_junit(path: Path) -> list[Timing]:
-    """Returns the times of the tests in a JUnit file on disk."""
-    return parse_junit(path.read_bytes(), str(path))
+def read_results(path: Path) -> list[Timing]:
+    """Returns the times of the tests in a JUnit or NUnit results file on disk."""
+    return parse_results(path.read_bytes(), str(path))
 
 
 def read_gtest_folder(folder: Path) -> list[Timing]:
@@ -109,8 +110,8 @@ def read_gtest_folder(folder: Path) -> list[Timing]:
 
 
 def read_times(path: Path) -> list[Timing]:
-    """Returns the times in a JUnit file, or in the GoogleTest files of a folder."""
-    return read_gtest_folder(path) if path.is_dir() else read_junit(path)
+    """Returns the times in a results file, or in the GoogleTest files of a folder."""
+    return read_gtest_folder(path) if path.is_dir() else read_results(path)
 
 
 def _property_size(case: ElementTree.Element) -> str | None:
@@ -128,6 +129,14 @@ def suite_and_size(name: str) -> tuple[str | None, str | None]:
             if part.removeprefix("Characterization_").startswith(f"{size.capitalize()}_"):
                 return part, size
     return None, None
+
+
+def _suite_and_size_of(timing: Timing) -> tuple[str | None, str | None]:
+    """Returns the suite and size a timing is judged by: its name's pattern, else the size its file gave."""
+    suite, size = suite_and_size(timing.name)
+    if size is None and timing.suite is not None:
+        return timing.suite, timing.size
+    return suite, size
 
 
 def parse_exemptions(text: str) -> dict[str, str]:
@@ -173,7 +182,7 @@ def evaluate(timings: list[Timing], *, programs: dict[str, str], exemptions: dic
     counts: dict[str, int] = defaultdict(int)
     exempt_seconds = 0.0
     for timing in timings:
-        suite, size = suite_and_size(timing.name)
+        suite, size = _suite_and_size_of(timing)
         if (size or timing.size) in K_SIZES:
             counts[size or timing.size] += 1
         if size is None or suite is None:
@@ -274,7 +283,7 @@ def exit_code(report: Report, *, gate: bool, rebuilt: bool) -> int:
 def _arguments(argv: list[str]) -> argparse.Namespace:
     """Returns the parsed command line."""
     parser = argparse.ArgumentParser(description="Apply the time limits of testing to one test run.")
-    parser.add_argument("junit", type=Path)
+    parser.add_argument("junit", type=Path, help="JUnit or NUnit 3 results file")
     parser.add_argument("--cases", type=Path,
                         help="folder of the GoogleTest XML files the shards wrote; their per-case times join JUNIT")
     parser.add_argument("--programs", type=Path, help="JSON object from suite name to test program")
@@ -321,7 +330,7 @@ def main(argv: list[str] | None = None, *, budget: dict[str, float] | None = Non
         open_backlog = open_ids(arguments.root, None)
         if arguments.base:
             added = sum(len(added_cases(commit)) for commit in commits_since(arguments.root, arguments.base))
-    timings = read_junit(arguments.junit)
+    timings = read_results(arguments.junit)
     if arguments.cases:
         timings += read_gtest_folder(arguments.cases)
     report = evaluate(
