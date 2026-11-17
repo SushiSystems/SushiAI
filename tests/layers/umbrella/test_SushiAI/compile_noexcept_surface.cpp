@@ -91,10 +91,12 @@
 #include <SushiAI/graph/lowering/context.hpp>
 #include <SushiAI/graph/lowering/elementwise.hpp>
 #include <SushiAI/graph/lowering/fused.hpp>
-#include <SushiAI/graph/lowering/linalg.hpp>
 #include <SushiAI/graph/lowering/loss.hpp>
+#include <SushiAI/graph/lowering/mask.hpp>
+#include <SushiAI/graph/lowering/matmul.hpp>
 #include <SushiAI/graph/lowering/norm.hpp>
 #include <SushiAI/graph/lowering/random.hpp>
+#include <SushiAI/graph/lowering/row_index.hpp>
 #include <SushiAI/graph/lowering/shape.hpp>
 #include <SushiAI/graph/lowering/spatial.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
@@ -176,6 +178,7 @@
 #include <SushiAI/train/dense_losses.hpp>
 #include <SushiAI/train/dense_targets.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
+#include <SushiAI/train/extra_input_copy.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/train/host_values.hpp>
 #include <SushiAI/train/input_match.hpp>
@@ -184,10 +187,12 @@
 #include <SushiAI/train/multi_label_objective.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
+#include <SushiAI/train/objective_output.hpp>
 #include <SushiAI/train/objective_registry.hpp>
 #include <SushiAI/train/one_hot.hpp>
 #include <SushiAI/train/parameter_groups.hpp>
 #include <SushiAI/train/role_match.hpp>
+#include <SushiAI/train/row_mask.hpp>
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/sum_objective.hpp>
@@ -1511,19 +1516,6 @@ namespace SushiAI::Graph
     static_assert(
         noexcept(dropout_site_seed(std::declval<std::uint64_t>(), std::declval<std::uint64_t>())),
         "dropout_site_seed is noexcept");
-    static_assert(
-        noexcept(dropout_bits(std::declval<std::uint64_t>(), std::declval<std::uint64_t>(),
-                std::declval<std::uint64_t>())),
-        "dropout_bits is noexcept");
-    static_assert(
-        noexcept(dropout_keeps(std::declval<std::uint64_t>(), std::declval<std::uint64_t>(),
-                std::declval<std::uint64_t>(), std::declval<double>())),
-        "dropout_keeps is noexcept");
-    static_assert(
-        noexcept(fill_keep_mask(std::declval<float*>(), std::declval<std::size_t>(),
-                std::declval<std::uint64_t>(), std::declval<std::uint64_t>(),
-                std::declval<double>())),
-        "fill_keep_mask is noexcept");
 } // namespace SushiAI::Graph
 
 namespace SushiAI::Graph
@@ -3868,6 +3860,15 @@ namespace SushiAI::Train
     static_assert(noexcept(std::declval<TrainingStep&>().optimizer()), "optimizer is noexcept");
     static_assert(noexcept(std::declval<TrainingStep&>().step()), "step is noexcept");
     static_assert(noexcept(std::declval<const TrainingStep&>().step()), "step is noexcept");
+} // namespace SushiAI::Train
+
+namespace SushiAI::Train
+{
+    static_assert(
+        noexcept(copy_extra_inputs(std::declval<SushiRuntime::span<const NN::InputLeaf>>(),
+                std::declval<const Data::Batch&>(), std::declval<Graph::TensorPool&>(),
+                std::declval<SushiBLAS::BLASOps&>(), std::declval<std::vector<NamedFeed>&>())),
+        "copy_extra_inputs is noexcept");
 } // namespace SushiAI::Train
 
 #if defined(SA_TEST_DISTRIBUTED_BUILD)
