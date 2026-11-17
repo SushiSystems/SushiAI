@@ -2,8 +2,9 @@
 
 ## Owns
 
-The four functions that fill the registries with vision rows. `register_nodes` adds the ten block
-node types, conv, bottleneck, c3k, c3k2, c2f, c3, sppf, c2psa, detect and segment_head, to an
+The four functions that fill the registries with vision rows. `register_nodes` adds the twelve block
+node types, conv, bottleneck, c3k, c3k2, c2f, c3, sppf, c2psa, detect, segment_head, focus and
+decoupled_head, to an
 `NN::NodeRegistry`, in that order. `register_datasets`
 adds the mnist row and the reader row to a `Data::DatasetRegistry`; the reader row's factory is
 `Datasets::make_reader_dataset`, and its type is `Config::K_READER_DATA_TYPE`, which a data block
@@ -14,8 +15,10 @@ with `reader` and no `type` is given. `register_objectives` adds four rows to a
 `Training::make_pixel_cross_entropy_objective`; and `dice`, whose factory is
 `Training::make_dice_objective`.
 `register_importers` adds the `darknet` row, whose function is
-`Importers::import_darknet_files`, and the `ultralytics` row, whose function is
-`Importers::import_ultralytics_files`, to an `IO::ImporterRegistry`. Each returns a `Status`:
+`Importers::import_darknet_files`, the `ultralytics` row, whose function is
+`Importers::import_ultralytics_files`, the `onnx` row, whose function is
+`Importers::import_onnx_files`, and the `caffe` row, whose function is
+`Importers::import_caffe_files`, to an `IO::ImporterRegistry`. Each returns a `Status`:
 success, or the first failure of the registry's `add()`. The header forward-declares the four
 registries; their declarations live in `node_registry.hpp`, `dataset_registry.hpp`,
 `objective_registry.hpp` and `importer_registry.hpp`.

@@ -10,7 +10,10 @@ sushiai_add_test_program(OWNER vision/registration
         test_registration/test_registration.cpp
         test_registration/test_ultralytics_files.cpp
         test_registration/test_yolov5n.cpp
+        test_registration/test_yolox_x.cpp
+        test_registration/test_yolox_x_import.cpp
     DEPENDS
+        engine_fixture
         failure_expectations
         layer_rows
         layer_traces

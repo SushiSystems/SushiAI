@@ -435,13 +435,13 @@ namespace
 
 /**
  * @brief Tests that register_nodes adds conv, bottleneck, c3k, c3k2, c2f, c3, sppf, c2psa,
- *        detect and segment_head, in that order.
+ *        detect, segment_head, focus and decoupled_head, in that order.
  */
-TEST(Small_VisionRegistration, RegisterNodesAddsTheTenBlocks)
+TEST(Small_VisionRegistration, RegisterNodesAddsTheTwelveBlocks)
 {
     const std::vector<std::string_view> expected = {
         "conv", "bottleneck", "c3k", "c3k2", "c2f", "c3", "sppf", "c2psa", "detect",
-        "segment_head",
+        "segment_head", "focus", "decoupled_head",
     };
 
     NN::NodeRegistry registry;
@@ -890,15 +890,20 @@ TEST_P(Small_VisionRegistrationPixelRow, BuildsOverOneLogitMapAndIsNamedByItsTyp
 INSTANTIATE_TEST_SUITE_P(PixelRows, Small_VisionRegistrationPixelRow,
                          ::testing::Values("pixel_cross_entropy", "dice"), type_name);
 
-/** @brief Tests that the vision domain adds two importer rows, "darknet" and "ultralytics". */
-TEST(Small_VisionRegistration, RegisterImportersAddsTheDarknetAndUltralyticsRows)
+/** @brief Tests that the vision domain adds four importer rows: darknet, ultralytics, onnx, caffe. */
+TEST(Small_VisionRegistration, RegisterImportersAddsTheFourImporterRows)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(Vision::register_importers(registry));
 
-    ASSERT_EQ(registry.rows().size(), 2u);
-    EXPECT_EQ(registry.rows()[0].format, "darknet");
-    EXPECT_EQ(registry.rows()[1].format, "ultralytics");
+    ASSERT_EQ(registry.rows().size(), 4u);
+    for (const char* const format : {"darknet", "ultralytics", "onnx", "caffe"})
+    {
+        const auto row = std::find_if(registry.rows().begin(), registry.rows().end(),
+                                      [format](const auto& entry)
+                                      { return entry.format == format; });
+        EXPECT_TRUE(row != registry.rows().end()) << format;
+    }
 }
 
 /** @brief Tests that a second register_importers refuses "darknet" as already registered. */

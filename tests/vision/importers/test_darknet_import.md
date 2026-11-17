@@ -41,9 +41,14 @@ tensors.
 
 The imported `training` value has the keys `objective`, `optimizer`, `schedule`.
 
+## CarriesTheAugmentationAsTheDataBlock
+
+The imported `data` value has the keys `pipeline`, `jitter`, `hue`, `saturation` and `exposure`,
+and its `pipeline` is "darknet".
+
 ## CarriesTheNotes
 
-The import carries five notes.
+The import carries four notes: `batch`, `subdivisions`, `max_batches` and `random`.
 
 ## Small_DarknetImportFileCount
 

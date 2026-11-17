@@ -175,10 +175,10 @@ A `[reorg]` section fails with `Unsupported`, "line 11", "layer 1" and "[reorg]"
 head (`AKeyOfAHead`: "line 16", "[yolo]", "'label_smooth_eps'") and `crop` in the first section
 (`AKeyOfTheFirstSection`: "line 5", "'crop'").
 
-## LetterBoxOneSelectsTheLetterboxFit
+## LetterBoxOneSelectsTheDarknetLetterboxFit
 
 The small network with `letter_box=1` in its `[net]` section translates to an input fit of
-"letterbox".
+"darknet_letterbox".
 
 ## LetterBoxTwoIsRefusedNamingItsLine
 

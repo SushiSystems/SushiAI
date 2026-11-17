@@ -14,9 +14,9 @@
   "files": [
     {
       "name": "weights.sushi",
-      "location": "output_directory",
-      "sha256": "2402570a086a9df1d25a547a8353db385f47ac642d68a4af9ce3a8a7ab972e50",
-      "size_bytes": 10399669,
+      "location": "fixture_folder",
+      "sha256": "14a679e95bb6e2bb0cc19290e3e068b6b564017581cc0db45095d8f207595188",
+      "size_bytes": 10399673,
       "context": {
         "parameter_count": 2572280,
         "state_entries_written": 594,
@@ -9821,9 +9821,9 @@
     },
     {
       "name": "input.sacp",
-      "location": "output_directory",
-      "sha256": "80f78dc6cc38289ea83d1af424fd5bccd0fe6346d23ec18c1bbe599f71371e00",
-      "size_bytes": 4915261,
+      "location": "fixture_folder",
+      "sha256": "9db46a9f521524388f253ed1b5aea6d117592026cd811ec16f40c4af4d667ee1",
+      "size_bytes": 4915265,
       "context": {
         "value_range": "uniform draws in [0, 1), not a photograph",
         "fed_to_torch_as": "image.permute(0, 3, 1, 2), shape [1, 3, 640, 640]"
@@ -9854,9 +9854,9 @@
     },
     {
       "name": "forward.sacp",
-      "location": "output_directory",
-      "sha256": "48ff3b128bfea5a83fb659a06e0d9f82d97da4ccda6c804a27aba5ae0bd66ba7",
-      "size_bytes": 15606286,
+      "location": "fixture_folder",
+      "sha256": "5660582101811f7d138071beaeecb2d230bd55113ca8dbafcdcb95d178865d5e",
+      "size_bytes": 15606290,
       "context": {
         "mode": "eval",
         "batch_norm_statistics": "running_mean and running_var as written in weights.sushi",
@@ -10442,9 +10442,9 @@
     },
     {
       "name": "loss.sacp",
-      "location": "output_directory",
-      "sha256": "b820ea3803a341c85541570b17379422573fe2868c93c2a0ab60c7742e779e8c",
-      "size_bytes": 11696633,
+      "location": "fixture_folder",
+      "sha256": "68d23f182a10f922f4635d7df3e0ef9aa6071aaecac67f7e77e202da1d9d1825",
+      "size_bytes": 11696637,
       "context": {
         "mode": "train",
         "batch_norm_statistics": "batch statistics of the one training image",
@@ -10955,9 +10955,9 @@
     },
     {
       "name": "batchnorm.sacp",
-      "location": "output_directory",
-      "sha256": "c167d5a18ca946378c5d3f81fa8ce0424ba98d9cad4b6138a8c1bd2a56581e53",
-      "size_bytes": 415334,
+      "location": "fixture_folder",
+      "sha256": "6e6ba35842d835f84b9d0dffef87c3f1210d53968dbc7b41294d6f6bf39d57a4",
+      "size_bytes": 415338,
       "context": {
         "mode": "train",
         "settings_source": "ultralytics/utils/torch_utils.py:674 (initialize_weights)",

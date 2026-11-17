@@ -70,11 +70,30 @@ namespace SushiAI
             std::int64_t max_batches = 0;
         };
 
+        /** @brief Holds the keys of a .cfg that augment a sample, each a float32 as Darknet reads it. */
+        struct DarknetAugmentation
+        {
+            /** @brief Holds jitter of the last [yolo] section; 0.2 when absent, as in Darknet. */
+            float jitter = 0.2f;
+
+            /** @brief Holds hue of the [net] section; 0 when absent. */
+            float hue = 0.0f;
+
+            /** @brief Holds saturation of the [net] section; 1 when absent. */
+            float saturation = 1.0f;
+
+            /** @brief Holds exposure of the [net] section; 1 when absent. */
+            float exposure = 1.0f;
+        };
+
         /** @brief Holds the solver settings and the training options of every [yolo] section. */
         struct DarknetTraining
         {
             /** @brief Holds the settings read from the [net] section. */
             DarknetSolver solver;
+
+            /** @brief Holds the augmentation keys of the [net] section and of the last head. */
+            DarknetAugmentation augmentation;
 
             /// @brief Holds one entry per [yolo] section, in file order; each has the box
             ///        gradient BoxGradient::DarknetCompatible.
@@ -84,10 +103,10 @@ namespace SushiAI
         /**
          * @brief Reads the solver settings and the training options of the heads of a .cfg.
          * @return The settings, an absent key keeping its default. InvalidDescription names the
-         *         line of a malformed value, a batch or subdivisions below 1, steps and scales
-         *         of different lengths, or a head validate_head_training refuses. Unsupported
-         *         names the line of a policy other than steps, a truth_thresh other than 1, a
-         *         label_smooth_eps other than 0, or an iou_loss other than mse and ciou.
+         *         line of a malformed or out-of-range value or a head validate_head_training
+         *         refuses; Unsupported names the line of a policy other than steps, a
+         *         truth_thresh other than 1, a label_smooth_eps other than 0 or an iou_loss
+         *         other than mse and ciou.
          */
         [[nodiscard]] Result<DarknetTraining> read_darknet_training(const DarknetConfig& config) noexcept;
 

@@ -57,7 +57,6 @@
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/vision/codecs/decode_image.hpp>
-#include <SushiAI/vision/datasets/batch_inputs.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
 #include <SushiAI/vision/detect/free/free_task.hpp>
@@ -69,7 +68,7 @@
 #include <SushiAI/vision/darknet_import_cases/darknet_import.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <support/tolerance.hpp>
+#include <support/reference_detections.hpp>
 
 using namespace SushiAI;
 
@@ -78,25 +77,10 @@ namespace
     /** @brief Names the variable that holds the folder of the checkpoints and the references. */
     constexpr const char* K_DATA_VARIABLE = "SA_ULTRALYTICS_DATA_DIR";
 
-    /** @brief Holds the entries of one reference detection: class, score, x1, y1, x2, y2. */
-    constexpr std::size_t K_REFERENCE_VALUES = 6;
-
-    /** @brief Holds the entries of a decoded box: centre x, centre y, width, height. */
-    constexpr std::size_t K_BOX_ENTRIES = 4;
-
-    /**
-     * @brief Holds the bound of a score and of a box corner as a fraction of the input side:
-     *        2048 u, the row bound of the Darknet parity cases.
-     */
-    const double K_ROW_BOUND = 2048.0 * TestSupport::unit_roundoff<float>();
-
-    /** @brief Holds one detection as both sides are compared, corners in pixels. */
-    struct Detection
-    {
-        std::int64_t class_index = 0; /**< The class. */
-        double score = 0.0;           /**< The class probability. */
-        double corners[4] = {};       /**< x1, y1, x2, y2, clipped to the image. */
-    };
+    using SushiAI::Test::Detection;
+    using SushiAI::Test::K_BOX_ENTRIES;
+    using SushiAI::Test::expect_same_detections;
+    using SushiAI::Test::read_expected;
 
     /** @brief Holds one image of a reference file and the detections Ultralytics made on it. */
     struct ReferenceImage
@@ -134,36 +118,6 @@ namespace
         const char* const value = std::getenv(K_DATA_VARIABLE);
 #pragma clang diagnostic pop
         return value == nullptr ? std::filesystem::path() : std::filesystem::path(value);
-    }
-
-    /** @brief Returns @p detection sorted by class, then by falling score. */
-    bool comes_first(const Detection& a, const Detection& b)
-    {
-        return a.class_index != b.class_index ? a.class_index < b.class_index : a.score > b.score;
-    }
-
-    /** @brief Reads the detections of one image entry of a reference file. */
-    Result<std::vector<Detection>> read_expected(const Config::Value& entry)
-    {
-        SA_TRY_ASSIGN(const Config::Value& rows, entry.at("detections", "reference"));
-        SA_TRY_ASSIGN(const std::vector<Config::Value>& list, rows.as_array("detections"));
-        std::vector<Detection> out;
-        for (const Config::Value& row : list)
-        {
-            SA_TRY_ASSIGN(const std::vector<Config::Value>& values, row.as_array("detection"));
-            SA_FAIL_IF(values.size() != K_REFERENCE_VALUES, StatusCode::InvalidFile,
-                       "a reference detection holds {} values", values.size());
-            Detection detection;
-            SA_TRY_ASSIGN(const double index, values[0].as_real("class"));
-            detection.class_index = static_cast<std::int64_t>(index);
-            SA_TRY_ASSIGN(detection.score, values[1].as_real("score"));
-            for (std::size_t k = 0; k < K_BOX_ENTRIES; ++k)
-            {
-                SA_TRY_ASSIGN(detection.corners[k], values[k + 2].as_real("corner"));
-            }
-            out.push_back(detection);
-        }
-        return out;
     }
 
     /** @brief Reads `references/<stem>.json` of @p folder. */
@@ -286,7 +240,7 @@ namespace
                    StatusCode::Incompatible, "{} is not the model's input size", image.string());
         float* const values = input.data_as<float>();
         for (std::size_t i = 0; i < count; ++i)
-            values[i] = static_cast<float>(pixels.data()[i]) / Vision::Datasets::K_BYTE_SCALE;
+            values[i] = static_cast<float>(pixels.data()[i]) / 255.0f;
         SA_TRY(step_->run(input));
 
         std::vector<Vision::Training::FreeLevelLogits> levels;
@@ -346,10 +300,6 @@ namespace
         return out;
     }
 
-    /** @brief Expects @p found to be @p expected, row by row, within the row bound. */
-    void expect_same_detections(std::vector<Detection> found, std::vector<Detection> expected,
-                                double side, const std::string& image);
-
     void Large_UltralyticsDetections::expect_ultralytics_detections(
         const std::vector<ReferenceImage>& images)
     {
@@ -360,25 +310,6 @@ namespace
             expect_same_detections(found.value(), image.expected,
                                    static_cast<double>(batch_shape_[1]),
                                    image.file.filename().string());
-        }
-    }
-
-    /** @brief Expects @p found to be @p expected, row by row, within the row bound. */
-    void expect_same_detections(std::vector<Detection> found, std::vector<Detection> expected,
-                                double side, const std::string& image)
-    {
-        std::sort(found.begin(), found.end(), comes_first);
-        std::sort(expected.begin(), expected.end(), comes_first);
-        ASSERT_EQ(found.size(), expected.size()) << image;
-        for (std::size_t k = 0; k < found.size(); ++k)
-        {
-            EXPECT_EQ(found[k].class_index, expected[k].class_index) << image << " row " << k;
-            EXPECT_NEAR(found[k].score, expected[k].score, K_ROW_BOUND) << image << " row " << k;
-            for (std::size_t c = 0; c < K_BOX_ENTRIES; ++c)
-            {
-                EXPECT_NEAR(found[k].corners[c], expected[k].corners[c], K_ROW_BOUND * side)
-                    << image << " row " << k << " corner " << c;
-            }
         }
     }
 } // namespace

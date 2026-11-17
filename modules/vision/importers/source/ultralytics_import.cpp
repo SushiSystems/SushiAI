@@ -29,6 +29,7 @@
 
 #include <SushiAI/vision/importers/ultralytics_import.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -51,14 +52,46 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Returns the square input side the checkpoint trained at, or the default. */
-            Result<std::int64_t> read_image_side(const UltralyticsCheckpoint& checkpoint)
+            /**
+             * @brief Returns the input the checkpoint trained at, or the default when it states
+             *        no imgsz.
+             *
+             * A list trains at a square of its largest side, as Ultralytics' trainer takes it.
+             * @return InvalidDescription for an imgsz that is neither an integer nor a list of
+             *         one or two positive integers.
+             */
+            Result<UltralyticsInputSize> read_image_size(const UltralyticsCheckpoint& checkpoint,
+                                                         std::string_view origin)
             {
-                const Config::Value& side =
+                const Config::Value& stated =
                     checkpoint.training_arguments.at_or("imgsz", Config::Value());
-                if (side.kind() != Config::Kind::Int)
-                    return K_ULTRALYTICS_IMAGE_SIDE;
-                return side.as_int("imgsz");
+                if (stated.is_null())
+                    return UltralyticsInputSize{};
+
+                std::int64_t side = 0;
+                if (stated.kind() == Config::Kind::Int)
+                {
+                    SA_TRY_ASSIGN(side, stated.as_int("imgsz"));
+                }
+                else
+                {
+                    SA_FAIL_IF(stated.kind() != Config::Kind::Array, StatusCode::InvalidDescription,
+                               "{}: the training argument imgsz is neither an integer nor a list",
+                               origin);
+                    SA_TRY_ASSIGN(const std::vector<Config::Value>& sides,
+                                  stated.as_array("imgsz"));
+                    SA_FAIL_IF(sides.empty() || sides.size() > 2, StatusCode::InvalidDescription,
+                               "{}: the training argument imgsz lists {} sides, not one or two",
+                               origin, sides.size());
+                    for (const Config::Value& value : sides)
+                    {
+                        SA_TRY_ASSIGN(const std::int64_t listed, value.as_int("imgsz"));
+                        side = std::max(side, listed);
+                    }
+                }
+                SA_FAIL_IF(side < 1, StatusCode::InvalidDescription,
+                           "{}: the training argument imgsz states a side of {}", origin, side);
+                return UltralyticsInputSize{side, side};
             }
 
             /** @brief Returns the notes the import prints: what none of the three files holds. */
@@ -78,10 +111,11 @@ namespace SushiAI
         Result<IO::ImportedModel> import_ultralytics_model(const UltralyticsCheckpoint& checkpoint,
                                                            std::string_view origin) noexcept
         {
-            SA_TRY_ASSIGN(const std::int64_t side, read_image_side(checkpoint));
+            SA_TRY_ASSIGN(const UltralyticsInputSize image_size,
+                          read_image_size(checkpoint, origin));
             SA_TRY_ASSIGN(const UltralyticsTranslation translation,
                           describe_ultralytics_model(
-                              checkpoint.architecture, side,
+                              checkpoint.architecture, image_size,
                               SushiRuntime::span<const UltralyticsModuleClass>(
                                   checkpoint.modules.data(), checkpoint.modules.size()),
                               origin));

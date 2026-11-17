@@ -136,6 +136,16 @@ TEST(Small_DarknetRecipe, WritesTheRateAsAStepSchedule)
     EXPECT_EQ(schedule.scales[1], 0.1);
 }
 
+/** @brief Tests that ignore_thresh=.7 is written as the decimal 0.7, not as its float32 widening. */
+TEST(Small_DarknetRecipe, WritesAFloat32ThresholdAsItsShortestDecimal)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetRecipe recipe,
+                            write_recipe_of(std::string(K_SOLVER) + head_section(".7")));
+
+    const Config::Value& objective = require_value(recipe.training.at("objective", "the recipe"));
+    EXPECT_EQ(real_of(objective, "ignore_threshold"), 0.7);
+}
+
 /** @brief Tests that the objective section is "anchor" and reads back as the head's options. */
 TEST(Small_DarknetRecipe, WritesTheSharedHeadOptionsAsTheAnchorObjective)
 {
@@ -169,11 +179,61 @@ TEST(Small_DarknetRecipe, NotesEveryKeyWithoutAPlace)
     SA_ASSERT_OK_AND_ASSIGN(const DarknetRecipe recipe,
                             write_recipe_of(std::string(K_SOLVER) + head_section(".7")));
 
-    EXPECT_EQ(recipe.notes.size(), 4u);
+    EXPECT_EQ(recipe.notes.size(), 3u);
     EXPECT_TRUE(has_note(recipe.notes, {"line 2", "batch=8", "[net]", "batch_size"}));
     EXPECT_TRUE(has_note(recipe.notes, {"line 3", "subdivisions=2", "[net]"}));
     EXPECT_TRUE(has_note(recipe.notes, {"line 8", "max_batches=2000", "epochs"}));
-    EXPECT_TRUE(has_note(recipe.notes, {"line 15", "jitter=.3", "[yolo]"}));
+}
+
+/** @brief Tests that jitter, hue, saturation and exposure become the darknet pipeline's keys. */
+TEST(Small_DarknetRecipe, WritesTheAugmentationAsTheDarknetPipeline)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetRecipe recipe,
+        write_recipe_of("[net]\nhue=.1\nsaturation=1.5\nexposure=1.25\n"
+                        "[yolo]\nmask=0\nclasses=1\njitter=.3\n"));
+
+    EXPECT_EQ(recipe.data.keys(), (std::vector<std::string>{"pipeline", "jitter", "hue",
+                                                            "saturation", "exposure"}));
+    EXPECT_EQ(string_of(recipe.data, "pipeline"), "darknet");
+    EXPECT_EQ(real_of(recipe.data, "jitter"), 0.3);
+    EXPECT_EQ(real_of(recipe.data, "hue"), 0.1);
+    EXPECT_EQ(real_of(recipe.data, "saturation"), 1.5);
+    EXPECT_EQ(real_of(recipe.data, "exposure"), 1.25);
+    EXPECT_TRUE(recipe.notes.empty());
+}
+
+/** @brief Tests that absent keys take Darknet's defaults: jitter .2, hue 0, the others 1. */
+TEST(Small_DarknetRecipe, WritesDarknetsDefaultsForAbsentAugmentationKeys)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetRecipe recipe,
+        write_recipe_of("[net]\nlearning_rate=0.01\n[yolo]\nmask=0\nclasses=1\n"));
+
+    EXPECT_EQ(real_of(recipe.data, "jitter"), 0.2);
+    EXPECT_EQ(real_of(recipe.data, "hue"), 0.0);
+    EXPECT_EQ(real_of(recipe.data, "saturation"), 1.0);
+    EXPECT_EQ(real_of(recipe.data, "exposure"), 1.0);
+}
+
+/** @brief Tests that the last head's jitter is written and an earlier one that differs is noted. */
+TEST(Small_DarknetRecipe, WritesTheJitterOfTheLastHeadAndNotesTheOthers)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetRecipe recipe,
+        write_recipe_of("[net]\nlearning_rate=0.01\n[yolo]\nmask=0\nclasses=1\njitter=.3\n"
+                        "[yolo]\nmask=1\nclasses=1\njitter=.5\n"));
+
+    EXPECT_EQ(real_of(recipe.data, "jitter"), 0.5);
+    ASSERT_EQ(recipe.notes.size(), 1u);
+    EXPECT_TRUE(has_note(recipe.notes, {"line 6", "jitter=.3", "[yolo]", "last [yolo]"}));
+}
+
+/** @brief Tests that a hue that is no number is refused naming its line. */
+TEST(Small_DarknetRecipe, AHueThatIsNoNumberIsRefused)
+{
+    SA_EXPECT_FAILURE(write_recipe_of("[net]\nhue=wide\n[yolo]\nmask=0\nclasses=1\n"),
+                      StatusCode::InvalidDescription, "line 2", "hue");
 }
 
 /** @brief Tests that a .cfg whose keys all have a place leaves no note. */

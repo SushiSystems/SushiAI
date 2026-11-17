@@ -95,9 +95,12 @@ namespace SushiAI
                     return Status();
                 }
 
-                /** @brief Returns the anchors of one level, in pixels, as fractions of the side. */
+                /**
+                 * @brief Returns the anchors of one level, stated in pixels, as fractions of the
+                 *        input: each width over its width and each height over its height.
+                 */
                 Result<std::vector<Config::Value>> level_anchors(const Config::Value& level,
-                                                                 std::int64_t side,
+                                                                 UltralyticsInputSize input,
                                                                  const ModuleEntry& entry)
                 {
                     SA_TRY_ASSIGN(const std::vector<Config::Value>& values,
@@ -112,8 +115,8 @@ namespace SushiAI
                         SA_TRY_ASSIGN(const double width, values[i].as_real("anchors"));
                         SA_TRY_ASSIGN(const double height, values[i + 1].as_real("anchors"));
                         pairs.push_back(Config::Value::array(
-                            {Config::Value::real(width / static_cast<double>(side)),
-                             Config::Value::real(height / static_cast<double>(side))}));
+                            {Config::Value::real(width / static_cast<double>(input.width)),
+                             Config::Value::real(height / static_cast<double>(input.height))}));
                     }
                     return pairs;
                 }
@@ -135,7 +138,7 @@ namespace SushiAI
                     for (std::size_t level = 0; level < stated.size(); ++level)
                     {
                         SA_TRY_ASSIGN(std::vector<Config::Value> pairs,
-                                      level_anchors(stated[level], progress.image_side, entry));
+                                      level_anchors(stated[level], progress.image_size, entry));
                         const std::int64_t slots = static_cast<std::int64_t>(pairs.size());
                         std::vector<Config::Value> slot_indices;
                         for (const Config::Value& pair : pairs)

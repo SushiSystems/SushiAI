@@ -90,7 +90,8 @@ namespace SushiAI
                 progress.model.network.width = input.width;
                 progress.model.spec.input_shape = Shape{input.height, input.width, input.channels};
                 progress.model.spec.input_fit =
-                    std::string(letter_box == 1 ? Config::K_FIT_LETTERBOX : Config::K_FIT_RESIZE);
+                    std::string(letter_box == 1 ? Config::K_FIT_DARKNET_LETTERBOX
+                                                    : Config::K_FIT_RESIZE);
                 return Status();
             }
 

@@ -268,13 +268,24 @@ TEST(Small_DarknetImport, CarriesTheRecipe)
               (std::vector<std::string>{"objective", "optimizer", "schedule"}));
 }
 
+/** @brief Tests that the import carries the augmentation as the darknet pipeline's data keys. */
+TEST(Small_DarknetImport, CarriesTheAugmentationAsTheDataBlock)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
+    SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported, import_small_without_weights(translated));
+
+    EXPECT_EQ(imported.data.keys(), (std::vector<std::string>{"pipeline", "jitter", "hue",
+                                                              "saturation", "exposure"}));
+    EXPECT_EQ(string_of(imported.data, "pipeline"), "darknet");
+}
+
 /** @brief Tests that the import carries the notes of the .cfg's training settings. */
 TEST(Small_DarknetImport, CarriesTheNotes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
     SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported, import_small_without_weights(translated));
 
-    EXPECT_EQ(imported.notes.size(), 5u);
+    EXPECT_EQ(imported.notes.size(), 4u);
 }
 
 /** @brief Tests that the file importer refuses a call with no file and one with three. */

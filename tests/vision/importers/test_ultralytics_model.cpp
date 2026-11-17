@@ -38,7 +38,10 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/io/imported_model.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/vision/importers/ultralytics_checkpoint.hpp>
+#include <SushiAI/vision/importers/ultralytics_import.hpp>
 #include <SushiAI/vision/importers/ultralytics_model.hpp>
 
 using namespace SushiAI;
@@ -119,6 +122,12 @@ namespace
     /** @brief Holds no pickled module classes, so each module is built as Ultralytics builds it. */
     const SushiRuntime::span<const Vision::Importers::UltralyticsModuleClass> K_NO_MODULES;
 
+    /** @brief Holds the square input of the full-size checkpoints. */
+    constexpr Vision::Importers::UltralyticsInputSize K_INPUT_640{640, 640};
+
+    /** @brief Holds the square input of the small hand-written descriptions. */
+    constexpr Vision::Importers::UltralyticsInputSize K_INPUT_64{64, 64};
+
     /** @brief Returns @p text parsed, failing the test when it is not JSON. */
     Config::Value parsed(std::string_view text)
     {
@@ -166,7 +175,7 @@ TEST_P(Medium_UltralyticsHandFile, TheDescriptionIsTheHandWrittenModelFile)
 
     SA_ASSERT_OK_AND_ASSIGN(
         const Config::ModelSpec found,
-        Vision::Importers::translate_ultralytics_model(parsed(row.description), 640,
+        Vision::Importers::translate_ultralytics_model(parsed(row.description), K_INPUT_640,
                                                        modules_of(row), row.name));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::string found_text, Config::write_model(found));
@@ -183,7 +192,8 @@ TEST(Small_UltralyticsModel, AnAnchoredDetectBecomesOneConvolutionPerLevel)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const Vision::Importers::UltralyticsTranslation translation,
-        Vision::Importers::describe_ultralytics_model(parsed(K_SMALL_YOLOV5), 64, K_NO_MODULES, "v5.pt"));
+        Vision::Importers::describe_ultralytics_model(parsed(K_SMALL_YOLOV5), K_INPUT_64,
+                                                      K_NO_MODULES, "v5.pt"));
 
     // Rows 0 (Conv) and 1 (C3), then one convolution per level: 2 anchors x (2 classes + 5).
     SA_ASSERT_OK_AND_ASSIGN(const Config::Value& layers, translation.document.at("layers", "v5"));
@@ -199,7 +209,8 @@ TEST(Small_UltralyticsModel, AnAnchorIsAFractionOfTheInputSide)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const Vision::Importers::UltralyticsTranslation translation,
-        Vision::Importers::describe_ultralytics_model(parsed(K_SMALL_YOLOV5), 64, K_NO_MODULES, "v5.pt"));
+        Vision::Importers::describe_ultralytics_model(parsed(K_SMALL_YOLOV5), K_INPUT_64,
+                                                      K_NO_MODULES, "v5.pt"));
 
     // The first anchor is 10 x 13 pixels over a side of 64; the quotient is computed the same way.
     SA_ASSERT_OK_AND_ASSIGN(const Config::Value& task, translation.document.at("task", "v5"));
@@ -212,12 +223,71 @@ TEST(Small_UltralyticsModel, AnAnchorIsAFractionOfTheInputSide)
     EXPECT_EQ(first[1].as_real("anchor").value(), 13.0 / 64.0);
 }
 
+/** @brief Tests that, on a rectangular input, an anchor's width and height scale by their axes. */
+TEST(Small_UltralyticsModel, AnAnchorOfARectangularInputIsAFractionOfEachSide)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const Vision::Importers::UltralyticsTranslation translation,
+        Vision::Importers::describe_ultralytics_model(
+            parsed(K_SMALL_YOLOV5), Vision::Importers::UltralyticsInputSize{32, 64},
+            K_NO_MODULES, "v5.pt"));
+
+    // The first anchor is 10 x 13 pixels: 10 over the width 64 and 13 over the height 32.
+    SA_ASSERT_OK_AND_ASSIGN(const Config::Value& task, translation.document.at("task", "v5"));
+    SA_ASSERT_OK_AND_ASSIGN(const Config::Value& anchors, task.at("anchors", "v5"));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<Config::Value>& pairs, anchors.as_array("v5"));
+    ASSERT_EQ(pairs.size(), 4u);
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<Config::Value>& first, pairs[0].as_array("v5"));
+    ASSERT_EQ(first.size(), 2u);
+    EXPECT_EQ(first[0].as_real("anchor").value(), 10.0 / 64.0);
+    EXPECT_EQ(first[1].as_real("anchor").value(), 13.0 / 32.0);
+}
+
+/** @brief Tests that a rectangular input is written as its height, then its width. */
+TEST(Small_UltralyticsModel, ARectangularInputIsWrittenHeightFirst)
+{
+    SA_ASSERT_OK_AND_ASSIGN(
+        const Config::ModelSpec model,
+        Vision::Importers::translate_ultralytics_model(
+            parsed(K_SMALL_YOLOV5), Vision::Importers::UltralyticsInputSize{32, 64},
+            K_NO_MODULES, "v5.pt"));
+
+    EXPECT_EQ(model.input_shape, (Shape{32, 64, 3}));
+}
+
+/** @brief Tests that an imgsz list trains, and so imports, at a square of its largest side. */
+TEST(Small_UltralyticsModel, AnImageSizeListImportsAtASquareOfItsLargestSide)
+{
+    Vision::Importers::UltralyticsCheckpoint checkpoint;
+    checkpoint.architecture = parsed(K_SMALL_YOLOV5);
+    checkpoint.training_arguments = Config::Value::object(
+        {"imgsz"}, {Config::Value::array({Config::Value::integer(32), Config::Value::integer(64)})});
+
+    SA_ASSERT_OK_AND_ASSIGN(const IO::ImportedModel imported,
+                            Vision::Importers::import_ultralytics_model(checkpoint, "v5.pt"));
+
+    EXPECT_EQ(imported.model.input_shape, (Shape{64, 64, 3}));
+}
+
+/** @brief Tests that an imgsz that is neither an integer nor a list of sides is refused. */
+TEST(Small_UltralyticsModel, AnImageSizeOfAnotherKindIsRefused)
+{
+    Vision::Importers::UltralyticsCheckpoint checkpoint;
+    checkpoint.architecture = parsed(K_SMALL_YOLOV5);
+    checkpoint.training_arguments =
+        Config::Value::object({"imgsz"}, {Config::Value::string("large")});
+
+    SA_EXPECT_FAILURE(Vision::Importers::import_ultralytics_model(checkpoint, "v5.pt"),
+                      StatusCode::InvalidDescription, "v5.pt", "imgsz");
+}
+
 /** @brief Tests that the tensors of an anchored level are renamed to the row of its convolution. */
 TEST(Small_UltralyticsModel, TheTensorsOfALevelTakeTheRowOfItsConvolution)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const Vision::Importers::UltralyticsTranslation translation,
-        Vision::Importers::describe_ultralytics_model(parsed(K_SMALL_YOLOV5), 64, K_NO_MODULES, "v5.pt"));
+        Vision::Importers::describe_ultralytics_model(parsed(K_SMALL_YOLOV5), K_INPUT_64,
+                                                      K_NO_MODULES, "v5.pt"));
 
     ASSERT_EQ(translation.tensor_rules.renames.size(), 2u);
     EXPECT_EQ(translation.tensor_rules.renames[1].first, "2.m.1.");
@@ -229,7 +299,8 @@ TEST(Small_UltralyticsModel, AStatedPaddingIsKeptOnTheConvRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const Vision::Importers::UltralyticsTranslation translation,
-        Vision::Importers::describe_ultralytics_model(parsed(K_SMALL_YOLOV5), 64, K_NO_MODULES, "v5.pt"));
+        Vision::Importers::describe_ultralytics_model(parsed(K_SMALL_YOLOV5), K_INPUT_64,
+                                                      K_NO_MODULES, "v5.pt"));
 
     SA_ASSERT_OK_AND_ASSIGN(const Config::Value& layers, translation.document.at("layers", "v5"));
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<Config::Value>& rows, layers.as_array("v5"));
@@ -248,7 +319,8 @@ TEST(Small_UltralyticsModel, TheMScaleTurnsTheInnerBlockOfC3k2IntoC3k)
 
     SA_ASSERT_OK_AND_ASSIGN(
         const Vision::Importers::UltralyticsTranslation translation,
-        Vision::Importers::describe_ultralytics_model(description, 64, K_NO_MODULES, "small.pt"));
+        Vision::Importers::describe_ultralytics_model(description, K_INPUT_64,
+                                                      K_NO_MODULES, "small.pt"));
 
     SA_ASSERT_OK_AND_ASSIGN(const Config::Value& layers,
                             translation.document.at("layers", "small.pt"));
@@ -269,7 +341,8 @@ TEST(Small_UltralyticsModel, AWidthIsCappedScaledAndRoundedUpToEight)
 
     SA_ASSERT_OK_AND_ASSIGN(
         const Vision::Importers::UltralyticsTranslation translation,
-        Vision::Importers::describe_ultralytics_model(description, 64, K_NO_MODULES, "small.pt"));
+        Vision::Importers::describe_ultralytics_model(description, K_INPUT_64,
+                                                      K_NO_MODULES, "small.pt"));
 
     SA_ASSERT_OK_AND_ASSIGN(const Config::Value& layers,
                             translation.document.at("layers", "small.pt"));
@@ -289,7 +362,8 @@ TEST(Small_UltralyticsModel, EveryUnreadModuleIsListedWithItsEntry)
     })");
 
     SA_EXPECT_FAILURE(
-        Vision::Importers::describe_ultralytics_model(description, 64, K_NO_MODULES, "small.pt"),
+        Vision::Importers::describe_ultralytics_model(description, K_INPUT_64,
+                                                      K_NO_MODULES, "small.pt"),
         StatusCode::Unsupported, "Focus (entry 1)", "RepNCSPELAN4 (entry 2)");
 }
 
@@ -301,7 +375,8 @@ TEST(Small_UltralyticsModel, ADescriptionWithoutADetectEntryIsRefused)
     })");
 
     SA_EXPECT_FAILURE(
-        Vision::Importers::describe_ultralytics_model(description, 64, K_NO_MODULES, "small.pt"),
+        Vision::Importers::describe_ultralytics_model(description, K_INPUT_64,
+                                                      K_NO_MODULES, "small.pt"),
         StatusCode::Unsupported, "no Detect entry");
 }
 
@@ -318,7 +393,7 @@ TEST(Small_UltralyticsModel, APickledSiluAfterTheSppfNarrowingIsKept)
     SA_ASSERT_OK_AND_ASSIGN(
         const Vision::Importers::UltralyticsTranslation translation,
         Vision::Importers::describe_ultralytics_model(
-            description, 64, SushiRuntime::span<const Vision::Importers::UltralyticsModuleClass>(
+            description, K_INPUT_64, SushiRuntime::span<const Vision::Importers::UltralyticsModuleClass>(
                                  &silu, 1),
             "small.pt"));
 
@@ -340,7 +415,8 @@ TEST(Small_UltralyticsModel, AnSppfWithoutAPickledClassKeepsItsNarrowingLinear)
 
     SA_ASSERT_OK_AND_ASSIGN(
         const Vision::Importers::UltralyticsTranslation translation,
-        Vision::Importers::describe_ultralytics_model(description, 64, K_NO_MODULES, "small.pt"));
+        Vision::Importers::describe_ultralytics_model(description, K_INPUT_64,
+                                                      K_NO_MODULES, "small.pt"));
 
     SA_ASSERT_OK_AND_ASSIGN(const Config::Value& layers,
                             translation.document.at("layers", "small.pt"));

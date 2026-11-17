@@ -224,16 +224,18 @@ namespace SushiAI
         } // namespace
 
         Result<UltralyticsTranslation> describe_ultralytics_model(
-            const Config::Value& architecture, std::int64_t image_side,
+            const Config::Value& architecture, UltralyticsInputSize image_size,
             SushiRuntime::span<const UltralyticsModuleClass> modules,
             std::string_view origin) noexcept
         {
             SA_FAIL_IF(architecture.kind() != Config::Kind::Object, StatusCode::InvalidDescription,
                        "{}: the model description is not a table", origin);
-            SA_FAIL_IF(image_side < 1, StatusCode::InvalidDescription,
-                       "{}: the input side {} is not positive", origin, image_side);
+            SA_FAIL_IF(image_size.height < 1 || image_size.width < 1,
+                       StatusCode::InvalidDescription,
+                       "{}: the input size {}x{} has a side that is not positive", origin,
+                       image_size.height, image_size.width);
             Detail::ModuleProgress progress;
-            progress.image_side = image_side;
+            progress.image_size = image_size;
             progress.modules = modules;
             SA_TRY_ASSIGN(progress.classes, read_int_or(architecture, "nc", 0, origin));
             SA_FAIL_IF(progress.classes < 1, StatusCode::InvalidDescription,
@@ -265,8 +267,8 @@ namespace SushiAI
                        origin);
 
             const Config::Value input = Config::Value::object(
-                {"shape"}, {Config::Value::array({Config::Value::integer(image_side),
-                                                  Config::Value::integer(image_side),
+                {"shape"}, {Config::Value::array({Config::Value::integer(image_size.height),
+                                                  Config::Value::integer(image_size.width),
                                                   Config::Value::integer(progress.input_channels)})});
             UltralyticsTranslation out;
             out.document = Config::Value::object(
@@ -279,12 +281,12 @@ namespace SushiAI
         }
 
         Result<Config::ModelSpec> translate_ultralytics_model(
-            const Config::Value& architecture, std::int64_t image_side,
+            const Config::Value& architecture, UltralyticsInputSize image_size,
             SushiRuntime::span<const UltralyticsModuleClass> modules,
             std::string_view origin) noexcept
         {
             SA_TRY_ASSIGN(const UltralyticsTranslation translation,
-                          describe_ultralytics_model(architecture, image_side, modules, origin));
+                          describe_ultralytics_model(architecture, image_size, modules, origin));
             return Config::parse_model(translation.document, origin);
         }
     } // namespace Vision::Importers

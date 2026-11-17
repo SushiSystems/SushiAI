@@ -46,6 +46,13 @@ namespace SushiAI
         /** @brief Holds the input side a model takes when its checkpoint states none. */
         inline constexpr std::int64_t K_ULTRALYTICS_IMAGE_SIDE = 640;
 
+        /** @brief Holds the height and width of a translated model's input, in pixels. */
+        struct UltralyticsInputSize
+        {
+            std::int64_t height = K_ULTRALYTICS_IMAGE_SIDE; /**< The rows of the input. */
+            std::int64_t width = K_ULTRALYTICS_IMAGE_SIDE;  /**< The columns of the input. */
+        };
+
         /** @brief Holds a translated description: the model document and the tensor rules. */
         struct UltralyticsTranslation
         {
@@ -58,19 +65,20 @@ namespace SushiAI
 
         /**
          * @brief Translates @p architecture, the "yaml" of an Ultralytics or YOLOv5 model.
-         * @param image_side The side of the square input, as the checkpoint trained it.
+         * @param image_size The input, as the checkpoint trained it; anchors in pixels become
+         *                   fractions of its width and of its height.
          * @param modules The pickled module classes; a module none names is built as
          *                Ultralytics' own source builds it.
          * @return Unsupported listing every module no translator reads, with its entries.
          */
         [[nodiscard]] Result<UltralyticsTranslation> describe_ultralytics_model(
-            const Config::Value& architecture, std::int64_t image_side,
+            const Config::Value& architecture, UltralyticsInputSize image_size,
             SushiRuntime::span<const UltralyticsModuleClass> modules,
             std::string_view origin) noexcept;
 
         /** @brief Returns the document of describe_ultralytics_model parsed by parse_model. */
         [[nodiscard]] Result<Config::ModelSpec> translate_ultralytics_model(
-            const Config::Value& architecture, std::int64_t image_side,
+            const Config::Value& architecture, UltralyticsInputSize image_size,
             SushiRuntime::span<const UltralyticsModuleClass> modules,
             std::string_view origin) noexcept;
     } // namespace Vision::Importers

@@ -47,6 +47,12 @@ namespace SushiAI
             /** @brief Holds an object with the keys "objective", "optimizer" and "schedule". */
             Config::Value training;
 
+            /**
+             * @brief Holds the keys of the training file's "data" block the .cfg states: the
+             *        "pipeline" "darknet" and its "jitter", "hue", "saturation" and "exposure".
+             */
+            Config::Value data;
+
             /** @brief Lists each key of the .cfg that no key of a training file holds. */
             std::vector<std::string> notes;
         };
@@ -54,10 +60,10 @@ namespace SushiAI
         /**
          * @brief Writes the settings of @p training as the sections of a training file.
          * @param config The .cfg @p training was read from; its lines are quoted.
-         * @return The "anchor" objective of the heads, "sgd" with the solver's momentum and
-         *         decay, and the "step" schedule of its rate, burn-in, steps and scales.
-         *         InvalidDescription naming two heads and the key they differ in, or for what
-         *         the writer of a section refuses.
+         * @return The "anchor" objective, "sgd" and the "step" schedule as training, and the
+         *         "darknet" pipeline of the augmentation keys as data, in float32. A head's
+         *         jitter other than the last head's is noted. InvalidDescription naming two
+         *         heads and the key they differ in, or what a section writer refuses.
          */
         [[nodiscard]] Result<DarknetRecipe> write_darknet_recipe(const DarknetConfig& config,
                                                                  const DarknetTraining& training) noexcept;

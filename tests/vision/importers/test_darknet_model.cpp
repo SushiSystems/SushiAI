@@ -870,14 +870,14 @@ namespace
 
 } // namespace
 
-/** @brief Tests that letter_box=1 gives the letterbox fit. */
-TEST(Small_DarknetModel, LetterBoxOneSelectsTheLetterboxFit)
+/** @brief Tests that letter_box=1 gives the Darknet letterbox fit. */
+TEST(Small_DarknetModel, LetterBoxOneSelectsTheDarknetLetterboxFit)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel boxed,
         translate_darknet_text(letter_box_text("1"), DarknetNormalisation::Separate));
 
-    EXPECT_EQ(boxed.spec.input_fit, Config::K_FIT_LETTERBOX);
+    EXPECT_EQ(boxed.spec.input_fit, Config::K_FIT_DARKNET_LETTERBOX);
 }
 
 /** @brief Tests that a letter_box value past 1 is refused naming its line. */

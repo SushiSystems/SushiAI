@@ -21,6 +21,11 @@ The `optimizer` section has three keys: the type "sgd", a `momentum` of 0.9 and 
 The `schedule` section reads through `read_step_schedule_section` as a base rate of 0.001, 100
 warm-up iterations, the steps 1600 and 1800 and the scales 0.1 and 0.1.
 
+## WritesAFloat32ThresholdAsItsShortestDecimal
+
+A head with `ignore_thresh=.7` gives an `objective` whose `ignore_threshold` is the real 0.7, the
+double of the shortest decimal that reads back as that float32, and not 0.699999988079071.
+
 ## WritesTheSharedHeadOptionsAsTheAnchorObjective
 
 With two heads of `ignore_thresh=.7`, the `objective` section has the type "anchor" and reads
@@ -33,9 +38,31 @@ The recipe's `training` value has the keys `objective`, `optimizer`, `schedule`.
 
 ## NotesEveryKeyWithoutAPlace
 
-The recipe has four notes. One holds "line 2", "batch=8", "[net]" and "batch_size"; one
-"line 3", "subdivisions=2" and "[net]"; one "line 8", "max_batches=2000" and "epochs"; one
-"line 15", "jitter=.3" and "[yolo]".
+The recipe has three notes. One holds "line 2", "batch=8", "[net]" and "batch_size"; one
+"line 3", "subdivisions=2" and "[net]"; one "line 8", "max_batches=2000" and "epochs". The
+`jitter=.3` of the head has a place now and gives no note.
+
+## WritesTheAugmentationAsTheDarknetPipeline
+
+A `[net]` of `hue=.1`, `saturation=1.5` and `exposure=1.25` and a head of `jitter=.3` give a
+recipe whose `data` has the keys `pipeline`, `jitter`, `hue`, `saturation` and `exposure` in that
+order. `pipeline` is "darknet"; the four reals are the shortest decimals of the float32 values,
+0.3, 0.1, 1.5 and 1.25, as doubles. The recipe has no note.
+
+## WritesDarknetsDefaultsForAbsentAugmentationKeys
+
+A `.cfg` that states none of the four keys writes `jitter` 0.2, `hue` 0, `saturation` 1 and
+`exposure` 1, the defaults of Darknet's parser.
+
+## WritesTheJitterOfTheLastHeadAndNotesTheOthers
+
+Two heads of `jitter=.3` and `jitter=.5` write a `jitter` of 0.5, the last head's, as Darknet's
+detector trains with it. The recipe has one note, with "line 6", "jitter=.3", "[yolo]" and
+"last [yolo]".
+
+## AHueThatIsNoNumberIsRefused
+
+A `[net]` of `hue=wide` fails with `InvalidDescription`, "line 2" and "hue".
 
 ## LeavesNoNoteWhenEveryKeyHasAPlace
 

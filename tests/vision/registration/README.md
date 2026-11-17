@@ -19,10 +19,11 @@ the file is the subject, so they are medium. The `Medium_Yolo26*` fixtures open 
 `weights.sushi` of the fixture directory in `SetUp` and skip the case, naming the file, when one is
 missing. `Medium_Yolo26Whole` runs the forward pass of the whole model once for the program, in `SetUpTestSuite`, and every row reads it; a pass that cannot run skips the rows with its reason.
 
-### RegisterNodesAddsTheTenBlocks
+### RegisterNodesAddsTheTwelveBlocks
 
 `Vision::register_nodes` adds the node rows "conv", "bottleneck", "c3k", "c3k2", "c2f", "c3",
-"sppf", "c2psa", "detect" and "segment_head", in that order, and no layer row.
+"sppf", "c2psa", "detect", "segment_head", "focus" and "decoupled_head", in that order, and no
+layer row.
 
 ### RegisterDatasetsAddsMNISTThenReader
 
@@ -142,10 +143,10 @@ the message holds "the objective block" and "'task'".
 Rows over "pixel_cross_entropy" and "dice": each builds an objective over one [2, 4, 4, 3] output
 with an `ignore_index` of 255, and the objective's name is the row's type.
 
-### RegisterImportersAddsTheDarknetAndUltralyticsRows
+### RegisterImportersAddsTheFourImporterRows
 
-`Vision::register_importers` adds two rows, of the formats "darknet" and "ultralytics", in that
-order.
+`Vision::register_importers` adds four rows, of the formats "darknet", "ultralytics", "onnx" and
+"caffe", in any order.
 
 ### RegisterImportersTwiceRefusesDarknetAsRegistered
 
@@ -449,3 +450,11 @@ unit roundoffs.
 ### LeavesTheBoxEntriesAtZero
 
 Rows over the three levels: the four box entries of each slot stay zero.
+
+## test_registration/test_yolox_x.cpp
+
+Suites: `Medium_YoloxXFile`, `Medium_YoloxXLevel`, `Medium_YoloxXMap`. Tests the model file and the name map of `applications/examples/yolox_x`: the rows, the nine outputs on the grids of strides 8, 16 and 32 at 800 by 1440, and that the map renames the 748 tensors of the YOLOX-X state dictionary onto the model's records exactly. [`test_registration/test_yolox_x.md`](test_registration/test_yolox_x.md) lists each case.
+
+## test_registration/test_yolox_x_import.cpp
+
+Suite: `Large_YoloxXImport`. Imports ByteTrack's `mot17x.pth.tar` into the `yolox_x` model and asserts that nothing is refused. [`test_registration/test_yolox_x_import.md`](test_registration/test_yolox_x_import.md) lists the case.

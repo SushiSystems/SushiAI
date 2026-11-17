@@ -122,6 +122,7 @@ namespace SushiAI
                 imported.model.task = std::move(task);
                 imported.weights = std::move(tensors);
                 imported.training = std::move(recipe.training);
+                imported.data = std::move(recipe.data);
                 imported.notes = std::move(recipe.notes);
                 return imported;
             });

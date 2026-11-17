@@ -62,8 +62,8 @@ namespace SushiAI::Vision
 {
     /**
      * @brief Adds the block node types to @p registry, in the order conv, bottleneck, c3k,
-     *        c3k2, c2f, c3, sppf, c2psa, detect and segment_head.
-     * @param registry The registry that receives the ten rows.
+     *        c3k2, c2f, c3, sppf, c2psa, detect, segment_head, focus and decoupled_head.
+     * @param registry The registry that receives the twelve rows.
      * @return Success, or the first failure of NodeRegistry::add().
      */
     [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry) noexcept;
@@ -85,7 +85,7 @@ namespace SushiAI::Vision
     [[nodiscard]] Status register_objectives(Train::ObjectiveRegistry& registry) noexcept;
 
     /**
-     * @brief Adds the "darknet" importer row to @p registry.
+     * @brief Adds the "darknet", "ultralytics", "onnx" and "caffe" importer rows to @p registry.
      * @param registry The registry that receives the row.
      * @return Success, or the first failure of ImporterRegistry::add().
      */

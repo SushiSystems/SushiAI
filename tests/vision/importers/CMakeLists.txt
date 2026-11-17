@@ -7,6 +7,7 @@
 
 sushiai_add_test_program(OWNER vision/importers
     SOURCES
+        test_caffe_import.cpp
         test_darknet_config.cpp
         test_darknet_fold.cpp
         test_darknet_import/test_decode.cpp
@@ -30,6 +31,8 @@ sushiai_add_test_program(OWNER vision/importers
         test_darknet_training/test_yolov7.cpp
         test_darknet_training/test_yolov7_tiny.cpp
         test_darknet_weights.cpp
+        test_onnx_import/test_import.cpp
+        test_onnx_import/test_yolox_detections.cpp
         test_ultralytics_checkpoint.cpp
         test_ultralytics_import/test_detections.cpp
         test_ultralytics_import/test_import.cpp

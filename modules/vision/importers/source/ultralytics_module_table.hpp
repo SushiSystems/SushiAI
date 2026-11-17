@@ -40,6 +40,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/vision/importers/ultralytics_checkpoint.hpp>
+#include <SushiAI/vision/importers/ultralytics_model.hpp>
 #include <SushiAI/vision/importers/ultralytics_tensors.hpp>
 
 namespace SushiAI
@@ -81,7 +82,7 @@ namespace SushiAI
                 std::vector<std::int64_t> channels; /**< The output channels of each row. */
                 std::vector<Config::Value> layers;  /**< The rows of the model file. */
                 std::vector<std::string> types;     /**< The row types, in order of first use. */
-                std::int64_t image_side = 640;      /**< The side of the square input. */
+                UltralyticsInputSize image_size;    /**< The input the model reads. */
                 Config::Value anchors;              /**< The "anchors" of the file, in pixels. */
                 std::vector<Config::Value> outputs; /**< What the model publishes. */
                 Config::Value task;                 /**< The task section the head wrote. */

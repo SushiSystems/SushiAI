@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
@@ -36,6 +37,7 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/vision/importers/ultralytics_checkpoint.hpp>
 
 using namespace SushiAI;
@@ -52,6 +54,12 @@ namespace
                "fixtures" / "yolo26" / "model.pt";
     }
 
+    /** @brief Returns the weight file the reference exporter writes beside the checkpoint. */
+    std::filesystem::path fixture_weights()
+    {
+        return fixture_checkpoint().parent_path() / "weights.sushi";
+    }
+
     /** @brief Reads the fixture checkpoint, or skips when the exporter has not run. */
     class Medium_UltralyticsCheckpoint : public ::testing::Test
     {
@@ -61,6 +69,19 @@ namespace
             {
                 if (!std::filesystem::exists(fixture_checkpoint()))
                     GTEST_SKIP() << "run tools/reference/export_yolo26_reference.py tests first";
+            }
+    };
+
+    /** @brief Reads the fixture weight file, or skips when it is absent or kept elsewhere. */
+    class Medium_UltralyticsWeightFile : public ::testing::Test
+    {
+        protected:
+            /** @brief Skips the test when weights.sushi is not in the fixture folder. */
+            void SetUp() override
+            {
+                if (!std::filesystem::exists(fixture_weights()))
+                    GTEST_SKIP() << "run tools/reference/export_yolo26_reference.py tests; "
+                                    "--external-weights keeps weights.sushi out of this folder";
             }
     };
 } // namespace
@@ -93,6 +114,17 @@ TEST_F(Medium_UltralyticsCheckpoint, ItLeavesOutEveryStepCounter)
                             Vision::Importers::load_ultralytics_checkpoint(fixture_checkpoint()));
 
     EXPECT_EQ(checkpoint.skipped.size(), K_STEP_COUNTERS);
+}
+
+/** @brief Tests that the exporter's weight file is a version 2 file of model state alone. */
+TEST_F(Medium_UltralyticsWeightFile, TheExportedWeightFileIsVersionTwoWithNoRunState)
+{
+    std::ifstream stream(fixture_weights(), std::ios::binary);
+    SA_ASSERT_OK_AND_ASSIGN(const IO::CheckpointReader reader, IO::CheckpointReader::open(stream));
+
+    EXPECT_EQ(reader.version(), IO::K_CHECKPOINT_VERSION);
+    EXPECT_EQ(reader.run_state_count(), 0u);
+    EXPECT_GT(reader.count(), 0u);
 }
 
 /** @brief Tests that bytes that are no zip archive are refused as no checkpoint. */

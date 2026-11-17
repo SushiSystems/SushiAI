@@ -36,19 +36,23 @@
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/train/objective_registry.hpp>
 #include <SushiAI/vision/blocks/bottleneck.hpp>
-#include <SushiAI/vision/blocks/c2psa.hpp>
 #include <SushiAI/vision/blocks/c2f.hpp>
+#include <SushiAI/vision/blocks/c2psa.hpp>
 #include <SushiAI/vision/blocks/c3.hpp>
 #include <SushiAI/vision/blocks/c3k.hpp>
 #include <SushiAI/vision/blocks/c3k2.hpp>
 #include <SushiAI/vision/blocks/conv_norm.hpp>
+#include <SushiAI/vision/blocks/decoupled_head.hpp>
 #include <SushiAI/vision/blocks/detect_head.hpp>
+#include <SushiAI/vision/blocks/focus.hpp>
 #include <SushiAI/vision/blocks/segment_head.hpp>
 #include <SushiAI/vision/blocks/sppf.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiAI/vision/datasets/reader_section.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_section.hpp>
+#include <SushiAI/vision/importers/caffe_import.hpp>
 #include <SushiAI/vision/importers/darknet_import.hpp>
+#include <SushiAI/vision/importers/onnx_import.hpp>
 #include <SushiAI/vision/importers/ultralytics_import.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
 #include <SushiAI/vision/training/dice_objective.hpp>
@@ -69,6 +73,8 @@ namespace SushiAI::Vision
         SA_TRY(registry.add(NN::NodeEntry{"c2psa", &Blocks::make_c2psa_node}));
         SA_TRY(registry.add(NN::NodeEntry{"detect", &Blocks::make_detect_node}));
         SA_TRY(registry.add(NN::NodeEntry{"segment_head", &Blocks::make_segment_head_node}));
+        SA_TRY(registry.add(NN::NodeEntry{"focus", &Blocks::make_focus_node}));
+        SA_TRY(registry.add(NN::NodeEntry{"decoupled_head", &Blocks::make_decoupled_head_node}));
 
         return Status();
     }
@@ -101,8 +107,12 @@ namespace SushiAI::Vision
     {
         SA_TRY(registry.add(IO::ImporterEntry{Importers::K_DARKNET_FORMAT,
                                               &Importers::import_darknet_files}));
-        return registry.add(IO::ImporterEntry{Importers::K_ULTRALYTICS_FORMAT,
-                                              &Importers::import_ultralytics_files});
+        SA_TRY(registry.add(IO::ImporterEntry{Importers::K_ULTRALYTICS_FORMAT,
+                                              &Importers::import_ultralytics_files}));
+        SA_TRY(registry.add(IO::ImporterEntry{Importers::K_ONNX_FORMAT,
+                                              &Importers::import_onnx_files}));
+        return registry.add(IO::ImporterEntry{Importers::K_CAFFE_FORMAT,
+                                              &Importers::import_caffe_files});
     }
 
 } // namespace SushiAI::Vision

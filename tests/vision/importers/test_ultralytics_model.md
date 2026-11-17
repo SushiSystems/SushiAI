@@ -21,6 +21,24 @@ convolution per level of 2 x (2 + 5) = 14 filters; the second reads row 1.
 
 The anchor 10 x 13 pixels at side 64 is stated as 10 / 64 and 13 / 64.
 
+## AnAnchorOfARectangularInputIsAFractionOfEachSide
+
+At an input of 32 by 64, the anchor 10 x 13 pixels is stated as 10 / 64 and 13 / 32: the width
+over the input's width and the height over its height.
+
+## ARectangularInputIsWrittenHeightFirst
+
+At an input of 32 by 64, the translated model's input shape is 32, 64, 3.
+
+## AnImageSizeListImportsAtASquareOfItsLargestSide
+
+A checkpoint whose `imgsz` is the list 32, 64 imports with an input of 64 by 64 by 3, the square
+Ultralytics' trainer takes from the list.
+
+## AnImageSizeOfAnotherKindIsRefused
+
+An `imgsz` that is a string fails with `InvalidDescription`, the origin and "imgsz".
+
 ## TheTensorsOfALevelTakeTheRowOfItsConvolution
 
 The tensors of `2.m.1.` are renamed to `3.`, the row of the second level's convolution.

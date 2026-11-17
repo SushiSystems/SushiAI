@@ -37,6 +37,7 @@
 #include <vector>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiAI/config/json_writer.hpp>
+#include <SushiAI/config/section_reader.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -46,6 +47,8 @@
 #include <SushiAI/vision/detect/anchor/head_training_section.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_training.hpp>
+
+#include "darknet_layer_table.hpp"
 
 namespace SushiAI
 {
@@ -77,20 +80,19 @@ namespace SushiAI
                 {"batch", "the batch size is 'batch_size' of the data block"},
                 {"subdivisions", "a training file has no key that splits a batch"},
                 {"max_batches", "a training file counts 'epochs', not iterations"},
-                {"angle", "the reader augments no sample"},
-                {"saturation", "the reader augments no sample"},
-                {"exposure", "the reader augments no sample"},
-                {"hue", "the reader augments no sample"},
-                {"mosaic", "the reader augments no sample"},
+                {"angle", "no pipeline row rotates a sample"},
+                {"mosaic", "the 'darknet' pipeline composes no mosaic"},
             };
 
             /** @brief Lists the keys of a head section that reach no training file. */
             constexpr UnplacedKey K_UNPLACED_HEAD_KEYS[] = {
-                {"jitter", "the reader augments no sample"},
                 {"random", "the model file fixes the input size"},
-                {"resize", "the reader augments no sample"},
+                {"resize", "the 'darknet' pipeline keeps the input size"},
                 {"cls_normalizer", "no option of the anchor objective scales a class delta"},
             };
+
+            /** @brief Names the pipeline row the augmentation keys belong to. */
+            constexpr std::string_view K_PIPELINE_ROW = "darknet";
 
             /** @brief Returns the head sections of @p config, in file order. */
             [[nodiscard]] std::vector<const DarknetSection*> list_head_sections(
@@ -121,6 +123,45 @@ namespace SushiAI
                                 option.key, option.value, section.type, row.reason));
                     }
                 }
+            }
+
+            /**
+             * @brief Appends a note for the jitter of each head but the last that differs from it.
+             *
+             * Darknet trains with the jitter of the last head, so the others are not carried over.
+             */
+            [[nodiscard]] Status note_unread_jitters(
+                const std::vector<const DarknetSection*>& heads,
+                const DarknetAugmentation& augmentation, std::vector<std::string>& notes)
+            {
+                for (std::size_t k = 0; k + 1 < heads.size(); ++k)
+                {
+                    const DarknetOption* const option = Detail::find_option(*heads[k], "jitter");
+                    if (option == nullptr)
+                        continue;
+
+                    SA_TRY_ASSIGN(const double stated,
+                                  Detail::read_real(*heads[k], "jitter", augmentation.jitter));
+                    if (static_cast<float>(stated) != augmentation.jitter)
+                        notes.push_back(SushiLog::format_text(
+                            "line {}: jitter={} of [{}] is not carried over: Darknet trains with "
+                            "the jitter of the last [{}] section",
+                            option->line, option->value, heads[k]->type, K_HEAD_SECTION));
+                }
+
+                return Status();
+            }
+
+            /** @brief Returns the data block's keys: the darknet pipeline and its four settings. */
+            [[nodiscard]] Config::Value write_data(const DarknetAugmentation& augmentation)
+            {
+                return Config::Value::object(
+                    {"pipeline", "jitter", "hue", "saturation", "exposure"},
+                    {Config::Value::string(std::string(K_PIPELINE_ROW)),
+                     Config::float32_value(augmentation.jitter),
+                     Config::float32_value(augmentation.hue),
+                     Config::float32_value(augmentation.saturation),
+                     Config::float32_value(augmentation.exposure)});
             }
 
             /** @brief Returns the JSON spelling of @p value on one line, without a line end. */
@@ -231,6 +272,11 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(Config::Value objective, write_objective(training, heads));
             SA_TRY_ASSIGN(Config::Value schedule, write_schedule(training.solver));
+            std::vector<std::string> jitter_notes;
+            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                return note_unread_jitters(heads, training.augmentation, jitter_notes);
+            }));
 
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
@@ -239,10 +285,14 @@ namespace SushiAI
                     {"objective", "optimizer", "schedule"},
                     {std::move(objective), write_optimizer(training.solver),
                      std::move(schedule)});
+                recipe.data = write_data(training.augmentation);
 
                 note_unplaced(config.net, K_UNPLACED_NETWORK_KEYS, recipe.notes);
                 for (const DarknetSection* const head : heads)
                     note_unplaced(*head, K_UNPLACED_HEAD_KEYS, recipe.notes);
+
+                for (std::string& note : jitter_notes)
+                    recipe.notes.push_back(std::move(note));
 
                 return recipe;
             });

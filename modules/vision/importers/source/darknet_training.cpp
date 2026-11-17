@@ -206,6 +206,37 @@ namespace SushiAI
             }
 
             /**
+             * @brief Reads the augmentation keys: the net's, and the jitter of the last head.
+             * @return InvalidDescription naming the line of a value that is no finite number.
+             */
+            [[nodiscard]] Result<DarknetAugmentation> read_augmentation(
+                const DarknetConfig& config)
+            {
+                DarknetAugmentation augmentation;
+                SA_TRY_ASSIGN(augmentation.hue, read_narrowed(config.net, "hue", augmentation.hue));
+                SA_TRY_ASSIGN(augmentation.saturation,
+                              read_narrowed(config.net, "saturation", augmentation.saturation));
+                SA_TRY_ASSIGN(augmentation.exposure,
+                              read_narrowed(config.net, "exposure", augmentation.exposure));
+
+                // Darknet's detector trains with the jitter of the last [yolo] section.
+                const DarknetSection* last = nullptr;
+                for (const DarknetSection& section : config.layers)
+                {
+                    if (section.type == K_YOLO_SECTION)
+                        last = &section;
+                }
+
+                if (last != nullptr)
+                {
+                    SA_TRY_ASSIGN(augmentation.jitter,
+                                  read_narrowed(*last, "jitter", augmentation.jitter));
+                }
+
+                return augmentation;
+            }
+
+            /**
              * @brief Reads the training options of one [yolo] section over their defaults.
              * @return The options; Unsupported naming the line of a value this importer does
              *         not read; InvalidDescription naming the line of a malformed value, or
@@ -245,6 +276,7 @@ namespace SushiAI
         {
             DarknetTraining training;
             SA_TRY_ASSIGN(training.solver, read_solver(config.net));
+            SA_TRY_ASSIGN(training.augmentation, read_augmentation(config));
             for (const DarknetSection& section : config.layers)
             {
                 if (section.type != K_YOLO_SECTION)
