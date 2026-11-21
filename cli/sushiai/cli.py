@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Optional
 
 import typer
+from sushicore.clean_command import register_clean_command
 from sushicore.diag_commands import register_diagnostic_commands
 from sushicore.backlog import register_backlog_commands
 from sushicore.design import register_design_commands
@@ -30,6 +31,7 @@ except ImportError:  # typer 0.27 and later carry their own copy of click
 from . import console
 from .aliases import K_ALIASES
 from .config import PROFILE, find_project_root, load_config
+from .services import build_trees
 from .services import profiler as profiler_svc
 from .services import project as project_svc
 from .services.diag import DIAGNOSTICS
@@ -95,7 +97,6 @@ def _print_error(message: str) -> None:
     epilog="sa build  # Build the debug configuration, in build/default-debug\n"
            "sa build --type release  # Its own tree, build/default-release\n"
            "sa build --sanitize address-undefined  # build/asan-debug\n"
-           "sa build --clean  # Wipe the build tree first\n"
            "sa build --report  # Measure time and memory per kind of edge\n"
            "sa build --distributed  # Also build the distributed layer and sushiai_worker\n"
            "sa build --sycl-targets \"spir64;nvidia_gpu_sm_86\"  # AOT device targets\n"
@@ -106,8 +107,6 @@ def build(
         K_DEFAULT_TYPE, "--type", "-t", case_sensitive=False,
         help="Build type: release | debug | relwithdebinfo. Each type has its own tree, "
              "build/<name>-<type>."),
-    clean: bool = typer.Option(
-        False, "--clean", help="Delete the build tree before configuring."),
     define: Optional[list[str]] = typer.Option(
         None, "--define", "-D", metavar="VAR=VALUE",
         help="Pass a CMake cache variable through to configure. Repeatable. "
@@ -139,9 +138,9 @@ def build(
 
     Cache variables set with -D persist in the build tree, so dropping the
     flag on a later run does not unset them; pass VAR= to clear one, or
-    --clean to start over.
+    remove the tree with `sa clean --yes` to start over.
     """
-    raise typer.Exit(project_svc.build(_toolbox(), type, clean, define, sanitize, distributed,
+    raise typer.Exit(project_svc.build(_toolbox(), type, define, sanitize, distributed,
                                        sycl_targets, report=report, jobs=jobs))
 
 
@@ -234,14 +233,11 @@ def run(
                                      sanitizer=sanitize, list_all=list_all))
 
 
-@app.command(
-    "clean",
-    rich_help_panel=K_PROJECT,
-    epilog="sa clean",
-)
-def clean() -> None:
-    """Remove build/, every build tree and the generated API reference included."""
-    raise typer.Exit(project_svc.clean(_toolbox()))
+register_clean_command(
+    app, lambda ctx: project_svc.clean_target(_toolbox()), program="sa", panel=K_PROJECT,
+    names={None: build_trees.K_DEFAULT_TREE,
+           **{sanitizer.value: name for sanitizer, name in build_trees.K_SANITIZER_TREES.items()}},
+    build_types=[build_type.value for build_type in BuildType])
 
 
 def _api_source() -> ApiSource:

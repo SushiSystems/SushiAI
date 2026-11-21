@@ -55,7 +55,6 @@ See [`CLI_GUIDE.md`](guides/CLI_GUIDE.md) for the full command reference.
 ```bash
 sa build                          # Debug, in build/default-debug
 sa build --type release           # Release, in build/default-release
-sa build --clean                  # wipe the build tree first
 sa build -D SB_SYCL_TARGETS=...   # any CMake cache variable, repeatable
 
 sa test --label small             # fast, run this often

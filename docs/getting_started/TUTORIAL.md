@@ -69,7 +69,7 @@ project (`SB_BUILD_TESTS`), so none of them enter this tree.
 `sa test` starts one process per case through CTest. Each tier links the tests of its
 modules into one program, `sushiai_<tier>_tests`, and `sa run` runs one of them in one process.
 
-> **A warning about `--clean`.** It exists, and on most machines you should not
+> **A warning about `sa clean --yes`.** It exists, and on most machines you should not
 > reach for it. Because SushiBLAS is compiled from source here, a clean build of
 > SushiAI is a clean build of two projects.
 

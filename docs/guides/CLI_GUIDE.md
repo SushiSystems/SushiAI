@@ -92,7 +92,6 @@ run or a launched program is running stops it and exits 130.
 sa build                  # Debug build (the default), in build/default-debug
 sa build --type release   # Release build, in build/default-release
 sa build --type relwithdebinfo
-sa build --clean          # delete the build tree first, then build from scratch
 sa build --report         # print the time and memory per kind of edge after the build
 sa build --jobs 4         # compile with four jobs; left out, the hardware threads
 sa build --distributed    # build the distributed layer and sushiai_worker
@@ -137,13 +136,13 @@ sa build --sycl-targets "spir64;nvidia_gpu_sm_61" -D SA_BUILD_TESTS=OFF
 
 Repeatable, `VAR=VALUE`, passed straight through to `cmake`: the same flag
 `sb build` takes. A malformed entry exits 2 before the build tree is touched,
-`--clean` included, with the message naming what you typed.
+with the message naming what you typed.
 
 Two things worth knowing:
 
 - **The values are cached.** They persist in the build tree, so dropping the
   flag on a later run does *not* unset them. Pass `VAR=` to clear one, or
-  `--clean` to start over.
+  `sa clean --yes` to start over.
 - **They are appended last**, after every default the CLI sets, so an explicit
   `-D` is never silently outranked by one of them.
 
@@ -392,14 +391,17 @@ Two deliberate choices:
 ## `sa clean` and `sa docs`
 
 ```bash
-sa clean       # remove build/, every build tree with it
+sa clean                                       # say which trees it would remove, remove none
+sa clean --yes                                 # remove every build tree
+sa clean --type debug --yes                    # remove build/default-debug only
+sa clean --sanitize address-undefined --yes    # remove build/asan-<type>
 sa docs        # build the Doxygen API reference
 sa docs bundle --release 1.2.3   # pack the documentation bundle
 ```
 
-`sa clean` removes the generated API reference too, because it lives under
-`build/`. If the folder is still there afterwards, for example because a program
-holds a file in it open, the command names the tree and exits 1.
+`sa clean` removes build trees and nothing else under `build/`: the generated API
+reference and the downloaded models stay. A tree that a program holds a file in
+open is named in one error line, with exit code 1.
 
 `sa docs` was `sa doxygen`. The old word still runs, prints one notice naming
 the new one when it runs on a terminal, and is removed after 2027-03-25; `SA_NO_DEPRECATION_NOTICE=1`

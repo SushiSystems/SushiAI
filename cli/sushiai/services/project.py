@@ -14,11 +14,13 @@ import os
 import shutil
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from sushicore import build_admission, build_report
 from sushicore.build_tree import K_DEFAULT_BUILD_TYPE, refuse_another_build_type
 from sushicore.cmake_cache import cached_value
+from sushicore.cmake_driver import CMakeDriver
 from sushicore.errors import ProjectRootNotFoundError
 from sushicore.example_catalog import ExampleCatalog
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
@@ -210,17 +212,6 @@ def _remove_tree(console: ServiceConsole, path: Path) -> bool:
     return True
 
 
-def _clean_build_tree(tools: Toolbox, build_dir: Path) -> int:
-    """Removes *build_dir* through the driver and returns 1 when it is still there."""
-    tools.driver.clean_tree(build_dir)
-    if build_dir.exists():
-        tools.console.error(
-            f"Could not remove {build_dir}. "
-            "Close the program that holds it open and run the command again.")
-        return 1
-    return 0
-
-
 def _configure_args(tools: Toolbox, cfg: Config, root: Path, build_dir: Path, build_type: str,
                     packages: PackageSet, define_args: Sequence[str] = ()) -> list[str]:
     """Returns the cmake configure command, with *define_args* after every default."""
@@ -238,7 +229,7 @@ def _configure_args(tools: Toolbox, cfg: Config, root: Path, build_dir: Path, bu
     return args + list(define_args)
 
 
-def build(tools: Toolbox, build_type: BuildType, clean: bool = False,
+def build(tools: Toolbox, build_type: BuildType,
           defines: Sequence[str] | None = None,
           sanitizer: Sanitizer | None = None,
           distributed: bool | None = None,
@@ -271,9 +262,6 @@ def build(tools: Toolbox, build_type: BuildType, clean: bool = False,
     build_dir = build_trees.build_dir(root, build_type.value, sanitizer)
     refuse_another_build_type(build_dir, cmake_build_type, defines or ())
     build_admission.refuse_a_stopped_gate(build_dir)
-
-    if clean and (rc := _clean_build_tree(tools, build_dir)) != 0:
-        return rc
 
     console.info(f"Compiler: {cfg.resolved_compiler(root)}")
 
@@ -708,10 +696,18 @@ def run_app(tools: Toolbox, target: str, title: str, app_args: Sequence[str]) ->
     return tools.runner.run([str(exe), *app_args], root, env)
 
 
-def clean(tools: Toolbox) -> int:
-    """Removes every build tree and returns 1 when the folder is still there afterwards."""
-    tools.console.header("Project Clean")
-    return _clean_build_tree(tools, _build_root(find_project_root()))
+@dataclass(frozen=True)
+class CleanTarget:
+    """What the shared `clean` command acts on: the checkout, where it prints and the driver."""
+
+    root: Path
+    console: ServiceConsole
+    driver: CMakeDriver
+
+
+def clean_target(tools: Toolbox) -> CleanTarget:
+    """Returns the checkout `sa` runs in, with the console and the driver of *tools*."""
+    return CleanTarget(find_project_root(), tools.console, tools.driver)
 
 
 def doxygen(tools: Toolbox) -> int:

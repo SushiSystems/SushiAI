@@ -11,6 +11,7 @@
 | RW-173 | P3 | open | Give the upstream-main job the SushiProfiler and SushiLog refs SushiRuntime main needs | The Against SushiRuntime and SushiBLAS main job builds SushiRuntime main without the ScopedZone and __COUNTER__ errors |  | `.github/workflows/ci.yml` | 2026-11-14 |
 | RW-179 | P3 | open | Make the checker tests independent of where TMP points | tools/check_all.py passes with TMP and TEMP set to a folder inside the repository |  | `tools/check_all.py` | 2026-11-14 |
 | RW-180 | P2 | open | Decide whether the TSan race in GraphPairTask is real and fix or justify it | The thread job reports no race at graph_task_sink.cpp:65, or a suppression names its reason and this entry |  | `.github/workflows/ci.yml` | 2026-11-14 |
+| RW-190 | P1 | open | Use the shared clean command and drop build --clean | sa clean says what it would remove and removes trees only with --yes, selected by --type, and sa build has no --clean |  | `cli/sushiai/cli.py` | 2026-11-21 |
 
 ## Known issues
 

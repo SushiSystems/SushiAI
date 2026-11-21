@@ -242,3 +242,61 @@ def test_profile_without_sp_says_to_install_it():
     assert code == 1
     assert recorded.runner.commands == []
     assert "SushiProfiler" in K_ANSI_ESCAPE.sub("", " ".join(recorded.errors()))
+
+
+def _three_trees(root: Path) -> dict[str, Path]:
+    """Makes the Debug, Release and ASan trees of *root*, by folder name."""
+    trees = {name: root / "build" / name
+             for name in ("default-debug", "default-release", "asan-debug")}
+    for tree in trees.values():
+        tree.mkdir(parents=True)
+    return trees
+
+
+def _clean(project_root: Path, *arguments: str):
+    """Runs `sa clean` with *arguments* in *project_root*, and returns the result."""
+    return CliRunner().invoke(cli.app, ["clean", *arguments], obj=recorded_tools().tools)
+
+
+@pytest.mark.medium
+def test_clean_without_yes_says_what_it_would_remove_and_removes_none(project_root):
+    """`sa clean` alone exits 2, names every tree, and leaves them all."""
+    trees = _three_trees(project_root)
+
+    result = _clean(project_root)
+
+    assert result.exit_code == 2
+    assert all(tree.is_dir() for tree in trees.values())
+
+
+@pytest.mark.medium
+def test_clean_with_a_type_and_yes_removes_the_plain_tree_of_that_type_only(project_root):
+    """`sa clean --type debug --yes` removes build/default-debug and the other two stay."""
+    trees = _three_trees(project_root)
+
+    assert _clean(project_root, "--type", "debug", "--yes").exit_code == 0
+
+    assert [name for name, tree in trees.items() if tree.exists()] == [
+        "default-release", "asan-debug"]
+
+
+@pytest.mark.medium
+def test_clean_with_a_sanitizer_and_yes_removes_the_trees_of_that_sanitizer(project_root):
+    """`sa clean --sanitize address-undefined --yes` removes build/asan-debug only."""
+    trees = _three_trees(project_root)
+
+    assert _clean(project_root, "--sanitize", "address-undefined", "--yes").exit_code == 0
+
+    assert [name for name, tree in trees.items() if tree.exists()] == [
+        "default-debug", "default-release"]
+
+
+@pytest.mark.medium
+def test_build_no_longer_takes_clean(project_root):
+    """`sa build --clean` is refused: a build never removes the tree it configures."""
+    trees = _three_trees(project_root)
+
+    result = CliRunner().invoke(cli.app, ["build", "--clean"], obj=recorded_tools().tools)
+
+    assert result.exit_code == 2
+    assert all(tree.is_dir() for tree in trees.values())

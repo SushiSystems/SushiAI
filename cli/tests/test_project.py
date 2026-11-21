@@ -22,14 +22,6 @@ from sushiai.services.toolbox import default_toolbox
 from recorded_tools import Recorded, offline_config, recorded_tools, write_executable
 
 
-class _StuckDriver(CMakeDriver):
-    """A driver whose clean leaves the tree in place, as a file another program holds open does."""
-
-    def clean_tree(self, build_dir: Path) -> bool:
-        """Leaves *build_dir* alone and reports that it is still there."""
-        return False
-
-
 @pytest.fixture
 def recorded() -> Recorded:
     """Returns a toolbox that records its console and its commands."""
@@ -44,39 +36,14 @@ def tree(project_root: Path) -> Path:
     return project_root
 
 
-def _stuck(recorded: Recorded) -> Recorded:
-    """Returns *recorded* with a driver that cannot remove a tree."""
-    driver = _StuckDriver(recorded.console, recorded.runner)
-    return dataclasses.replace(recorded, tools=dataclasses.replace(recorded.tools, driver=driver))
-
-
 @pytest.mark.medium
-def test_build_rejects_a_malformed_define_before_it_removes_the_tree(recorded, tree):
-    """`sa build --clean -D BAD` exits 2 and leaves build/ as it was."""
-    assert project.build(recorded.tools, project.K_DEFAULT_TYPE, clean=True,
+def test_build_rejects_a_malformed_define_before_it_touches_the_tree(recorded, tree):
+    """`sa build -D BAD` exits 2 and leaves build/ as it was."""
+    assert project.build(recorded.tools, project.K_DEFAULT_TYPE,
                          defines=["SA_BUILD_TESTS"]) == 2
     assert recorded.runner.commands == []
     assert (tree / "build" / "CMakeCache.txt").is_file()
     assert "SA_BUILD_TESTS" in recorded.errors()[0]
-
-
-def _same(recorded: Recorded) -> Recorded:
-    """Returns *recorded* unchanged, whose driver removes a tree."""
-    return recorded
-
-
-@pytest.mark.medium
-@pytest.mark.parametrize(("rig", "survives", "exit_code"), [(_stuck, True, 1), (_same, False, 0)],
-                         ids=["tree-survives", "tree-gone"])
-def test_clean_reports_a_tree_it_could_not_remove(rig, survives, exit_code, recorded, tree):
-    """A build tree that survives the removal is an error naming it with exit code 1."""
-    rigged = rig(recorded)
-
-    assert project.clean(rigged.tools) == exit_code
-
-    assert (tree / "build").exists() == survives
-    assert bool(recorded.errors()) == survives
-    assert (str(tree / "build") in " ".join(recorded.errors())) == survives
 
 
 @pytest.mark.medium
