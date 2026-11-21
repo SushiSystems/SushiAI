@@ -12,6 +12,7 @@ from __future__ import annotations
 import importlib
 
 import pytest
+from sushicore.errors import ProjectRootNotFoundError
 
 from sushiai.console import make_console_holder
 
@@ -34,7 +35,7 @@ def test_import_does_not_build_console(tmp_path):
 def test_output_helper_falls_back_outside_project(capsys):
     """A holder whose config_dir reports no checkout layers no files and still prints."""
     def outside_a_checkout():
-        raise SystemExit(1)
+        raise ProjectRootNotFoundError("Not inside a SushiAI project")
 
     holder = make_console_holder(outside_a_checkout)
 
