@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.console_memory import RecordingConsole
+from sushicore.errors import ConfigError
 from sushicore.proc_memory import RecordingRunner
 
 from sushiai.services import project
@@ -44,6 +45,22 @@ def test_build_rejects_a_malformed_define_before_it_touches_the_tree(recorded, t
     assert recorded.runner.commands == []
     assert (tree / "build" / "CMakeCache.txt").is_file()
     assert "SA_BUILD_TESTS" in recorded.errors()[0]
+
+
+@pytest.mark.medium
+def test_build_refuses_a_tree_of_another_generator_and_keeps_it(recorded, tree):
+    """`sa build` never removes a tree: another generator stops it, naming `sa clean`."""
+    default = tree / "build" / "default-debug"
+    (default / "CMakeCache.txt").write_text("CMAKE_GENERATOR:INTERNAL=Another Generator\n",
+                                            encoding="utf-8")
+    (default / "object.o").write_text("", encoding="utf-8")
+
+    with pytest.raises(ConfigError) as refused:
+        project.build(recorded.tools, project.K_DEFAULT_TYPE)
+
+    assert "`sa clean`" in str(refused.value)
+    assert recorded.runner.commands == []
+    assert (default / "object.o").is_file()
 
 
 @pytest.mark.medium

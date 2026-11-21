@@ -28,6 +28,7 @@ from sushicore.testing.program_runner import ProgramRunner
 from sushicore.provision.sushi_packages import PackageError, PackageSet, configure_arguments
 from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
 from sushicore.toolchain_args import vcpkg_prefix as _vcpkg_prefix
+from sushicore.tree_reuse import refuse_unreusable_tree
 
 from .. import memory_limit
 from ..config import PROFILE, Config, find_project_root
@@ -262,6 +263,8 @@ def build(tools: Toolbox, build_type: BuildType,
     build_dir = build_trees.build_dir(root, build_type.value, sanitizer)
     refuse_another_build_type(build_dir, cmake_build_type, defines or ())
     build_admission.refuse_a_stopped_gate(build_dir)
+    refuse_unreusable_tree(tools.driver, build_dir, generator=cfg.generator, root=root,
+                           program="sa")
 
     console.info(f"Compiler: {cfg.resolved_compiler(root)}")
 
@@ -270,8 +273,6 @@ def build(tools: Toolbox, build_type: BuildType,
     fresh = tools.driver.needs_configure(build_dir, cfg.generator, root=root)
     if fresh:
         console.info(f"Configuring CMake... (type={build_type.value})")
-        if build_dir.is_dir() and not _remove_tree(console, build_dir):
-            return 1
     else:
         console.info("Reconfiguring in place...")
 

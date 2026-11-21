@@ -151,8 +151,9 @@ from before SB-0 and SB-2.
 `default`, or `asan` and `tsan` for the two sanitizer sets, so a sanitizer set is fixed by its
 tree. `K_DEFAULT_TYPE` is sushicore's `K_DEFAULT_BUILD_TYPE`, Debug. Before a configure,
 `refuse_another_build_type` stops a tree that was configured as another type and a `-D` that
-sets `CMAKE_BUILD_TYPE`, and `refuse_a_stopped_gate` stops a build while the gate's `stop` file
-exists. The configure appends the compiler and linker launcher entries of
+sets `CMAKE_BUILD_TYPE`, `refuse_unreusable_tree` stops a tree of another generator or source
+folder and names `sa clean`, and `refuse_a_stopped_gate` stops a build while the gate's `stop` file
+exists. A build never removes a tree. The configure appends the compiler and linker launcher entries of
 `build_admission.launcher_defines`, which run every edge through the memory gate, and the compile
 runs `hardware_threads()` jobs unless `--jobs` says otherwise. `--report` reads the ninja log
 from the offset taken before the compile and prints and writes the report.
