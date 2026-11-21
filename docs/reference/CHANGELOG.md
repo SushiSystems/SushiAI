@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-21 — cli: Breaking change: `sa build` no longer removes the tree it configures; it refuses a tree of another generator or source folder and names `sa clean`, and configures any other tree in place (RW-191, `e4741607`).
 - 2026-11-21 — cli: Breaking change: Removed `sa build --clean`, and made `sa clean` the shared command, which says what it would remove and removes trees only with `--yes` (RW-190, `9dfaf527`).
 - 2026-11-21 — cli: Renamed `sa run --sort` to `sa run --pick`, and kept `--sort` as a hidden alias that names `--pick` until 2027-03-25 (RW-189, `93948446`).
 - 2026-11-21 — cli: Changed `sa run --sort` to list the built examples, each with its description; `sa run --sort --all` lists every program as before (RW-188).
