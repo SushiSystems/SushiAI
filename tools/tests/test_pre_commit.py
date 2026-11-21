@@ -33,6 +33,10 @@ if b"\\r\\n" in (root / "src" / "a.py").read_bytes():
     seen.append("crlf")
 if (root / "third_party" / "sub" / "marker.txt").is_file():
     seen.append("submodule")
+if (root / "assets" / "local.bin").is_file():
+    seen.append("ignored")
+if (root / "out" / "big.bin").exists():
+    seen.append("ignored folder")
 fields = [str(root), os.environ.get("GIT_INDEX_FILE", ""), " ".join(sys.argv[2:]), ",".join(seen)]
 with open(os.environ["PRE_COMMIT_TEST_LOG"], "a", encoding="utf-8") as log:
     log.write("\\t".join(fields) + "\\n")
@@ -120,6 +124,25 @@ class PreCommitTest(unittest.TestCase):
         self._run()
         kept = (self.repo.root / "third_party" / "sub" / "marker.txt").is_file()
         self.assertEqual((self._logged_sightings(), kept), (["submodule"], True))
+
+    def test_the_checks_run_in_a_folder_beside_the_repository(self) -> None:
+        self._run()
+        [(folder, _)] = self._logged()
+        self.assertEqual(folder.parent, self.repo.root.resolve().parent)
+
+    def test_an_ignored_file_on_disk_is_present_in_the_checked_tree(self) -> None:
+        self.repo.write(".gitignore", "assets/*.bin\nout/\n")
+        self.repo.commit("ignore")
+        self.repo.write("assets/local.bin", "x\n")
+        self._run()
+        self.assertEqual(self._logged_sightings(), ["ignored"])
+
+    def test_an_ignored_folder_is_left_out_of_the_checked_tree(self) -> None:
+        self.repo.write(".gitignore", "out/\n")
+        self.repo.commit("ignore")
+        self.repo.write("out/big.bin", "x\n")
+        self._run()
+        self.assertEqual(self._logged_sightings(), [""])
 
     def test_the_checkers_that_read_the_history_are_left_out(self) -> None:
         self._run()

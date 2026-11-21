@@ -6,8 +6,8 @@
 
 Usage: python tools/hooks/pre_commit.py [repository root]
 
-Git runs it through the pre-commit hook; the index is written to a throwaway folder and
-`tools/check_all.py` runs there, with git pointed at the real repository.
+Git runs it through the pre-commit hook; the index is written to a throwaway folder beside the
+repository, where `../<sibling>` resolves, and `tools/check_all.py` runs there.
 """
 
 from __future__ import annotations
@@ -79,6 +79,27 @@ def submodule_paths(root: Path, environ: Mapping[str, str]) -> list[str]:
     return [path for meta, _, path in entries if meta.startswith(K_GITLINK_MODE)]
 
 
+def ignored_files(root: Path, environ: Mapping[str, str]) -> list[str]:
+    """Returns the ignored files on disk outside an ignored folder, which a checker may cite.
+
+    An ignored folder holds build output and is left out whole.
+    """
+    done = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--others", "--ignored", "--exclude-standard",
+         "--directory", "-z"],
+        capture_output=True, text=True, env=dict(environ), check=False)
+    return [entry for entry in done.stdout.split("\0") if entry and not entry.endswith("/")]
+
+
+def copy_ignored_files(root: Path, tree: Path, environ: Mapping[str, str]) -> None:
+    """Copies each of :func:`ignored_files` from *root* into *tree*."""
+    for name in ignored_files(root, environ):
+        source = root / name
+        if source.is_file():
+            (tree / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, tree / name)
+
+
 def link_submodule(source: Path, target: Path) -> str | None:
     """Makes *target* a link to the checked-out submodule *source*; returns the error, or None.
 
@@ -124,6 +145,7 @@ def check_index(root: Path, git_dir: Path, tree: Path, environ: Mapping[str, str
     if not entry.is_file():
         print(f"pre-commit: the index holds no {K_CHECK_ALL.as_posix()}", file=sys.stderr)
         return K_EXIT_REFUSED
+    copy_ignored_files(root, tree, environ)
     modules = submodule_paths(root, environ)
     for path in modules:
         problem = link_submodule(root / path, tree / path)
@@ -157,7 +179,8 @@ def run(root: Path, environ: Mapping[str, str] | None = None) -> int:
     if git_dir is None:
         print(f"pre-commit: {root} is not a git repository", file=sys.stderr)
         return K_EXIT_REFUSED
-    folder = Path(tempfile.mkdtemp(prefix=K_PREFIX))
+    folder = Path(tempfile.mkdtemp(prefix=f".{root.resolve().name}-{K_PREFIX}",
+                                   dir=root.resolve().parent))
     try:
         return check_index(root, git_dir, folder, environ)
     finally:
