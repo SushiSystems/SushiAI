@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import settings  # noqa: E402
 from checking.checker import Checker, Issue, run  # noqa: E402
-from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.ignored_paths import drop_ignored, folders_of, walk_files  # noqa: E402
 from checking.source_file import read_files  # noqa: E402
 from documentation.design_status import (  # noqa: E402
     K_DESIGN_INDEXES,
@@ -382,11 +382,9 @@ def _listing(root: Path) -> tuple[set[str], set[str]]:
     """Returns the folders and files under docs/, and the module folders and READMEs."""
     folders = {"docs"}
     files: set[str] = set()
-    for path in (root / "docs").rglob("*"):
-        if path.is_dir():
-            folders.add(_relative(root, path))
-        elif path.is_file():
-            files.add(_relative(root, path))
+    found = walk_files(root / "docs")
+    files.update(_relative(root, path) for path in found)
+    folders.update(_relative(root, path) for path in folders_of(found, root))
     modules = root / "modules"
     if modules.is_dir():
         folders.add("modules")
@@ -409,9 +407,7 @@ def _read_texts(root: Path, names: Iterable[str]) -> dict[str, str]:
 def _read_repository(root: Path, today: datetime.date, grace: int) -> Repository:
     """Reads one repository's files into values; the only reader of the disk in this checker."""
     folders, files = _listing(root)
-    markdown = sorted(
-        _relative(root, path) for path in (root / "docs").rglob("*.md") if path.is_file()
-    )
+    markdown = sorted(name for name in files if name.startswith("docs/") and name.endswith(".md"))
     texts = _read_texts(root, markdown)
     reached, linked = link_probes(texts)
     present = frozenset(name for name in reached if (root / name).exists())

@@ -20,6 +20,7 @@ from checking.checker import run  # noqa: E402
 from checking.source_file import SourceFile  # noqa: E402
 from documentation import check_source_comments  # noqa: E402
 from documentation.check_source_comments import (  # noqa: E402
+    K_BLOCK_CEILING,
     K_CHECKER,
     K_PART_OF,
     CheckedSource,
@@ -248,6 +249,27 @@ class BlockCeilingTest(unittest.TestCase):
     def test_a_short_symbol_block_is_clean(self) -> None:
         block = "/** @brief Does it. */\nint f();\n"
         self.assertEqual(_found(rule_block_ceiling, "a.hpp", _boxed("a.hpp") + block), [])
+
+    def test_a_symbol_block_of_exactly_the_ceiling_is_clean_and_one_more_line_is_reported(self) -> None:
+        """Pins `last - first + 1 > K_BLOCK_CEILING`: a block of 8 lines passes, one of 9 is reported."""
+        at_ceiling = "/**\n" + " * @brief Does it.\n" * (K_BLOCK_CEILING - 2) + " */\nint f();\n"
+        past_ceiling = "/**\n" + " * @brief Does it.\n" * (K_BLOCK_CEILING - 1) + " */\nint f();\n"
+        self.assertEqual(_found(rule_block_ceiling, "a.hpp", _boxed("a.hpp") + at_ceiling), [])
+        self.assertEqual(_found(rule_block_ceiling, "a.hpp", _boxed("a.hpp") + past_ceiling),
+                         ["comment block exceeds 8 lines"])
+
+    def test_the_file_header_block_is_exempt_from_the_ceiling(self) -> None:
+        """Pins `position > 0`: the first block after the license, the file header, may pass the ceiling."""
+        long_header = _boxed("a.hpp").replace(" * @author Jane Doe\n", " * @author Jane Doe\n" + " * Extra.\n" * 4)
+        self.assertEqual(_found(rule_block_ceiling, "a.hpp", long_header), [])
+
+    def test_a_run_of_slash_comments_at_the_ceiling_is_clean_and_one_more_line_is_reported(self) -> None:
+        """Pins `length > K_BLOCK_CEILING` of the `///` run: 8 lines pass, 9 are reported."""
+        at_ceiling = "/// @brief Does it.\n" * K_BLOCK_CEILING + "int f();\n"
+        past_ceiling = "/// @brief Does it.\n" * (K_BLOCK_CEILING + 1) + "int f();\n"
+        self.assertEqual(_found(rule_block_ceiling, "a.hpp", _boxed("a.hpp") + at_ceiling), [])
+        self.assertEqual(_found(rule_block_ceiling, "a.hpp", _boxed("a.hpp") + past_ceiling),
+                         ["/// run exceeds 8 lines"])
 
 
 class SeparatorTest(unittest.TestCase):

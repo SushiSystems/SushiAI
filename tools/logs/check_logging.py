@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
-from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.ignored_paths import drop_ignored, walk_files  # noqa: E402
 from checking.source_file import SourceFile, line_of, read_files  # noqa: E402
 import settings  # noqa: E402
 from settings import K_CONSOLE_PATHS, K_LOG_PREFIX  # noqa: E402
@@ -227,8 +227,8 @@ def _read_paths(root: Path) -> list[Path]:
     for name in K_SOURCE_FOLDERS:
         folder = root / name
         if folder.is_dir():
-            found.extend(path for path in sorted(folder.rglob("*"))
-                         if path.is_file() and path.suffix in K_READ_SUFFIXES and not _is_test(path, root))
+            found.extend(path for path in walk_files(folder)
+                         if path.suffix in K_READ_SUFFIXES and not _is_test(path, root))
     return drop_ignored(root, found)
 
 
@@ -238,7 +238,9 @@ def _read_entries(root: Path, paths: Iterable[Path]) -> dict[Path, frozenset[str
     for path in paths:
         folder = module_folder(path, root) if path.suffix in K_CPP_SUFFIXES else None
         if folder is not None and folder not in entries:
-            entries[folder] = frozenset(entry.name for entry in folder.rglob("*") if entry.exists())
+            entries[folder] = frozenset(
+                part for path in walk_files(folder) for part in path.relative_to(folder).parts
+            )
     return entries
 
 

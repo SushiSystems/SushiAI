@@ -12,6 +12,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from checking.ignored_paths import folders_of, walk_files
+
 K_DESIGN_INDEXES = frozenset({"README.md", "REMAINING_WORK.md"})
 K_REVISION_FOLDER = "_REVISION"
 K_WORK_FILES_IN_ORDER = ("SPEC.md", "PLAN.md", "REPORT.md")
@@ -162,8 +164,9 @@ def read_tree(root: Path) -> Tree:
     """Reads the docs/ tree and the module READMEs of a repository into a Tree; the only reader of the disk here."""
     folders = {"docs"}
     files: set[str] = set()
-    for path in (root / "docs").rglob("*"):
-        (folders if path.is_dir() else files).add(path.relative_to(root).as_posix())
+    found = walk_files(root / "docs")
+    files.update(path.relative_to(root).as_posix() for path in found)
+    folders.update(path.relative_to(root).as_posix() for path in folders_of(found, root))
     modules = root / "modules"
     if modules.is_dir():
         files.update(

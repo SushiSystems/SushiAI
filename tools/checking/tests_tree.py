@@ -9,12 +9,11 @@ A test folder is any folder named `tests` or `__tests__`, and `Assets/<Project>/
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from checking.ignored_paths import drop_ignored, ignored_folders
+from checking.ignored_paths import drop_ignored, walk_files
 
 K_TEST_FOLDERS = frozenset({"tests", "__tests__"})
 K_UNITY_TEST_FOLDER = "Tests"
@@ -40,23 +39,19 @@ def _is_test_folder(parent: Path, name: str) -> bool:
         name == K_UNITY_TEST_FOLDER and parent.parent.name == K_UNITY_ASSETS_FOLDER)
 
 
-def _test_folders(root: Path) -> Iterator[Path]:
-    """Yields every test folder below a repository, skipping ignored and nested ones."""
-    ignored = ignored_folders(root)
-    for current, names, _ in os.walk(root):
-        names[:] = sorted(
-            name for name in names
-            if name not in K_SKIPPED_FOLDERS and (Path(current) / name).resolve() not in ignored
-        )
-        found = [name for name in names if _is_test_folder(Path(current), name)]
-        for name in found:
-            yield Path(current) / name
-        names[:] = [name for name in names if name not in found]
+def _under_test_folder(root: Path, path: Path) -> bool:
+    """Returns whether a file lies below a test folder that no skipped folder precedes."""
+    current = root
+    for name in path.relative_to(root).parts[:-1]:
+        if name in K_SKIPPED_FOLDERS:
+            return False
+        if _is_test_folder(current, name):
+            return True
+        current = current / name
+    return False
 
 
 def discover(root: Path) -> TestTree:
     """Returns the files under every test folder of a repository, at any depth."""
-    found = sorted(
-        path for folder in _test_folders(root) for path in folder.rglob("*") if path.is_file()
-    )
+    found = [path for path in walk_files(root) if _under_test_folder(root, path)]
     return TestTree(root, tuple(drop_ignored(root, found)))

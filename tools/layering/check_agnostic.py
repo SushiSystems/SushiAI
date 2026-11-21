@@ -21,7 +21,7 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
-from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.ignored_paths import drop_ignored, walk_files  # noqa: E402
 from checking.source_file import SourceFile, read_files  # noqa: E402
 import settings  # noqa: E402
 
@@ -170,8 +170,8 @@ def _read_files_below(root: Path) -> tuple[SourceFile, ...]:
     candidates = [
         path
         for name in K_AGNOSTIC_PATHS if (root / name).is_dir()
-        for path in sorted((root / name).rglob("*"))
-        if path.is_file() and is_checked_file(path.relative_to(root).as_posix(), (name,))
+        for path in walk_files(root / name)
+        if is_checked_file(path.relative_to(root).as_posix(), (name,))
     ]
     return read_files(drop_ignored(root, candidates), lambda _: True)
 

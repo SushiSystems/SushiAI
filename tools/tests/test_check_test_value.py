@@ -126,6 +126,19 @@ class TestValueRules(unittest.TestCase):
         self.assertEqual(found(rule_no_assertion, files, {}), [])
 
 
+class TestValueCaseBounds(unittest.TestCase):
+    """Runs a rule on one case with a change on each of its lines and on the lines around it."""
+    K_TEST_SIZE = "small"
+
+    def test_a_change_on_the_first_or_last_line_of_a_case_belongs_to_the_case(self) -> None:
+        """Pins `case.first <= line <= case.last`: the case spans lines 2 to 4, and 1 and 5 are outside it."""
+        path = Path("tests/core/test_shape.cpp")
+        files = {str(path): "\nTEST(Small_Shape, Prints) {\n  Print(f());\n}\n\n"}
+        reported = {line: found(rule_no_assertion, files, {path: frozenset({line})}) for line in range(1, 6)}
+        self.assertEqual(reported, {1: [], 2: [("test_shape.cpp", 2)], 3: [("test_shape.cpp", 2)],
+                                    4: [("test_shape.cpp", 2)], 5: []})
+
+
 class TestValueCommand(unittest.TestCase):
     """Runs the checker's command line on a git repository with a base commit and a change after it."""
     K_TEST_SIZE = "medium"

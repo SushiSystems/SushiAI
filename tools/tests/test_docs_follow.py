@@ -38,6 +38,7 @@ from documentation.docs_follow import (  # noqa: E402
     parse_changes,
 )
 from hooks import commit_msg  # noqa: E402
+from repo_builder import without_commit_dates  # noqa: E402
 
 K_PAGE = "# Guide\n\n**Describes:** `src/a.py`, `core`\n\nText.\n"
 K_GUIDE = page_facts("docs/GUIDE.md", K_PAGE)
@@ -258,7 +259,7 @@ class TestRepository(unittest.TestCase):
         identity = ["-c", "user.name=Test", "-c", "user.email=test@example.com",
                     "-c", "commit.gpgsign=false"]
         done = subprocess.run(["git", "-C", str(self.root), *identity, *arguments],
-                              check=True, capture_output=True, text=True)
+                              check=True, capture_output=True, text=True, env=without_commit_dates())
         return done.stdout
 
     def _write(self, name: str, text: str) -> None:
@@ -299,6 +300,7 @@ class TestRepository(unittest.TestCase):
         try:
             with (mock.patch.object(docs_follow, "K_SINCE", self.base),
                   mock.patch.object(check_backlog_trailer, "K_SINCE", ""),
+                  mock.patch.dict(os.environ, without_commit_dates(), clear=True),
                   contextlib.redirect_stderr(errors)):
                 code = commit_msg.main([str(path)])
         finally:

@@ -86,6 +86,28 @@ class TrailerProblemsTest(unittest.TestCase):
         message = "x\n\nBacklog: AB-9\n\nBacklog: AB-1\n"
         self.assertEqual(trailer_problems(message, K_KNOWN, K_PATTERN), [])
 
+    def test_an_entry_of_a_sibling_is_taken_on_trust_without_a_lookup(self) -> None:
+        for line in ("Other AB-9", "AB-1, Other AB-9", "other-repo AB-9, other-repo AB-10"):
+            with self.subTest(line=line):
+                self.assertEqual(trailer_problems(f"x\n\nBacklog: {line}\n", K_KNOWN, K_PATTERN), [])
+
+    def test_a_sibling_entry_the_lookup_denies_is_refused_and_one_it_knows_or_cannot_see_passes(self) -> None:
+        message = "x\n\nBacklog: Other AB-9\n"
+        denied = trailer_problems(message, K_KNOWN, K_PATTERN, lambda repository, ident: False)
+        self.assertEqual(len(denied), 1)
+        self.assertIn("not an open entry of Other", denied[0])
+        for answer in (True, None):
+            with self.subTest(answer=answer):
+                self.assertEqual(trailer_problems(message, K_KNOWN, K_PATTERN, lambda repository, ident: answer), [])
+
+    def test_a_sibling_is_asked_for_its_own_name_and_entry(self) -> None:
+        asked: list[tuple[str, str]] = []
+        trailer_problems("x\n\nBacklog: Other AB-9\n", K_KNOWN, K_PATTERN, lambda r, i: asked.append((r, i)))
+        self.assertEqual(asked, [("Other", "AB-9")])
+
+    def test_a_sibling_citation_does_not_make_a_local_id_open(self) -> None:
+        self.assertIn("not an entry open", trailer_problems("x\n\nBacklog: Other AB-9, AB-9\n", K_KNOWN, K_PATTERN)[0])
+
 
 class TrailerRuleTest(unittest.TestCase):
     """Covers the rule over one commit held in memory, with the IDs open for it."""

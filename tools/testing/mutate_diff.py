@@ -24,6 +24,10 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from checking.ignored_paths import walk_files  # noqa: E402
+
 K_DIFF_FILE = re.compile(r"^\+\+\+ b/(.+?)\t?$")
 K_DIFF_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 K_LOG_METHODS = frozenset({"debug", "info", "warning", "warn", "error", "critical", "exception", "log"})
@@ -321,7 +325,9 @@ def _passes(command: Sequence[str], cwd: Path, pythonpath: str, timeout: int) ->
 def _test_modules(tests_root: Path, names: Sequence[str]) -> list[str]:
     """Returns the dotted test modules under a tests folder that import a module by one of the names."""
     found = []
-    for path in sorted(tests_root.rglob("test_*.py")):
+    for path in walk_files(tests_root):
+        if not (path.name.startswith("test_") and path.suffix == ".py"):
+            continue
         if imports_any(path.read_text(encoding="utf-8", errors="replace"), names):
             found.append(".".join(path.relative_to(tests_root).with_suffix("").parts))
     return found

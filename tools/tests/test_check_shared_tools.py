@@ -81,6 +81,13 @@ class SharedToolsTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn(f"{K_SHARED_FILE}:1: rule_shared_file_matches", output)
 
+    def test_a_file_with_crlf_line_endings_matches_a_lock_made_from_lf(self) -> None:
+        """The lock hashes the text, so a checkout that converts line endings still matches."""
+        text = b"first = 1\nsecond = 2\n"
+        self._write_lock({K_SHARED_FILE: _digest(text)})
+        self._write(K_SHARED_FILE, text.replace(b"\n", b"\r\n"))
+        self.assertEqual(self._check(), (0, ""))
+
     def test_missing_shared_file_fails(self) -> None:
         """A locked file that is not on disk fails and is named in the output."""
         self._write_lock({K_SHARED_FILE: _digest(K_SHARED_TEXT)})

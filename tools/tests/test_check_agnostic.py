@@ -102,6 +102,18 @@ class ProductTermsTest(unittest.TestCase):
         self.assertEqual(_found(rule_machine_path, files), [])
 
 
+class AllowedPatternsTest(unittest.TestCase):
+    """Covers a match that only some of the allowed patterns cover."""
+    K_TEST_SIZE = "small"
+
+    def test_a_match_covered_by_one_of_two_allowed_patterns_is_not_reported(self) -> None:
+        """Pins `not any(allow.fullmatch(...))`: one matching allow pattern excuses the match."""
+        terms = parse_terms(K_ROOT / "terms.txt", K_TERMS + "allow: AcmeOther\n")
+        files = {"skills/a/SKILL.md": "The AcmeSkills doctrine and AcmeLog.\n"}
+        self.assertEqual([issue.message for issue in rule_product_name(_scope(files, terms=terms))],
+                         ["names 'AcmeLog'"])
+
+
 class MachinePathTest(unittest.TestCase):
     """Covers the rule that names a drive path or a user folder."""
     K_TEST_SIZE = "small"
@@ -149,6 +161,11 @@ class TermsFileTest(unittest.TestCase):
     def test_a_missing_terms_file_silences_the_term_rules(self) -> None:
         missing = _scope({"skills/a/SKILL.md": "AcmeLog\n"}, terms=parse_terms(K_ROOT / "terms.txt", None))
         self.assertEqual(list(rule_product_name(missing)), [])
+
+    def test_a_scope_without_terms_or_with_readable_terms_has_no_terms_file_issue(self) -> None:
+        """Pins `scope.terms is not None and scope.terms.error`: no terms and clean terms both stay silent."""
+        self.assertEqual(list(rule_terms_file(_scope({}, terms=None))), [])
+        self.assertEqual(list(rule_terms_file(_scope({}))), [])
 
     def test_unreadable_terms_line_is_reported_with_its_number(self) -> None:
         terms = parse_terms(K_ROOT / "terms.txt", "product: ok\nnot a term\n")

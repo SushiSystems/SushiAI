@@ -14,7 +14,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from documentation.check_changelog import K_CHECKER, Entry, collect, parse_entries  # noqa: E402
+from documentation.check_changelog import (  # noqa: E402
+    K_CHECKER,
+    K_CITED_PATH_CEILING,
+    K_LENGTH_CEILING,
+    Entry,
+    collect,
+    parse_entries,
+    rule_cited_paths,
+    rule_length,
+)
 
 K_GOOD = "- 2026-09-15 — matter: Reserved the neighbour list at tick start (`neighbour_list.hpp`)."
 K_PATH = Path("docs/reference/CHANGELOG.md")
@@ -75,6 +84,32 @@ class RuleTest(unittest.TestCase):
         """Numbers each entry by its line in the file, counting from one."""
         entries = parse_entries(K_PATH, ["# Changelog", "", "## Unreleased", K_GOOD])
         self.assertEqual([entry.number for entry in entries], [3, 4])
+
+
+class CeilingTest(unittest.TestCase):
+    """Runs the length and cited-place rules on entries at the ceiling and one past it."""
+
+    K_TEST_SIZE = "small"
+
+    @staticmethod
+    def _entry(text: str) -> Entry:
+        """Returns an entry holding the text, on line 1 of the changelog."""
+        return Entry(K_PATH, 1, text, ())
+
+    def test_an_entry_of_exactly_the_length_ceiling_is_clean_and_one_more_character_is_reported(self) -> None:
+        """Pins `len(entry.text) > K_LENGTH_CEILING`: 240 characters pass, 241 are reported."""
+        at_ceiling = "- " + "x" * (K_LENGTH_CEILING - 2)
+        self.assertEqual(list(rule_length(self._entry(at_ceiling))), [])
+        self.assertEqual([issue.message for issue in rule_length(self._entry(at_ceiling + "x"))],
+                         [f"{K_LENGTH_CEILING + 1} characters, ceiling {K_LENGTH_CEILING}"])
+
+    def test_an_entry_citing_exactly_the_ceiling_is_clean_and_one_more_place_is_reported(self) -> None:
+        """Pins `count > K_CITED_PATH_CEILING`: 5 cited places pass, 6 are reported."""
+        at_ceiling = "- " + " ".join(f"`f{index}.hpp`" for index in range(K_CITED_PATH_CEILING))
+        past_ceiling = at_ceiling + " `g.hpp`"
+        self.assertEqual(list(rule_cited_paths(self._entry(at_ceiling))), [])
+        self.assertEqual([issue.message for issue in rule_cited_paths(self._entry(past_ceiling))],
+                         [f"cites {K_CITED_PATH_CEILING + 1} places; split into one line per change"])
 
 
 for _name, _lines, _expected in K_CASES:

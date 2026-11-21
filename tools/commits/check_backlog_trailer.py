@@ -6,6 +6,7 @@
 
 Usage: python tools/commits/check_backlog_trailer.py [repository root] [--report] [--rule NAME]
 The line is `Backlog: <ID>[, <ID>]` or `Backlog: none (<reason>)`; an ID is open in the parent or the commit.
+An entry of a sibling repository is written `<repository> <ID>`.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from __future__ import annotations
 import functools
 import re
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,6 +29,9 @@ K_ID_PATTERN: str = getattr(settings, "K_BACKLOG_ID_PATTERN", r"[A-Z]{2}-[0-9]+"
 K_BACKLOG_FOLDER = "docs/backlog"
 K_TRAILER = re.compile(r"^Backlog:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 K_NONE = re.compile(r"^none \(\s*(\S.*?)\s*\)$")
+K_REPOSITORY = r"[A-Za-z0-9_.-]+"
+
+SiblingLookup = Callable[[str, str], "bool | None"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,21 +96,46 @@ def trailer_value(message: str) -> str | None:
     return found[-1] if found else None
 
 
-def trailer_problems(message: str, known: frozenset[str], id_pattern: str) -> list[str]:
+def sibling_lookup(root: Path) -> SiblingLookup:
+    """Returns a lookup of an entry in a sibling repository checked out beside *root*.
+
+    The lookup answers None for a sibling that is not checked out, so its entries are taken on trust.
+    """
+
+    def look(repository: str, ident: str) -> bool | None:
+        folder = root.resolve().parent / repository
+        if not (folder / K_BACKLOG_FOLDER).is_dir():
+            return None
+        return ident in open_ids(folder, None)
+
+    return look
+
+
+def trailer_problems(
+    message: str, known: frozenset[str], id_pattern: str, siblings: SiblingLookup | None = None,
+) -> list[str]:
     """Returns what is wrong with the `Backlog:` line of a message; empty when it is right.
 
-    *id_pattern* is the regular expression an ID must match in full.
+    *id_pattern* is the regular expression an ID must match in full. An item written
+    `<repository> <ID>` names an entry of a sibling; it is judged by *siblings* when one is given
+    and by its shape alone otherwise, as a run over history has no sibling as it was.
     """
     value = trailer_value(message)
     if value is None:
         return ["the message has no `Backlog:` line; write `Backlog: <ID>` or `Backlog: none (<reason>)`"]
     if value.startswith("none"):
         return [] if K_NONE.match(value) else ["`Backlog: none` needs its reason in brackets: `none (<reason>)`"]
-    ids = [item.strip() for item in value.split(",")]
-    problems = [f"`Backlog:` names {item!r}, which is not a backlog ID" for item in ids
-                if not re.fullmatch(id_pattern, item)]
-    problems += [f"`Backlog:` names {item}, which is not an entry open at the parent or in this commit"
-                 for item in ids if re.fullmatch(id_pattern, item) and item not in known]
+    items = [item.strip() for item in value.split(",")]
+    problems: list[str] = []
+    for item in items:
+        sibling = re.fullmatch(rf"({K_REPOSITORY})[ 	]+({id_pattern})", item)
+        if sibling:
+            if siblings is not None and siblings(sibling[1], sibling[2]) is False:
+                problems.append(f"`Backlog:` names {item}, which is not an open entry of {sibling[1]}")
+        elif not re.fullmatch(id_pattern, item):
+            problems.append(f"`Backlog:` names {item!r}, which is not a backlog ID")
+        elif item not in known:
+            problems.append(f"`Backlog:` names {item}, which is not an entry open at the parent or in this commit")
     return problems
 
 

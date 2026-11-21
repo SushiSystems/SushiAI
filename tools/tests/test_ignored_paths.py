@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from checking.ignored_paths import drop_ignored, ignored_folders  # noqa: E402
+from checking.ignored_paths import drop_ignored, folders_of, ignored_folders, walk_files  # noqa: E402
 from documentation.check_source_comments import collect  # noqa: E402
 
 
@@ -77,10 +77,25 @@ class IgnoredPathsTest(unittest.TestCase):
     def test_no_folder_is_ignored_outside_a_repository(self) -> None:
         self.assertEqual(ignored_folders(self.root), frozenset())
 
+    def test_the_walk_does_not_enter_an_ignored_folder(self) -> None:
+        self._make_repository()
+        names = [path.relative_to(self.root).as_posix() for path in walk_files(self.root)
+                 if ".git/" not in path.relative_to(self.root).as_posix()]
+        self.assertEqual(names, [".gitignore", "owned.py"])
+
+    def test_an_ignored_folder_holding_a_finding_is_not_reported(self) -> None:
+        self._make_repository()
+        (self.root / "synced" / "bad.py").write_text("# @date 2026\nx = 1\n", encoding="utf-8")
+        self.assertNotIn("bad.py", [source.path.name for source in collect([self.root])])
+
     def test_the_comment_checker_does_not_read_an_ignored_file(self) -> None:
         self._make_repository()
         names = [source.path.name for source in collect([self.root])]
         self.assertEqual(names, ["owned.py"])
+
+    def test_the_folders_of_files_are_every_folder_between_them_and_the_root(self) -> None:
+        files = [self.root / "a" / "b" / "c.txt", self.root / "d.txt"]
+        self.assertEqual(folders_of(files, self.root), {self.root / "a", self.root / "a" / "b"})
 
 
 if __name__ == "__main__":

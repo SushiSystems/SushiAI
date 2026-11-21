@@ -262,6 +262,15 @@ class RulePrivateReachTest(unittest.TestCase):
     def test_an_angle_include_of_a_public_header_is_clean(self) -> None:
         self.assertEqual(list(rule_private_reach(_tree(K_CORE))), [])
 
+    def test_a_build_line_reaching_the_own_source_or_a_folder_that_is_no_module_is_clean(self) -> None:
+        """Pins `name != module.name and name in names`: only another module's source/ is reached into."""
+        files = {
+            "modules/foundation/core/source/core.cpp": "",
+            "modules/foundation/log/CMakeLists.txt":
+                "target_sources(log PRIVATE log/source/log.cpp)\ntarget_sources(log PRIVATE vendor/source/x.cpp)",
+        }
+        self.assertEqual(list(rule_private_reach(_tree(files))), [])
+
 
 class BuildDeclarationTest(unittest.TestCase):
     """Covers the rules that read a module's declaring call in its build file."""

@@ -35,6 +35,7 @@ from checking.known_findings import (  # noqa: E402
 )
 from commits.check_backlog_trailer import open_ids  # noqa: E402
 
+K_STAMP_PATH = ("sushicore", "verified")
 K_TOOLS = Path(__file__).resolve().parent
 #: How many checks run at once.
 K_WORKERS = min(8, os.cpu_count() or 1)
@@ -74,6 +75,13 @@ K_CHECKERS = (
 )
 
 
+K_HISTORY_CHECKERS = frozenset({
+    "documentation/check_docs_follow.py",
+    "commits/check_backlog_trailer.py",
+})
+K_SKIP_HISTORY = "--skip-history"
+
+
 @dataclass(frozen=True, slots=True)
 class Check:
     """Holds one check: its name, the command that runs it and whether it is a test suite."""
@@ -94,15 +102,19 @@ def own_checker_names(found: Sequence[str]) -> tuple[str, ...]:
 
 
 def plan_checks(root: Path, tools: Path, interpreter: str, own: Sequence[str],
-                suite_folders: Sequence[Path]) -> list[Check]:
-    """Returns each check with its command: shared checkers, own ones, then test suites."""
+                suite_folders: Sequence[Path],
+                skipped: frozenset[str] = frozenset()) -> list[Check]:
+    """Returns each check with its command: shared checkers, own ones, then test suites.
+
+    A checker named in *skipped* is left out.
+    """
     checks = [
         Check(name, (interpreter, str(tools / name), str(root)), False)
-        for name in (*K_CHECKERS, *own)
+        for name in (*K_CHECKERS, *own) if name not in skipped
     ]
     suites = [
         Check(_suite_name(root, tools, folder),
-              (interpreter, "-m", "unittest", "discover", "-q", "-s", str(folder)), True)
+              (interpreter, str(tools / "checking" / "run_suite.py"), str(folder)), True)
         for folder in suite_folders
     ]
     return [*checks, *suites]
@@ -133,30 +145,66 @@ def main(argv: list[str] | None = None,
 
     The checks read the repository and write nothing, so they run side by side; their output
     is printed in the order they are listed. *run* runs the planned checks; it defaults to the
-    thread pool.
+    thread pool. `--skip-history` leaves out the checkers that read every commit of the history.
     """
     arguments = sys.argv[1:] if argv is None else argv
-    root = Path(arguments[0]) if arguments else Path.cwd()
+    flags = [argument for argument in arguments if argument.startswith("--")]
+    paths = [argument for argument in arguments if not argument.startswith("--")]
+    if any(flag != K_SKIP_HISTORY for flag in flags):
+        print(f"check_all: the only option is {K_SKIP_HISTORY}")
+        return 1
+    skipped = K_HISTORY_CHECKERS if K_SKIP_HISTORY in flags else frozenset()
+    root = Path(paths[0]) if paths else Path.cwd()
     try:
         entries = read_baseline(root)
     except KnownFindingsError as error:
         print(error)
         return 1
-    checks, results = run_plan(root, run)
-    names = [check.name for check in checks if not check.is_suite]
-    lines, code = report(checks, _judged(root, checks, results, entries), summary(entries),
-                         orphan_lines(entries, names))
+    checks, results = run_plan(root, run, skipped)
+    names = [check.name for check in checks if not check.is_suite] + sorted(skipped)
+    note = f"; {len(skipped)} history checkers skipped" if skipped else ""
+    lines, code = report(checks, _judged(root, checks, results, entries),
+                         summary(entries) + note, orphan_lines(entries, names))
     for line in lines:
         print(line)
+    if code == 0:
+        write_verified_stamp(root)
     return code
+
+
+def write_verified_stamp(root: Path) -> Path | None:
+    """Writes the hash of HEAD to `<git dir>/sushicore/verified` and returns the file.
+
+    Returns None and writes nothing when *root* is not inside a git checkout or has no commit.
+    """
+    git_dir = _git_output(root, "rev-parse", "--git-dir")
+    head = _git_output(root, "rev-parse", "HEAD")
+    if git_dir is None or head is None:
+        return None
+    stamp = (root / git_dir).joinpath(*K_STAMP_PATH)
+    stamp.parent.mkdir(parents=True, exist_ok=True)
+    stamp.write_text(head + "\n", encoding="utf-8")
+    return stamp
+
+
+def _git_output(root: Path, *arguments: str) -> str | None:
+    """Returns the stripped output of a git command run in *root*, or None when it fails."""
+    try:
+        completed = subprocess.run(["git", "-C", str(root), *arguments], capture_output=True,
+                                   text=True, encoding="utf-8", check=False,
+                                   env=suite_environment(os.environ))
+    except OSError:
+        return None
+    return completed.stdout.strip() if completed.returncode == 0 else None
 
 
 def run_plan(root: Path,
              run: Callable[[Sequence[Check]], list[tuple[int, str]]] | None = None,
+             skipped: frozenset[str] = frozenset(),
              ) -> tuple[list[Check], list[tuple[int, str]]]:
     """Plans every check over a root, runs them and returns the checks with their raw results."""
     checks = plan_checks(root, K_TOOLS, sys.executable, own_checker_names(_read_found(K_TOOLS)),
-                         _read_suite_folders(root))
+                         _read_suite_folders(root), skipped)
     return checks, (run or _run_all)(checks)
 
 

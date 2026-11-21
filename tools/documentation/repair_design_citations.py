@@ -13,7 +13,6 @@ moved page's links are read from its former place. `--move` names a file that wa
 from __future__ import annotations
 
 import argparse
-import os
 import posixpath
 import re
 import sys
@@ -23,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from checking.ignored_paths import folders_of, walk_files  # noqa: E402
 from documentation.citation_files import citing_files  # noqa: E402
 from documentation.design_status import K_REVISION_FOLDER, read_tree  # noqa: E402
 from documentation.design_topics import topics  # noqa: E402
@@ -180,11 +180,10 @@ def repair_text(
 
 def _names(root: Path) -> frozenset[str]:
     """Returns every file and folder below the root as a root-relative POSIX name, git's own folder left out."""
-    found: set[str] = set()
-    for folder, folders, files in os.walk(root):
-        folders[:] = [name for name in folders if name != ".git"]
-        found.update(Path(folder, name).relative_to(root).as_posix() for name in (*folders, *files))
-    return frozenset(found)
+    kept = [path for path in walk_files(root) if ".git" not in path.relative_to(root).parts]
+    return frozenset(
+        path.relative_to(root).as_posix() for path in (*kept, *folders_of(kept, root))
+    )
 
 
 def run(root: Path, apply: bool, moves: dict[str, str] | None = None) -> list[Repair]:

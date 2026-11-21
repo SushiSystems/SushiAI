@@ -18,7 +18,7 @@ from typing import final
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
-from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.ignored_paths import drop_ignored, walk_files  # noqa: E402
 from checking.source_file import SourceFile, read_files  # noqa: E402
 from documentation import facts  # noqa: E402
 from documentation.facts import Page  # noqa: E402
@@ -108,7 +108,7 @@ def rule_quote_current(manual: Manual) -> Iterator[Issue]:
 
 def _read_pages(root: Path) -> tuple[SourceFile, ...]:
     """Reads the pages under a root that git does not ignore and no skipped folder holds."""
-    candidates = [path for path in sorted(root.rglob("*.md")) if is_checked_page(root, path)]
+    candidates = [path for path in walk_files(root) if path.suffix == ".md" and is_checked_page(root, path)]
     return read_files(drop_ignored(root, candidates), lambda _: True)
 
 

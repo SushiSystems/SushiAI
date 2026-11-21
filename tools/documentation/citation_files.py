@@ -6,12 +6,10 @@
 
 from __future__ import annotations
 
-import os
 import re
-from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 
-from checking.ignored_paths import drop_ignored
+from checking.ignored_paths import drop_ignored, walk_files
 
 K_EXTENSIONS = frozenset({".md", ".cpp", ".hpp", ".h", ".py", ".ts", ".glsl", ".comp", ".toml", ".json", ".txt", ".cmake"})
 K_SKIPPED_FOLDERS = frozenset({".git", "third_party", "node_modules", "build"})
@@ -59,11 +57,10 @@ def _relative(root: Path, path: Path) -> str:
 
 def _walk(root: Path) -> list[Path]:
     """Returns every file below root, leaving out the vendored and build folders the walk prunes."""
-    found: list[Path] = []
-    for folder, names, files in os.walk(root):
-        names[:] = [name for name in names if name not in K_SKIPPED_FOLDERS]
-        found += [Path(folder) / name for name in files]
-    return found
+    return [
+        path for path in walk_files(root)
+        if not K_SKIPPED_FOLDERS.intersection(path.relative_to(root).parts[:-1])
+    ]
 
 
 def _read_text(path: Path) -> str:

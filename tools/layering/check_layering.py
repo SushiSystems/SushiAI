@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import settings  # noqa: E402
 from checking.checker import Checker, Issue, run  # noqa: E402
+from checking.ignored_paths import folders_of, walk_files  # noqa: E402
 from checking.source_file import SourceFile, read_files  # noqa: E402
 from settings import (  # noqa: E402
     K_DOMAIN_TIERS,
@@ -454,8 +455,8 @@ def _read_sources(folder: Path) -> tuple[SourceFile, ...]:
     if not folder.is_dir():
         return ()
     paths = [
-        path for path in sorted(folder.rglob("*"))
-        if path.is_file() and path.suffix in K_SOURCE_SUFFIXES
+        path for path in walk_files(folder)
+        if path.suffix in K_SOURCE_SUFFIXES
     ]
     return read_files(paths, lambda _: True)
 
@@ -465,7 +466,10 @@ def _read_public_names(module: Module) -> tuple[bool, tuple[str, ...]]:
     public = module.public_folder
     if not public.is_dir():
         return False, ()
-    return True, tuple(path.relative_to(public).as_posix() for path in public.rglob("*"))
+    found = walk_files(public)
+    return True, tuple(sorted(
+        path.relative_to(public).as_posix() for path in (*found, *folders_of(found, public))
+    ))
 
 
 def _read_build_text(module: Module) -> str | None:
@@ -484,7 +488,8 @@ def _read_module(root: Path, module: Module) -> ModuleFiles:
         sources=_read_sources(module.folder),
         tests=_read_sources(root / K_TESTS / module.tier / module.name),
         build_text=_read_build_text(module),
-        build_files=read_files(sorted(module.folder.rglob(K_BUILD_FILE)), Path.is_file),
+        build_files=read_files(
+            [path for path in walk_files(module.folder) if path.name == K_BUILD_FILE], Path.is_file),
     )
 
 

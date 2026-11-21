@@ -11,7 +11,6 @@ Usage: python tools/documentation/check_docs_truth.py [repository root] [--repor
 from __future__ import annotations
 
 import argparse
-import os
 import posixpath
 import re
 import sys
@@ -24,7 +23,7 @@ from typing import final
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import K_EXIT_CLEAN, Checker, Issue, run  # noqa: E402
-from checking.ignored_paths import ignored_folders  # noqa: E402
+from checking.ignored_paths import folders_of, ignored_folders, walk_files  # noqa: E402
 from checking.source_file import read_files  # noqa: E402
 from settings import K_MACRO_PREFIXES  # noqa: E402
 
@@ -661,30 +660,23 @@ def rule_allow_list(manual: Manual) -> Iterator[Issue]:
             yield Issue(manual.allow_path, entry.number, "entry excuses nothing; delete it")
 
 
-def _walk(
-    folder: Path, ignored: frozenset[Path] = frozenset()
-) -> Iterator[tuple[Path, list[str], list[str]]]:
-    """Yields each folder below a path with its entries, skipping ignored and skipped folders."""
-    for current, folders, files in os.walk(folder):
-        folders[:] = sorted(
-            name for name in folders
-            if name not in K_SKIPPED_FOLDERS and (Path(current) / name).resolve() not in ignored
-        )
-        yield Path(current), folders, sorted(files)
+def _walk(folder: Path) -> list[Path]:
+    """Returns each file below a path, leaving out the ignored folders and the skipped ones."""
+    return [
+        path for path in walk_files(folder)
+        if not K_SKIPPED_FOLDERS.intersection(path.relative_to(folder).parts[:-1])
+    ]
 
 
-def _tree_entries(root: Path, ignored: frozenset[Path]) -> list[str]:
-    """Returns the root-relative path of each file and folder the walk keeps."""
-    entries: list[str] = []
-    for current, folders, names in os.walk(root):
-        folders[:] = [
-            name for name in folders
-            if name not in K_BUILD_FOLDERS and (Path(current) / name).resolve() not in ignored
-        ]
-        entries.extend(
-            (Path(current) / name).relative_to(root).as_posix() for name in (*folders, *names)
-        )
-    return entries
+def _tree_entries(root: Path) -> list[str]:
+    """Returns the root-relative path of each file the walk keeps and of each folder that holds one."""
+    kept = [
+        path for path in walk_files(root)
+        if not K_BUILD_FOLDERS.intersection(path.relative_to(root).parts[:-1])
+    ]
+    return sorted(
+        path.relative_to(root).as_posix() for path in (*kept, *folders_of(kept, root))
+    )
 
 
 def _read_texts(root: Path, relatives: Iterable[str]) -> dict[str, str]:
@@ -703,17 +695,15 @@ def _read_repository(
     rules = [root / name for name in K_RULE_FOLDERS if (root / name).is_dir()]
     indexed = [entry for entry in sorted(root.iterdir()) if entry.is_file()]
     for folder in source:
-        for current, _, names in _walk(folder, ignored):
-            indexed.extend(current / name for name in names)
+        indexed.extend(_walk(folder))
     markdown: list[Path] = []
     if (root / K_PAGE_NAME).is_file():
         markdown.append(root / K_PAGE_NAME)
     docs = root / "docs"
     if docs.is_dir():
-        markdown.extend(path for path in sorted(docs.rglob("*.md")) if path.is_file())
+        markdown.extend(path for path in walk_files(docs) if path.suffix == ".md")
     for folder in (*source, *rules):
-        for current, _, names in _walk(folder, ignored):
-            markdown.extend(current / name for name in names if name.endswith(".md"))
+        markdown.extend(path for path in _walk(folder) if path.name.endswith(".md"))
     markdown_names = {path.relative_to(root).as_posix() for path in markdown}
     indexed_names = {path.relative_to(root).as_posix() for path in indexed}
     only_names = {path.relative_to(root).as_posix() for path in only}
@@ -733,7 +723,7 @@ def _read_repository(
     return RepositoryFiles(
         root=root,
         source_folders=source_folders,
-        tree=frozenset(_tree_entries(root, ignored)),
+        tree=frozenset(_tree_entries(root)),
         top_level=frozenset(
             entry.name for entry in root.iterdir() if entry.resolve() not in ignored
         ),

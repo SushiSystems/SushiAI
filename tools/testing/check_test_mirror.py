@@ -23,10 +23,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
-from checking.ignored_paths import ignored_folders  # noqa: E402
+from checking.ignored_paths import folders_of, walk_files  # noqa: E402
 from checking.source_file import SourceFile, read_files  # noqa: E402
 
 K_DATA_FOLDERS = frozenset({"fixtures", "goldens", "Fixtures", "Goldens"})
+K_GENERATED_FOLDERS = frozenset({"__pycache__"})
 K_UNITY_MARKER = "ProjectSettings"
 K_UNITY_TESTS = "Tests"
 K_UNITY_TEST_SUFFIX = "Tests.cs"
@@ -82,7 +83,6 @@ class Entries:
     root: Path
     files: frozenset[Path]
     folders: frozenset[Path]
-    ignored: frozenset[Path]
     sources: tuple[SourceFile, ...]
 
 
@@ -206,8 +206,6 @@ def _walked(tests: Path, entries: Entries) -> tuple[Path, ...]:
     pending = [tests]
     while pending:
         for entry in sorted(children.get(pending.pop(), [])):
-            if entry in entries.ignored:
-                continue
             is_folder = entry in entries.folders
             if is_folder and (entry.name in K_DATA_FOLDERS or entry in (tests / K_PACKAGE_FOLDER, tests / K_SUPPORT_FOLDER)):
                 continue
@@ -278,6 +276,11 @@ def _every(path: Path) -> bool:
     return True
 
 
+def _generated(path: Path, top: Path) -> bool:
+    """Returns True when a file sits below a folder that a tool generates, such as __pycache__."""
+    return any(part in K_GENERATED_FOLDERS for part in path.relative_to(top).parts)
+
+
 def _entries_of(root: Path) -> Entries:
     """Reads the files and folders a mirror is built from, and the text of each C++ file below tests/."""
     found: set[Path] = set()
@@ -285,14 +288,14 @@ def _entries_of(root: Path) -> Entries:
         top = root / name
         if top.is_dir():
             found.add(top)
-            found.update(top.rglob("*"))
-    ignored_under = ignored_folders(root)
+            below = [path for path in walk_files(top) if not _generated(path, top)]
+            found.update(below)
+            found.update(folders_of(below, top))
     files = frozenset(path for path in found if path.is_file())
     folders = frozenset(path for path in found if path.is_dir())
-    ignored = frozenset(path for path in found if path.resolve() in ignored_under) if ignored_under else frozenset()
     tests = root / "tests"
     headers = sorted(path for path in files if path.is_relative_to(tests) and path.suffix in K_CPP_TEST_SUFFIXES)
-    return Entries(root, files, folders, ignored, read_files(headers, _every))
+    return Entries(root, files, folders, read_files(headers, _every))
 
 
 def collect(paths: list[Path]) -> Iterable[TestMirror]:

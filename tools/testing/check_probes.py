@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
-from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.ignored_paths import drop_ignored, walk_files  # noqa: E402
 from checking.source_file import SourceFile, read_files  # noqa: E402
 
 K_MIRRORED = frozenset({"modules", "tests", "source", "include"})
@@ -77,8 +77,8 @@ def _any_file(path: Path) -> bool:
 
 def discover(root: Path) -> Repository:
     """Returns a repository with its tracked files and the text of each file below a program folder."""
-    found = [path for path in sorted(root.rglob("*"))
-             if path.is_file() and not K_SKIPPED.intersection(path.relative_to(root).parts)]
+    found = [path for path in walk_files(root)
+             if not K_SKIPPED.intersection(path.relative_to(root).parts)]
     tracked = tuple(drop_ignored(root, found))
     folders = [root / kind.folder for kind in K_KINDS]
     watched = [path for path in tracked if any(folder in path.parents for folder in folders)]

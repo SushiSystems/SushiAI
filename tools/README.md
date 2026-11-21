@@ -8,7 +8,7 @@ A rule is fixed there first and copied here from a SushiCore release tag with
 | --- | --- | --- |
 | `check_all.py` | Nothing itself; runs the eleven checkers, then the repository's own `<area>/check_<what>.py` files and the tests, and prints only what failed | Repository root |
 | `checking/checker.py` | Nothing itself; runs a checker's rule table and prints findings | |
-| `checking/check_shared_tools.py` | The shared tools lock: present, readable, and every locked file present and hashing to its lock | Repository root |
+| `checking/check_shared_tools.py` | The shared tools lock: present unless the repository is SushiCore, readable, and every locked file present and hashing to its lock | Repository root |
 | `checking/ignored_paths.py` | Nothing itself; names the files and folders git ignores, which no checker reads | |
 | `settings.py` | Nothing; holds the settings that differ between repositories | |
 | `documentation/check_source_comments.py` | C++, GLSL, TypeScript and Python: license block, file header, block ceiling, `//` and `#` runs, separators, history words, `@date` | Files or folders |

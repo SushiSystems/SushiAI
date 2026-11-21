@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
-from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.ignored_paths import drop_ignored, walk_files  # noqa: E402
 from checking.source_file import SourceFile, read_files  # noqa: E402
 from documentation.licence import K_UNSET_MESSAGE, Licence, load  # noqa: E402
 
@@ -309,10 +309,9 @@ def _walk(paths: list[Path]) -> Iterator[Path]:
                 yield path
             continue
         candidates = [
-            candidate for candidate in sorted(path.rglob("*"))
+            candidate for candidate in walk_files(path)
             if candidate.suffix in suffixes
             and not K_SKIPPED_FOLDERS.intersection(candidate.parts)
-            and candidate.is_file()
         ]
         yield from drop_ignored(path, candidates)
 

@@ -12,7 +12,7 @@ import sys
 import tempfile
 import tomllib
 import unittest
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from unittest import mock
 
@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import check_all  # noqa: E402
 from checking.known_findings import parse_entries  # noqa: E402
+from repo_builder import Repo  # noqa: E402
 from check_all import (  # noqa: E402
     K_CHECKERS,
     Check,
@@ -31,6 +32,7 @@ from check_all import (  # noqa: E402
     own_checker_names,
     plan_checks,
     report,
+    write_verified_stamp,
 )
 
 K_BASELINE_TEXT = (
@@ -56,6 +58,14 @@ def first_check_fails(output: str) -> Callable[[list[Check]], list[tuple[int, st
 def every_check_passes(checks: list[Check]) -> list[tuple[int, str]]:
     """Returns a passing result for each check, without starting a process."""
     return [(0, "")] * len(checks)
+
+
+def recording_run(planned: list[str]) -> Callable[[Sequence[Check]], list[tuple[int, str]]]:
+    """Returns a run function that records the names it was given and passes every check."""
+    def run(checks: Sequence[Check]) -> list[tuple[int, str]]:
+        planned.extend(check.name for check in checks)
+        return [(0, "") for _ in checks]
+    return run
 
 
 class OwnCheckerNamesTest(unittest.TestCase):
@@ -86,11 +96,16 @@ class PlanChecksTest(unittest.TestCase):
         plan = plan_checks(K_ROOT, K_TOOLS, "py", [], [])
         self.assertEqual(plan[0].command, ("py", str(K_TOOLS / K_CHECKERS[0]), str(K_ROOT)))
 
-    def test_suite_runs_unittest_discover_on_its_folder(self) -> None:
+    def test_suite_runs_the_suite_runner_on_its_folder(self) -> None:
         plan = plan_checks(K_ROOT, K_TOOLS, "py", [], [K_ROOT / "gui" / "tests"])
         self.assertEqual(plan[-1], Check("tests: gui/tests",
-                                         ("py", "-m", "unittest", "discover", "-q", "-s",
+                                         ("py", str(K_TOOLS / "checking" / "run_suite.py"),
                                           str(K_ROOT / "gui" / "tests")), True))
+
+    def test_a_skipped_checker_is_not_planned(self) -> None:
+        skipped = frozenset({K_CHECKERS[0]})
+        names = [check.name for check in plan_checks(K_ROOT, K_TOOLS, "py", [], [], skipped)]
+        self.assertEqual(names, list(K_CHECKERS[1:]))
 
 
 class ReportTest(unittest.TestCase):
@@ -207,6 +222,35 @@ class ShellTest(unittest.TestCase):
         self.assertEqual(out.getvalue().splitlines()[-1].split(";", 1)[1],
                          " 1 known finding in 1 entry")
 
+    def test_skip_history_leaves_the_history_checkers_out_and_says_so(self) -> None:
+        planned: list[str] = []
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(out):
+            code = check_all.main([folder, "--skip-history"], recording_run(planned))
+        self.assertEqual(
+            (code, set(planned) & check_all.K_HISTORY_CHECKERS,
+             out.getvalue().splitlines()[-1].endswith("; 2 history checkers skipped")),
+            (0, set(), True))
+
+    def test_a_run_without_the_option_plans_the_history_checkers(self) -> None:
+        planned: list[str] = []
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            check_all.main([folder], recording_run(planned))
+        self.assertEqual(set(planned) & check_all.K_HISTORY_CHECKERS, check_all.K_HISTORY_CHECKERS)
+
+    def test_an_unknown_option_returns_one(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            code = check_all.main([".", "--nope"], recording_run([]))
+        self.assertEqual((code, "--skip-history" in out.getvalue()), (1, True))
+
+    def test_a_baseline_entry_for_a_skipped_checker_is_not_an_orphan(self) -> None:
+        text = K_BASELINE_TEXT.replace("check_source_comments", "check_docs_follow")
+        with tempfile.TemporaryDirectory() as folder:
+            self.write_baseline(folder, text)
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = check_all.main([folder, "--skip-history"], recording_run([]))
+        self.assertEqual(code, 0)
+
     def test_a_baseline_entry_for_no_checker_fails(self) -> None:
         text = K_BASELINE_TEXT.replace("documentation/check_source_comments.py", "nope/check_x.py")
         with tempfile.TemporaryDirectory() as folder:
@@ -245,6 +289,38 @@ class ShellTest(unittest.TestCase):
         script = "print('Open — phase 1'); raise SystemExit(1)"
         code, output = _run_check([sys.executable, "-c", script])
         self.assertEqual((code, output.strip()), (1, "Open — phase 1"))
+
+
+class VerifiedStampTest(unittest.TestCase):
+    """Tests the stamp a clean run leaves in the git directory of a temporary repository."""
+
+    K_TEST_SIZE = "medium"
+
+    def setUp(self) -> None:
+        self.repo = Repo()
+        self.addCleanup(self.repo.close)
+        self.repo.write("a.txt", "a")
+        self.commit = self.repo.commit("first").sha
+        self.stamp = self.repo.root / ".git" / "sushicore" / "verified"
+
+    def test_writes_the_head_commit_to_the_stamp_file(self) -> None:
+        self.assertEqual(write_verified_stamp(self.repo.root), self.stamp)
+        self.assertEqual(self.stamp.read_text(encoding="utf-8").strip(), self.commit)
+
+    def test_a_clean_run_writes_the_stamp(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_all.main([str(self.repo.root)], every_check_passes)
+        self.assertTrue(self.stamp.is_file())
+
+    def test_a_failed_run_writes_nothing(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_all.main([str(self.repo.root)], first_check_fails("bad"))
+        self.assertFalse(self.stamp.exists())
+
+    def test_a_folder_outside_a_git_checkout_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertIsNone(write_verified_stamp(Path(folder)))
+            self.assertEqual(list(Path(folder).iterdir()), [])
 
 
 if __name__ == "__main__":

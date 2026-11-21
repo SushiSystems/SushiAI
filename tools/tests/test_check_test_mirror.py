@@ -62,15 +62,13 @@ K_UNITY = (
 )
 
 
-def entries_of(files: Iterable[str], texts: Mapping[str, str] | None = None,
-               ignored: Iterable[str] = ()) -> Entries:
+def entries_of(files: Iterable[str], texts: Mapping[str, str] | None = None) -> Entries:
     """Returns the entries of a repository whose files are the given paths below its root."""
     names = tuple(files)
     folders = {K_ROOT.joinpath(*parent.parts) for name in names
                for parent in PurePosixPath(name).parents if parent.parts}
     sources = tuple(SourceFile(K_ROOT / name, text) for name, text in (texts or {}).items())
-    return Entries(K_ROOT, frozenset(K_ROOT / name for name in names), frozenset(folders),
-                   frozenset(K_ROOT / name for name in ignored), sources)
+    return Entries(K_ROOT, frozenset(K_ROOT / name for name in names), frozenset(folders), sources)
 
 
 def mirror_of(files: Iterable[str], texts: Mapping[str, str] | None = None) -> Mirror:
@@ -265,6 +263,15 @@ class TestMirrorCommand(unittest.TestCase):
             "tests/unit/test_physics_world.cpp:1: rule_orphan_test: "
             "mirrors no header or source file; rename it or move it to its unit's mirror",
         ]))
+
+    def test_command_skips_pycache_folders_outside_git(self) -> None:
+        code, lines = self.command({
+            "modules/physics/rigid_body/include/Acme/rigid_body/physics_world.hpp": "",
+            "tests/physics/rigid_body/test_physics_world.cpp": "",
+            "tests/physics/rigid_body/__pycache__/helper.cpython-311.pyc": "",
+            "tests/__pycache__/conftest.cpython-311.pyc": "",
+        })
+        self.assertEqual((code, lines), (0, []))
 
 
 if __name__ == "__main__":

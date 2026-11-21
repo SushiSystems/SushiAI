@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import settings  # noqa: E402
 from checking.checker import Checker, Issue, run  # noqa: E402
+from checking.ignored_paths import walk_files  # noqa: E402
 from checking.source_file import SourceFile, read_files  # noqa: E402
 
 K_DEFAULT_INSTALL_PAGE = "docs/getting_started/INSTALL.md"
@@ -143,7 +144,7 @@ def _tracked_paths(root: Path) -> list[Path]:
         completed = None
     if completed is not None and completed.returncode == 0 and completed.stdout:
         return [root / name for name in completed.stdout.split("\0") if name and (root / name).is_file()]
-    return [path for path in root.rglob("*") if path.is_file() and ".git" not in path.parts]
+    return [path for path in walk_files(root) if ".git" not in path.parts]
 
 
 def _read_module(root: Path, config: ModuleSettings) -> Module:

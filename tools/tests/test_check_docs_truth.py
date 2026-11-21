@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import io
 import re
 import sys
@@ -21,13 +22,17 @@ from checking.checker import Issue  # noqa: E402
 from documentation.check_docs_layout import K_DESIGN_LINE_CEILING  # noqa: E402
 from documentation.check_docs_truth import (  # noqa: E402
     K_CHECKER,
+    K_FOREIGN_MACRO_PREFIXES,
     K_LINE_CEILINGS,
+    K_MACRO_PREFIX_FLOOR,
     K_PASSAGE_FLOOR,
     K_SOURCE_FOLDERS,
+    AllowEntry,
     Manual,
     PageKind,
     RepositoryFiles,
     build_manual,
+    cited_targets,
     main,
     rule_allow_list,
     rule_cited_paths,
@@ -145,6 +150,14 @@ class NamedSymbolsTest(unittest.TestCase):
         }
         self.assertEqual(_found(rule_named_symbols, files), [])
 
+    def test_a_part_the_source_holds_or_the_allow_list_excuses_is_not_absent(self) -> None:
+        """Pins `part not in held and not manual.is_allowed(part)`: only a part with neither is reported."""
+        files = {
+            "docs/guides/GUIDE.md": "# Guide\n\n`Project::ImageView`\n\n`Project::StaleThing`\n",
+            "docs/.docs_truth_allow": "Image\\w+  # a part of a name the source lacks\n",
+        }
+        self.assertEqual(_found(rule_named_symbols, files), [("docs/guides/GUIDE.md", 5)])
+
 
 class CitedPathsTest(unittest.TestCase):
     """Checks which cited paths must exist."""
@@ -179,6 +192,44 @@ class CitedPathsTest(unittest.TestCase):
         page = "# test_world\n\n`modules/core/engine/source/gone.cpp`\n"
         self.assertEqual(_found(rule_cited_paths, {"tests/core/engine/test_world.md": page}),
                          [("tests/core/engine/test_world.md", 3)])
+
+
+class CitedTargetsTest(unittest.TestCase):
+    """Checks which cited files count as the source of an example."""
+    K_TEST_SIZE = "small"
+
+    def test_a_not_compiled_citation_is_no_cited_target(self) -> None:
+        """Pins `citation[1] != K_NOT_COMPILED`: only the file a block cites joins the targets."""
+        page = (
+            "# Guide\n\n```cpp\nint main()\n```\n\nSource: `applications/examples/quickstart.cpp`\n\n"
+            "```cpp\nfuture_call();\n```\nSource: not compiled\n"
+        )
+        self.assertEqual(cited_targets({"docs/guides/GUIDE.md": page}),
+                         frozenset({"applications/examples/quickstart.cpp"}))
+
+
+class MacroPrefixesTest(unittest.TestCase):
+    """Checks which leading segments of upper-case names mark a macro as the repository's own."""
+    K_TEST_SIZE = "small"
+
+    @staticmethod
+    def _header(prefix: str, count: int) -> str:
+        """Returns a header that declares `count` distinct constants under a prefix."""
+        return "".join(f"constexpr int {prefix}_NAME_{index} = 1;\n" for index in range(count))
+
+    def test_a_prefix_at_the_floor_counts_unless_it_is_foreign(self) -> None:
+        """Pins `count >= K_MACRO_PREFIX_FLOOR and prefix not in K_FOREIGN_MACRO_PREFIXES`."""
+        foreign = sorted(K_FOREIGN_MACRO_PREFIXES - {"K"})[0]
+        folder = "modules/core/engine/include/Project/engine"
+        files = {
+            f"{folder}/own.hpp": self._header("PX", K_MACRO_PREFIX_FLOOR),
+            f"{folder}/few.hpp": self._header("PY", K_MACRO_PREFIX_FLOOR - 1),
+            f"{folder}/foreign.hpp": self._header(foreign, K_MACRO_PREFIX_FLOOR),
+        }
+        prefixes = _manual(files).macro_prefixes
+        self.assertIn("PX", prefixes)
+        self.assertNotIn("PY", prefixes)
+        self.assertNotIn(foreign, prefixes)
 
 
 class ExampleSourceTest(unittest.TestCase):
@@ -344,6 +395,13 @@ class AllowListTest(unittest.TestCase):
             "docs/.docs_truth_allow": "# third-party namespaces\n\nvk::.*  # Vulkan's own\n",
         }
         self.assertEqual(_found(rule_allow_list, files), [])
+
+    def test_an_entry_with_a_broken_pattern_or_no_text_is_not_a_pattern(self) -> None:
+        """Pins `entry.pattern is None or not entry.text`: either operand alone gives the pattern message."""
+        manual = _manual({"docs/.docs_truth_allow": "(  # broken\n"})
+        empty = dataclasses.replace(manual, allow_list=(*manual.allow_list, AllowEntry(2, "", "has a reason")))
+        self.assertEqual([issue.message for issue in rule_allow_list(empty)],
+                         ["entry is not a regular expression"] * 2)
 
 
 def _write_tree(folder: str, files: dict[str, str]) -> Path:

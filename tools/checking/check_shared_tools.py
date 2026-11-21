@@ -41,8 +41,8 @@ class Repository:
 
 
 def _digest(content: bytes) -> str:
-    """Returns the SHA-256 of some bytes as hex, the form the lock stores."""
-    return hashlib.sha256(content).hexdigest()
+    """Returns the SHA-256 of some bytes as hex, the form the lock stores, each CRLF read as LF."""
+    return hashlib.sha256(content.replace(b"\r\n", b"\n")).hexdigest()
 
 
 def _locked_files(text: str) -> dict[str, str]:

@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import shutil
 import sys
 import unittest
 from pathlib import Path
@@ -22,12 +23,13 @@ from documentation import docs_follow  # noqa: E402
 from documentation.docs_follow import Change, Follow, PageFacts  # noqa: E402
 from hooks import commit_msg  # noqa: E402
 from hooks.commit_msg import commit_problems, is_merge, refusal_lines, strip_comments  # noqa: E402
-from repo_builder import Repo  # noqa: E402
+from repo_builder import Repo, without_commit_dates  # noqa: E402
 
 K_PATTERN = r"[A-Z]{2}-[0-9]+"
 K_KNOWN = frozenset({"AB-1", "AB-22"})
 K_GOOD = "fix: a thing\n\nBacklog: AB-1\n"
 K_PAGE = "# Guide\n\n**Describes:** `src/a.py`\n\nText.\n"
+K_TABLE_SIBLING = "| ID | Pri |\n| --- | --- |\n| AB-9 | P1 |\n"
 
 
 def _follow(message: str, page_changed: bool = False) -> Follow:
@@ -138,20 +140,71 @@ class HookTest(unittest.TestCase):
         self.repo.write("src/a.py", "x = 1\n")
         self.base = self.repo.commit("first").sha
 
-    def _run(self, message: str) -> tuple[int, str]:
+    def _run(
+        self, message: str, environ: dict[str, str] | None = None, now: float | None = None,
+    ) -> tuple[int, str]:
+        """Runs the hook; *environ* is what git adds for it, and *now* the clock it reads."""
         path = self.repo.root / "MESSAGE"
         path.write_text(message, encoding="utf-8")
         errors = io.StringIO()
         previous = Path.cwd()
         os.chdir(self.repo.root)
+        clock = mock.patch.object(commit_msg.time, "time", return_value=now) if now is not None else contextlib.nullcontext()
         try:
             with (mock.patch.object(check_backlog_trailer, "K_SINCE", self.base),
                   mock.patch.object(docs_follow, "K_SINCE", self.base),
+                  mock.patch.dict(os.environ, {**without_commit_dates(), **(environ or {})}, clear=True),
+                  clock,
                   contextlib.redirect_stderr(errors)):
                 code = commit_msg.main([str(path)])
         finally:
             os.chdir(previous)
         return code, errors.getvalue()
+
+    def _close_ab1_in_a_commit(self) -> dict[str, str]:
+        """Commits the removal of AB-1 and returns the environment git gives an amend of that commit."""
+        self.repo.write("docs/backlog/GENERAL.md", "| ID | Pri |\n| --- | --- |\n")
+        self.repo.commit("fix: close it\n\nBacklog: AB-1\n")
+        date = self.repo.git("log", "-1", "--format=%ad", "--date=raw", "HEAD").strip()
+        return {"GIT_AUTHOR_DATE": f"@{date}"}
+
+    def test_the_hook_refuses_an_id_the_parent_closed_in_an_ordinary_commit(self) -> None:
+        self._close_ab1_in_a_commit()
+        self.repo.write("src/a.py", "x = 2\n")
+        self.repo.write("docs/GUIDE.md", K_PAGE + "More.\n")
+        self.repo.git("add", "-A")
+        code, errors = self._run("fix: again\n\nTests: none (the hook test)\nBacklog: AB-1\n")
+        self.assertEqual(code, 1)
+        self.assertIn("AB-1", errors)
+
+    def test_the_hook_judges_an_amend_against_the_parent_of_the_commit_it_replaces(self) -> None:
+        amend = self._close_ab1_in_a_commit()
+        self.repo.git("add", "-A")
+        later = float(amend["GIT_AUTHOR_DATE"].lstrip("@").split()[0]) + 60
+        message = "fix: close it, reworded\n\nTests: none (the hook test)\nBacklog: AB-1\n"
+        self.assertEqual(self._run(message, amend, later), (0, ""))
+
+    def test_a_new_commit_in_the_second_of_its_parent_is_not_an_amend(self) -> None:
+        same_second = self._close_ab1_in_a_commit()
+        self.repo.write("src/a.py", "x = 2\n")
+        self.repo.write("docs/GUIDE.md", K_PAGE + "More.\n")
+        self.repo.git("add", "-A")
+        code, _ = self._run("fix: again\n\nTests: none (the hook test)\nBacklog: AB-1\n", same_second)
+        self.assertEqual(code, 1)
+
+    def test_the_hook_accepts_an_entry_of_a_sibling_that_holds_it_and_refuses_one_that_does_not(self) -> None:
+        sibling = self.repo.root.parent / f"{self.repo.root.name}_sibling"
+        (sibling / "docs" / "backlog").mkdir(parents=True)
+        (sibling / "docs" / "backlog" / "GENERAL.md").write_text(K_TABLE_SIBLING, encoding="utf-8")
+        self.addCleanup(shutil.rmtree, sibling, ignore_errors=True)
+        self.repo.write("src/a.py", "x = 2\n")
+        self.repo.write("docs/GUIDE.md", K_PAGE + "More.\n")
+        self.repo.git("add", "-A")
+        name = sibling.name
+        accepted = self._run(f"fix: change a\n\nTests: none (the hook test)\nBacklog: {name} AB-9\n")
+        refused = self._run(f"fix: change a\n\nTests: none (the hook test)\nBacklog: {name} AB-8\n")
+        self.assertEqual((accepted, refused[0]), ((0, ""), 1))
+        self.assertIn(f"not an open entry of {name}", refused[1])
 
     def test_the_hook_refuses_a_staged_change_without_its_page(self) -> None:
         self.repo.write("src/a.py", "x = 2\n")

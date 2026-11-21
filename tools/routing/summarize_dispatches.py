@@ -15,6 +15,10 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from checking.ignored_paths import walk_files  # noqa: E402
+
 K_REPORT_NAME = "REPORT.md"
 K_REPORT_FOLDERS = ("docs/agent", "docs/archive")
 K_LINE = re.compile(
@@ -102,7 +106,9 @@ def _read_reports(root: Path) -> list[str]:
     for name in K_REPORT_FOLDERS:
         folder = root / name
         if folder.is_dir():
-            for path in sorted(folder.rglob(K_REPORT_NAME)):
+            for path in walk_files(folder):
+                if path.name != K_REPORT_NAME:
+                    continue
                 texts.append(path.read_text(encoding="utf-8", errors="replace"))
     return texts
 
