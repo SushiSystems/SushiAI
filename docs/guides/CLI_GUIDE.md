@@ -279,13 +279,13 @@ Runs a built executable. With no target it runs the configured default
 sa run                                # run the default target
 sa run sushiai_example
 sa run --type release sushiai_example # run from build/default-release
-sa run --sort                         # pick one of the built examples
-sa run --sort --all                   # pick from every program, tests and benchmarks included
+sa run --pick                         # pick one of the built examples
+sa run --pick --all                   # pick from every program, tests and benchmarks included
 
 sa run sushiai_core_tests -- --gtest_filter='Small_Version.*'
 ```
 
-`--sort` prints the examples the build registered under `applications/examples/`, each with the
+`--pick` prints the examples the build registered under `applications/examples/`, each with the
 `@brief` of its source. `--all` lists every executable of the tree instead.
 
 ## `sa demo`: the AI-7 showcase
@@ -403,7 +403,7 @@ holds a file in it open, the command names the tree and exits 1.
 
 `sa docs` was `sa doxygen`. The old word still runs, prints one notice naming
 the new one when it runs on a terminal, and is removed after 2027-03-25; `SA_NO_DEPRECATION_NOTICE=1`
-silences the notice.
+silences the notice. `sa run --sort` is the same kind of alias of `sa run --pick`.
 
 It runs Doxygen against the repo-root `Doxyfile`, which is **committed**: for
 a while it was not, and `.gitignore` listed it, so the command reported

@@ -200,8 +200,8 @@ def test(
     epilog="sa run  # Run the configured default target\n"
            "sa run sushiai_example\n"
            "sa run --type release sushiai_example  # Run from build/default-release\n"
-           "sa run --sort  # Pick an example from a list\n"
-           "sa run --sort --all  # Pick from every program, tests and benchmarks included\n"
+           "sa run --pick  # Pick an example from a list\n"
+           "sa run --pick --all  # Pick from every program, tests and benchmarks included\n"
            "sa run sushiai_core_tests -- --gtest_filter=Small_Version.*  # Pass the rest on",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
@@ -209,10 +209,13 @@ def run(
     ctx: typer.Context,
     target: Optional[str] = typer.Argument(
         None, help="Executable name to run (exact, then substring match)."),
+    pick: bool = typer.Option(
+        False, "--pick", help="Interactively pick an example."),
     sort: bool = typer.Option(
-        False, "--sort", help="Interactively pick an example."),
+        False, "--sort", hidden=True, callback=K_ALIASES.flag_announcer("sa run --sort"),
+        help="The old spelling of --pick."),
     list_all: bool = typer.Option(
-        False, "--all", help="With --sort, also list the test and benchmark programs."),
+        False, "--all", help="With --pick, also list the test and benchmark programs."),
     memory_limit: Optional[float] = typer.Option(
         None, "--memory-limit", min=0.0, metavar="GB",
         help="Ceiling on the memory the run may commit, in gigabytes; 0 applies none. "
@@ -225,7 +228,8 @@ def run(
         help="Run from the sanitizer tree: address-undefined | thread."),
 ) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
-    raise typer.Exit(project_svc.run(_toolbox(), target=target, sort=sort, app_args=list(ctx.args),
+    raise typer.Exit(project_svc.run(_toolbox(), target=target, sort=pick or sort,
+                                     app_args=list(ctx.args),
                                      memory_limit_gb=memory_limit, build_type=type,
                                      sanitizer=sanitize, list_all=list_all))
 

@@ -12,7 +12,7 @@ import pytest
 
 from sushiai.aliases import K_ALIASES
 
-K_OLD_SPELLINGS = ["sa doxygen"]
+K_OLD_SPELLINGS = ["sa doxygen", "sa run --sort"]
 K_LAST_DAY = date(2027, 3, 25)
 
 
@@ -27,7 +27,7 @@ def test_every_row_leaves_on_the_shared_day(old):
 @pytest.mark.parametrize(("today", "expired"), [
     (date(2027, 3, 24), []),
     (K_LAST_DAY, []),
-    (date(2027, 3, 26), ["sa doxygen"]),
+    (date(2027, 3, 26), ["sa doxygen", "sa run --sort"]),
 ])
 def test_a_row_is_expired_only_after_its_last_day(today, expired):
     """The old spelling works through 2027-03-25 and is expired from 2027-03-26."""
@@ -38,3 +38,9 @@ def test_a_row_is_expired_only_after_its_last_day(today, expired):
 def test_the_notice_names_the_new_spelling():
     """The notice tells the user to type `sa docs`."""
     assert "`sa docs`" in K_ALIASES.notice(K_ALIASES.alias_for("sa doxygen"))
+
+
+@pytest.mark.small
+def test_the_old_sort_flag_names_pick():
+    """The notice of `sa run --sort` tells the user to type `sa run --pick`."""
+    assert "`sa run --pick`" in K_ALIASES.notice(K_ALIASES.alias_for("sa run --sort"))

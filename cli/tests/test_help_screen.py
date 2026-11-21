@@ -37,7 +37,7 @@ K_FORWARDING_LINES = [("train",), ("inference",), ("import",), ("tokenize",), ("
 K_EXAMPLES = {
     "build": "sa build --type release",
     "test": "sa test --label small",
-    "run": "sa run --sort",
+    "run": "sa run --pick",
     "clean": "sa clean",
     "docs": "sa docs",
     "config": "sa config",

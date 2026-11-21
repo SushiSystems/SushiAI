@@ -2,7 +2,7 @@
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under the Apache License 2.0. See LICENSE.
-"""Tests for the choice `sa run --sort` offers: the registered examples, or every program."""
+"""Tests for the choice `sa run --pick` offers: the registered examples, or every program."""
 
 from __future__ import annotations
 
@@ -28,13 +28,13 @@ def examples_tree(project_root: Path) -> Path:
 
 
 def _run_sorted(recorded: Recorded, *, list_all: bool) -> int:
-    """Runs `sa run --sort` with no memory ceiling, and returns its exit code."""
+    """Runs `sa run --pick` with no memory ceiling, and returns its exit code."""
     return project.run(recorded.tools, sort=True, memory_limit_gb=0.0, list_all=list_all)
 
 
 @pytest.mark.medium
 def test_run_sort_offers_only_the_registered_examples(examples_tree):
-    """`sa run --sort` numbers the example alone, so a second program cannot be picked."""
+    """`sa run --pick` numbers the example alone, so a second program cannot be picked."""
     recorded = recorded_tools(answer="2")
 
     assert _run_sorted(recorded, list_all=False) == 1
@@ -44,7 +44,7 @@ def test_run_sort_offers_only_the_registered_examples(examples_tree):
 
 @pytest.mark.medium
 def test_run_sort_all_runs_the_program_picked_from_every_program(examples_tree):
-    """`sa run --sort --all` numbers the second program too, and runs the one picked."""
+    """`sa run --pick --all` numbers the second program too, and runs the one picked."""
     recorded = recorded_tools(answer="2")
 
     assert _run_sorted(recorded, list_all=True) == 0

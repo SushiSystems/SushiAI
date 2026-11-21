@@ -162,8 +162,8 @@ to the program.
 
 ## test_run.py
 
-`sa run --sort` offers the registered examples and not every program of the tree. The listing
+`sa run --pick` offers the registered examples and not every program of the tree. The listing
 is `sushicore.discovery`'s and is tested there; what this CLI can break is passing the example
 catalog and the `--all` flag. The tests build a checkout with one registered example beside a
-second built program, and pin both ends: `--sort` numbers the example alone, and
-`--sort --all` reaches the second program.
+second built program, and pin both ends: a pick numbers the example alone, and a pick with
+`--all` reaches the second program.

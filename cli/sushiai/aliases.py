@@ -14,4 +14,5 @@ K_REMOVED_AFTER = date(2027, 3, 25)
 
 K_ALIASES = AliasTable("sa", (
     Alias("sa doxygen", "sa docs", K_REMOVED_AFTER),
+    Alias("sa run --sort", "sa run --pick", K_REMOVED_AFTER),
 ))
