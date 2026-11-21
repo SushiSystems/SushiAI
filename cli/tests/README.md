@@ -159,3 +159,11 @@ to the program.
 `sp record show run.sprec.json` from the project root and returns the exit code of `sp`.
 `test_profile_without_sp_says_to_install_it` empties `PATH` and asserts an exit code of
 1 and an error line that names SushiProfiler.
+
+## test_run.py
+
+`sa run --sort` offers the registered examples and not every program of the tree. The listing
+is `sushicore.discovery`'s and is tested there; what this CLI can break is passing the example
+catalog and the `--all` flag. The tests build a checkout with one registered example beside a
+second built program, and pin both ends: `--sort` numbers the example alone, and
+`--sort --all` reaches the second program.

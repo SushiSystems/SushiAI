@@ -200,7 +200,8 @@ def test(
     epilog="sa run  # Run the configured default target\n"
            "sa run sushiai_example\n"
            "sa run --type release sushiai_example  # Run from build/default-release\n"
-           "sa run --sort  # Pick an executable from a list\n"
+           "sa run --sort  # Pick an example from a list\n"
+           "sa run --sort --all  # Pick from every program, tests and benchmarks included\n"
            "sa run sushiai_core_tests -- --gtest_filter=Small_Version.*  # Pass the rest on",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
@@ -209,7 +210,9 @@ def run(
     target: Optional[str] = typer.Argument(
         None, help="Executable name to run (exact, then substring match)."),
     sort: bool = typer.Option(
-        False, "--sort", help="Interactively pick an executable."),
+        False, "--sort", help="Interactively pick an example."),
+    list_all: bool = typer.Option(
+        False, "--all", help="With --sort, also list the test and benchmark programs."),
     memory_limit: Optional[float] = typer.Option(
         None, "--memory-limit", min=0.0, metavar="GB",
         help="Ceiling on the memory the run may commit, in gigabytes; 0 applies none. "
@@ -224,7 +227,7 @@ def run(
     """Run a built executable. Args after `--` are forwarded to it."""
     raise typer.Exit(project_svc.run(_toolbox(), target=target, sort=sort, app_args=list(ctx.args),
                                      memory_limit_gb=memory_limit, build_type=type,
-                                     sanitizer=sanitize))
+                                     sanitizer=sanitize, list_all=list_all))
 
 
 @app.command(

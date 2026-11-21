@@ -115,15 +115,17 @@ class Recorded:
 
 def recorded_tools(config: Config | None = None,
                    environment: Mapping[str, str] | None = None,
-                   runner_type: type[RecordingRunner] = RecordingRunner) -> Recorded:
+                   runner_type: type[RecordingRunner] = RecordingRunner,
+                   answer: str | None = None) -> Recorded:
     """Returns a toolbox that records its console and its commands.
 
     Args:
         config: What the toolbox loads as the configuration; a Linux one when None.
         environment: What the toolbox gives as the build environment; a fresh copy for each call.
         runner_type: The recording runner to build, for a test whose commands leave files behind.
+        answer: What the console answers to a prompt; its own default when None.
     """
-    console = RecordingConsole()
+    console = RecordingConsole(answer=answer)
     runner = runner_type(console)
     loaded = config if config is not None else Config(platform="linux")
     tools = Toolbox(

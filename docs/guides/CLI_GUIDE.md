@@ -279,10 +279,14 @@ Runs a built executable. With no target it runs the configured default
 sa run                                # run the default target
 sa run sushiai_example
 sa run --type release sushiai_example # run from build/default-release
-sa run --sort                         # interactively pick from the list of executables
+sa run --sort                         # pick one of the built examples
+sa run --sort --all                   # pick from every program, tests and benchmarks included
 
 sa run sushiai_core_tests -- --gtest_filter='Small_Version.*'
 ```
+
+`--sort` prints the examples the build registered under `applications/examples/`, each with the
+`@brief` of its source. `--all` lists every executable of the tree instead.
 
 ## `sa demo`: the AI-7 showcase
 

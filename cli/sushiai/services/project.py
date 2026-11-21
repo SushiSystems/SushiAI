@@ -20,6 +20,7 @@ from sushicore import build_admission, build_report
 from sushicore.build_tree import K_DEFAULT_BUILD_TYPE, refuse_another_build_type
 from sushicore.cmake_cache import cached_value
 from sushicore.errors import ProjectRootNotFoundError
+from sushicore.example_catalog import ExampleCatalog
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
 from sushicore.testing.program_runner import ProgramRunner
 from sushicore.provision.sushi_packages import PackageError, PackageSet, configure_arguments
@@ -629,7 +630,8 @@ def test_package(tools: Toolbox, cfg: Config, root: Path, build_dir: Path,
 
 def run(tools: Toolbox, target: str | None = None, sort: bool = False,
         app_args: list[str] | None = None, memory_limit_gb: float | None = None,
-        build_type: BuildType = K_DEFAULT_TYPE, sanitizer: Sanitizer | None = None) -> int:
+        build_type: BuildType = K_DEFAULT_TYPE, sanitizer: Sanitizer | None = None,
+        list_all: bool = False) -> int:
     """Runs an executable of the tree of *build_type* and *sanitizer*, forwarding *app_args*."""
     console = tools.console
     console.header("Project Run")
@@ -641,7 +643,8 @@ def run(tools: Toolbox, target: str | None = None, sort: bool = False,
 
     env = _run_env(tools, cfg, build_dir)
 
-    exe = discovery.resolve(build_dir, console, target=target, sort=sort, default=cfg.target_bin)
+    exe = discovery.resolve(build_dir, console, examples=ExampleCatalog.in_project(root),
+                            target=target, sort=sort, default=cfg.target_bin, list_all=list_all)
     if exe is None:
         return 1
 
