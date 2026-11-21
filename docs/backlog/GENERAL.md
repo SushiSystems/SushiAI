@@ -11,7 +11,6 @@
 | RW-173 | P3 | open | Give the upstream-main job the SushiProfiler and SushiLog refs SushiRuntime main needs | The Against SushiRuntime and SushiBLAS main job builds SushiRuntime main without the ScopedZone and __COUNTER__ errors |  | `.github/workflows/ci.yml` | 2026-11-14 |
 | RW-179 | P3 | open | Make the checker tests independent of where TMP points | tools/check_all.py passes with TMP and TEMP set to a folder inside the repository |  | `tools/check_all.py` | 2026-11-14 |
 | RW-180 | P2 | open | Decide whether the TSan race in GraphPairTask is real and fix or justify it | The thread job reports no race at graph_task_sink.cpp:65, or a suppression names its reason and this entry |  | `.github/workflows/ci.yml` | 2026-11-14 |
-| RW-189 | P2 | open | Rename sa run --sort to --pick with a hidden alias | sa run --pick picks an example and sa run --sort still works as a hidden alias that names --pick |  | `cli/sushiai/cli.py` | 2026-11-21 |
 
 ## Known issues
 

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 2026-11-21 — cli: Renamed `sa run --sort` to `sa run --pick`, and kept `--sort` as a hidden alias that names `--pick` until 2027-03-25 (RW-189).
+- 2026-11-21 — cli: Renamed `sa run --sort` to `sa run --pick`, and kept `--sort` as a hidden alias that names `--pick` until 2027-03-25 (RW-189, `93948446`).
 - 2026-11-21 — cli: Changed `sa run --sort` to list the built examples, each with its description; `sa run --sort --all` lists every program as before (RW-188).
 - 2026-11-16 — imaging: Breaking change: Renamed `fit_long_side` and `resize_long_side` to `fit_within` and `resize_within`, which fit an image within any height and width (`resize.hpp`).
 - 2026-11-16 — imaging: Breaking change: Took the mosaic's training size as an `ImageSize`, with a canvas of twice each side (`mosaic.hpp`).
