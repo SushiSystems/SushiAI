@@ -10,6 +10,7 @@ Every checker under tools/ builds its subjects, names its rules and hands both t
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping
@@ -43,11 +44,19 @@ class Finding:
     message: str
 
     def format(self, root: Path) -> str:
-        """Returns the finding as `path:line: rule: message`, the path relative to root."""
-        try:
-            shown = self.path.resolve().relative_to(root.resolve())
-        except ValueError:
-            shown = self.path
+        """Returns the finding as `path:line: rule: message`, the path relative to root.
+
+        A path below a link inside root, such as a submodule, is shown below root, not where the
+        link leads.
+        """
+        shown = self.path
+        for path, base in ((Path(os.path.normpath(self.path)), Path(os.path.normpath(root))),
+                           (self.path.resolve(), root.resolve())):
+            try:
+                shown = path.relative_to(base)
+                break
+            except ValueError:
+                continue
         return f"{shown.as_posix()}:{self.line}: {self.rule}: {self.message}"
 
 
