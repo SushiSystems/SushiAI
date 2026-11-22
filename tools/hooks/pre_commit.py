@@ -2,30 +2,25 @@
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under the Apache License 2.0. See LICENSE.
-"""Runs every checker on the files the commit will hold, not on the files on disk.
+"""Runs every checker on the repository in place, when the disk holds what the commit will hold.
 
 Usage: python tools/hooks/pre_commit.py [repository root]
 
-Git runs it through the pre-commit hook; the index is written to a throwaway folder beside the
-repository, where `../<sibling>` resolves, and `tools/check_all.py` runs there.
+Git runs it through the pre-commit hook. Nothing is written to disk: a staged file whose disk copy
+differs from the index refuses the commit, because the checkers read the disk.
 """
 
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
 K_CHECK_ALL = Path("tools") / "check_all.py"
 K_EXIT_REFUSED = 1
-K_PREFIX = "pre-commit-"
 K_SKIP_HISTORY = "--skip-history"
-K_GITLINK_MODE = "160000"
-K_BYTES_AS_STORED = ("-c", "core.autocrlf=false", "-c", "core.eol=lf")
 
 
 def absolute_git_dir(root: Path, environ: Mapping[str, str]) -> Path | None:
@@ -45,131 +40,51 @@ def index_file(git_dir: Path, environ: Mapping[str, str]) -> Path:
     return path if path.is_absolute() else Path(environ.get("GIT_PREFIX", ".")).resolve() / path
 
 
-def checked_environment(git_dir: Path, tree: Path, environ: Mapping[str, str]) -> dict[str, str]:
-    """Returns the environment `check_all.py` runs in: git points at the real repository."""
+def checked_environment(git_dir: Path, root: Path, environ: Mapping[str, str]) -> dict[str, str]:
+    """Returns the environment `check_all.py` runs in: git reads the index the commit holds."""
     return {
         **environ,
         "GIT_DIR": str(git_dir),
-        "GIT_WORK_TREE": str(tree),
+        "GIT_WORK_TREE": str(root),
         "GIT_INDEX_FILE": str(index_file(git_dir, environ)),
         "GIT_OPTIONAL_LOCKS": "0",
         "PYTHONDONTWRITEBYTECODE": "1",
     }
 
 
-def checkout_index(root: Path, tree: Path, environ: Mapping[str, str]) -> str | None:
-    """Writes every file of the index below *tree*, byte for byte as the index holds it.
-
-    Returns git's error, or None on success. The line endings are not converted, because the lock
-    of the shared tools hashes the bytes the index holds.
-    """
-    prefix = tree.as_posix().rstrip("/") + "/"
+def unstaged_files(root: Path, environ: Mapping[str, str]) -> list[str] | None:
+    """Returns the staged files whose disk copy differs from the index, or None when git fails."""
     done = subprocess.run(
-        ["git", "-C", str(root), *K_BYTES_AS_STORED, "checkout-index", "--all", "--force",
-         f"--prefix={prefix}"],
+        ["git", "-C", str(root), "diff", "--name-only", "--no-renames", "-z"],
         capture_output=True, text=True, env=dict(environ), check=False)
-    return None if done.returncode == 0 else done.stderr.strip() or "git failed"
+    if done.returncode != 0:
+        return None
+    return [name for name in done.stdout.split("\0") if name]
 
 
-def submodule_paths(root: Path, environ: Mapping[str, str]) -> list[str]:
-    """Returns the paths of the submodules the index names."""
-    done = subprocess.run(["git", "-C", str(root), "ls-files", "--stage", "-z"],
-                          capture_output=True, text=True, env=dict(environ), check=False)
-    entries = [entry.partition("\t") for entry in done.stdout.split("\0") if entry]
-    return [path for meta, _, path in entries if meta.startswith(K_GITLINK_MODE)]
-
-
-def ignored_files(root: Path, environ: Mapping[str, str]) -> list[str]:
-    """Returns the ignored files on disk outside an ignored folder, which a checker may cite.
-
-    An ignored folder holds build output and is left out whole.
-    """
+def staged(root: Path, path: Path, environ: Mapping[str, str]) -> bool:
+    """Returns whether the index holds *path*."""
     done = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "--others", "--ignored", "--exclude-standard",
-         "--directory", "-z"],
+        ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", path.as_posix()],
         capture_output=True, text=True, env=dict(environ), check=False)
-    return [entry for entry in done.stdout.split("\0") if entry and not entry.endswith("/")]
+    return done.returncode == 0
 
 
-def copy_ignored_files(root: Path, tree: Path, environ: Mapping[str, str]) -> None:
-    """Copies each of :func:`ignored_files` from *root* into *tree*."""
-    for name in ignored_files(root, environ):
-        source = root / name
-        if source.is_file():
-            (tree / name).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, tree / name)
-
-
-def link_submodule(source: Path, target: Path) -> str | None:
-    """Makes *target* a link to the checked-out submodule *source*; returns the error, or None.
-
-    A submodule that is not checked out has nothing to read and is left empty.
-    """
-    if not source.is_dir():
-        return None
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if target.is_dir() and not any(target.iterdir()):
-        target.rmdir()
-    try:
-        os.symlink(source, target, target_is_directory=True)
-        return None
-    except OSError as error:
-        if os.name != "nt":
-            return str(error)
-    try:
-        import _winapi
-        _winapi.CreateJunction(str(source), str(target))
-        return None
-    except OSError as error:
-        return str(error)
-
-
-def unlink_submodule(target: Path) -> None:
-    """Removes the link *target* and nothing behind it; a path that is no link is left alone."""
-    try:
-        target.unlink()
-    except OSError:
-        try:
-            os.rmdir(target)
-        except OSError:
-            return
-
-
-def check_index(root: Path, git_dir: Path, tree: Path, environ: Mapping[str, str]) -> int:
-    """Writes the index to *tree* and returns the exit code of `check_all.py` run there."""
-    error = checkout_index(root, tree, environ)
-    if error is not None:
-        print(f"pre-commit: cannot write the index to {tree}: {error}", file=sys.stderr)
-        return K_EXIT_REFUSED
-    entry = tree / K_CHECK_ALL
-    if not entry.is_file():
-        print(f"pre-commit: the index holds no {K_CHECK_ALL.as_posix()}", file=sys.stderr)
-        return K_EXIT_REFUSED
-    copy_ignored_files(root, tree, environ)
-    modules = submodule_paths(root, environ)
-    for path in modules:
-        problem = link_submodule(root / path, tree / path)
-        if problem is not None:
-            print(f"pre-commit: cannot link the submodule {path}: {problem}", file=sys.stderr)
-    env = checked_environment(git_dir, tree, environ)
-    try:
-        return subprocess.run([sys.executable, str(entry), str(tree), K_SKIP_HISTORY], env=env,
-                              check=False).returncode
-    finally:
-        for path in modules:
-            unlink_submodule(tree / path)
-
-
-def remove_folder(folder: Path) -> None:
-    """Removes *folder*; a folder that stays is named on stderr, and the commit goes on."""
-    try:
-        shutil.rmtree(folder)
-    except OSError as error:
-        print(f"pre-commit: cannot remove {folder}: {error}", file=sys.stderr)
+def refusal(root: Path, environ: Mapping[str, str]) -> str | None:
+    """Returns why the repository at *root* cannot be checked in place, or None when it can."""
+    differing = unstaged_files(root, environ)
+    if differing is None:
+        return "git cannot read the index"
+    if differing:
+        names = "\n  ".join(differing)
+        return (f"these files differ on disk from the index; stage or restore them:\n  {names}")
+    if not staged(root, K_CHECK_ALL, environ):
+        return f"the index holds no {K_CHECK_ALL.as_posix()}"
+    return None
 
 
 def run(root: Path, environ: Mapping[str, str] | None = None) -> int:
-    """Returns the exit code of `check_all.py` run on the index of the repository at *root*.
+    """Returns the exit code of `check_all.py` run in place on the repository at *root*.
 
     The checkers that read every commit are left out: a commit is not in the history yet, and the
     `commit-msg` hook judges its message and its pages.
@@ -179,12 +94,13 @@ def run(root: Path, environ: Mapping[str, str] | None = None) -> int:
     if git_dir is None:
         print(f"pre-commit: {root} is not a git repository", file=sys.stderr)
         return K_EXIT_REFUSED
-    folder = Path(tempfile.mkdtemp(prefix=f".{root.resolve().name}-{K_PREFIX}",
-                                   dir=root.resolve().parent))
-    try:
-        return check_index(root, git_dir, folder, environ)
-    finally:
-        remove_folder(folder)
+    problem = refusal(root, environ)
+    if problem is not None:
+        print(f"pre-commit: {problem}", file=sys.stderr)
+        return K_EXIT_REFUSED
+    tree = root.resolve()
+    return subprocess.run([sys.executable, str(tree / K_CHECK_ALL), str(tree), K_SKIP_HISTORY],
+                          env=checked_environment(git_dir, tree, environ), check=False).returncode
 
 
 def main(argv: list[str] | None = None) -> int:

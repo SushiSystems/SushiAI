@@ -2,7 +2,7 @@
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under the Apache License 2.0. See LICENSE.
-"""Tests that the pre-commit hook checks the index, not the disk, with a stub for check_all."""
+"""Tests that the pre-commit hook checks the repository in place, with a stub for check_all."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -23,20 +22,13 @@ from hooks import pre_commit  # noqa: E402
 from repo_builder import Repo, without_commit_dates  # noqa: E402
 
 K_STUB = """import os
-import shutil
 import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
 seen = []
-if b"\\r\\n" in (root / "src" / "a.py").read_bytes():
-    seen.append("crlf")
 if (root / "third_party" / "sub" / "marker.txt").is_file():
     seen.append("submodule")
-if (root / "assets" / "local.bin").is_file():
-    seen.append("ignored")
-if (root / "out" / "big.bin").exists():
-    seen.append("ignored folder")
 fields = [str(root), os.environ.get("GIT_INDEX_FILE", ""), " ".join(sys.argv[2:]), ",".join(seen)]
 with open(os.environ["PRE_COMMIT_TEST_LOG"], "a", encoding="utf-8") as log:
     log.write("\\t".join(fields) + "\\n")
@@ -50,7 +42,10 @@ class PreCommitTest(unittest.TestCase):
     K_TEST_SIZE = "medium"
 
     def setUp(self) -> None:
-        self.repo = Repo()
+        # The repository's own parent, so no other process writes beside it during a test.
+        parent = tempfile.TemporaryDirectory()
+        self.addCleanup(parent.cleanup)
+        self.repo = Repo(Path(parent.name))
         self.addCleanup(self.repo.close)
         self.log = self.repo.root.parent / f"{self.repo.root.name}_checked.log"
         self.addCleanup(lambda: self.log.unlink(missing_ok=True))
@@ -83,36 +78,41 @@ class PreCommitTest(unittest.TestCase):
     def _git_dir(self) -> Path:
         return Path(self.repo.git("rev-parse", "--absolute-git-dir").strip())
 
-    def test_a_red_file_on_disk_that_is_not_staged_does_not_refuse_the_commit(self) -> None:
+    def test_a_red_file_the_commit_holds_refuses_it(self) -> None:
+        self.repo.write("bad.txt", "staged\n")
+        self.repo.git("add", "bad.txt")
+        self.assertEqual(self._run(), 1)
+
+    def test_a_clean_commit_passes(self) -> None:
         self.repo.write("src/a.py", "x = 2\n")
         self.repo.git("add", "src/a.py")
-        self.repo.write("bad.txt", "unfinished work of another session\n")
         self.assertEqual(self._run(), 0)
 
-    def test_a_red_file_the_commit_holds_refuses_it_even_when_the_disk_copy_is_fixed(self) -> None:
+    def test_a_staged_file_changed_on_disk_refuses_and_is_named_without_running_checks(
+            self) -> None:
+        self.repo.write("src/a.py", "x = 2\n")
+        self.repo.git("add", "src/a.py")
+        self.repo.write("src/a.py", "x = 3\n")
+        code = self._run()
+        self.assertEqual((code, "src/a.py" in self.errors, self.log.exists()), (1, True, False))
+
+    def test_a_staged_file_deleted_on_disk_refuses_the_commit(self) -> None:
         self.repo.write("bad.txt", "staged\n")
         self.repo.git("add", "bad.txt")
         self.repo.remove("bad.txt")
-        self.assertEqual(self._run(), 1)
+        code = self._run()
+        self.assertEqual((code, "bad.txt" in self.errors), (1, True))
 
-    def test_a_red_file_taken_out_of_the_index_but_left_on_disk_does_not_refuse(self) -> None:
-        self.repo.write("bad.txt", "tracked\n")
-        self.repo.commit("add it")
-        self.repo.git("rm", "--cached", "bad.txt")
-        self.assertEqual(self._run(), 0)
-
-    def test_the_checks_run_in_a_folder_that_is_not_the_repository(self) -> None:
+    def test_the_checks_run_in_the_repository_itself(self) -> None:
         self._run()
         [(folder, _)] = self._logged()
-        self.assertNotEqual(folder, self.repo.root)
+        self.assertEqual(folder, self.repo.root.resolve())
 
-    def test_a_file_is_written_with_the_line_endings_the_index_holds(self) -> None:
-        self.repo.write(".gitattributes", "* text=auto\n")
-        self.repo.git("config", "core.autocrlf", "true")
-        self.repo.git("config", "core.eol", "crlf")
-        self.repo.git("add", "--renormalize", ".")
+    def test_nothing_is_written_beside_the_repository(self) -> None:
+        before = sorted(self.repo.root.parent.iterdir())
         self._run()
-        self.assertEqual(self._logged_sightings(), [""])
+        after = [path for path in sorted(self.repo.root.parent.iterdir()) if path != self.log]
+        self.assertEqual(after, before)
 
     def test_a_submodule_the_index_names_is_present_in_the_checked_tree(self) -> None:
         sub = Repo()
@@ -122,43 +122,11 @@ class PreCommitTest(unittest.TestCase):
         self.repo.git("-c", "protocol.file.allow=always", "submodule", "add", "-q",
                       str(sub.root), "third_party/sub")
         self._run()
-        kept = (self.repo.root / "third_party" / "sub" / "marker.txt").is_file()
-        self.assertEqual((self._logged_sightings(), kept), (["submodule"], True))
-
-    def test_the_checks_run_in_a_folder_beside_the_repository(self) -> None:
-        self._run()
-        [(folder, _)] = self._logged()
-        self.assertEqual(folder.parent, self.repo.root.resolve().parent)
-
-    def test_an_ignored_file_on_disk_is_present_in_the_checked_tree(self) -> None:
-        self.repo.write(".gitignore", "assets/*.bin\nout/\n")
-        self.repo.commit("ignore")
-        self.repo.write("assets/local.bin", "x\n")
-        self._run()
-        self.assertEqual(self._logged_sightings(), ["ignored"])
-
-    def test_an_ignored_folder_is_left_out_of_the_checked_tree(self) -> None:
-        self.repo.write(".gitignore", "out/\n")
-        self.repo.commit("ignore")
-        self.repo.write("out/big.bin", "x\n")
-        self._run()
-        self.assertEqual(self._logged_sightings(), [""])
+        self.assertEqual(self._logged_sightings(), ["submodule"])
 
     def test_the_checkers_that_read_the_history_are_left_out(self) -> None:
         self._run()
         self.assertEqual(self._logged_arguments(), ["--skip-history"])
-
-    def test_the_folder_of_the_checks_is_gone_afterwards(self) -> None:
-        self._run()
-        [(folder, _)] = self._logged()
-        self.assertFalse(folder.exists())
-
-    def test_a_folder_that_will_not_go_is_named_and_does_not_refuse_the_commit(self) -> None:
-        with mock.patch.object(pre_commit.shutil, "rmtree", side_effect=OSError("locked")):
-            code = self._run()
-        [(folder, _)] = self._logged()
-        shutil.rmtree(folder)
-        self.assertEqual((code, f"cannot remove {folder}" in self.errors), (0, True))
 
     def test_the_repository_index_is_checked_when_git_hands_no_other(self) -> None:
         self._run()
@@ -180,18 +148,11 @@ class PreCommitTest(unittest.TestCase):
         self.repo.git("rm", "--cached", "bad.txt")
         self.assertEqual(self._run(GIT_INDEX_FILE=str(handed)), 1)
 
-    def test_a_red_file_only_the_repository_index_holds_does_not_refuse_the_commit(self) -> None:
-        handed = self._git_dir() / "next-index"
-        shutil.copyfile(self._git_dir() / "index", handed)
-        self.repo.write("bad.txt", "staged\n")
-        self.repo.git("add", "bad.txt")
-        self.assertEqual(self._run(GIT_INDEX_FILE=str(handed)), 0)
-
     def test_an_index_git_cannot_read_is_refused_and_named(self) -> None:
         broken = self._git_dir() / "broken-index"
         broken.write_text("not an index", encoding="utf-8")
         code = self._run(GIT_INDEX_FILE=str(broken))
-        self.assertEqual((code, "cannot write the index" in self.errors), (1, True))
+        self.assertEqual((code, "cannot read the index" in self.errors), (1, True))
 
     def test_an_index_without_check_all_is_refused_and_named(self) -> None:
         self.repo.git("rm", "--cached", "tools/check_all.py")
@@ -211,7 +172,7 @@ class CheckedEnvironmentTest(unittest.TestCase):
     K_TEST_SIZE = "small"
     base = Path(tempfile.gettempdir())
 
-    def test_git_points_at_the_repository_and_the_throwaway_tree(self) -> None:
+    def test_git_points_at_the_repository_and_its_tree(self) -> None:
         git_dir, tree = self.base / ".git", self.base / "tree"
         environment = pre_commit.checked_environment(git_dir, tree, {"PATH": "p"})
         self.assertEqual(

@@ -31,8 +31,9 @@ def without_commit_dates() -> dict[str, str]:
 class Repo:
     """Holds a git repository in a temporary folder; call close() when the test ends."""
 
-    def __init__(self) -> None:
-        self._folder = tempfile.TemporaryDirectory()
+    def __init__(self, parent: Path | None = None) -> None:
+        """Makes the repository in a new folder inside *parent*, or inside the system's temporary folder."""
+        self._folder = tempfile.TemporaryDirectory(dir=parent)
         self.root = Path(self._folder.name)
         self.git("init", "-q")
 
