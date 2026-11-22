@@ -85,10 +85,49 @@ class TestUnsafeName(unittest.TestCase):
     K_TEST_SIZE = "small"
 
     def test_reports_a_row_name_with_a_dash_or_a_space_when_a_generator_reads_the_name(self) -> None:
-        text = ('INSTANTIATE_TEST_SUITE_P(, S, V, [](const auto& i) { return i.param.name; });\n'
+        text = ('INSTANTIATE_TEST_SUITE_P(, S, ::testing::ValuesIn(k), [](const auto& i) { return i.param.name; });\n'
                 'const Row k[] = {\n  {"a-b", 1},\n  {"a b", 2},\n  {"ab_1", 3},\n};\n')
         self.assertEqual(found(rule_unsafe_name, {"a/test_a.cpp": text}),
                          [("test_a.cpp", 3), ("test_a.cpp", 4)])
+
+    def test_keeps_a_local_row_table_that_no_instantiation_passes(self) -> None:
+        text = ('INSTANTIATE_TEST_SUITE_P(, S, ::testing::ValuesIn(k), [](const auto& i) { return i.param.name; });\n'
+                'const Row k[] = {\n  {"ab", 1},\n};\n'
+                'TEST(Small_T, Parse)\n{\n  Row rows[] = {\n    {"a-b", 1},\n  };\n}\n')
+        self.assertEqual(found(rule_unsafe_name, {"a/test_a.cpp": text}), [])
+
+    def test_reports_a_row_written_inside_values(self) -> None:
+        text = ('INSTANTIATE_TEST_SUITE_P(, S, ::testing::Values(Row\n  {"a-b", 1}), '
+                '[](const auto& i) { return i.param.name; });\n')
+        self.assertEqual(found(rule_unsafe_name, {"a/test_a.cpp": text}), [("test_a.cpp", 2)])
+
+    def test_reports_a_row_of_a_function_passed_through_values_in(self) -> None:
+        text = ('std::vector<Row> rows()\n{\n  return {\n    {"a-b", 1},\n  };\n}\n'
+                'INSTANTIATE_TEST_SUITE_P(, S, ::testing::ValuesIn(rows()), [](const auto& i) { return i.param.name; });\n')
+        self.assertEqual(found(rule_unsafe_name, {"a/test_a.cpp": text}), [("test_a.cpp", 4)])
+
+    def test_checks_every_row_when_the_values_cannot_be_traced(self) -> None:
+        text = ('INSTANTIATE_TEST_SUITE_P(, S, ::testing::ValuesIn(elsewhere), [](const auto& i) { return i.param.name; });\n'
+                'TEST(Small_T, Parse)\n{\n  Row rows[] = {\n    {"a-b", 1},\n  };\n}\n')
+        self.assertEqual(found(rule_unsafe_name, {"a/test_a.cpp": text}), [("test_a.cpp", 5)])
+
+    def test_keeps_to_string_of_an_unsigned_member_of_the_parameter(self) -> None:
+        text = ('struct PuRow\n{\n  const char* name;\n  unsigned pu_index;\n};\n'
+                'INSTANTIATE_TEST_SUITE_P(, S, V, [](const ::testing::TestParamInfo<PuRow>& i)\n'
+                '  { return std::to_string(i.param.pu_index); });\n')
+        self.assertEqual(found(rule_unsafe_name, {"a/test_a.cpp": text}), [])
+
+    def test_keeps_to_string_of_a_fixed_width_unsigned_member(self) -> None:
+        text = ('struct ByteRow\n{\n  std::uint8_t byte;\n};\n'
+                'class S : public ::testing::TestWithParam<ByteRow>\n{\n};\n'
+                'INSTANTIATE_TEST_SUITE_P(, S, V, [](const auto& i) { return std::to_string(i.param.byte); });\n')
+        self.assertEqual(found(rule_unsafe_name, {"a/test_a.cpp": text}), [])
+
+    def test_reports_to_string_of_a_signed_member_of_the_parameter(self) -> None:
+        text = ('struct Row\n{\n  int offset;\n};\n'
+                'INSTANTIATE_TEST_SUITE_P(, S, V, [](const ::testing::TestParamInfo<Row>& i)\n'
+                '  { return std::to_string(i.param.offset); });\n')
+        self.assertEqual(found(rule_unsafe_name, {"a/test_a.cpp": text}), [("test_a.cpp", 6)])
 
     def test_keeps_a_row_table_that_no_generator_names(self) -> None:
         text = 'const Row k[] = {\n  {"a-b", 1},\n};\n'

@@ -37,6 +37,8 @@ K_TO_STRING = re.compile(r"\bstd::to_string\s*\(")
 K_PARAM_TYPE = re.compile(r"TestParamInfo\s*<\s*([\w:\s]+?)\s*>")
 K_UNSIGNED_TYPE = re.compile(r"\b(?:size_t|unsigned|uint\d*_t|bool)\b")
 K_PARAMETER_ARGUMENT = re.compile(r"\s*\w+\.(?:param|index)\s*")
+K_MEMBER_ARGUMENT = re.compile(r"\s*\w+\.param\.(\w+)\s*")
+K_VALUES_IN = re.compile(r"\bValuesIn\s*\(\s*(\w+)\s*(\(\s*\))?\s*\)")
 K_INDEXED_ARGUMENT = re.compile(r"\s*(\w+)\s*\[\s*\w+\.(?:param|index)\s*\]\s*")
 K_NAME_MEMBER = re.compile(r"\bname\b|_name\b")
 K_UNSIGNED_ARGUMENT = re.compile(r"\babs\b|\bunsigned\b|\bsize_t\b|\.size\s*\(\)|\bindex\b")
@@ -60,12 +62,14 @@ class TypeDefinition:
 
 @dataclass(frozen=True, slots=True)
 class NameGenerator:
-    """Holds one name generator: its body offsets, its signature text and the fixture its instantiation names."""
+    """Holds one name generator: its body offsets, its signature text, the fixture its instantiation names and the
+    offsets of the instantiation's values argument."""
 
     start: int
     end: int
     signature: str
     fixture: str | None
+    values: tuple[int, int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,7 +225,7 @@ def _generators(code: str) -> Iterator[NameGenerator]:
         named = re.fullmatch(r"\s*&?\s*(\w+)\s*", code[start:end])
         body = _function_body(code, named.group(1)) if named else None
         fixture = re.fullmatch(r"\s*(\w+)\s*", code[arguments[1][0]:arguments[1][1]])
-        generator = NameGenerator(*(body or (start, end, "")), fixture.group(1) if fixture else None)
+        generator = NameGenerator(*(body or (start, end, "")), fixture.group(1) if fixture else None, arguments[2])
         if (generator.start, generator.end, generator.fixture) not in seen:
             seen.add((generator.start, generator.end, generator.fixture))
             yield generator
@@ -259,6 +263,9 @@ def _is_unsigned_value(code: str, generator: NameGenerator, argument: str) -> bo
     """Returns whether a to_string argument is the unsigned parameter, or an element of an unsigned array."""
     if K_PARAMETER_ARGUMENT.fullmatch(argument):
         return _is_unsigned_type(_parameter_type(code, generator))
+    member = K_MEMBER_ARGUMENT.fullmatch(argument)
+    if member:
+        return _is_unsigned_type(_member_type(code, _parameter_type(code, generator), member.group(1)))
     indexed = K_INDEXED_ARGUMENT.fullmatch(argument)
     return bool(indexed) and _is_unsigned_type(_element_type(code, indexed.group(1)))
 
@@ -275,6 +282,58 @@ def _parameter_type(code: str, generator: NameGenerator) -> str | None:
     return base.group(1) if base else None
 
 
+def _member_type(code: str, owner: str | None, member: str) -> str | None:
+    """Returns the declared type of *member* in the struct or class *owner* defined in the code, if there is one."""
+    if owner is None:
+        return None
+    name = re.escape(owner.split("::")[-1].strip())
+    body = _type_body(code, name)
+    if body is None:
+        return None
+    declared = re.search(rf"(?:^|[;{{}}])\s*((?:const\s+)?(?:unsigned\s+)?[\w:]+(?:\s+(?:int|long|short|char))?)"
+                         rf"\s+{re.escape(member)}\s*(?:[;={{\[]|$)", code[body[0]:body[1]], re.MULTILINE)
+    return declared.group(1) if declared else None
+
+
+def _type_body(code: str, name: str) -> tuple[int, int] | None:
+    """Returns the body offsets of the struct or class *name* defined in the code, if there is one."""
+    match = re.search(rf"\b(?:struct|class)\s+{name}\b[^;{{]*\{{", code)
+    return _braced(code, match.end() - 1) if match else None
+
+
+def _braced(code: str, opening: int) -> tuple[int, int] | None:
+    """Returns the offsets inside the braces whose `{` is at *opening*, if they close."""
+    depth = 0
+    for index in range(opening, len(code)):
+        depth += (code[index] == "{") - (code[index] == "}")
+        if depth == 0:
+            return opening + 1, index
+    return None
+
+
+def _row_spans(code: str, generator: NameGenerator) -> list[tuple[int, int]] | None:
+    """Returns the spans of the rows an instantiation passes, or None when its values cannot be traced.
+
+    The spans are the values argument itself, and the body of each array or function it names through ValuesIn.
+    """
+    start, end = generator.values
+    spans = [(start, end)]
+    for named in K_VALUES_IN.finditer(code, start, end):
+        name = re.escape(named.group(1))
+        body = (_function_body(code, named.group(1)) if named.group(2)
+                else _declared_rows(code, name))
+        if body is None:
+            return None
+        spans.append(body[:2])
+    return spans
+
+
+def _declared_rows(code: str, name: str) -> tuple[int, int] | None:
+    """Returns the offsets inside the braces of the array or container *name* is declared with, if there is one."""
+    match = re.search(rf"\b{name}\s*(?:\[[^\]]*\])?\s*=?\s*\{{", code)
+    return _braced(code, match.end() - 1) if match else None
+
+
 def _element_type(code: str, array: str) -> str | None:
     """Returns the element type of a C array or std::array declared by name in the code, if there is one."""
     declared = (re.search(rf"(?<![\w:])((?:unsigned\s+)?[\w:]+)\s+{re.escape(array)}\s*\[", code)
@@ -288,11 +347,20 @@ def _is_unsigned_type(declared: str | None) -> bool:
 
 
 def _unsafe_row_issues(source: SourceFile, code: str) -> Iterator[Issue]:
-    """Yields an issue for each row that starts with a name outside [A-Za-z0-9_], in a file whose generator reads a name."""
-    if not any(K_NAME_MEMBER.search(code[each.start:each.end]) for each in _generators(code)):
+    """Yields an issue for each row an instantiation passes whose name holds a character outside [A-Za-z0-9_].
+
+    Only instantiations whose generator reads a name count. When one passes values that cannot be traced, every row
+    of the file is checked.
+    """
+    readers = [each for each in _generators(code) if K_NAME_MEMBER.search(code[each.start:each.end])]
+    if not readers:
         return
+    traced = [_row_spans(code, each) for each in readers]
+    spans = None if any(each is None for each in traced) else [span for each in traced for span in each]
     for row in K_ROW_START.finditer(code):
         at = row.start(1)
+        if spans is not None and not any(start <= at < end for start, end in spans):
+            continue
         content = source.text[at:at + len(row.group(1))]
         if K_NAME_CHARACTERS.fullmatch(content) is None:
             yield Issue(source.path, line_of(code, at),

@@ -37,13 +37,6 @@ backlog = "RW-168"
 
 [[finding]]
 checker = "testing/check_test_odr.py"
-rule = "rule_unsafe_name"
-path = "tests/core/graph/lowering/test_unlowered.cpp"
-count = 2
-backlog = "RW-168"
-
-[[finding]]
-checker = "testing/check_test_odr.py"
 rule = "rule_suite_fixture_mix"
 path = "tests/core/graph/test_fusion_selector.cpp"
 count = 4
@@ -88,7 +81,7 @@ backlog = "RW-168"
 checker = "testing/check_test_odr.py"
 rule = "rule_unsafe_name"
 path = "tests/vision/datasets/test_reader_section.cpp"
-count = 9
+count = 8
 backlog = "RW-168"
 
 [[finding]]
