@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-23 — cli: Built every Sushi package of a `--sanitize thread` tree with ThreadSanitizer and its symbols, since TSan reported a race across uninstrumented SushiRuntime as one inside SushiBLAS (`library_packages.py`).
 - 2026-11-23 — deps: Pinned SushiRuntime v0.7.1, SushiBLAS v0.3.0 and SushiLog and SushiProfiler v0.5.1, which take SushiCore 0.16 (`cli/sushistack.deps.toml`).
 - 2026-11-23 — ci: Kept the kernels the SYCL runtime JIT-compiles on disk, so a test rerun alone over its limit no longer pays their first compile again (`SYCL_CACHE_PERSISTENT`, `ci.yml`).
 - 2026-11-21 — cli: Breaking change: `sa build` no longer removes the tree it configures; it refuses a tree of another generator or source folder and names `sa clean`, and configures any other tree in place (RW-191, `e4741607`).

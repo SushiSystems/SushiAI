@@ -104,6 +104,26 @@ def test_distributed_becomes_the_distributed_option_of_both_packages():
 
 
 @pytest.mark.small
+def test_a_thread_tree_builds_every_package_with_thread_sanitizer():
+    """A TSan tree hands each library the spelling its CLI takes, so every package is instrumented."""
+    assert library_packages.package_options(False, "", Sanitizer.thread) == {
+        "sushilog": ("--sanitize", "thread"), "sushiprofiler": ("--sanitize", "thread"),
+        "sushiblas": ("--sanitize", "thread"), "sushiruntime": ("--type", "tsan")}
+    assert library_packages.package_options(False, "", Sanitizer.address_undefined) == {}
+
+
+@pytest.mark.small
+def test_a_thread_tree_links_packages_with_their_symbols():
+    """A TSan tree asks for relwithdebinfo packages, since TSan needs the symbols to name a race."""
+    cfg = offline_config()
+
+    library_packages.resolve(cfg, Path("."), "debug", "clang++", False, "", print, print,
+                             Sanitizer.thread)
+
+    assert cfg.asked[0]["build_type"] == "relwithdebinfo"
+
+
+@pytest.mark.small
 @pytest.mark.parametrize(("key", "expected"), [
     ("build_type", "release"),
     ("compiler", "clang++"),

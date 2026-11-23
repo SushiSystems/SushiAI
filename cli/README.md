@@ -105,7 +105,9 @@ A thin adapter over sushicore's `sushi_packages`. `resolve` returns a built pack
 SushiProfiler, SushiRuntime and SushiBLAS, building a missing one once with the compiler of the
 build; `--distributed` becomes `--distributed` of the SushiRuntime and SushiBLAS packages, and
 the packages are the build type sushicore's `package_build_type` names: release for every type but
-`relwithdebinfo`. `build` writes the run-time folders of the
+`relwithdebinfo`. A `--sanitize thread` tree takes relwithdebinfo packages built with
+ThreadSanitizer, since TSan cannot see a synchronisation edge inside an uninstrumented library:
+SushiLog, SushiProfiler and SushiBLAS take `--sanitize thread` and SushiRuntime `--type tsan`. `build` writes the run-time folders of the
 packages to `.sushiai_package_dirs.json` in its tree, and `test`, `run`, `train`, `inference`
 and the demos prepend them to the library search path through `_run_env`, without resolving
 again. The package suite resolves once more, because its consumer needs the folders as

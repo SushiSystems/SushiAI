@@ -16,6 +16,7 @@ from sushicore.build_tree import package_build_type
 from sushicore.provision.sushi_packages import PackageSet, RunDirs
 
 from ..config import Config
+from .sanitizer import Sanitizer
 from .sycl_targets import sycl_targets_define
 
 #: The file of a build tree that names the run-time folders of the packages it linked.
@@ -29,14 +30,27 @@ K_DISTRIBUTED_FLAG = "--distributed"
 K_BLAS = "sushiblas"
 K_DEFINE_FLAG = "-D"
 
+#: The library whose CLI takes ThreadSanitizer as its build type rather than as a flag.
+K_RUNTIME = "sushiruntime"
 
-def package_options(distributed: bool, sycl_targets: str = "") -> Mapping[str, tuple[str, ...]]:
+#: The libraries whose CLI takes the sanitizer as ``--sanitize thread``.
+K_SANITIZE_FLAG_LIBRARIES = ("sushilog", "sushiprofiler", "sushiblas")
+
+#: The package build type of a ThreadSanitizer tree; TSan needs the symbols to name a race.
+K_THREAD_PACKAGE_TYPE = "relwithdebinfo"
+
+
+def package_options(distributed: bool, sycl_targets: str = "",
+                    sanitizer: Sanitizer | None = None) -> Mapping[str, tuple[str, ...]]:
     """Return the extra `build` arguments each library takes for this SushiAI build.
 
     The distribution module needs the distributed layer of SushiRuntime and the cluster module of
     SushiBLAS, so ``--distributed`` of SushiAI becomes ``--distributed`` of both packages. A
     device target list becomes ``-D SB_SYCL_TARGETS=<list>`` of the SushiBLAS package, so another
-    list is another package and an equal one is reused.
+    list is another package and an equal one is reused. A ThreadSanitizer tree needs the four
+    packages built with it, because TSan cannot see a synchronisation edge that runs through an
+    uninstrumented library: SushiLog, SushiProfiler and SushiBLAS take ``--sanitize thread`` and
+    SushiRuntime takes ``--type tsan``, which follows the ``--type`` the builder already passed.
     """
     options: dict[str, tuple[str, ...]] = {}
     if distributed:
@@ -44,12 +58,27 @@ def package_options(distributed: bool, sycl_targets: str = "") -> Mapping[str, t
     if sycl_targets:
         define = (K_DEFINE_FLAG, *sycl_targets_define(sycl_targets))
         options[K_BLAS] = (*options.get(K_BLAS, ()), *define)
+    if sanitizer is Sanitizer.thread:
+        for name in K_SANITIZE_FLAG_LIBRARIES:
+            options[name] = (*options.get(name, ()), "--sanitize", "thread")
+        options[K_RUNTIME] = (*options.get(K_RUNTIME, ()), "--type", "tsan")
     return options
+
+
+def package_type(build_type: str, sanitizer: Sanitizer | None) -> str:
+    """Return the build type the packages of a tree are built as.
+
+    A ThreadSanitizer tree takes :data:`K_THREAD_PACKAGE_TYPE`; any other tree takes
+    :func:`sushicore.build_tree.package_build_type` of its type.
+    """
+    if sanitizer is Sanitizer.thread:
+        return K_THREAD_PACKAGE_TYPE
+    return package_build_type(build_type)
 
 
 def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed: bool,
             sycl_targets: str, report: Callable[[str], None],
-            warn: Callable[[str], None]) -> PackageSet:
+            warn: Callable[[str], None], sanitizer: Sanitizer | None = None) -> PackageSet:
     """Return a built package of SushiLog, SushiProfiler, SushiRuntime and SushiBLAS.
 
     A missing package is built once through the library's own CLI.
@@ -63,11 +92,13 @@ def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed
         sycl_targets: The ahead-of-time device targets of the SushiBLAS package, or ''.
         report: Receives one ``reused`` or ``built`` line per library.
         warn: Receives the warnings of the resolver.
+        sanitizer: The sanitizer set of this tree; a ThreadSanitizer tree takes instrumented packages.
 
     Raises:
         sushicore.provision.sushi_packages.PackageError: A package cannot be chosen.
     """
-    return cfg.sushi_packages(root, package_build_type(build_type), package_options(distributed, sycl_targets),
+    return cfg.sushi_packages(root, package_type(build_type, sanitizer),
+                              package_options(distributed, sycl_targets, sanitizer),
                               report=report, warn=warn, compiler=compiler)
 
 

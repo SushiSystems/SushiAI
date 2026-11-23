@@ -280,7 +280,8 @@ def build(tools: Toolbox, build_type: BuildType,
     try:
         packages = library_packages.resolve(
             cfg, root, build_type.value, cfg.resolved_compiler(root),
-            _distributed(build_dir, distributed), targets, console.info, console.warn)
+            _distributed(build_dir, distributed), targets, console.info, console.warn,
+            sanitizer)
     except PackageError as error:
         console.error(str(error))
         return 1
