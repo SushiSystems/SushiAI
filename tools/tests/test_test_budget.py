@@ -135,8 +135,13 @@ class TestReadingAndNames(unittest.TestCase):
         self.assertEqual(suite_and_size("Characterization_Small_Io.Read"), ("Characterization_Small_Io", "small"))
 
     def test_reads_the_exemption_table(self) -> None:
-        self.assertEqual(parse_exemptions('[exempt]\n"Large_Matter.Crush" = "RW-40"\n'),
+        self.assertEqual(parse_exemptions('[exempt]\n"Large_Matter.Crush" = "RW-40"\n', "windows"),
                          {"Large_Matter.Crush": "RW-40"})
+
+    def test_an_exemption_naming_its_platforms_holds_only_there(self) -> None:
+        text = '[exempt]\n"Medium_A.Slow" = { id = "RW-172", platforms = ["linux"] }\n'
+        self.assertEqual(parse_exemptions(text, "linux"), {"Medium_A.Slow": "RW-172"})
+        self.assertEqual(parse_exemptions(text, "windows"), {})
 
     def test_reads_the_program_map(self) -> None:
         self.assertEqual(parse_programs('{"Small_A": "core"}'), {"Small_A": "core"})

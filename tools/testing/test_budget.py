@@ -139,10 +139,28 @@ def _suite_and_size_of(timing: Timing) -> tuple[str | None, str | None]:
     return suite, size
 
 
-def parse_exemptions(text: str) -> dict[str, str]:
-    """Returns the test name and backlog ID of each entry under `[exempt]` in TOML text."""
-    table = tomllib.loads(text).get("exempt", {})
-    return {str(name): str(entry) for name, entry in table.items()}
+#: The platform names an exemption's `platforms` list may hold, by `sys.platform` prefix.
+K_PLATFORMS = {"linux": "linux", "win32": "windows", "darwin": "macos"}
+
+
+def current_platform() -> str:
+    """Returns the name this machine's platform has in an exemption's `platforms` list."""
+    return next((name for prefix, name in K_PLATFORMS.items() if sys.platform.startswith(prefix)), sys.platform)
+
+
+def parse_exemptions(text: str, platform: str) -> dict[str, str]:
+    """Returns the test name and backlog ID of each entry under `[exempt]` that holds on *platform*.
+
+    An entry is `"Suite.Case" = "RW-12"`, or `{ id = "RW-12", platforms = ["linux"] }` to hold only there.
+    """
+    found = {}
+    for name, entry in tomllib.loads(text).get("exempt", {}).items():
+        if isinstance(entry, dict):
+            if platform not in entry.get("platforms", []):
+                continue
+            entry = entry.get("id", "")
+        found[str(name)] = str(entry)
+    return found
 
 
 def parse_programs(text: str) -> dict[str, str]:
@@ -309,7 +327,7 @@ def main(argv: list[str] | None = None, *, budget: dict[str, float] | None = Non
     shard, so its cases come from --cases, the folder of the GoogleTest XML files, as `Suite.Case`
     names; a CTest entry named after no size counts nowhere. MAP is a JSON object
     from suite name to test program. The exemption TOML holds `"Suite.Case" = "RW-12"` under
-    `[exempt]`, and an exempt test is left out of every limit and total. The first run names the tests
+    `[exempt]`, or a table naming the `platforms` it holds on, and an exempt test is left out of every limit and total. The first run names the tests
     over a limit in a `rerun:` line; the caller reruns them alone and passes that file as --rerun, and
     then only a test over its limit alone is a finding. --rerun may be given more than once, and
     --list-over writes the names of that `rerun:` line to a file for a caller that reads them, printing
@@ -322,7 +340,8 @@ def main(argv: list[str] | None = None, *, budget: dict[str, float] | None = Non
     if missing:
         print(f"K_TEST_TIMES in tools/settings.py lacks {', '.join(missing)}", file=sys.stderr)
         return K_EXIT_USAGE
-    exemptions = parse_exemptions(arguments.exemptions.read_text(encoding="utf-8")) if arguments.exemptions else {}
+    exemptions = (parse_exemptions(arguments.exemptions.read_text(encoding="utf-8"), current_platform())
+                  if arguments.exemptions else {})
     programs = parse_programs(arguments.programs.read_text(encoding="utf-8")) if arguments.programs else {}
     added = None
     open_backlog = None

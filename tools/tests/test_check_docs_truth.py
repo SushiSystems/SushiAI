@@ -396,6 +396,18 @@ class AllowListTest(unittest.TestCase):
         }
         self.assertEqual(_found(rule_allow_list, files), [])
 
+    def test_a_run_over_named_pages_leaves_the_use_check_to_the_full_run(self) -> None:
+        """An entry no given page uses is reported by a full run and passed by a scoped one."""
+        files = {
+            "docs/guides/GUIDE.md": "# Guide\n\n`vk::ImageView`\n",
+            "docs/.docs_truth_allow": "glm::.*  # the maths library\n",
+        }
+        manual = _manual(files)
+        scoped = dataclasses.replace(manual, scoped=True)
+        self.assertEqual([issue.message for issue in rule_allow_list(manual)],
+                         ["entry excuses nothing; delete it"])
+        self.assertEqual(list(rule_allow_list(scoped)), [])
+
     def test_an_entry_with_a_broken_pattern_or_no_text_is_not_a_pattern(self) -> None:
         """Pins `entry.pattern is None or not entry.text`: either operand alone gives the pattern message."""
         manual = _manual({"docs/.docs_truth_allow": "(  # broken\n"})
@@ -441,6 +453,34 @@ class ShellTest(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 probe = str(Path(folder) / "notes/probe.md")
                 self.assertEqual(main([probe, "--rule", "rule_cited_paths"]), 1)
+
+    def test_a_cited_path_under_a_nested_build_folder_is_source(self) -> None:
+        """Passes a page citing an existing `tools/build/` file and fails one citing a missing one."""
+        cited = "# Guide\n\n`tools/build/report_build_times.py`\n"
+        missing = "# Guide\n\n`tools/build/x.py`\n"
+        with tempfile.TemporaryDirectory() as folder:
+            _write_tree(folder, {
+                "tools/build/report_build_times.py": "print('times')\n",
+                "docs/guides/CITED.md": cited,
+            })
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([folder, "--rule", "rule_cited_paths"]), 0)
+        with tempfile.TemporaryDirectory() as folder:
+            _write_tree(folder, {
+                "tools/build/report_build_times.py": "print('times')\n",
+                "docs/guides/MISSING.md": missing,
+            })
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([folder, "--rule", "rule_cited_paths"]), 1)
+
+    def test_a_cited_path_under_the_root_build_folder_is_not_checked(self) -> None:
+        """Leaves `build/` at the root out of the tree, so a page citing its output still passes."""
+        with tempfile.TemporaryDirectory() as folder:
+            _write_tree(folder, {
+                "docs/guides/OUT.md": "# Guide\n\n`build/default-debug/log.txt`\n",
+            })
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([folder, "--rule", "rule_cited_paths"]), 0)
 
     def test_report_counts_the_unverified_examples(self) -> None:
         """Prints the number of blocks marked not compiled after the rule counts."""

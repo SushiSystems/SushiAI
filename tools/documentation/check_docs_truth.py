@@ -43,11 +43,9 @@ K_SOURCE_FOLDERS = (
     "include", "modules", "samples", "skills", "source", "tests", "tools",
 )
 K_BUILD_FOLDERS = frozenset(
-    {
-        ".git", "build", "out", "dist", "node_modules", "__pycache__", ".venv", "venv",
-        "Library", "Logs", "obj",
-    }
+    {".git", "node_modules", "__pycache__", ".venv", "venv", "Library", "Logs", "obj"}
 )
+K_OUTPUT_FOLDERS = frozenset({"build", "out", "dist"})
 K_SKIPPED_FOLDERS = K_BUILD_FOLDERS | {"third_party", "ThirdParty"}
 K_INDEXED_SUFFIXES = frozenset(
     {
@@ -303,6 +301,7 @@ class Manual:
     top_level: frozenset[str]
     texts: Mapping[str, str]
     allow_list: tuple[AllowEntry, ...]
+    scoped: bool = False
 
     @property
     def allow_path(self) -> Path:
@@ -448,6 +447,7 @@ def build_manual(files: RepositoryFiles, configured_prefixes: Iterable[str] = ()
         top_level=files.top_level,
         texts=files.texts,
         allow_list=parse_allow_list(files.texts.get(K_ALLOW_LIST.as_posix(), "")),
+        scoped=bool(files.only),
     )
 
 
@@ -530,7 +530,7 @@ def _repository_path(manual: Manual, token: str) -> str | None:
         return None
     path = path.removeprefix("./").rstrip("/")
     parts = path.split("/")
-    if not all(parts) or parts[0] in K_BUILD_FOLDERS:
+    if not all(parts) or parts[0] in K_BUILD_FOLDERS | K_OUTPUT_FOLDERS:
         return None
     known_folder = parts[0] in manual.top_level
     return path if known_folder or K_FILE_NAME.match(parts[-1]) else None
@@ -641,7 +641,11 @@ def rule_em_dash(manual: Manual) -> Iterator[Issue]:
 
 
 def rule_allow_list(manual: Manual) -> Iterator[Issue]:
-    """Yields an issue for each allow-list entry without a reason, a pattern or a use."""
+    """Yields an issue for each allow-list entry without a reason, a pattern or a use.
+
+    A run over named pages reads only those pages, so an entry another page uses looks unused;
+    that run leaves the use check to the full run.
+    """
     if not manual.allow_list:
         return
     named = {name for page in manual.pages for _, name in _named(manual, page)}
@@ -656,24 +660,28 @@ def rule_allow_list(manual: Manual) -> Iterator[Issue]:
             yield Issue(manual.allow_path, entry.number, "entry is not a regular expression")
         elif not entry.reason:
             yield Issue(manual.allow_path, entry.number, "entry needs ' # reason' after it")
-        elif not any(entry.allows(name) for name in named):
+        elif not manual.scoped and not any(entry.allows(name) for name in named):
             yield Issue(manual.allow_path, entry.number, "entry excuses nothing; delete it")
 
 
-def _walk(folder: Path) -> list[Path]:
+def _is_kept(root: Path, path: Path, skipped: frozenset[str]) -> bool:
+    """Returns whether a file is outside the skipped folders and the root's output folders.
+
+    A folder of *skipped* drops a file at any depth. An output folder drops one only when it is a
+    top-level folder of the repository, so `tools/build/` is source and `build/` is not.
+    """
+    folders = path.relative_to(root).parts[:-1]
+    return not skipped.intersection(folders) and not (folders and folders[0] in K_OUTPUT_FOLDERS)
+
+
+def _walk(root: Path, folder: Path) -> list[Path]:
     """Returns each file below a path, leaving out the ignored folders and the skipped ones."""
-    return [
-        path for path in walk_files(folder)
-        if not K_SKIPPED_FOLDERS.intersection(path.relative_to(folder).parts[:-1])
-    ]
+    return [path for path in walk_files(folder) if _is_kept(root, path, K_SKIPPED_FOLDERS)]
 
 
 def _tree_entries(root: Path) -> list[str]:
     """Returns the root-relative path of each file the walk keeps and of each folder that holds one."""
-    kept = [
-        path for path in walk_files(root)
-        if not K_BUILD_FOLDERS.intersection(path.relative_to(root).parts[:-1])
-    ]
+    kept = [path for path in walk_files(root) if _is_kept(root, path, K_BUILD_FOLDERS)]
     return sorted(
         path.relative_to(root).as_posix() for path in (*kept, *folders_of(kept, root))
     )
@@ -695,7 +703,7 @@ def _read_repository(
     rules = [root / name for name in K_RULE_FOLDERS if (root / name).is_dir()]
     indexed = [entry for entry in sorted(root.iterdir()) if entry.is_file()]
     for folder in source:
-        indexed.extend(_walk(folder))
+        indexed.extend(_walk(root, folder))
     markdown: list[Path] = []
     if (root / K_PAGE_NAME).is_file():
         markdown.append(root / K_PAGE_NAME)
@@ -703,7 +711,7 @@ def _read_repository(
     if docs.is_dir():
         markdown.extend(path for path in walk_files(docs) if path.suffix == ".md")
     for folder in (*source, *rules):
-        markdown.extend(path for path in _walk(folder) if path.name.endswith(".md"))
+        markdown.extend(path for path in _walk(root, folder) if path.name.endswith(".md"))
     markdown_names = {path.relative_to(root).as_posix() for path in markdown}
     indexed_names = {path.relative_to(root).as_posix() for path in indexed}
     only_names = {path.relative_to(root).as_posix() for path in only}

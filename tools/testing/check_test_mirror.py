@@ -99,6 +99,7 @@ class TestMirror:
     walked: tuple[Path, ...]
     private: frozenset[str]
     sources: tuple[SourceFile, ...]
+    aspects: dict[Path, list[Path]]
 
     def allowed_folders(self) -> frozenset[Path]:
         """Returns every folder below tests/ that a unit, a module or an application accounts for."""
@@ -133,17 +134,34 @@ def _subfolders(folders: frozenset[Path], parent: Path) -> list[Path]:
     return sorted(folder for folder in folders if folder.parent == parent)
 
 
-def _aspect_files(files: frozenset[Path], folder: Path) -> list[Path]:
+def _aspects_of(files: Iterable[Path]) -> dict[Path, list[Path]]:
+    """Returns, for every folder, the test files that sit directly in it; built once for all lookups."""
+    aspects: dict[Path, list[Path]] = defaultdict(list)
+    for path in files:
+        if any(language.is_test(path.name) for language in K_LANGUAGES):
+            aspects[path.parent].append(path)
+    return aspects
+
+
+def _aspect_files(aspects: dict[Path, list[Path]], folder: Path) -> list[Path]:
     """Returns the test files that sit directly in a unit's folder."""
-    return [path for path in files if path.parent == folder and any(language.is_test(path.name)
-                                                                   for language in K_LANGUAGES)]
+    return aspects.get(folder, [])
 
 
-def _units(files: frozenset[Path], base: Path, language: Language) -> list[Path]:
+def _files_below(files: Iterable[Path]) -> dict[Path, list[Path]]:
+    """Returns, for every folder, the files below it at any depth; built once so a lookup never rescans the files."""
+    below: dict[Path, list[Path]] = defaultdict(list)
+    for path in files:
+        for folder in path.parents:
+            below[folder].append(path)
+    return below
+
+
+def _units(below: dict[Path, list[Path]], base: Path, language: Language) -> list[Path]:
     """Returns, sorted, every file of a language below a folder that a test mirrors."""
     return sorted(
-        path for path in files
-        if path.is_relative_to(base) and path.suffix in language.suffixes
+        path for path in below.get(base, ())
+        if path.suffix in language.suffixes
         and path.name not in language.skipped_names
         and (not path.name.startswith("_") or path.name in language.entry_names)
     )
@@ -165,17 +183,17 @@ def _strip(relative: Path, language: Language, owner: Path) -> Path:
 
 
 def _add_owner(expected: dict[Path, Path], tests: Path, owner: Path, folder: Path,
-               files: frozenset[Path]) -> None:
+               below: dict[Path, list[Path]]) -> None:
     """Adds the expected test of every unit in a module, application or single-module root."""
     for language in K_LANGUAGES:
         base = folder / language.folder
-        for unit in _units(files, base, language):
+        for unit in _units(below, base, language):
             relative = _strip(unit.relative_to(base), language, owner)
             test = tests / owner / relative.parent / language.test_name(unit)
             expected[test] = unit
 
 
-def _private_headers(entries: Entries) -> frozenset[str]:
+def _private_headers(entries: Entries, below: dict[Path, list[Path]]) -> frozenset[str]:
     """Returns the path below its source/ folder of every header private to a module or the root."""
     modules = entries.root / "modules"
     candidates = [entries.root / K_PRIVATE_FOLDER] + [
@@ -186,8 +204,8 @@ def _private_headers(entries: Entries) -> frozenset[str]:
     sources = [folder for folder in candidates if folder in entries.folders]
     return frozenset(
         path.relative_to(folder).as_posix()
-        for folder in sources for path in entries.files
-        if path.is_relative_to(folder) and path.suffix in K_CPP.suffixes
+        for folder in sources for path in below.get(folder, ())
+        if path.suffix in K_CPP.suffixes
     )
 
 
@@ -215,12 +233,14 @@ def _walked(tests: Path, entries: Entries) -> tuple[Path, ...]:
     return tuple(walked)
 
 
-def _mirror(entries: Entries, tests: Path, expected: dict[Path, Path], owners: frozenset[Path]) -> TestMirror:
+def _mirror(entries: Entries, tests: Path, expected: dict[Path, Path], owners: frozenset[Path],
+            below: dict[Path, list[Path]]) -> TestMirror:
     """Returns the mirror of one tests/ tree over the entries of its repository."""
     return TestMirror(
         root=entries.root, tests=tests, expected=expected, owners=owners,
         files=entries.files, folders=entries.folders, walked=_walked(tests, entries),
-        private=_private_headers(entries), sources=entries.sources,
+        private=_private_headers(entries, below), sources=entries.sources,
+        aspects=_aspects_of(entries.files),
     )
 
 
@@ -231,25 +251,27 @@ def _layered(entries: Entries) -> TestMirror:
     expected: dict[Path, Path] = {}
     owners: set[Path] = set()
     modules = root / "modules"
+    below = _files_below(entries.files)
     if modules in entries.folders:
         for tier in _subfolders(entries.folders, modules):
             for module in _subfolders(entries.folders, tier):
                 owners.add(tests / tier.name / module.name)
-                _add_owner(expected, tests, Path(tier.name) / module.name, module, entries.files)
+                _add_owner(expected, tests, Path(tier.name) / module.name, module, below)
     else:
-        _add_owner(expected, tests, Path(), root, entries.files)
+        _add_owner(expected, tests, Path(), root, below)
     for application in _subfolders(entries.folders, root / K_APPLICATIONS_FOLDER):
         owner = Path(K_APPLICATIONS_FOLDER) / application.name
         owners.add(tests / owner)
-        for unit in _units(entries.files, application, K_CPP):
+        for unit in _units(below, application, K_CPP):
             relative = unit.relative_to(application)
             expected[tests / owner / relative.parent / K_CPP.test_name(unit)] = unit
-    return _mirror(entries, tests, expected, frozenset(owners))
+    return _mirror(entries, tests, expected, frozenset(owners), below)
 
 
 def _unity(entries: Entries) -> list[TestMirror]:
     """Returns one mirror per product under Assets/: <Product>/Tests/ mirrors its C# files."""
     mirrors: list[TestMirror] = []
+    below = _files_below(entries.files)
     for product in _subfolders(entries.folders, entries.root / "Assets"):
         if product.name in K_UNITY_NOT_PRODUCTS:
             continue
@@ -260,7 +282,7 @@ def _unity(entries: Entries) -> list[TestMirror]:
             if unit.is_relative_to(product) and unit.suffix == ".cs"
             and unit.relative_to(product).parts[0] not in K_UNITY_UNTESTED
         }
-        mirrors.append(_mirror(entries, tests, expected, frozenset()))
+        mirrors.append(_mirror(entries, tests, expected, frozenset(), below))
     return mirrors
 
 
@@ -312,7 +334,7 @@ def rule_untested_unit(mirror: TestMirror) -> Iterator[Issue]:
     for test, header in sorted(mirror.expected.items(), key=lambda item: str(item[1])):
         if test in mirror.files or compile_check(test) in mirror.files:
             continue
-        if not _aspect_files(mirror.files, unit_folder(test)):
+        if not _aspect_files(mirror.aspects, unit_folder(test)):
             shown = test.relative_to(mirror.root).as_posix()
             yield Issue(header, 1, f"no test file; expected {shown}")
 
@@ -339,7 +361,7 @@ def rule_mirror_folders(mirror: TestMirror) -> Iterator[Issue]:
 def rule_unit_file_and_folder(mirror: TestMirror) -> Iterator[Issue]:
     """Yields an issue for each unit that has both a test file and a folder of aspect files."""
     for test in sorted(mirror.expected):
-        if test in mirror.files and _aspect_files(mirror.files, unit_folder(test)):
+        if test in mirror.files and _aspect_files(mirror.aspects, unit_folder(test)):
             yield Issue(test, 1, "the unit has a test file and a test folder; keep one")
 
 

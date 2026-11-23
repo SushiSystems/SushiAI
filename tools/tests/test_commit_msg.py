@@ -189,7 +189,8 @@ class HookTest(unittest.TestCase):
         self.repo.write("src/a.py", "x = 2\n")
         self.repo.write("docs/GUIDE.md", K_PAGE + "More.\n")
         self.repo.git("add", "-A")
-        code, _ = self._run("fix: again\n\nTests: none (the hook test)\nBacklog: AB-1\n", same_second)
+        now = float(same_second["GIT_AUTHOR_DATE"].lstrip("@").split()[0])
+        code, _ = self._run("fix: again\n\nTests: none (the hook test)\nBacklog: AB-1\n", same_second, now)
         self.assertEqual(code, 1)
 
     def test_the_hook_accepts_an_entry_of_a_sibling_that_holds_it_and_refuses_one_that_does_not(self) -> None:
