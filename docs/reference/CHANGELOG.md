@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-23 — ci: The upstream-main job builds SushiRuntime main with the SushiProfiler and SushiLog refs it needs and passes (RW-173, `ci.yml`).
+- 2026-11-23 — ci: The TSan race at `graph_task_sink.cpp` was a false report from Sushi packages built without TSan; with them built under TSan the thread job is clean (RW-180).
 - 2026-11-23 — tests: Ran the death tests in GoogleTest's threadsafe style, since a fork of a process that held the runtime's eight threads took 5 s per case on Linux (`test_main.cpp`).
 - 2026-11-23 — cli: Ran `sa test` on a sanitizer tree without the time limits, which a sanitizer breaks, as `sr test` does (`project.py`).
 - 2026-11-23 — tests: Drew 100 boxes per rung instead of 400 in the anchor review tests, two of which took 0.1 s on Linux, the small limit; a ±2 % jitter keeps every check (`test_anchor_review.cpp`).
