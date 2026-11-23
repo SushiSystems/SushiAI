@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-23 — vision: Read the `scale` and `end2end` keys of an Ultralytics model through a named fallback, since `at_or` returned a reference to a temporary that ended with its line (`ultralytics_model.cpp`).
 - 2026-11-23 — cli: Built every Sushi package of a `--sanitize thread` tree with ThreadSanitizer and its symbols, since TSan reported a race across uninstrumented SushiRuntime as one inside SushiBLAS (`library_packages.py`).
 - 2026-11-23 — deps: Pinned SushiRuntime v0.7.1, SushiBLAS v0.3.0 and SushiLog and SushiProfiler v0.5.1, which take SushiCore 0.16 (`cli/sushistack.deps.toml`).
 - 2026-11-23 — ci: Kept the kernels the SYCL runtime JIT-compiles on disk, so a test rerun alone over its limit no longer pays their first compile again (`SYCL_CACHE_PERSISTENT`, `ci.yml`).

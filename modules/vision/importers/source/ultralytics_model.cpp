@@ -89,7 +89,8 @@ namespace SushiAI
                            StatusCode::InvalidDescription,
                            "{}: the model states 'scales' that are no table of sizes", origin);
                 scale.name = scales.keys().front();
-                const Config::Value& stated = root.at_or("scale", Config::Value());
+                const Config::Value absent;
+                const Config::Value& stated = root.at_or("scale", absent);
                 if (stated.kind() == Config::Kind::String)
                 {
                     SA_TRY_ASSIGN(const std::string& name, stated.as_string("scale"));
@@ -241,7 +242,8 @@ namespace SushiAI
             SA_FAIL_IF(progress.classes < 1, StatusCode::InvalidDescription,
                        "{}: the model states no class count 'nc'", origin);
             SA_TRY_ASSIGN(progress.reg_max, read_int_or(architecture, "reg_max", 16, origin));
-            const Config::Value& end2end = architecture.at_or("end2end", Config::Value());
+            const Config::Value absent;
+            const Config::Value& end2end = architecture.at_or("end2end", absent);
             progress.end2end =
                 end2end.kind() == Config::Kind::Bool && end2end.as_bool("end2end").value();
             SA_TRY_ASSIGN(const std::int64_t ch, read_int_or(architecture, "ch", 3, origin));
