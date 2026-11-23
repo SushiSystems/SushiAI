@@ -383,7 +383,8 @@ def test(tools: Toolbox, suite: Suite = Suite.gating, filter: str | None = None,
     # all and large name the large tests on purpose, so they are the two that lift its filter rule.
     labels = _SUITE_LABELS[suite] if suite is not Suite.all else (TestLabel.QUARANTINED,)
     return run_tests(module, select_labels(labels, every_size=suite is Suite.all), name_filter=filter,
-                     repeat=repeat, jobs=jobs, every_size=suite in (Suite.all, Suite.large))
+                     repeat=repeat, jobs=jobs, every_size=suite in (Suite.all, Suite.large),
+                     time_limits=sanitizer in (None, Sanitizer.none))
 
 
 #: The pytest marker expression of each label; the gating run leaves the quarantined out.

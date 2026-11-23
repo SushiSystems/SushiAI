@@ -18,6 +18,7 @@ from sushicore.errors import ConfigError
 from sushicore.proc_memory import RecordingRunner
 
 from sushiai.services import project
+from sushiai.services.sanitizer import Sanitizer
 from sushiai.services.toolbox import default_toolbox
 
 from recorded_tools import Recorded, offline_config, recorded_tools, write_executable
@@ -144,6 +145,26 @@ def test_a_suite_reaches_ctest_as_the_labels_of_the_shared_command(suite, includ
     words = _ctest(recorded)
     assert (_value_of(words, "-L"), _value_of(words, "-LE")) == (include, exclude)
     assert Path(_value_of(words, "--output-junit")).name == "junit.xml"
+
+
+@pytest.mark.medium
+@pytest.mark.parametrize(("sanitizer", "tree_name", "judged"), [
+    (None, "default-debug", True),
+    (Sanitizer.address_undefined, "asan-debug", False),
+    (Sanitizer.thread, "tsan-debug", False),
+])
+def test_only_an_unsanitized_tree_is_judged_by_the_time_limits(sanitizer, tree_name, judged,
+                                                               recorded, project_root,
+                                                               monkeypatch):
+    """A sanitizer slows every test several times over, so its tree runs without the time limits."""
+    (project_root / "build" / tree_name).mkdir(parents=True)
+    asked: dict[str, object] = {}
+    monkeypatch.setattr(project, "run_tests",
+                        lambda *args, **options: asked.update(options) or 0)
+
+    assert project.test(recorded.tools, sanitizer=sanitizer, memory_limit_gb=0.0) == 0
+
+    assert asked["time_limits"] is judged
 
 
 class _FailingShardRunner(RecordingRunner):

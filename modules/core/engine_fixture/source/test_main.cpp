@@ -37,6 +37,8 @@ int main(int argc, char** argv)
     // Logging is synchronous so it cannot interleave with GTest's own output.
     SushiLog::set_log_synchronous(true);
 
+    // A death test re-runs the program for its case; forking the runtime's threads is unsafe.
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::AddGlobalTestEnvironment(new SushiAI::Test::TestEnvironment());
 
