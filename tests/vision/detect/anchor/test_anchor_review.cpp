@@ -72,7 +72,7 @@ namespace
     constexpr std::int64_t K_RUNGS = 6;
 
     /** @brief Holds the number of boxes generated at each rung. */
-    constexpr std::size_t K_BOXES_PER_RUNG = 400;
+    constexpr std::size_t K_BOXES_PER_RUNG = 100;
 
     /** @brief Holds the largest share a side is jittered by. */
     constexpr double K_JITTER = 0.02;

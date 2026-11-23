@@ -321,7 +321,8 @@ jobs:
   thread-sanitizer:
     name: ThreadSanitizer (small, medium)
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || inputs.post_merge
-    timeout-minutes: 60
+    # The four Sushi packages are built with TSan as well, as SushiBLAS's own TSan job does.
+    timeout-minutes: 120
     runs-on: ubuntu-latest
     defaults:
       run:
