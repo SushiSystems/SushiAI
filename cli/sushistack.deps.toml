@@ -34,22 +34,22 @@ depends_on = ["sushilog", "sushiprofiler", "sushiruntime", "sushiblas"]
 # SushiLog, the one logger of the process, and SushiProfiler, the stack's one profiler. sa builds a
 # package of each at the tag pinned here, or reuses one, and hands CMake its config folder.
 [sushisystems.sushilog]
-version = "v0.5.0"
-commit  = "af61821a0986c169feb0f9cbac5188d62ef8a74a"
+version = "v0.5.1"
+commit  = "1618f172700da31dd4686fec24bc7ad2ef98d2d6"
 
 [sushisystems.sushiprofiler]
-version = "v0.5.0"
-commit  = "c5afed01ad276370216a937e9a66ba89da929063"
+version = "v0.5.1"
+commit  = "c5d873f862173109213407955d327668547bad9b"
 
 # SushiRuntime, the task graph and devices. The CLI builds or reuses its package at this tag, so no checkout beside this one is needed.
 [sushisystems.sushiruntime]
-version = "v0.5.2"
-commit  = "636091305b2e93e3b64a2c5d3e3cfc5a7d252d66"
+version = "v0.7.1"
+commit  = "862741cfed12a5640851d39ddf25ee0c9cbcdb5d"
 
 # SushiBLAS, the tensor and BLAS engine, pinned the same way.
 [sushisystems.sushiblas]
-version = "v0.1.2"
-commit  = "3aff9ff2c825b83ad068e562818f460e02bdca6d"
+version = "v0.3.0"
+commit  = "ace2f8dacabb71e966690765655059950203cf3c"
 
 [nlohmann-json]
 description   = "Header-only JSON parser. Read by modules/core/config/source/*.cpp alone, to turn a configuration file into Config::Value; the library's name appears in no public header, so it links PRIVATE and no consumer of SushiAI inherits it."

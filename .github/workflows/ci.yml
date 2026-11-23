@@ -44,6 +44,9 @@ env:
   CMAKE_CXX_COMPILER_LAUNCHER: ccache
   # The OpenCL CPU JIT vectorizer crashes on one SushiBLAS kernel; see SushiBLAS's KNOWN_ISSUES.md.
   CL_CONFIG_CPU_VECTORIZER_MODE: "1"
+  # The SYCL runtime keeps each kernel it JIT-compiles on disk, so the time limits measure a test
+  # and not the first compile of its kernels, which a rerun alone in a new process would repeat.
+  SYCL_CACHE_PERSISTENT: "1"
 
 jobs:
   checks:
