@@ -1,5 +1,5 @@
-tag = "v0.17.0"
-commit = "eca797a33fd2f76a9d273af5264e2da41a267929"
+tag = "v0.17.1"
+commit = "25fee544edb9e0ad0c5bdeb4f28b43796e228417"
 
 [files]
 ".github/CODE_OF_CONDUCT.md" = "ca9186a0e40144053d26d5fef728200ea526c91e8103f978e9cb6fe90ad305a9"
