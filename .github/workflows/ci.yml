@@ -34,10 +34,10 @@ concurrency:
 
 env:
   # The sibling release tags a pre-merge build checks out.
-  SUSHIRUNTIME_REF: v0.7.1
-  SUSHIBLAS_REF: v0.3.0
-  SUSHILOG_REF: v0.5.1
-  SUSHIPROFILER_REF: v0.5.1
+  SUSHIRUNTIME_REF: v0.7.2
+  SUSHIBLAS_REF: v0.3.1
+  SUSHILOG_REF: v0.5.2
+  SUSHIPROFILER_REF: v0.5.2
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 2G
   CMAKE_C_COMPILER_LAUNCHER: ccache
