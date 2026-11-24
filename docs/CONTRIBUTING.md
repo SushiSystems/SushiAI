@@ -96,7 +96,7 @@ Expectations for a mergeable change:
 ### What CI runs
 
 `.github/workflows/ci.yml` runs the pre-merge stage on every pull request, behind one `gate` job:
-`python tools/check_all.py .`, the CLI's own tests, the build on Linux and Windows with the small
+`python -m sushicore.tools check .`, the CLI's own tests, the build on Linux and Windows with the small
 and medium tests, and the small tests again under AddressSanitizer and UndefinedBehaviorSanitizer.
 A push to `main` adds ThreadSanitizer and a build against the `main` of SushiRuntime and SushiBLAS;
 a pull request builds against the refs `SUSHIRUNTIME_REF` and `SUSHIBLAS_REF` pin.
@@ -113,7 +113,7 @@ SushiBLAS): match the file you're editing.
 
 Every source file opens with the license block of the `source-comments` skill: the file
 name, the project line `SushiAI - https://github.com/SushiSystems/SushiAI`, the copyright
-line and the two licence lines. `tools/licensing/write_license_block.py` writes it;
+line and the two licence lines. `sushicore.tools.licensing.write_license_block` writes it;
 nobody types it by hand.
 
 ### C++ standard, naming, braces
@@ -139,7 +139,7 @@ nobody types it by hand.
 ### Documentation
 
 Source comments follow the `source-comments` skill, which this page does not restate.
-`python tools/documentation/check_source_comments.py include src` checks them. A comment
+`python -m sushicore.tools.documentation.check_source_comments include src` checks them. A comment
 block is at most eight lines, which the checker holds; a `//` comment is one line that
 states an invariant. The `cpp-code-style` skill sets the 100-column limit.
 

@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from provision.check_config_reads import Scope, declared_names, rule_undeclared_read  # noqa: E402
+from sushicore.tools.provision.check_config_reads import Scope, declared_names, rule_undeclared_read  # noqa: E402
 
 K_CONFIG = '''
 class ProvisionConfig(Protocol):

@@ -171,7 +171,7 @@ compile time or at run time, so `tools/layering/check_device_sources.py` checks 
 adds `DEPENDS sushiai`.
 
 A module only the tests use passes `INTERNAL` to `sushiai_add_module()`. It joins no library and
-installs nothing. `tools/layering/check_layering.py` compares every include of a module with
+installs nothing. `sushicore.tools.layering.check_layering` compares every include of a module with
 the `PUBLIC_DEPENDS` and `PRIVATE_DEPENDS` its `CMakeLists.txt` lists.
 
 Both dependencies are linked `PUBLIC`: the lowering needs SushiBLAS, and

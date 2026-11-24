@@ -21,7 +21,7 @@ A case's suite prefix gives its size, which is its ctest label and sets its time
 threads or files, and a large one a real GPU or a run longer than medium allows. A suite without one
 of these prefixes fails the configure. The ctest timeout of a shard is the case timeout times the
 cases of the shard, and only detects a hang. The limit a case is
-held to is the budget of `tools/testing/test_budget.py`: 0.1 s for a `small` case and 5 s for a
+held to is the budget of `sushicore.tools.testing.test_budget`: 0.1 s for a `small` case and 5 s for a
 `medium` case after the shared fixture. The cases of a size named in `SUSHIAI_QUARANTINED_TESTS` run
 in a test of their own with the label `quarantined` beside the size.
 
@@ -40,7 +40,7 @@ parametrised suite counts once and N is a floor. A shard's timeout is the size's
 cases it holds.
 
 Each shard writes its cases to `test_results/gtest/<shard>.xml` in the build tree.
-`tools/testing/test_budget.py --cases <folder>` reads those files, so the per-case limits apply to
+`python -m sushicore.tools.testing.test_budget --cases <folder>` reads those files, so the per-case limits apply to
 a case in a shard; the shard's own CTest entry has no size and counts nowhere. `GTEST_SHUFFLE`
 and `GTEST_RANDOM_SEED` of the calling environment reach every shard, and a death test's child
 process runs outside the sharding. No program needs a process per case, and nothing registers

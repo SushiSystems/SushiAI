@@ -8,7 +8,7 @@
 | RW-148 | P3 | decision | Decide whether sa test --label takes the shared labels instead of the suite names | the owner rules whether gating, all and package stay suite names or become --label small/medium/large with --all and a package flag |  |  | 2026-11-01 |
 | RW-167 | P2 | open | Close the readiness list and cut 0.1.0 | Every item of the release readiness list is closed and the 0.1.0 tag is cut |  | `docs/design/PROGRAMME/README.md` | 2026-11-11 |
 | RW-172 | P1 | decision | Release a SushiRuntime that carries in_process_transport for the distributed layer | A SushiRuntime tag holds SushiRuntime/in_process_transport/in_process_transport.hpp and sa build --distributed passes against the pin |  | `cli/sushistack.deps.toml` | 2026-11-14 |
-| RW-179 | P3 | open | Make the checker tests independent of where TMP points | tools/check_all.py passes with TMP and TEMP set to a folder inside the repository |  | `tools/check_all.py` | 2026-11-14 |
+| RW-179 | P3 | open | Make the checker tests independent of where TMP points | sushicore.tools.check_all passes with TMP and TEMP set to a folder inside the repository |  |  | 2026-11-14 |
 
 ## Known issues
 

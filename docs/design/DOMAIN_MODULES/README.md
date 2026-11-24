@@ -69,7 +69,7 @@ The programs under `applications/` and the tests under root `tests/` may use wha
 The next domain is a sibling folder of `modules/vision/` and one word in the tier table.
 
 Two places hold the tier table and must agree: `cmake/SushiAILayers.cmake`, which the build
-reads, and `tools/layering/check_layering.py`, which reads the includes.
+reads, and `sushicore.tools.layering.check_layering`, which reads the includes.
 
 ### The shape of a domain
 

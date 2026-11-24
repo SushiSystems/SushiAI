@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from checking.checker import Finding  # noqa: E402
+from sushicore.tools.checking.checker import Finding  # noqa: E402
 from contract.check_contract import (  # noqa: E402
     K_CHECKER,
     K_COLUMNS,

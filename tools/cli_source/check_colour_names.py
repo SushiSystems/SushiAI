@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from checking.checker import Checker, Issue, run  # noqa: E402
+from sushicore.tools.checking.checker import Checker, Issue, run  # noqa: E402
 
 K_PACKAGE = Path("cli") / "sushiai"
 K_RAW_COLOUR = re.compile(r"\[/?(green|red|yellow|cyan|blue|dim)[\] ]")

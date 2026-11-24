@@ -1,4 +1,4 @@
 #!/bin/sh
-# Runs every checker on the files the commit will hold; see tools/hooks/pre_commit.py.
+# Runs every checker on the files the commit will hold, from the installed sushicore package.
 root=$(git rev-parse --show-toplevel)
-exec python "$root/tools/hooks/pre_commit.py" "$root"
+exec python -m sushicore.tools.hooks.pre_commit "$root"

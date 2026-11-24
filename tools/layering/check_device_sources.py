@@ -24,8 +24,8 @@ from typing import Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from checking.checker import Checker, Issue, run  # noqa: E402
-from settings import K_MODULE_FUNCTION  # noqa: E402
+from sushicore.tools.checking.checker import Checker, Issue, run  # noqa: E402
+from sushicore.tools.repo_settings import K_MODULE_FUNCTION  # noqa: E402
 
 # Include paths (fnmatch patterns) of the headers that launch a kernel; a unit reaching one needs -fsycl.
 K_KERNEL_HEADERS = (

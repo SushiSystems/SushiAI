@@ -16,7 +16,7 @@ pytestmark = pytest.mark.small
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from layering.check_package_layers import (  # noqa: E402
+from sushicore.tools.layering.check_package_layers import (  # noqa: E402
     K_LAYERED,
     _component_problems,
     _forbidden_names,

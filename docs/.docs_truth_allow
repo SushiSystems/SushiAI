@@ -20,4 +20,4 @@ tests/.*/fixtures(/.*)?  # fixture folders whose generated files git ignores
 docs/architecture-packaging-section  # a branch name in the branch naming example
 core/tensor\.h|src/CMakeLists\.txt  # files of the retired 2025-06 prototype
 load_train\("no/such/train\.json  # a path a test passes because it does not exist
-applications/(probes|benchmarks)  # folders the shared probe checker names in tools/README.md; this repository has none
+^(sushicore\.tools(\.[\w.]+)?|check_[a-z_]+|write_license_block|gtest_discover_tests)$  # the shared checkers and test helpers, held in the sushicore package

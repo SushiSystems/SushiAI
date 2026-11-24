@@ -1,6 +1,6 @@
 # Documentation Style Guide
 
-This guide establishes the rules for writing, structuring, and maintaining documentation in SushiAI. Every document in the repository must adhere to this guide. Automated checkers under `tools/documentation/` enforce these rules before commits land.
+This guide establishes the rules for writing, structuring, and maintaining documentation in SushiAI. Every document in the repository must adhere to this guide. Automated checkers under `sushicore.tools.documentation` enforce these rules before commits land.
 
 ## 1. Directory Structure
 
@@ -82,6 +82,6 @@ To determine where new content belongs, evaluate these questions in order:
 Run the documentation checkers before committing changes to `docs/`:
 
 ```bash
-python tools/documentation/check_docs_layout.py .
-python tools/documentation/check_changelog.py .
+python -m sushicore.tools.documentation.check_docs_layout .
+python -m sushicore.tools.documentation.check_changelog .
 ```
