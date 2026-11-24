@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-24 — test_tree: Split the page of `tests/layers/io` and described its eleven export writer tests on pages of their own (RW-196).
 - 2026-11-24 — model_import: Added `sushiai export` and `sa export`, which write a model as ONNX, Caffe or Darknet files, and `export weights` for safetensors and PyTorch (`applications/programs/README.md`).
 - 2026-11-24 — model_import: Added the `vision/exporters` module with the ONNX, Caffe and Darknet exporters, which refuse a row the importer cannot read back (`modules/vision/exporters/README.md`).
 - 2026-11-24 — io: Added the writers of protobuf wire and text, zip, pickle, safetensors and PyTorch files, `ExporterRegistry`, `read_model_files` and `write_exported_model` (`modules/layers/io/README.md`).
