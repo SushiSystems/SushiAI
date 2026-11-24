@@ -108,6 +108,8 @@ namespace SushiAI
          *
          * @param inputs The point, in FLOAT64.
          * @return The scalar value at that point.
+         * @note A callback run under ForceReference shares the SYCL element functor, so a pass
+         *       separates launch and index errors, not formula errors.
          */
         using ScalarFunction = std::function<double(SushiRuntime::span<const double> inputs)>;
 

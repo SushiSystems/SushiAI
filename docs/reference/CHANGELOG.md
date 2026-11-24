@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-24 — failure_contract: Stated that under `ForceReference` the gradient check shares the SYCL path's element functor, so it separates launch and index errors, not formula errors (RW-14).
 - 2026-11-24 — dependencies: Moved the pins to SushiRuntime v0.7.2, SushiBLAS v0.3.1, SushiLog v0.5.2 and SushiProfiler v0.5.2, which all need sushicore 0.18 (`cli/sushistack.deps.toml`).
 - 2026-11-23 — ci: The upstream-main job builds SushiRuntime main with the SushiProfiler and SushiLog refs it needs and passes (RW-173, `ci.yml`).
 - 2026-11-23 — ci: The TSan race at `graph_task_sink.cpp` was a false report from Sushi packages built without TSan; with them built under TSan the thread job is clean (RW-180).
