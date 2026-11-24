@@ -18,7 +18,6 @@
 | RW-94 | P2 | open | Fill the dropout mask on the device | the mask is drawn on the device (B1 and G1 of the graph capabilities plan) and a test covers dropout in HALF and FLOAT64 on an engine |  |  | 2026-10-19 |
 | RW-95 | P2 | open | Make the tests' bodies match their names | `AMissingFileFails` checks a `FileNotFound` code and the path, `ARefusedDiceFillChangesNothing` checks all five leaves, and… |  |  | 2026-10-19 |
 | RW-96 | P2 | open | Check the older test pages sentence by sentence | the test pages under `tests/` match their sources and none of their lines passes 100 columns (227 do) |  |  | 2026-10-19 |
-| RW-97 | P2 | open | Describe the shared check helpers on the importer test page | `tests/vision/importers/README.md` links the test files that exist and describes the helpers of the three `darknet_*_cases` modules from their bodies |  |  | 2026-10-25 |
 | RW-98 | P2 | open | Check a token id against the embedding before a step | an input id outside `Embedding::num_embeddings` is refused with a named error before the step |  |  | 2026-10-25 |
 
 ## Known issues

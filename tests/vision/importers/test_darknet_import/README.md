@@ -1,6 +1,6 @@
 # tests/vision/importers/test_darknet_import
 
-The test sources kept in this folder. The suite prefix of a case gives its ctest label.
+The test sources kept in this folder. The suite prefix of a case gives its ctest label. A page beside a file, such as [test_import.md](test_import.md), says what its cases pin.
 
 | File | Tests |
 | --- | --- |
