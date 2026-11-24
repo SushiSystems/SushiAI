@@ -29,8 +29,8 @@ from sushiai.services.project import K_DEFAULT_TYPE
 #: The groups sushicore adds whole; their commands are sushicore's to list, so only the group is checked.
 K_SUSHICORE_GROUPS = ("backlog", "design")
 K_VISIBLE_COMMANDS = [
-    "build", "clean", "config", "demo mlp", "docs", "docs bundle", "doctor", "env", "import",
-    "inference", "link", "profile", "run", "setup", "test", "tokenize", "train", "unlink",
+    "build", "clean", "config", "demo mlp", "docs", "docs bundle", "doctor", "env", "export",
+    "import", "inference", "link", "profile", "run", "setup", "test", "tokenize", "train", "unlink",
 ]
 K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 K_BROKEN_TOML = "tool = [\n"

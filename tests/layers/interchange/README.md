@@ -33,3 +33,17 @@ layer name.
 ## test_tensor_bytes.cpp
 
 Suites: `Small_TensorBytes`. Checks that a viewed tensor reports the file's bytes by address with its offset, and that an owned tensor holds the bytes it took and reports offset 0.
+
+## test_caffe_writer.cpp
+
+Checks the unit of the same name, in memory, with 2 cases:
+
+- the readers read back lenet
+- a layer with no type is refused
+
+## test_onnx_writer.cpp
+
+Checks the unit of the same name, in memory, with 2 cases:
+
+- the reader reads back the graph
+- a tensor that does not fill its extents is refused

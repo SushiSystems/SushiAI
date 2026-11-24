@@ -171,6 +171,11 @@ namespace SushiAI
             return rules;
         }
 
+        const std::vector<std::string>& NameMap::drop_names() const noexcept
+        {
+            return drops_;
+        }
+
         bool NameMap::is_dropped(std::string_view name) const noexcept
         {
             for (const std::string& drop : drops_)

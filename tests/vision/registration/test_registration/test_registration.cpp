@@ -74,6 +74,7 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
+#include <SushiAI/io/exporter_registry.hpp>
 #include <SushiAI/io/importer_registry.hpp>
 #include <SushiAI/layer_rows/layer_registry.hpp>
 #include <SushiAI/layer_rows/minimal_case.hpp>
@@ -914,6 +915,21 @@ TEST(Small_VisionRegistration, RegisterImportersTwiceRefusesDarknetAsRegistered)
 
     SA_EXPECT_FAILURE(Vision::register_importers(registry), StatusCode::InvalidDescription,
                       "'darknet'", "already registered");
+}
+
+/** @brief Tests that the vision domain adds three exporter rows: onnx, caffe, darknet. */
+TEST(Small_VisionRegistration, RegisterExportersAddsTheThreeExporterRows)
+{
+    IO::ExporterRegistry registry;
+    SA_EXPECT_OK(Vision::register_exporters(registry));
+
+    ASSERT_EQ(registry.rows().size(), 3u);
+    for (const char* const format : {"onnx", "caffe", "darknet"})
+    {
+        const IO::ExporterEntry* const row = registry.find(format);
+        ASSERT_NE(row, nullptr) << format;
+        EXPECT_NE(row->write, nullptr) << format;
+    }
 }
 
 /** @brief Tests that the registered row reaches the Darknet importer, which counts its files. */

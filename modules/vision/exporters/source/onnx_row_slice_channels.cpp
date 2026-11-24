@@ -1,0 +1,84 @@
+/**************************************************************************/
+/* onnx_row_slice_channels.cpp                                            */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License"); you    */
+/* may not use this file except in compliance with the License. You may   */
+/* obtain a copy of the License at                                        */
+/*                                                                        */
+/*     https://www.apache.org/licenses/LICENSE-2.0                        */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+/**
+ * @file onnx_row_slice_channels.cpp
+ * @brief Defines the writer of the "slice_channels" row, one ONNX Slice node on axis 1.
+ * @author Mustafa Garip
+ */
+
+#include <cstdint>
+#include <iterator>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
+#include "onnx_export_progress.hpp"
+#include "onnx_row_table.hpp"
+
+namespace SushiAI
+{
+    namespace Vision::Exporters
+    {
+        namespace Detail
+        {
+            namespace
+            {
+                /** @brief Lists every key of the row the writer reads. */
+                constexpr std::string_view K_SLICE_KEYS[] = {"offset", "count"};
+
+                /** @brief Holds the channel axis of an ONNX tensor [N, C, H, W]. */
+                constexpr std::int64_t K_CHANNEL_AXIS = 1;
+            } // namespace
+
+            Status write_onnx_slice_channels(const OnnxRowCall& call,
+                                             OnnxExportProgress& progress)
+            {
+                const RowKeys keys = row_keys(call);
+                SA_TRY(reject_unknown_keys(keys, SushiRuntime::span<const std::string_view>(
+                                                     K_SLICE_KEYS, std::size(K_SLICE_KEYS))));
+                SA_TRY(check_source_count(call, 1));
+                const OnnxRowValue& input = *call.sources[0];
+                SA_TRY(check_image(input));
+                SA_TRY_ASSIGN(const std::int64_t offset, read_int_key(keys, "offset", 0));
+                SA_TRY_ASSIGN(const std::int64_t count, read_int_key(keys, "count", 0));
+                SA_FAIL_IF(offset < 0 || count < 1 || offset + count > input.shape[2],
+                           StatusCode::InvalidDescription,
+                           "row {} 'slice_channels' keeps {} channels from {} of {}", call.index,
+                           count, offset, input.shape[2]);
+                const std::string starts = row_tensor_name(call.index, "starts");
+                const std::string ends = row_tensor_name(call.index, "ends");
+                const std::string axes = row_tensor_name(call.index, "axes");
+                add_int_initializer(progress, starts, {1}, {offset});
+                add_int_initializer(progress, ends, {1}, {offset + count});
+                add_int_initializer(progress, axes, {1}, {K_CHANNEL_AXIS});
+                add_node(progress, call, "Slice", "node", {input.name, starts, ends, axes},
+                         {row_output(progress, call)});
+                define_row_value(progress, call, {input.shape[0], input.shape[1], count});
+                return Status();
+            }
+        } // namespace Detail
+    } // namespace Vision::Exporters
+} // namespace SushiAI

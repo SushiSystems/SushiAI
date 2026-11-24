@@ -73,15 +73,10 @@ namespace SushiAI
             /** @brief Holds the key that names the checkpoint a run writes. */
             constexpr std::string_view K_CHECKPOINT_KEY = "checkpoint";
 
-            /** @brief Lists the keys the writer states, which a recipe may not. */
-            constexpr std::string_view K_WRITER_KEYS[] = {
-                K_VERSION_KEY, K_MODEL_KEY, K_WEIGHTS_KEY, K_DATA_KEY, K_CHECKPOINT_KEY,
-            };
-
             /** @brief Returns whether the writer states @p key itself. */
             [[nodiscard]] bool is_writer_key(std::string_view key) noexcept
             {
-                for (const std::string_view own : K_WRITER_KEYS)
+                for (const std::string_view own : K_TRAINING_WRITER_KEYS)
                 {
                     if (own == key)
                         return true;

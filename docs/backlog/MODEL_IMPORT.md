@@ -8,15 +8,15 @@
 | RW-54 | P2 | open | Let the `idx` reader row name its two files, and a row set the letterbox | both rows exist |  |  | 2026-10-19 |
 | RW-55 | P2 | open | Add subdivisions and options per head | the training file takes `subdivisions`, and each head of the anchor objective takes its own options |  | `docs/design/MODEL_IMPORT/README.md` | 2026-10-25 |
 | RW-58 | P2 | open | Read the imported files in the parity suites | the forward and training parity suites load the `model.json` and `weights.sushi` the import wrote, not the `.cfg` |  |  | 2026-10-25 |
-| RW-133 | P2 | unmeasured | Give YOLOv3-tiny an example directory | `applications/examples/yolov3_tiny/` holds a `train.json` with a filled `yolo_txt` data block and a README a run can follow |  |  | 2026-10-25 |
-| RW-136 | P2 | open | Carry the `.cfg`'s augmentation into the training file | `jitter`, `hue`, `saturation` and `exposure` are training-file keys the import writes |  |  | 2026-10-25 |
-| RW-137 | P2 | open | Write a float32 setting as the shortest decimal that reads back | the import writes the `.cfg`'s `ignore_thresh=.7` as `0.7`, and a written float32 value parses back to the same float32 |  |  | 2026-10-25 |
-| RW-138 | P2 | open | Letterbox an imported `letter_box=1` model as Darknet does | an image fitted to a model imported with `letter_box=1` is padded with 0.5 and may be scaled up, as Darknet's `letterbox_image` does, and a test pins one such… |  |  | 2026-10-25 |
 | RW-139 | P2 | open | Give the tests one scratch directory | the private `ScratchDirectory` classes of `test_imported_model_writer.cpp`, `language/datasets/datasets_test_support.hpp` and… |  |  | 2026-10-25 |
 | RW-186 | P2 | open | Give the importers' row helpers one home and each importer its own namespace | make_attributes, pair_value and append_row are defined once, and Darknet, ONNX and Ultralytics internals sit in their own Detail namespace like Caffe |  | `modules/vision/importers/source/caffe_operator_table.cpp` | 2026-11-17 |
+| RW-194 | P3 | open | Let sushiai inference write its output tensors for an outside comparison | check_exported_files.py compares an exported model's outside run with the tensors of sushiai inference instead of an expected JSON file |  | `applications/programs/source/inference.cpp` | 2026-11-24 |
+| RW-195 | P2 | open | Import an ONNX Flatten that the model publishes in the order ONNX gives | silu_resize.onnx, whose output is a Flatten, imports to a model that exports to ONNX and imports back to the same text and bytes |  | `modules/vision/importers/source/onnx_op_flatten.cpp` | 2026-11-24 |
 
 ## Known issues
 
 | ID | Origin | Symptom | Workaround | Fix | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- |
 | KI-22 | own | sa inference prints detection boxes past the image edge; Ultralytics clips them | clip x1 y1 x2 y2 to the input width and height | none, a printing convention to rule on with the detection report | `applications/programs/source/domains_vision.cpp` | 2026-11-15 |
+| KI-24 | own | ZipWriter's zip64 branches have no test | none | none, owner ruling pending | `docs/agent/2026_11_24_MODEL_EXPORT/SPEC.md` | 2026-11-24 |
+| KI-25 | own | interchange readers and writers terminate on allocation failure | none | none, needs the owner's ruling on a seam dependency | `docs/agent/2026_11_24_MODEL_EXPORT/SPEC.md` | 2026-11-24 |

@@ -1,9 +1,9 @@
 # programs
 
-The four drivers behind `sushiai train`, `sushiai inference`, `sushiai import` and
-`sushiai tokenize`. The first two read JSON configuration; the third writes it; the fourth
-prepares the data of a language model. None of the first three names a layer type, a dataset
-type or a foreign format.
+The five drivers behind `sushiai train`, `sushiai inference`, `sushiai import`,
+`sushiai export` and `sushiai tokenize`. The first two read JSON configuration; the third writes
+it; the fourth writes it as the files of another framework; the fifth prepares the data of a
+language model. None of the first four names a layer type, a dataset type or a foreign format.
 [`applications/examples/tiny_decoder/`](../examples/tiny_decoder/README.md) holds the files
 of a decoder.
 [`applications/examples/yolov7_tiny/`](../examples/yolov7_tiny/README.md) holds a training file
@@ -18,6 +18,7 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `train.cpp` | `sushiai train <train.json> [--profile <profile.json>]` |
 | `inference.cpp` | `sushiai inference <model.json> <model.sushi> <eval.json or image> [--profile <profile.json>]` |
 | `import.cpp` | `sushiai import <format> <files...> --output <directory> [--task <task.json>] [--force]` and `sushiai import weights <model.json> <weights-file> --map <map.json> --output <file.sushi> [--force]` |
+| `export.cpp` | `sushiai export <format> <model.json> [<weights.sushi>] --output <directory> [--training <train.json>] [--name <stem>] [--force]` and `sushiai export weights <safetensors\|torch> <model.json> <weights.sushi> --output <file> [--map <map.json>] [--force]` |
 | `sushiai_worker.cpp` | `sushiai_worker <train.json> --master host:port --name <worker> [flags]`, built only when `SA_ENABLE_DISTRIBUTED` is on |
 | `tokenize.cpp` | `sushiai tokenize train <corpus> --vocabulary-size <N> --output <vocab.savb>` and `sushiai tokenize encode <corpus> --vocabulary <vocab.savb> --output <corpus.satk>` |
 
@@ -30,9 +31,11 @@ the ones SushiRuntime's worker agent defines.
 
 | File | Holds |
 | --- | --- |
-| `registries.hpp`, `registries.cpp` | `Registries`: the node, dataset, objective, run, report and importer rows a program looks up, and `compose_registries`, which fills them |
+| `registries.hpp`, `registries.cpp` | `Registries`: the node, dataset, objective, run, report, importer and exporter rows a program looks up, and `compose_registries`, which fills them |
 | `model_state_entries.hpp`, `model_state_entries.cpp` | `model_state_entries`: builds a model file's graph, traces it once over one sample and lists its parameters and buffers as `NN::StateEntry` through `NN::list_state_entries`, with no engine and no tensor allocated |
 | `weights_import.hpp`, `weights_import.cpp` | `WeightsImportRequest`, `WeightsImportReport`, `compose_weight_sources`, which adds one row per weight container, and `import_weights_file`, the logic of `sushiai import weights` |
+| `model_export.hpp`, `model_export.cpp` | `ModelExportRequest`, `ModelExportReport` and `export_model_files`, the logic of `sushiai export <format>` |
+| `weights_export.hpp`, `weights_export.cpp` | `WeightWriterEntry`, `WeightsExportRequest`, `WeightsExportReport`, `compose_weight_writers`, which adds one row per weight format, and `export_weights_file`, the logic of `sushiai export weights` |
 | `inference_run.hpp`, `inference_run.cpp` | `PreparedInference`, `InferenceRegistry`, `report_inference` and `print_inference_header`: the report table |
 | `training_run.hpp`, `training_run.cpp` | `PreparedRun`, `RunSummary`, `RunRegistry` and `run_training`: the run table; `finished_progress` and `check_start_batch`, which both runs call |
 | `epoch_loop.hpp`, `epoch_loop.cpp` | `run_epoch_loop`, the epoch and report loop over an `EpochPlan` and a rate setter, and `run_epochs`, which fills the plan and the setter from a `PreparedRun`; the trainer run and the cluster run share them, and `is_reported_epoch`, the cadence the vision run prints at |
@@ -514,6 +517,46 @@ No foreign file names a dataset, and the import invents none. `train.json` carri
 key with the value `null`, so the file shows the key a person has to fill.
 `sushiai train` refuses the file as it is: `Config::parse_train` reports that `data` must be
 an object and is null, and names the file.
+
+## export.cpp
+
+### What it writes
+
+`sushiai export <format> <model.json> [<weights.sushi>] --output <directory>` writes a model
+as the files of another framework, as
+[`docs/design/MODEL_IMPORT/EXPORT.md`](../../docs/design/MODEL_IMPORT/EXPORT.md) describes.
+`export_model_files` in `model_export.cpp` does the work:
+
+1. `IO::read_model_files` reads the model file, the model-state records of the `.sushi` file
+   and the training file of `--training` into one `IO::ImportedModel`.
+2. `IO::export_model` looks `<format>` up in the `IO::ExporterRegistry` of `Registries` and
+   hands the model to the row. `onnx`, `caffe` and `darknet` are rows `register_vision_domain`
+   adds in `domains_vision.cpp`; a format with no row is refused with the formats that have one.
+3. `IO::write_exported_model` checks every file before it writes one and writes each through a
+   partial file and a rename.
+
+`--name <stem>` sets the stem of every written file, `model` when absent. A file that already
+exists in the directory stops the export before anything is written; `--force` replaces it.
+The driver prints the format, the inputs, the files written and every note: a value of the
+model that none of the written files can state, such as the task section in ONNX. It creates
+no engine.
+
+### `export weights`
+
+`sushiai export weights <safetensors|torch> <model.json> <weights.sushi> --output <file>
+[--map <map.json>] [--force]` is chosen by `weights` as the first argument; no exporter row may
+take that name. `export_weights_file` in `weights_export.cpp` does the work:
+
+1. `IO::read_model_files` reads the model file and the records; `model_state_entries` lists the
+   entries of the model, whose layouts say which records are convolution kernels.
+2. `IO::NameMap::read` reads the map, the one `import weights` takes; without `--map` every
+   name stays. `IO::export_state_weights` moves each kernel to PyTorch's layout, gives each name
+   back the prefix of its rename and turns each drop entry into a note.
+3. The row of `compose_weight_writers` writes the bytes: `IO::write_safetensors`, or
+   `IO::write_torch_state_dict` under the folder of the output's stem and the map's
+   `state_dict`. A new format adds its row there and edits no other source.
+4. `IO::write_exported_model` writes the file, refusing an existing one unless `--force` is
+   given.
 
 ## Designs
 

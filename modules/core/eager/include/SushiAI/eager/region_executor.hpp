@@ -127,7 +127,6 @@ namespace SushiAI
                 }
 
             private:
-                /** @brief Holds what one recorded region owns. */
                 /** @brief Holds the storage of a program's imports and exports, in their order. */
                 struct SharedStorage
                 {
@@ -135,6 +134,7 @@ namespace SushiAI
                     std::vector<StorageID> exports; /**< One id per RegionProgram::exports. */
                 };
 
+                /** @brief Holds what one recorded region owns. */
                 struct LiveRegion
                 {
                     /** @brief Takes @p compiled and binds an empty pool and an emitter to it. */

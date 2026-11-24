@@ -3,7 +3,8 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under the Apache License 2.0. See LICENSE.
 
-# sushiai_train, sushiai_inference and, in a distributed build, sushiai_worker.
+# sushiai_train, sushiai_inference, sushiai_import, sushiai_export and, in a
+# distributed build, sushiai_worker.
 # The domains a program registers and whether it trains on a cluster are
 # chosen here, at link time; no source holds an #if.
 
@@ -21,7 +22,7 @@ else()
     list(APPEND SUSHIAI_PROGRAM_DOMAINS source/domains_language_none.cpp)
 endif()
 
-set(SUSHIAI_PROGRAM_TARGETS sushiai_train sushiai_inference sushiai_import)
+set(SUSHIAI_PROGRAM_TARGETS sushiai_train sushiai_inference sushiai_import sushiai_export)
 
 # A distributed build trains a spec's cluster section; any other build refuses
 # it and names the flag that builds it.
@@ -49,6 +50,7 @@ set(SUSHIAI_PROGRAM_SHARED
     source/training_program.cpp source/inference_program.cpp
     source/run_preparation.cpp source/inference_preparation.cpp
     source/profile_arguments.cpp source/model_state_entries.cpp source/weights_import.cpp
+    source/model_export.cpp source/weights_export.cpp
     ${SUSHIAI_PROGRAM_PROFILE}
     ${SUSHIAI_PROGRAM_CLUSTER} ${SUSHIAI_PROGRAM_DOMAINS})
 
@@ -75,7 +77,9 @@ add_executable(sushiai_inference source/inference.cpp)
 target_link_libraries(sushiai_inference PRIVATE sushiai_program_shared)
 add_executable(sushiai_import source/import.cpp)
 target_link_libraries(sushiai_import PRIVATE sushiai_program_shared)
-set(SUSHIAI_PROGRAM_TARGETS sushiai_train sushiai_inference sushiai_import)
+add_executable(sushiai_export source/export.cpp)
+target_link_libraries(sushiai_export PRIVATE sushiai_program_shared)
+set(SUSHIAI_PROGRAM_TARGETS sushiai_train sushiai_inference sushiai_import sushiai_export)
 
 # The worker serves a cluster's replicas, so only a distributed build has one.
 if(SA_ENABLE_DISTRIBUTED)

@@ -204,3 +204,15 @@ of the tiny run's model file without an engine.
 Suite: `Small_WeightsImport`. Its cases are described in
 [source/test_weights_import.md](source/test_weights_import.md). They check the composed weight
 sources and that a failed import writes no file.
+
+## source/test_weights_export.cpp
+
+Suite: `Small_WeightsExport`. Its cases are described in
+[source/test_weights_export.md](source/test_weights_export.md). They check the composed weight
+writers and that a refused export writes no file.
+
+## source/test_model_export.cpp
+
+Suite: `Small_ModelExport`, in a build with vision. Its cases are described in
+[source/test_model_export.md](source/test_model_export.md). They export one fixture per format
+through the composed registries and import the files back.

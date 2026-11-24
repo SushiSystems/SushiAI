@@ -1,13 +1,13 @@
 # Model import
 
-**Status:** Open — phase 4 of 9
-**About:** How a model of another framework (Darknet today; PyTorch weight files, ONNX and Caffe by the format engine below) enters SushiAI once, through one door, and is trained and run afterwards...
-**Modules:** none
+**Status:** Open — phases 1 to 3 and 5 to 9 built, phase 4 building, export phase E1 building, E2 to E4 planned
+**About:** How a model of another framework enters SushiAI once, through one door, and is trained and run afterwards from SushiAI's own files; and how a SushiAI model leaves as another framework's files.
+**Modules:** modules/layers/io, modules/layers/interchange, modules/vision/importers
 
 ## Problem
 
-How a model of another framework (Darknet today; PyTorch weight files, ONNX and Caffe by the
-format engine below) enters SushiAI once, through one door, and is trained and run afterwards
+How a model of another framework (Darknet, Ultralytics, ONNX and Caffe graphs; PyTorch,
+safetensors and NumPy weight files) enters SushiAI once, through one door, and is trained and run afterwards
 from SushiAI's own files with no file of the other framework in sight.
 
 ## Decision
@@ -106,18 +106,18 @@ Decided, written and not yet built:
 - **Detection has its own loop**, `run_anchor_training`. `Trainer`'s step is classification
   down to its feed, and an anchor update runs two passes.
 
-Still lacking:
+Since built: `sushiai train` chooses its run from a table by objective type (`cross_entropy`,
+`anchor`), and `tests/applications/programs/source/test_vision_training_runs.cpp` runs the anchor
+row. A detector trains from imported files: `applications/examples/yolov3_tiny/README.md` records
+the runs. The run-state section of the weight file carries the epoch and the next batch
+(`run.epoch`, `run.batch`, `modules/layers/io/README.md`), so a resume knows the epoch and the batch
+it stopped at.
 
-- **The run has no test.** `sushiai train` chooses its run from a table by objective type
-  (`cross_entropy`, `anchor`), and the programs have no test target of their own.
-- **A training file for a detector cannot run yet**: its model file and weights come from
-  phase 4.
+Still lacking (RW-55):
+
 - **Subdivisions and `max_batches`** have no key; accumulation needs a replay without the
   update and an accumulate kernel.
 - **One `HeadTrainingOptions` for every head**; a `heads` array in the section would lift it.
-- **A resumed run does not replay its batch order.** Version 2 of the weight file carries a
-  run-state section, the optimizer's step count and its own tensors, and `resume` restores
-  it; the epoch index is not in it, so a shuffling dataset starts its order over.
 
 ### What phase 4 decided
 
@@ -135,13 +135,18 @@ Still lacking:
   class report. Its score and suppression thresholds and its confidence floor default to constants of the
   program and a `detection` object of `eval.json` sets them, and boxes are printed in pixels of
   the source image through the `fit` role of the batch.
-- **One image file cannot be given to `inference`**; it reads the split of `eval.json`.
+- **`inference` takes one image file in place of `eval.json`**:
+  `sushiai inference <model.json> <model.sushi> <eval.json | image>`
+  (`applications/programs/source/inference.cpp:55`).
 
 ### The format engine
 
 Ruled by the owner on 2026-10-12: SushiAI reads every foreign format with readers of its own
 and takes no external dependency for it, Caffe is among the formats, and the design is written
-before any of it is built. Nothing in this section exists yet.
+before any of it is built. Phases 5 to 9 built it: the readers are in `modules/layers/io`, the
+ONNX and Caffe graph readers and the axis and folding units in `modules/layers/interchange`, and
+the ONNX, Caffe and Ultralytics importers in `modules/vision/importers`; each module's README
+states what its units read and refuse.
 
 #### Two kinds of format
 
@@ -154,7 +159,7 @@ A weight file cannot produce a model file, so the two kinds enter by two command
 
 ```
 sushiai import <format> <files...> --output <directory>
-sushiai import weights <file> --model <model.json> --map <map.json> --output <file.sushi>
+sushiai import weights <model.json> <weights-file> --map <map.json> --output <file.sushi>
 ```
 
 The first is the command above. The second detects the container from the file's first
@@ -225,9 +230,11 @@ The first use of the weight command is YOLOX-X with a ByteTrack checkpoint of Su
 | Convolution with normalisation and SiLU, bottleneck, upsample, concat | `conv`, `bottleneck`, `upsample`, `concat` |
 | CSP layer | `c3k` has the same parts; whether its options reach the 1x1 and 3x3 bottleneck is not checked |
 | SPP with 5, 9 and 13 pools | `sppf` with three 5x5 pools gives the same values; not checked against a run |
-| Focus stem | Missing: a row that stacks the four pixel phases into channels |
-| Decoupled head | Missing: a stem and separate class, box and objectness branches per level |
-| Box decoding | Missing: a third task type; the offset is added to the cell and the size is an exponential, both times the stride |
+| Focus stem | `focus`, `modules/vision/blocks/source/focus.cpp` |
+| Decoupled head | `decoupled_head`, `modules/vision/blocks/source/decoupled_head.cpp` |
+| Box decoding | The YOLOX task type, `modules/vision/detect/source/yolox/` |
+
+The model file and its map are `applications/examples/yolox_x/model.json` and `map.json`.
 
 The model file is written by hand from the paper and from the shapes of the checkpoint's
 tensors. A PyTorch run outside the repository dumps the three head outputs for one input, and
@@ -241,17 +248,23 @@ a parity suite compares them, as the Darknet suites do. No YOLOX source enters t
 | 2 | The task section: its reader and writer in `vision/detect`'s terms, the registry row, and `inference` decoding a model from it. Needs a build: To run its tests | built |
 | 3 | The `anchor` objective and the step schedule in the training file; `train` building `AnchorTrainingStep` from the files. Needs a build: To run its tests | built |
 | 4 | `sushiai import darknet`, and the six parity suites reading the imported files instead of the `.cfg`. Needs a build: Yes | building |
-| 5 | `ZipArchive`, `PickleReader`, `SafetensorsReader`, the name map, `sushiai import weights`. Proven by: A `.pth` and a `.safetensors` fixture of a small model give the `.sushi` file `train` wrote for it | planned |
-| 6 | YOLOX-X: the focus row, the decoupled head, the task type, the model file and its map. Proven by: The three head outputs against the dumped ones; detections on a MOT17 frame | planned |
-| 7 | `ProtobufWire`, axis translation, constant folding, the ONNX importer. Proven by: The ONNX export of YOLOX-X imports to the outputs of phase 6 | planned |
-| 8 | `ProtobufText`, the Caffe importer. Proven by: A Caffe model's outputs against a dump of a Caffe run | planned |
-| 9 | `NpyReader` and `.npz`; Ultralytics `.pt`, which pickles module objects and widens the accepted names. Proven by: The YOLO26 fixture read from its `.pt` | planned |
+| 5 | `ZipArchive`, `PickleReader`, `SafetensorsReader`, the name map, `sushiai import weights`. Proven by: A `.pth` and a `.safetensors` fixture of a small model give the `.sushi` file `train` wrote for it | built |
+| 6 | YOLOX-X: the focus row, the decoupled head, the task type, the model file and its map. Proven by: The three head outputs against the dumped ones; detections on a MOT17 frame | built |
+| 7 | `ProtobufWire`, axis translation, constant folding, the ONNX importer. Proven by: The ONNX export of YOLOX-X imports to the outputs of phase 6 | built |
+| 8 | `ProtobufText`, the Caffe importer. Proven by: A Caffe model's outputs against a dump of a Caffe run | built |
+| 9 | `NpyReader` and `.npz`; Ultralytics `.pt`, which pickles module objects and widens the accepted names. Proven by: The YOLO26 fixture read from its `.pt` | built |
+| E1 | The export door and the weight writers: sushiai export weights to safetensors and PyTorch | building |
+| E2 | The ONNX exporter | planned |
+| E3 | The Caffe exporter | planned |
+| E4 | The Darknet exporter | planned |
 
-[ULTRALYTICS.md](ULTRALYTICS.md) plans the `.pt` part of phase 9 and the readers of phase 5 it
-pulls forward.
+[ULTRALYTICS.md](ULTRALYTICS.md) holds the design of the `.pt` part of phase 9 and the readers of
+phase 5 it pulled forward. [EXPORT.md](EXPORT.md) holds the export design of phases E1 to E4.
 
-The code of every phase can be written before SushiBLAS follows SushiRuntime v0.4.0; none can be
-verified before it.
+Phase 4 stays open until the parity suites read the imported files (RW-58). The proofs of phases 6
+and 7 are Large tests that skip without their data (`SA_YOLOX_DATA_DIR`,
+`tests/vision/importers/test_onnx_import/test_yolox_detections.md`); phase 7 is proven against
+another runtime's detections, not against the outputs of phase 6.
 
 ### Work
 
@@ -263,10 +276,8 @@ No open work.
 
 Each is the owner's decision.
 
-- **When phases 5 to 9 run** against tag 0.1.0. Moving SushiTrack's inference from PyTorch to
-  SushiAI is after 0.1.0; phases 5 and 6 are what the YOLOX-X run needs.
-- **The first Caffe model** of phase 8.
-- **One image as the input of `inference`.** It reads the split of `eval.json` today; the
-  YOLOX-X run on a MOT17 frame needs either a split of one image or a new argument.
+- **The first Caffe model** of phase 8. The importer is proven on the LeNet fixture of
+  `tests/vision/importers/fixtures/` only.
+- **The export rulings**, questions 1 to 14 of [EXPORT.md](EXPORT.md).
 - **TensorFlow Lite**, which needs a FlatBuffers reader, and the order of formats after
   phase 9.

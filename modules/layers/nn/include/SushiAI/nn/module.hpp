@@ -66,6 +66,14 @@ namespace SushiAI
             Embedding,
         };
 
+        /** @brief Names how the elements of a state tensor are laid out. */
+        enum class StateLayout : std::uint8_t
+        {
+            Plain,               /**< Row-major in the order its extents state, no kernel. */
+            KernelLast,          /**< A convolution kernel [out, kh, kw, in]. */
+            DepthwiseKernelLast, /**< A depthwise convolution kernel [kh, kw, C]. */
+        };
+
         /** @brief Describes how one parameter is filled before training. */
         struct ParameterInit
         {
@@ -213,6 +221,12 @@ namespace SushiAI
                 /** @brief Outputs one input unit feeds. */
                 int64_t fan_out() const noexcept { return fan_out_; }
 
+                /** @brief Returns how the elements are laid out; Plain unless a layer set it. */
+                StateLayout layout() const noexcept { return layout_; }
+
+                /** @brief States how the elements are laid out, for an export to read. */
+                void set_layout(StateLayout layout) noexcept { layout_ = layout; }
+
             private:
                 /** @brief Keeps the first description and declares one leaf per graph. */
                 Result<Graph::ValueID> declare_described(const Graph::GraphBuilder& builder,
@@ -265,6 +279,9 @@ namespace SushiAI
                 ParameterRole role_ = ParameterRole::Weight;
                 int64_t fan_in_ = 0;
                 int64_t fan_out_ = 0;
+
+                /** @brief Holds how the elements are laid out. */
+                StateLayout layout_ = StateLayout::Plain;
 
                 /** @brief Records that a declare has fixed the description. */
                 bool described_ = false;

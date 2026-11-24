@@ -23,10 +23,12 @@
 
 /**
  * @file test_axis_translation.cpp
- * @brief Tests the channel-first to channel-last rewrite of axis attributes and filters.
+ * @brief Tests the rewrites of axis attributes and filters between the channel-first and
+ *        channel-last layouts.
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -331,4 +333,63 @@ TEST(Small_AxisTranslation, RefusesAnInnerProductWeightThatDoesNotFitItsExtents)
                       StatusCode::InvalidDescription, "positive extents");
     SA_EXPECT_FAILURE(Interchange::flatten_weights_to_channels_last(view_of(five), 2, 1, 1, 3),
                       StatusCode::InvalidDescription, "5 floats", "need 6");
+}
+
+/** @brief Tests that channels_first_axis undoes channels_last_axis for every axis of rank 4. */
+TEST(Small_AxisTranslation, EveryAxisOfRankFourComesBack)
+{
+    for (std::int64_t axis = 0; axis < 4; ++axis)
+    {
+        const std::int64_t last = SushiAI::Test::require_value(
+            Interchange::channels_last_axis(axis, 4));
+        EXPECT_EQ(SushiAI::Test::require_value(Interchange::channels_first_axis(last, 4)), axis);
+    }
+}
+
+/** @brief Tests that channels_first_permutation undoes channels_last_permutation. */
+TEST(Small_AxisTranslation, EveryPermutationOfRankFourComesBack)
+{
+    std::vector<std::int64_t> permutation = {0, 1, 2, 3};
+    do
+    {
+        const std::vector<std::int64_t> last = SushiAI::Test::require_value(
+            Interchange::channels_last_permutation(permutation));
+        EXPECT_EQ(SushiAI::Test::require_value(Interchange::channels_first_permutation(last)),
+                  permutation);
+    } while (std::next_permutation(permutation.begin(), permutation.end()));
+}
+
+/** @brief Tests that a seeded dense and a seeded depthwise filter come back from the record. */
+TEST(Small_AxisTranslation, AFilterComesBackFromTheRecordLayout)
+{
+    for (const bool depthwise : {false, true})
+    {
+        const std::vector<std::int64_t> source = depthwise ? std::vector<std::int64_t>{5, 1, 3, 3}
+                                                           : std::vector<std::int64_t>{2, 4, 3, 3};
+        std::vector<float> weights(static_cast<std::size_t>(source[0] * source[1] * 9));
+        for (std::size_t i = 0; i < weights.size(); ++i)
+            weights[i] = static_cast<float>((i * 31u) % 89u) - 44.0f;
+
+        const std::vector<float> record = SushiAI::Test::require_value(
+            Interchange::filter_to_record_layout(weights, source, depthwise));
+        const std::vector<std::int64_t> dimensions = SushiAI::Test::require_value(
+            Interchange::filter_record_dimensions(source, depthwise));
+        EXPECT_EQ(SushiAI::Test::require_value(
+                      Interchange::filter_to_source_layout(record, dimensions, depthwise)),
+                  weights);
+    }
+}
+
+/** @brief Tests that a seeded inner-product weight comes back from the flatten order. */
+TEST(Small_AxisTranslation, AFlattenWeightComesBackFromTheChannelLastOrder)
+{
+    std::vector<float> weights(3 * 2 * 4 * 5);
+    for (std::size_t i = 0; i < weights.size(); ++i)
+        weights[i] = static_cast<float>((i * 13u) % 61u);
+
+    const std::vector<float> last = SushiAI::Test::require_value(
+        Interchange::flatten_weights_to_channels_last(weights, 3, 2, 4, 5));
+    EXPECT_EQ(SushiAI::Test::require_value(
+                  Interchange::flatten_weights_to_channels_first(last, 3, 2, 4, 5)),
+              weights);
 }

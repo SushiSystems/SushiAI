@@ -12,8 +12,6 @@
 | RW-86 | P2 | open | Write a row in place in the graph | an in-place row write replaces the scatter-add into zeros |  |  | 2026-10-19 |
 | RW-87 | P2 | open | Append to a token file | `sushiai tokenize encode` holds one piece at a time |  |  | 2026-10-19 |
 | RW-88 | P2 | open | Give every node one factory signature | `language_head`, the one linked row, takes the signature of the others and `LinkedNodeFactory` goes |  |  | 2026-10-19 |
-| RW-89 | P2 | open | Call `match_input` from the anchor loop | the loop matches inputs as well as roles |  |  | 2026-10-19 |
-| RW-90 | P2 | open | Redraw a token dataset's windows per epoch | `TokenDataset` implements `Data::EpochAware` and redraws its window starts at each epoch |  |  | 2026-10-25 |
 | RW-91 | P2 | open | Give `at_boundary` and the little-endian readers one home | the three `at_boundary` copies (`vision/datasets`, `language/text`, `language/datasets`) and the two `little_endian.hpp` copies are one each |  |  | 2026-10-19 |
 | RW-92 | P2 | unmeasured | Measure `train_bpe` on a corpus of tens of megabytes | `sushiai tokenize train` over a corpus of at least 20 MB is timed, and its time and peak memory are in `modules/language/text/README.md` |  |  | 2026-10-19 |
 | RW-93 | P2 | open | Settle the masked attention score | the masked score is a value that is minus infinity in HALF, or the language design records -1e9 as a decision |  | `docs/design/LANGUAGE/README.md` | 2026-10-25 |

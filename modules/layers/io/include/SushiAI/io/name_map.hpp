@@ -93,6 +93,9 @@ namespace SushiAI
                 /** @brief Returns whether @p name, as a file states it, is on the drop list. */
                 [[nodiscard]] bool is_dropped(std::string_view name) const noexcept;
 
+                /** @brief Returns the drop entries in file order. */
+                [[nodiscard]] const std::vector<std::string>& drop_names() const noexcept;
+
             private:
                 /** @brief Holds one rename rule as owned text. */
                 struct Rule

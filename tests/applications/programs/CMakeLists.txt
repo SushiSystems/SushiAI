@@ -16,6 +16,7 @@ if(SA_BUILD_VISION)
         source/test_detection_reports.cpp
         source/test_image_input.cpp
         source/test_inference_program.cpp
+        source/test_model_export.cpp
         source/test_training_program.cpp
         source/test_vision_training_runs.cpp)
     list(APPEND SUSHIAI_PROGRAM_TEST_LINKS sushiai_vision)
@@ -62,6 +63,7 @@ sushiai_add_test_program(APPLICATION programs
         source/test_run_start.cpp
         source/test_trainer_run.cpp
         source/test_training_run.cpp
+        source/test_weights_export.cpp
         source/test_weights_import.cpp
         source/test_profile_arguments.cpp
         ${SUSHIAI_PROGRAM_TEST_PROFILED}

@@ -35,6 +35,7 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 | Arena | One allocation that holds several values whose live ranges do not overlap (`Graph::Arena`, `Graph::ArenaSet`) |
 | Tensor pool | The owner of the device buffers behind graph values across steps, including per-node scratch and shared all-ones constants (`Graph::TensorPool`, `graph/tensor_pool.hpp`) |
 | Fusion catalog | The closed list of fused kernels this build contains (`Graph::FusedForm`, `graph/fusion.hpp`) |
+| Eager front end | The tracing of a model on every step that compiles and records again only the regions whose signature changed (`modules/core/eager`; topic `docs/design/EAGER_FRONT_END/README.md`) |
 | Epilogue | Work folded into the end of a GEMM: the bias add and, for some entries, the activation |
 | Spill | The second value a fused GELU node writes, holding the pre-activation its gradient reads |
 | Rematerialisation | The pass that recomputes a stored `K_IM2COL` result at its later consumers (`graph/rematerialise.hpp`) |

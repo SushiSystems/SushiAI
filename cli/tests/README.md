@@ -98,6 +98,15 @@ In `test_toolchain_args_exclude_what_each_configure_sets_for_itself` the configu
 offline Windows config with every optional host tool set, so the assertion sees a long flag
 list.
 
+## test_export.py
+
+These tests run this checkout's CLI as `test_import.py` does, and skip unless both
+`sushiai_import` and `sushiai_export` are in the build tree. Each one imports a model first:
+a small `.cfg` without weights, or the ONNX fixture under `tests/vision/importers/fixtures/onnx/`
+with its weights. It then exports that model and imports the written file back, so every usage
+line of `sushiai export` has a case that ends in a file the importer accepts. The bytes are
+compared by the C++ tests in `tests/applications/programs/source/test_model_export.cpp`, not here.
+
 ## test_import.py
 
 These tests run this checkout's CLI through `checkout_cli.run_cli`, as `test_train.py` does,

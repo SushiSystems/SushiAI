@@ -357,3 +357,44 @@ The script needs numpy and onnx with `onnx.reference`; on the owner's machine th
 environment `sushiai-yolo26-ref`. It exits 1 with one line on stderr when a package is missing or
 the folder cannot be written. `tools/tests/test_make_onnx_fixture.py` tests it and skips where the
 packages are absent.
+
+## check_exported_files.py
+
+Reads the files `sushiai export` wrote with the readers of other frameworks, as item 6 of the
+round trip in [`docs/design/MODEL_IMPORT/EXPORT.md`](../../docs/design/MODEL_IMPORT/EXPORT.md)
+asks. It is run by hand and not in CI, because CI installs none of the readers.
+
+```
+sushiai export onnx $IMPORTED/model.json $IMPORTED/weights.sushi --output $EXPORTED
+sushiai export weights torch $IMPORTED/model.json $IMPORTED/weights.sushi --output $EXPORTED/model.pth
+sushiai export weights safetensors $IMPORTED/model.json $IMPORTED/weights.sushi --output $EXPORTED/model.safetensors
+python tools/reference/check_exported_files.py $EXPORTED --expected tests/vision/importers/fixtures/onnx/silu_resize.expected.json
+```
+
+Here `IMPORTED` names the folder
+`sushiai import onnx tests/vision/importers/fixtures/onnx/silu_resize.onnx` wrote, and
+`EXPORTED` names any folder the export may write.
+
+| Argument | Meaning |
+| --- | --- |
+| `PATHS` | Exported files, or folders whose files are all checked, in name order |
+| `--expected FILE` | The input of the `.onnx` and the output it must give, in the format `make_onnx_fixture.py` writes; without it the `.onnx` is only checked |
+| `--tolerance X` | The largest difference an output value may have; default 1e-5 |
+
+| Suffix | Reader |
+| --- | --- |
+| `.onnx` | `onnx.checker.check_model(full_check=True)`, then `onnx.reference.ReferenceEvaluator` on the expected input |
+| `.pth`, `.pt` | `torch.load(weights_only=True)` |
+| `.safetensors` | `safetensors.numpy.load_file` |
+| `.cfg` | `cv2.dnn.readNetFromDarknet`, with the `.weights` of the same stem when it is there; skipped without OpenCV |
+| `.prototxt` | `cv2.dnn.readNetFromCaffe`, with the `.caffemodel` of the same stem when it is there; skipped without OpenCV |
+
+The script needs numpy, onnx with `onnx.reference`, torch and safetensors; OpenCV is optional.
+It prints one line per file, `read` with what the reader found or `skipped` with the reason, and
+exits 1 naming every file a reader refused, a reader that is missing for a file that needs it, or
+an output that differs from the expected one by more than the tolerance.
+
+`sushiai inference` prints a report and no tensor, so the ONNX output is compared with the
+expected file. For `silu_resize`, that file holds the output the original graph gives under
+`ReferenceEvaluator`, and `tests/vision/importers/` checks that SushiAI's forward pass of the
+imported model gives the same values.

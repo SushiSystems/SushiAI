@@ -9,7 +9,7 @@ and then of each linked domain. No case needs a device.
 ## row_count
 
 `row_count` adds the rows of every table a `Registries` holds: the nodes, layers and linked
-nodes, the datasets, the objectives, the runs, the reports and the importers.
+nodes, the datasets, the objectives, the runs, the reports, the importers and the exporters.
 
 ## TheLibraryRowsAreComposed
 

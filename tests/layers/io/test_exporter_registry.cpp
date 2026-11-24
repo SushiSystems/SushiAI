@@ -1,0 +1,130 @@
+/**************************************************************************/
+/* test_exporter_registry.cpp                                             */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License"); you    */
+/* may not use this file except in compliance with the License. You may   */
+/* obtain a copy of the License at                                        */
+/*                                                                        */
+/*     https://www.apache.org/licenses/LICENSE-2.0                        */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+/**
+ * @file test_exporter_registry.cpp
+ * @brief Tests the exporter registry: lookup, a repeated format, the weight word and the export
+ *        of a model through the row a format names.
+ * @author Mustafa Garip
+ */
+
+#include <cstddef>
+#include <string>
+#include <string_view>
+#include <gtest/gtest.h>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/io/exported_model.hpp>
+#include <SushiAI/io/exporter_registry.hpp>
+#include <SushiAI/io/imported_model.hpp>
+
+using namespace SushiAI;
+
+namespace
+{
+    /** @brief Returns one file named after @p stem that holds the count of notes in @p model. */
+    Result<IO::ExportedModel> write_counting(const IO::ImportedModel& model,
+                                             std::string_view stem) noexcept
+    {
+        IO::ExportedModel exported;
+        IO::ExportedFile file;
+        file.name = std::string(stem) + ".count";
+        file.bytes.push_back(static_cast<std::byte>(model.notes.size()));
+        exported.files.push_back(file);
+        return exported;
+    }
+
+    /** @brief Refuses every model. */
+    Result<IO::ExportedModel> write_refusing(const IO::ImportedModel&, std::string_view) noexcept
+    {
+        SA_FAIL_IF(true, StatusCode::Unsupported, "the exporter writes nothing");
+        return IO::ExportedModel();
+    }
+
+    /** @brief Holds the row of write_counting. */
+    constexpr IO::ExporterEntry K_COUNTING_ROW{"counting", &write_counting};
+
+    /** @brief Holds the row of write_refusing. */
+    constexpr IO::ExporterEntry K_REFUSING_ROW{"refusing", &write_refusing};
+} // namespace
+
+/** @brief Tests that an added row is found by its format and an unknown one is not. */
+TEST(Small_ExporterRegistry, AnAddedRowIsFoundByName)
+{
+    IO::ExporterRegistry registry;
+    SA_EXPECT_OK(registry.add(K_COUNTING_ROW));
+    SA_EXPECT_OK(registry.add(K_REFUSING_ROW));
+
+    ASSERT_EQ(registry.rows().size(), 2u);
+    EXPECT_EQ(registry.rows()[1].format, "refusing");
+    EXPECT_EQ(registry.find("onnx"), nullptr);
+    const IO::ExporterEntry* row = registry.find("counting");
+    ASSERT_NE(row, nullptr);
+    EXPECT_EQ(row->write, &write_counting);
+}
+
+/** @brief Tests that add refuses a format a row already holds and names the format. */
+TEST(Small_ExporterRegistry, ASecondRowOfOneFormatIsRefused)
+{
+    IO::ExporterRegistry registry;
+    SA_EXPECT_OK(registry.add(K_COUNTING_ROW));
+
+    SA_EXPECT_FAILURE(registry.add(K_COUNTING_ROW), StatusCode::InvalidDescription,
+                      "'counting'", "already registered");
+}
+
+/** @brief Tests that no row may take the word of the weight export. */
+TEST(Small_ExporterRegistry, TheWeightWordIsRefused)
+{
+    IO::ExporterRegistry registry;
+    const IO::ExporterEntry weights{IO::K_WEIGHT_EXPORT_WORD, &write_counting};
+
+    SA_EXPECT_FAILURE(registry.add(weights), StatusCode::InvalidDescription, "'weights'");
+}
+
+/** @brief Tests that export_model hands the model and the stem to the row of the format. */
+TEST(Small_ExporterRegistry, ExportModelCallsTheRowOfTheFormat)
+{
+    IO::ExporterRegistry registry;
+    SA_EXPECT_OK(registry.add(K_COUNTING_ROW));
+    IO::ImportedModel model;
+    model.notes = {"a", "b"};
+
+    SA_ASSERT_OK_AND_ASSIGN(const IO::ExportedModel exported,
+                            IO::export_model(registry, "counting", model, "net"));
+    ASSERT_EQ(exported.files.size(), 1u);
+    EXPECT_EQ(exported.files[0].name, "net.count");
+    EXPECT_EQ(exported.files[0].bytes[0], static_cast<std::byte>(2));
+}
+
+/** @brief Tests that an unknown format is refused with every format the registry holds. */
+TEST(Small_ExporterRegistry, AnUnknownFormatListsTheFormatsTheRegistryHolds)
+{
+    IO::ExporterRegistry registry;
+    SA_EXPECT_OK(registry.add(K_COUNTING_ROW));
+    SA_EXPECT_OK(registry.add(K_REFUSING_ROW));
+
+    SA_EXPECT_FAILURE(IO::export_model(registry, "onnx", IO::ImportedModel(), "model"),
+                      StatusCode::InvalidDescription, "'onnx'", "'counting', 'refusing'");
+}

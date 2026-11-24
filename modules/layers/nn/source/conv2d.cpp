@@ -107,6 +107,7 @@ namespace SushiAI
                                                          layer.in_channels},
                                                    ParameterRole::Weight, window, window, "weight",
                                                    dtype));
+                layer.weight.set_layout(StateLayout::DepthwiseKernelLast);
                 SA_TRY_ASSIGN(const Graph::ValueID filtered,
                               builder.depthwise_conv2d(x, w, layer.geometry));
                 if (!layer.use_bias)
@@ -171,6 +172,7 @@ namespace SushiAI
                                                group_inputs},
                                          ParameterRole::Weight, fan_in, fan_out, "weight",
                                          dtype));
+            weight.set_layout(StateLayout::KernelLast);
 
             Graph::ValueID b = Graph::K_NO_VALUE;
             if (use_bias)

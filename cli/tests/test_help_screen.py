@@ -21,7 +21,7 @@ pytestmark = pytest.mark.medium
 
 K_GROUPS = {
     "Project": ["build", "test", "run", "clean", "docs", "backlog", "design"],
-    "Models": ["train", "inference", "import", "tokenize", "profile", "demo"],
+    "Models": ["train", "inference", "import", "export", "tokenize", "profile", "demo"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
 }
 
@@ -30,9 +30,10 @@ K_FORWARDED_PROGRAMS = {
     "train": "sushiai_train",
     "inference": "sushiai_inference",
     "import": "sushiai_import",
+    "export": "sushiai_export",
     "tokenize": "sushiai_tokenize",
 }
-K_FORWARDING_LINES = [("train",), ("inference",), ("import",), ("tokenize",), ("demo", "mlp")]
+K_FORWARDING_LINES = [("train",), ("inference",), ("import",), ("export",), ("tokenize",), ("demo", "mlp")]
 
 K_EXAMPLES = {
     "build": "sa build --type release",

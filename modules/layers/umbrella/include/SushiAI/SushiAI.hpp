@@ -295,6 +295,8 @@
 #include <SushiAI/interchange/constant_folding.hpp>
 #include <SushiAI/interchange/onnx_graph.hpp>
 #include <SushiAI/interchange/tensor_bytes.hpp>
+#include <SushiAI/interchange/caffe_writer.hpp>
+#include <SushiAI/interchange/onnx_writer.hpp>
 #include <SushiAI/io/inflate.hpp>
 #include <SushiAI/io/name_map.hpp>
 #include <SushiAI/io/npy_reader.hpp>
@@ -306,6 +308,17 @@
 #include <SushiAI/io/torch_weight_source.hpp>
 #include <SushiAI/io/weight_import.hpp>
 #include <SushiAI/io/weight_source.hpp>
+#include <SushiAI/io/exported_model.hpp>
+#include <SushiAI/io/exported_model_writer.hpp>
+#include <SushiAI/io/exporter_registry.hpp>
+#include <SushiAI/io/model_files.hpp>
+#include <SushiAI/io/pickle_writer.hpp>
+#include <SushiAI/io/protobuf_text_writer.hpp>
+#include <SushiAI/io/protobuf_wire_writer.hpp>
+#include <SushiAI/io/safetensors_writer.hpp>
+#include <SushiAI/io/torch_writer.hpp>
+#include <SushiAI/io/weight_export.hpp>
+#include <SushiAI/io/zip_writer.hpp>
 #include <SushiAI/nn/elementwise_binary.hpp>
 #include <SushiAI/nn/input_leaves.hpp>
 #include <SushiAI/nn/softmax.hpp>

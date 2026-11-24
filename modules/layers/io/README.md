@@ -305,10 +305,21 @@ The headers sit in `modules/layers/io/include/SushiAI/io/`.
 | `torch_weight_source.hpp` | `is_torch_file`, `open_torch_source`, `K_TORCH_WEIGHT_SOURCE_ROW` |
 | `npz_weight_source.hpp` | `is_npz_file`, `open_npz_source`, `K_NPZ_WEIGHT_SOURCE_ROW` |
 | `safetensors_weight_source.hpp` | `is_safetensors_file`, `open_safetensors_source`, `K_SAFETENSORS_WEIGHT_SOURCE_ROW` |
-| `name_map.hpp` | `NameMap` |
+| `name_map.hpp` | `NameMap`; `drop_names` lists the drop entries an export notes |
 | `weight_import.hpp` | `import_state_weights` |
-| `filter_layout.hpp` | `FilterExtents`, `copy_kernel_last`, `copy_depthwise_kernel_last` |
+| `filter_layout.hpp` | `FilterExtents`, `copy_kernel_last`, `copy_depthwise_kernel_last`, and their inverses `copy_kernel_first`, `copy_depthwise_kernel_first` |
 | `imported_model.hpp` | `ImportedTensor`, `ImportedModel` |
 | `importer_registry.hpp` | `ImporterFunction`, `ImporterEntry`, `ImporterRegistry`, `import_model` |
 | `in_memory_importer.hpp` | `count_files_importer`, `refuse_no_file_importer`, `K_COUNTING_IMPORTER_ROW`, `K_REFUSING_IMPORTER_ROW` |
-| `imported_model_writer.hpp` | `K_IMPORTED_MODEL_FILE`, `K_IMPORTED_WEIGHTS_FILE`, `K_IMPORTED_TRAINING_FILE`, `K_IMPORTED_CHECKPOINT_FILE`, `ExistingFiles`, `WrittenImport`, `compose_training_file`, `check_imported_tensors`, `write_imported_weights`, `write_imported_model` |
+| `imported_model_writer.hpp` | `K_IMPORTED_MODEL_FILE`, `K_IMPORTED_WEIGHTS_FILE`, `K_IMPORTED_TRAINING_FILE`, `K_IMPORTED_CHECKPOINT_FILE`, `ExistingFiles`, `WrittenImport`, `K_TRAINING_WRITER_KEYS`, `compose_training_file`, `check_imported_tensors`, `write_imported_weights`, `write_imported_model` |
+| `exported_model.hpp` | `ExportedFile`, `ExportedModel` |
+| `exporter_registry.hpp` | `K_WEIGHT_EXPORT_WORD`, `ExporterFunction`, `ExporterEntry`, `ExporterRegistry`, `export_model` |
+| `exported_model_writer.hpp` | `write_exported_model`: checks every name and existing file, then writes each through a partial file and a rename |
+| `model_files.hpp` | `ModelFilePaths`, `read_model_files`: a model file, an optional `.sushi` file and an optional training file into an `ImportedModel` |
+| `protobuf_wire_writer.hpp` | `ProtobufWireWriter`, `float_to_bits`, `double_to_bits` |
+| `protobuf_text_writer.hpp` | `write_protobuf_text`, the inverse of `parse_protobuf_text` |
+| `zip_writer.hpp` | `ZipWriter`: stored entries, CRC-32, an alignment per entry, zip64 past the 32-bit limits |
+| `pickle_writer.hpp` | `write_pickle`: protocol 2 from a `PickleValue` tree; a set is refused |
+| `safetensors_writer.hpp` | `write_safetensors`: float32, float64 and half tensors |
+| `torch_writer.hpp` | `write_torch_state_dict`: a PyTorch state dictionary zip, at the root or under a key |
+| `weight_export.hpp` | `ExportedWeights`, `export_state_weights`: records to PyTorch's kernel layout and the file's names |

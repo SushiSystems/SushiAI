@@ -69,6 +69,7 @@ several checkouts at once. Run `sa config` to see what the CLI resolved.
 | `sushiai train` | Train a model described by a JSON configuration |
 | `sushiai inference` | Evaluate a trained checkpoint over a dataset |
 | `sushiai import` | Write a model of another framework as a model, a weight and a training file; `import weights` writes the `.sushi` file of a model file from a PyTorch or safetensors weight file |
+| `sushiai export` | Write a model file, its weights and its training file as the files of ONNX, Caffe or Darknet; `export weights` writes a `.sushi` file as a safetensors or PyTorch weight file |
 | `sushiai tokenize` | Learn a byte-pair vocabulary from a corpus, or encode a corpus with one |
 | `sa profile` | Read a profiling record with SushiProfiler's `sp`; `sa train --profile` and `sa inference --profile` write one |
 | `sa config` | Show the resolved configuration |
@@ -104,7 +105,7 @@ of its own, `build/<name>-<type>`, where `<name>` is `default`, `asan` or `tsan`
 never gives an existing tree another type, so switching types never recompiles a tree; a tree
 configured as another type, or a `-D CMAKE_BUILD_TYPE=...`, stops the build with a message.
 `sa test` and `sa run` take `--type` and `--sanitize` too and read the tree they name; `sa
-train`, `sa inference`, `sa import`, `sa tokenize` and `sa demo` read the default Debug tree.
+train`, `sa inference`, `sa import`, `sa export`, `sa tokenize` and `sa demo` read the default Debug tree.
 
 Every configure runs the compiles and links through the memory gate of sushicore, which admits
 an edge only when its measured peak fits in the free memory. The gate keeps its state in
@@ -384,9 +385,9 @@ Two deliberate choices:
   own page and then says to run `sa build`. `sa train` and `sa inference` do
   the same, and `sa profile` does it while `sp` is not on the path.
 
-## `sushiai train`, `inference`, `import` and `tokenize`
+## `sushiai train`, `inference`, `import`, `export` and `tokenize`
 
-[`RUNNING_MODELS.md`](RUNNING_MODELS.md) describes the commands that train, run, import and tokenize from files.
+[`RUNNING_MODELS.md`](RUNNING_MODELS.md) describes the commands that train, run, import, export and tokenize from files.
 
 ## `sa clean` and `sa docs`
 

@@ -64,6 +64,7 @@ namespace SushiAI
             SA_TRY(registries.inferences.add(InferenceEntry{
                 Vision::Detect::Yolox::K_YOLOX_TASK_TYPE, &report_yolox_detections}));
             SA_TRY(Vision::register_importers(registries.importers));
+            SA_TRY(Vision::register_exporters(registries.exporters));
 
             return Status();
         }

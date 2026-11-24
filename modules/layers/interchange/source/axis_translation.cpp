@@ -89,6 +89,26 @@ namespace SushiAI
                     return rank - 1;
                 return axis - 1;
             }
+
+            /** @brief Returns the channel-first position of the valid axis @p axis. */
+            std::int64_t restored_axis(std::int64_t axis, std::int64_t rank) noexcept
+            {
+                if (axis == 0 || rank < 2)
+                    return axis;
+                if (axis == rank - 1)
+                    return 1;
+                return axis + 1;
+            }
+
+            /** @brief Returns InvalidDescription unless every extent is positive. */
+            Status require_positive(const std::vector<std::int64_t>& extents)
+            {
+                for (std::int64_t extent : extents)
+                    SA_FAIL_IF(extent <= 0, StatusCode::InvalidDescription,
+                               "a convolution weight has the extent {}, which is not positive",
+                               extent);
+                return Status();
+            }
         } // namespace
 
         Result<std::int64_t> channels_last_axis(std::int64_t axis, std::int64_t rank) noexcept
@@ -266,6 +286,107 @@ namespace SushiAI
                 {
                     for (std::size_t pixel = 0; pixel < pixels; ++pixel)
                         to[pixel * channel_count + channel] = from[channel * pixels + pixel];
+                }
+            }
+            return moved;
+        }
+
+        Result<std::int64_t> channels_first_axis(std::int64_t axis, std::int64_t rank) noexcept
+        {
+            SA_FAIL_IF(axis < -rank || axis >= rank, StatusCode::InvalidDescription,
+                       "the axis {} is out of range for a tensor of rank {}", axis, rank);
+            const std::int64_t positive = axis < 0 ? axis + rank : axis;
+            return restored_axis(positive, rank);
+        }
+
+        Result<std::vector<std::int64_t>>
+        channels_first_permutation(const std::vector<std::int64_t>& permutation)
+        {
+            const std::int64_t rank = static_cast<std::int64_t>(permutation.size());
+            std::vector<std::int64_t> out(permutation.size(), -1);
+            for (std::int64_t i = 0; i < rank; ++i)
+            {
+                const std::int64_t source = permutation[static_cast<std::size_t>(i)];
+                SA_FAIL_IF(source < 0 || source >= rank, StatusCode::InvalidDescription,
+                           "the permutation entry {} is out of range for rank {}", source, rank);
+                out[static_cast<std::size_t>(restored_axis(i, rank))] =
+                    restored_axis(source, rank);
+            }
+            std::vector<bool> seen(permutation.size(), false);
+            for (std::int64_t value : out)
+            {
+                SA_FAIL_IF(seen[static_cast<std::size_t>(value)], StatusCode::InvalidDescription,
+                           "the permutation lists the axis {} twice", value);
+                seen[static_cast<std::size_t>(value)] = true;
+            }
+            return out;
+        }
+
+        Result<std::vector<float>>
+        filter_to_source_layout(SushiRuntime::span<const float> weights,
+                                const std::vector<std::int64_t>& record_dimensions,
+                                bool depthwise)
+        {
+            const std::size_t rank = depthwise ? 3 : K_FILTER_RANK;
+            SA_FAIL_IF(record_dimensions.size() != rank, StatusCode::InvalidDescription,
+                       "the record of a {} weight has {} extents, this one has {}",
+                       depthwise ? "depthwise" : "convolution", rank, record_dimensions.size());
+            SA_TRY(require_positive(record_dimensions));
+
+            IO::FilterExtents extents;
+            if (depthwise)
+            {
+                extents.outputs = record_dimensions[2];
+                extents.inputs = 1;
+                extents.height = record_dimensions[0];
+                extents.width = record_dimensions[1];
+            }
+            else
+            {
+                extents.outputs = record_dimensions[0];
+                extents.inputs = record_dimensions[3];
+                extents.height = record_dimensions[1];
+                extents.width = record_dimensions[2];
+            }
+            const std::size_t count = static_cast<std::size_t>(extents.outputs * extents.inputs *
+                                                               extents.height * extents.width);
+            SA_FAIL_IF(weights.size() != count, StatusCode::InvalidDescription,
+                       "the weight holds {} floats, its extents need {}", weights.size(), count);
+
+            std::vector<float> out(count);
+            if (depthwise)
+                IO::copy_depthwise_kernel_first(weights.data(), extents, out.data());
+            else
+                IO::copy_kernel_first(weights.data(), extents, out.data());
+            return out;
+        }
+
+        Result<std::vector<float>>
+        flatten_weights_to_channels_first(SushiRuntime::span<const float> weights,
+                                          std::int64_t units, std::int64_t channels,
+                                          std::int64_t height, std::int64_t width)
+        {
+            SA_FAIL_IF(units <= 0 || channels <= 0 || height <= 0 || width <= 0,
+                       StatusCode::InvalidDescription,
+                       "an inner-product weight of {} units over {} by {} by {} needs positive "
+                       "extents",
+                       units, channels, height, width);
+            const std::size_t inputs = static_cast<std::size_t>(channels * height * width);
+            const std::size_t count = static_cast<std::size_t>(units) * inputs;
+            SA_FAIL_IF(weights.size() != count, StatusCode::InvalidDescription,
+                       "the weight holds {} floats, its extents need {}", weights.size(), count);
+
+            const std::size_t pixels = static_cast<std::size_t>(height * width);
+            const std::size_t channel_count = static_cast<std::size_t>(channels);
+            std::vector<float> moved(count);
+            for (std::size_t unit = 0; unit < static_cast<std::size_t>(units); ++unit)
+            {
+                const float* from = weights.data() + unit * inputs;
+                float* to = moved.data() + unit * inputs;
+                for (std::size_t channel = 0; channel < channel_count; ++channel)
+                {
+                    for (std::size_t pixel = 0; pixel < pixels; ++pixel)
+                        to[channel * pixels + pixel] = from[pixel * channel_count + channel];
                 }
             }
             return moved;

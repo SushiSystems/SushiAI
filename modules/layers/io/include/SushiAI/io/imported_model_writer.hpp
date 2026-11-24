@@ -56,6 +56,11 @@ namespace SushiAI
         /** @brief Holds the checkpoint the written training file asks a run to write. */
         inline constexpr std::string_view K_IMPORTED_CHECKPOINT_FILE = "trained.sushi";
 
+        /** @brief Lists the keys the writer of a training file states, which a recipe may not. */
+        inline constexpr std::string_view K_TRAINING_WRITER_KEYS[] = {
+            "sushiai_train", "model", "weights", "data", "checkpoint",
+        };
+
         /** @brief Names what the writer does with a file that is already in the directory. */
         enum class ExistingFiles : std::uint8_t
         {

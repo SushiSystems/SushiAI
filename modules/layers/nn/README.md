@@ -35,7 +35,7 @@ three trace forms, `Result<Shape> output_shape(const Shape&) const`, and one `st
 
 | Header | Holds |
 | --- | --- |
-| `module.hpp` | `Parameter`, `ParameterRole`, `ParameterInit`, `field`, `buffer`, `child`, `StateVisitor`, `ParameterVisitor`, `walk_state`, `for_each_parameter`, `for_each_buffer`, `parameter_count`, `buffer_count`, `parameter_elements`, `Module`, `ModuleContainer` |
+| `module.hpp` | `Parameter`, `ParameterRole`, `StateLayout`, `ParameterInit`, `field`, `buffer`, `child`, `StateVisitor`, `ParameterVisitor`, `walk_state`, `for_each_parameter`, `for_each_buffer`, `parameter_count`, `buffer_count`, `parameter_elements`, `Module`, `ModuleContainer` |
 | `buffer.hpp` | `Buffer` |
 | `module_list.hpp` | `ModuleList<T>` |
 | `model_state.hpp` | `StateKind`, `StateEntry`, `list_state_entries`, `ModelState` |
@@ -129,7 +129,10 @@ Source: MG 2.2, and its use in MG 2.10. PLAN unit U2.
 `ModelState` owns one tensor per entry of a model, allocated once on a `SushiBLAS::Engine`.
 An entry is each declared parameter and each defined buffer. `ModelState::create` walks a traced
 model and describes every entry as a `StateEntry`: its dotted name, its `StateKind`, its
-identity, shape, dtype, `ParameterInit` and fans. The walk skips what no trace declared, so a
+identity, shape, dtype, `ParameterInit`, fans and `StateLayout`. The layout is `Plain` unless the
+parameter set another: `Conv2d` marks its kernel `[out, kh, kw, in]` as `KernelLast` and a depthwise
+kernel `[kh, kw, C]` as `DepthwiseKernelLast`, which tells a weight export which records to move
+back to PyTorch's layout. The walk skips what no trace declared, so a
 model no trace has reached gives an empty state. `list_state_entries(model, prefix)` is that walk
 alone: it returns the `StateEntry` list without an engine or a tensor, and `create` lists through
 it, so a listing and a state agree in names, shapes, dtypes and order. `from_entries` allocates the tensors of a list

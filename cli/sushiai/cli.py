@@ -47,6 +47,7 @@ K_HELP_FLAG = "--help"
 K_TRAIN_TARGET = "sushiai_train"
 K_INFERENCE_TARGET = "sushiai_inference"
 K_IMPORT_TARGET = "sushiai_import"
+K_EXPORT_TARGET = "sushiai_export"
 K_TOKENIZE_TARGET = "sushiai_tokenize"
 K_API_XML = "build/docs/api-site/xml"
 K_FORWARDING = {
@@ -366,6 +367,28 @@ def import_model(ctx: typer.Context) -> None:
     _show_page_while_unbuilt(ctx, K_IMPORT_TARGET)
     raise typer.Exit(
         project_svc.run_app(_toolbox(), K_IMPORT_TARGET, "SushiAI Import", list(ctx.args)))
+
+
+@app.command(
+    "export",
+    rich_help_panel=K_MODELS,
+    epilog="sa export onnx models/lenet/model.json models/lenet/weights.sushi --output exported\n"
+           "sa export weights torch model.json weights.sushi --output model.pth",
+    context_settings=K_FORWARDING,
+)
+def export_model(ctx: typer.Context) -> None:
+    """Write a model, its weights and its training file as the files of another framework.
+
+    Usage: sa export <format> <model.json> [<weights.sushi>] --output
+    <directory> [--training <train.json>] [--name <stem>] [--force], with onnx,
+    caffe or darknet as the format; or sa export weights <safetensors|torch>
+    <model.json> <weights.sushi> --output <file> [--map <map.json>] [--force].
+    Arguments are forwarded verbatim to the program, --help included once it
+    is built.
+    """
+    _show_page_while_unbuilt(ctx, K_EXPORT_TARGET)
+    raise typer.Exit(
+        project_svc.run_app(_toolbox(), K_EXPORT_TARGET, "SushiAI Export", list(ctx.args)))
 
 
 @app.command(

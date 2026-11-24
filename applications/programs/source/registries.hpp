@@ -31,6 +31,7 @@
 
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
+#include <SushiAI/io/exporter_registry.hpp>
 #include <SushiAI/io/importer_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/train/objective_registry.hpp>
@@ -65,6 +66,9 @@ namespace SushiAI
 
             /** @brief The importers `sushiai import` may name, by format. */
             IO::ImporterRegistry importers;
+
+            /** @brief The exporters `sushiai export` may name, by format. */
+            IO::ExporterRegistry exporters;
         };
 
         /**

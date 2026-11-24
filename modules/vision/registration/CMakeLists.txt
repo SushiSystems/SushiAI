@@ -18,5 +18,6 @@ sushiai_add_module(NAME registration TIER vision
         vision/blocks
         vision/datasets
         vision/detect
+        vision/exporters
         vision/importers
         vision/training)

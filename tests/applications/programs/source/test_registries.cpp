@@ -44,7 +44,8 @@ namespace
         return registries.nodes.nodes().size() + registries.nodes.layers().size() +
                registries.nodes.linked().size() + registries.datasets.rows().size() +
                registries.objectives.rows().size() + registries.runs.rows().size() +
-               registries.inferences.rows().size() + registries.importers.rows().size();
+               registries.inferences.rows().size() + registries.importers.rows().size() +
+               registries.exporters.rows().size();
     }
 } // namespace
 

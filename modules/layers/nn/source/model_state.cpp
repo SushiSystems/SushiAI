@@ -58,6 +58,7 @@ namespace SushiAI
                 entry.init = parameter.init();
                 entry.fan_in = parameter.fan_in();
                 entry.fan_out = parameter.fan_out();
+                entry.layout = parameter.layout();
                 return entry;
             }
 

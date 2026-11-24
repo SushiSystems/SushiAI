@@ -55,6 +55,9 @@ namespace SushiAI
     {
         /** @brief The registry of importer rows; declared in importer_registry.hpp. */
         class ImporterRegistry;
+
+        /** @brief The registry of exporter rows; declared in exporter_registry.hpp. */
+        class ExporterRegistry;
     } // namespace IO
 } // namespace SushiAI
 
@@ -90,5 +93,12 @@ namespace SushiAI::Vision
      * @return Success, or the first failure of ImporterRegistry::add().
      */
     [[nodiscard]] Status register_importers(IO::ImporterRegistry& registry) noexcept;
+
+    /**
+     * @brief Adds the "onnx", "caffe" and "darknet" exporter rows to @p registry.
+     * @param registry The registry that receives the rows, one per exporter.
+     * @return Success, or the first failure of ExporterRegistry::add().
+     */
+    [[nodiscard]] Status register_exporters(IO::ExporterRegistry& registry) noexcept;
 
 } // namespace SushiAI::Vision

@@ -2,7 +2,7 @@
 
 ## Owns
 
-The four functions that fill the registries with vision rows. `register_nodes` adds the twelve block
+The five functions that fill the registries with vision rows. `register_nodes` adds the twelve block
 node types, conv, bottleneck, c3k, c3k2, c2f, c3, sppf, c2psa, detect, segment_head, focus and
 decoupled_head, to an
 `NN::NodeRegistry`, in that order. `register_datasets`
@@ -18,10 +18,14 @@ with `reader` and no `type` is given. `register_objectives` adds four rows to a
 `Importers::import_darknet_files`, the `ultralytics` row, whose function is
 `Importers::import_ultralytics_files`, the `onnx` row, whose function is
 `Importers::import_onnx_files`, and the `caffe` row, whose function is
-`Importers::import_caffe_files`, to an `IO::ImporterRegistry`. Each returns a `Status`:
-success, or the first failure of the registry's `add()`. The header forward-declares the four
+`Importers::import_caffe_files`, to an `IO::ImporterRegistry`. `register_exporters` adds the
+`onnx` row, whose function is `Exporters::export_onnx_files`, the `caffe` row, whose
+function is `Exporters::export_caffe_files`, and the `darknet` row, whose function is
+`Exporters::export_darknet_files`, to an `IO::ExporterRegistry`. Each
+returns a `Status`:
+success, or the first failure of the registry's `add()`. The header forward-declares the five
 registries; their declarations live in `node_registry.hpp`, `dataset_registry.hpp`,
-`objective_registry.hpp` and `importer_registry.hpp`.
+`objective_registry.hpp`, `importer_registry.hpp` and `exporter_registry.hpp`.
 
 ## Depends on
 
@@ -29,10 +33,11 @@ registries; their declarations live in `node_registry.hpp`, `dataset_registry.hp
 - `config`, `data`, `nn`, `train`, `vision/blocks`, `vision/datasets`, `vision/detect` and
   `vision/training` (`PRIVATE_DEPENDS`). `config` holds `Config::K_READER_DATA_TYPE` of
   `train_config.hpp`.
-- `io` and `vision/importers` (`PRIVATE_DEPENDS`), for the importer row.
+- `io` and `vision/importers` (`PRIVATE_DEPENDS`), for the importer rows.
+- `vision/exporters` (`PRIVATE_DEPENDS`), for the exporter rows.
 
 ## Public entry points
 
 | Header | Declares |
 | --- | --- |
-| `<SushiAI/vision/registration/registration.hpp>` | `register_nodes`, `register_datasets`, `register_objectives`, `register_importers` |
+| `<SushiAI/vision/registration/registration.hpp>` | `register_nodes`, `register_datasets`, `register_objectives`, `register_importers`, `register_exporters` |

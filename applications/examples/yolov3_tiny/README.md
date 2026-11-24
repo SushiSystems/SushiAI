@@ -64,7 +64,8 @@ split is the training split: it measures fit, not generalisation.
 
 The `objective` and `schedule` are the values the import took from the `.cfg`. Both are
 written for Darknet's `max_batches`, so the schedule steps at iterations 400000 and 450000,
-which 10 epochs of coco128 at batch 16 (80 updates) never reach; the warm-up of 1000 updates does not finish either, so the whole run trains under the warm-up ramp.
+which 10 epochs of coco128 at batch 16 (80 updates) never reach; the warm-up of 1000 updates
+does not finish either, so the whole run trains under the warm-up ramp.
 
 ```bash
 sa train applications/examples/yolov3_tiny/train.json
@@ -98,11 +99,13 @@ size 4 and 416 by 416, so these are runs of the chain and not of a recipe.
 | `sa train`, 5 epochs, rate 1e-3, warm-up of 10 updates | Loss rose from 34.12 to 87.95; the run took 52 s and the host working set peaked at 254 MB |
 | `sa train`, 5 epochs, rate 1e-5, warm-up of 10 updates | Loss fell from 24.31 to 19.57 |
 
-The weights come from Darknet's COCO training, and `coco128` is made of COCO training images, so the
-precision measures fit, not generalisation. Darknet's own `detector map` on the same images and
-weights printed 0.2378 over the same 929 boxes. The two numbers agree once the mean is taken the
-same way: Darknet divides by its 80 classes and `sa inference` by the 71 that have truth, and with
-`detection.confidence_floor` at 0.005, Darknet's floor, the report reads 0.2668 and 0.2668 x 71 / 80
-is the 0.2378. The three five-epoch runs show that the import's own recipe descends at batch size 4, that a rate of 1e-3 reached within 10 updates diverges, and that a rate of 1e-5 descends. The warm-up of 1000 updates is what keeps the first 160 updates small. The training parity suites, which compare the gradients with
-Darknet's, passed in a separate run for every model but one: the YOLOv7 one-batch overfit ends at
-10.45 percent of its first cost against a bound of 10 percent.
+The weights come from Darknet's COCO training, and `coco128` is made of COCO training images, so
+the precision measures fit, not generalisation. Darknet's own `detector map` on the same images
+and weights printed 0.2378 over the same 929 boxes. The two numbers agree once the mean is taken
+the same way: Darknet divides by its 80 classes and `sa inference` by the 71 that have truth, and
+with `detection.confidence_floor` at 0.005, Darknet's floor, the report reads 0.2668 and
+0.2668 x 71 / 80 is the 0.2378. The three five-epoch runs show that the import's own recipe
+descends at batch size 4, that a rate of 1e-3 reached within 10 updates diverges, and that a rate
+of 1e-5 descends. The warm-up of 1000 updates is what keeps the first 160 updates small. The
+training parity suites, which compare the gradients with Darknet's, passed in a separate run for
+every model but one: the YOLOv7 one-batch overfit ends at 10.45 percent of its first cost against a bound of 10 percent.

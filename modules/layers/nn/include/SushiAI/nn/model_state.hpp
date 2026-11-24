@@ -86,6 +86,9 @@ namespace SushiAI
 
             /** @brief The outputs one input unit feeds, as the parameter declared them. */
             int64_t fan_out = 0;
+
+            /** @brief How the elements are laid out; Plain for a buffer. */
+            StateLayout layout = StateLayout::Plain;
         };
 
         namespace Detail

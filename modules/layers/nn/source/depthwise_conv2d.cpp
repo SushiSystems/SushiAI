@@ -111,6 +111,7 @@ namespace SushiAI
                           weight.declare(builder,
                                          Shape{geometry.kernel_h, geometry.kernel_w, channels},
                                          ParameterRole::Weight, window, window, "weight", dtype));
+            weight.set_layout(StateLayout::DepthwiseKernelLast);
 
             return builder.depthwise_conv2d(x, w, geometry);
         }

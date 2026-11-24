@@ -46,6 +46,7 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/buffer.hpp>
+#include <SushiAI/nn/conv2d.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -188,6 +189,45 @@ TEST_F(Small_ModelState, ListStateEntriesEqualsTheEntriesCreateProduces)
     EXPECT_EQ(listed[0].shape, (Shape{3}));
     EXPECT_EQ(listed[2].name, "net.bn.running_mean");
     EXPECT_EQ(listed[2].kind, NN::StateKind::Buffer);
+}
+
+/**
+ * @brief Tests that a convolution weight lists as KernelLast, a depthwise one as
+ *        DepthwiseKernelLast, and a linear weight and every bias as Plain.
+ */
+TEST_F(Small_ModelState, ListStateEntriesStatesTheLayoutOfEachKernel)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID image = builder.input(Shape{1, 6, 6, 3}, "image");
+    const Graph::ValueID vector = builder.input(Shape{1, 6}, "vector");
+
+    NN::Conv2d dense;
+    dense.in_channels = 3;
+    dense.out_channels = 4;
+    dense.geometry.kernel_h = 3;
+    dense.geometry.kernel_w = 3;
+    NN::Conv2d depthwise = dense;
+    depthwise.out_channels = 3;
+    depthwise.groups = 3;
+    NN::Linear linear{6, 2};
+    SA_EXPECT_OK(dense.forward(builder, image));
+    SA_EXPECT_OK(depthwise.forward(builder, image));
+    SA_EXPECT_OK(linear.forward(builder, vector));
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<NN::StateEntry> conv,
+                            NN::list_state_entries(dense));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<NN::StateEntry> channel,
+                            NN::list_state_entries(depthwise));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<NN::StateEntry> dense_rows,
+                            NN::list_state_entries(linear));
+    ASSERT_EQ(conv.size(), 2u);
+    EXPECT_EQ(conv[0].layout, NN::StateLayout::KernelLast);
+    EXPECT_EQ(conv[1].layout, NN::StateLayout::Plain);
+    ASSERT_FALSE(channel.empty());
+    EXPECT_EQ(channel[0].layout, NN::StateLayout::DepthwiseKernelLast);
+    ASSERT_FALSE(dense_rows.empty());
+    EXPECT_EQ(dense_rows[0].layout, NN::StateLayout::Plain);
 }
 
 /** @brief Tests that a model never traced gives a valid state with no entries. */

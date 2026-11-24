@@ -60,5 +60,22 @@ namespace SushiAI
          */
         void copy_depthwise_kernel_last(const float* source, const FilterExtents& extents,
                                         float* destination) noexcept;
+
+        /**
+         * @brief Copies a weight stored [out, kh, kw, in] into @p destination as [out, in, kh, kw],
+         *        the inverse of copy_kernel_last.
+         * @pre @p source and @p destination each hold the product of @p extents and do not overlap.
+         */
+        void copy_kernel_first(const float* source, const FilterExtents& extents,
+                               float* destination) noexcept;
+
+        /**
+         * @brief Copies a depthwise weight stored [kh, kw, C] into @p destination as
+         *        [C, 1, kh, kw], the inverse of copy_depthwise_kernel_last.
+         * @param extents Its outputs are the channels C; its inputs must be 1.
+         * @pre @p source and @p destination each hold C kh kw floats and do not overlap.
+         */
+        void copy_depthwise_kernel_first(const float* source, const FilterExtents& extents,
+                                         float* destination) noexcept;
     } // namespace IO
 } // namespace SushiAI

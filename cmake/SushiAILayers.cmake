@@ -69,6 +69,7 @@ set(SUSHIAI_MODULE_TIERS
     vision/blocks        vision
     vision/datasets      vision
     vision/importers     vision
+    vision/exporters     vision
     vision/training      vision
     vision/registration  vision
     vision/umbrella      vision

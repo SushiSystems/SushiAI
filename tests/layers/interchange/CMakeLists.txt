@@ -9,8 +9,10 @@ sushiai_add_test_program(OWNER interchange
     SOURCES
         test_axis_translation.cpp
         test_caffe_net.cpp
+        test_caffe_writer.cpp
         test_constant_folding.cpp
         test_onnx_graph.cpp
+        test_onnx_writer.cpp
         test_tensor_bytes.cpp
     DEPENDS
         failure_expectations)

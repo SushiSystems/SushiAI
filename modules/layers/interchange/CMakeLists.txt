@@ -10,8 +10,10 @@ sushiai_add_module(NAME interchange TIER layers
         source/axis_translation.cpp
         source/caffe_net.cpp
         source/caffe_v1_types.cpp
+        source/caffe_writer.cpp
         source/constant_folding.cpp
         source/onnx_graph.cpp
+        source/onnx_writer.cpp
         source/tensor_bytes.cpp
         source/wire_values.cpp
     PUBLIC_DEPENDS failure io

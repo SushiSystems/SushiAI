@@ -12,6 +12,7 @@ sushiai_add_module(NAME umbrella TIER vision
         vision/codecs
         vision/datasets
         vision/detect
+        vision/exporters
         vision/imaging
         vision/importers
         vision/registration

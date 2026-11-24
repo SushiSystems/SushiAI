@@ -32,6 +32,7 @@
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
+#include <SushiAI/io/exporter_registry.hpp>
 #include <SushiAI/io/importer_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/train/objective_registry.hpp>
@@ -50,6 +51,9 @@
 #include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiAI/vision/datasets/reader_section.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_section.hpp>
+#include <SushiAI/vision/exporters/caffe_export.hpp>
+#include <SushiAI/vision/exporters/darknet_export.hpp>
+#include <SushiAI/vision/exporters/onnx_export.hpp>
 #include <SushiAI/vision/importers/caffe_import.hpp>
 #include <SushiAI/vision/importers/darknet_import.hpp>
 #include <SushiAI/vision/importers/onnx_import.hpp>
@@ -113,6 +117,17 @@ namespace SushiAI::Vision
                                               &Importers::import_onnx_files}));
         return registry.add(IO::ImporterEntry{Importers::K_CAFFE_FORMAT,
                                               &Importers::import_caffe_files});
+    }
+
+    Status register_exporters(IO::ExporterRegistry& registry) noexcept
+    {
+        SA_TRY(registry.add(IO::ExporterEntry{Exporters::K_ONNX_EXPORT_FORMAT,
+                                              &Exporters::export_onnx_files}));
+        SA_TRY(registry.add(IO::ExporterEntry{Exporters::K_CAFFE_EXPORT_FORMAT,
+                                              &Exporters::export_caffe_files}));
+        SA_TRY(registry.add(IO::ExporterEntry{Exporters::K_DARKNET_EXPORT_FORMAT,
+                                              &Exporters::export_darknet_files}));
+        return Status();
     }
 
 } // namespace SushiAI::Vision

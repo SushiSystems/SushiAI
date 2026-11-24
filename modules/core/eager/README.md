@@ -63,8 +63,9 @@ Each header is named by its include path under `include/`.
 ## What the caller writes
 
 A loop builds one `ScopePartitioner`, one `RegionExecutor` on a `RuntimeBackend` and one
-`Session` on the backend over both, and binds each model state once with `Session::bind_state`. Per step it calls
-`Session::begin_step`, declares each batch with `Step::input`, takes the leaf of each state from
+`Session` on the backend over both, and binds each model state once with
+`Session::bind_state`. Per step it calls `Session::begin_step`, declares each batch with
+`Step::input`, takes the leaf of each state from
 `Step::state`, emits nodes through `Step::builder`, and opens `Scope` objects on `Step::scopes`
 where it wants a region boundary. `Step::backward` appends the gradients, `Step::apply` runs
 the step with an update behind it, and `Step::read_scalar` returns the loss.
@@ -187,8 +188,9 @@ equality compares both.
 
 #### signature_of
 
-The hash is the 64-bit FNV-1a of the `hash` module, fed one word at a time, low byte first. It covers, for the region's nodes in order: the operation, the attributes, and for each
-result its shape, element type and layout; then each operand's position.
+The hash is the 64-bit FNV-1a of the `hash` module, fed one word at a time, low byte first. It
+covers, for the region's nodes in order: the operation, the attributes, and for each result its
+shape, element type and layout; then each operand's position.
 
 An operand's position is never its value id or its producer's node id. Those shift whenever an
 earlier region grows, and a region whose own structure did not change must keep its signature.
@@ -360,8 +362,9 @@ settled loop allocates nothing.
 into it. The task recorder lives for the call: a recorded task holds its operands' storage and
 its body, and nothing of the recorder. A late-count task, whose width a count tensor gives at
 run time, keeps its storages in the emitter's `SushiBLAS::LateCountHold` instead, which lives as
-long as the emitter, so as long as its region; `emit` releases it before it records again. The emitter keeps the replay preludes and the fusion
-selections of the last call, and counts its calls, which is how a test shows that a region was
+long as the emitter, so as long as its region; `emit` releases it before it records again. The
+emitter keeps the replay preludes and the fusion selections of the last call, and counts its
+calls, which is how a test shows that a region was
 recorded once.
 
 SushiRuntime's `Region` hands out its `Recorder` through `Region::recorder`, and the emitter
@@ -481,10 +484,11 @@ passed to `keep`, or the value whose read started the run. Any other value may h
 into a fused node or overwritten in an arena.
 
 `input` returns a `Graph::Traced`; a tensor with no element comes back as a failed one and marks
-the step's graph as refused. `backward`, `read`, `read_scalar` and `keep` take a `Graph::Traced`, so an emitter's result goes
-in without unwrapping. Handed a failed trace they return its failure, and `backward` returns
+the step's graph as refused. `backward`, `read`, `read_scalar` and `keep` take a
+`Graph::Traced`, so an emitter's result goes in without unwrapping. Handed a failed trace they
+return its failure, and `backward` returns
 `InvalidDescription` for a graph that holds a refusal even when the loss itself traced.
 
 Tracing a node after the step ran, or after `backward`, makes the next read return `Unsupported`.
-The design's phases, one dynamic graph per stretch between two reads, are not built; see
-`docs/backlog/README.md`.
+The design's phases, one dynamic graph per stretch between two reads, are not built;
+`sa backlog list --area EAGER_FRONT_END` prints the open work on them.

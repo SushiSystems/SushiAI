@@ -23,10 +23,11 @@
 
 /**
  * @file test_filter_layout.cpp
- * @brief Tests the moves of convolution weights to the kernel-last layouts.
+ * @brief Tests the moves of convolution weights between the kernel-first and kernel-last layouts.
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/io/filter_layout.hpp>
@@ -58,4 +59,36 @@ TEST(Small_FilterLayout, ADepthwiseWeightRunsTapChannel)
 
     const std::vector<float> expected = {0, 2, 4, 1, 3, 5};
     EXPECT_EQ(destination, expected);
+}
+
+/** @brief Tests that a seeded [2, 3, 3, 4] weight moved last then first comes back whole. */
+TEST(Small_FilterLayout, ADenseWeightMovedBothWaysComesBack)
+{
+    std::vector<float> source(2 * 3 * 3 * 4);
+    for (std::size_t i = 0; i < source.size(); ++i)
+        source[i] = static_cast<float>((i * 37u) % 101u) - 50.0f;
+    std::vector<float> last(source.size());
+    std::vector<float> first(source.size());
+    const IO::FilterExtents extents{2, 4, 3, 3};
+
+    IO::copy_kernel_last(source.data(), extents, last.data());
+    IO::copy_kernel_first(last.data(), extents, first.data());
+
+    EXPECT_EQ(first, source);
+}
+
+/** @brief Tests that a seeded [3, 3, 5] depthwise weight moved first then last comes back. */
+TEST(Small_FilterLayout, ADepthwiseWeightMovedBothWaysComesBack)
+{
+    std::vector<float> source(3 * 3 * 5);
+    for (std::size_t i = 0; i < source.size(); ++i)
+        source[i] = static_cast<float>((i * 53u) % 97u) - 40.0f;
+    std::vector<float> first(source.size());
+    std::vector<float> last(source.size());
+    const IO::FilterExtents extents{5, 1, 3, 3};
+
+    IO::copy_depthwise_kernel_first(source.data(), extents, first.data());
+    IO::copy_depthwise_kernel_last(first.data(), extents, last.data());
+
+    EXPECT_EQ(last, source);
 }

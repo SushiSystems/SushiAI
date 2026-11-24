@@ -243,3 +243,6 @@
 #include <SushiAI/vision/detect/yolox/yolox_task.hpp>
 #include <SushiAI/vision/importers/caffe_import.hpp>
 #include <SushiAI/vision/importers/onnx_import.hpp>
+#include <SushiAI/vision/exporters/caffe_export.hpp>
+#include <SushiAI/vision/exporters/darknet_export.hpp>
+#include <SushiAI/vision/exporters/onnx_export.hpp>

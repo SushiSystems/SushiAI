@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- 2026-11-24 — model_import: Added `sushiai export` and `sa export`, which write a model as ONNX, Caffe or Darknet files, and `export weights` for safetensors and PyTorch (`applications/programs/README.md`).
+- 2026-11-24 — model_import: Added the `vision/exporters` module with the ONNX, Caffe and Darknet exporters, which refuse a row the importer cannot read back (`modules/vision/exporters/README.md`).
+- 2026-11-24 — io: Added the writers of protobuf wire and text, zip, pickle, safetensors and PyTorch files, `ExporterRegistry`, `read_model_files` and `write_exported_model` (`modules/layers/io/README.md`).
+- 2026-11-24 — interchange: Added `write_onnx_graph`, `write_caffe_prototxt` and `write_caffe_model` and the channel-first axis rewrites (`modules/layers/interchange/README.md`).
+- 2026-11-24 — nn: Added `StateEntry::layout`, which `Conv2d` and `DepthwiseConv2d` set to their kernel layout (`modules/layers/nn/README.md`).
+- 2026-11-24 — datasets_tasks: Wrote version 2 of the weight file from the YOLO26 exporter (RW-74).
+- 2026-11-24 — model_import: Gave YOLOv3-tiny an example directory (RW-133).
+- 2026-11-24 — language: Redrew a token dataset's windows per epoch (RW-90).
+- 2026-11-24 — language: Called `match_input` from the anchor loop (RW-89).
+- 2026-11-24 — graph_capabilities: Gave `Status` a code for a runtime busy with another run (RW-122).
+- 2026-11-24 — model_import: Carried the `.cfg`'s augmentation into the training file (RW-136).
+- 2026-11-24 — model_import: Wrote a float32 setting as the shortest decimal that reads back (RW-137).
+- 2026-11-24 — model_import: Letterboxed an imported `letter_box=1` model as Darknet does (RW-138).
+- 2026-11-24 — diagnostics: Closed the demo's per-node timings as superseded by the zones of the PROFILING design (RW-113).
+- 2026-11-24 — model_import: Marked design phases 5 to 9 built, listed io, interchange and vision/importers, fixed the `import weights` line and added the EXPORT page with phases E1 to E4 (`docs/design/MODEL_IMPORT/README.md`).
+- 2026-11-24 — eager: Opened the EAGER_FRONT_END design topic for the eager module (`docs/design/EAGER_FRONT_END/README.md`).
+- 2026-11-24 — docs: Pointed the eager README to `sa backlog` for the open phases and wrapped the yolov3_tiny README to 100 columns (`modules/core/eager/README.md`).
 - 2026-11-24 — failure_contract: Stated that under `ForceReference` the gradient check shares the SYCL path's element functor, so it separates launch and index errors, not formula errors (RW-14).
 - 2026-11-24 — dependencies: Moved the pins to SushiRuntime v0.7.2, SushiBLAS v0.3.1, SushiLog v0.5.2 and SushiProfiler v0.5.2, which all need sushicore 0.18 (`cli/sushistack.deps.toml`).
 - 2026-11-23 — ci: The upstream-main job builds SushiRuntime main with the SushiProfiler and SushiLog refs it needs and passes (RW-173, `ci.yml`).

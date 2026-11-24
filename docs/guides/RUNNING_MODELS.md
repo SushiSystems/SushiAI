@@ -1,6 +1,6 @@
 # Running models
 
-The `sushiai` commands that train, run, import and tokenize from files: `train`, `inference`, `import` and `tokenize`. The build and test commands are in the [CLI guide](CLI_GUIDE.md).
+The `sushiai` commands that train, run, import, export and tokenize from files: `train`, `inference`, `import`, `export` and `tokenize`. The build and test commands are in the [CLI guide](CLI_GUIDE.md).
 
 ## `sushiai train` and `sushiai inference`: config-driven runs
 
@@ -411,6 +411,52 @@ PyTorch layout, is permuted to the record's `[out, kh, kw, in]`, and a depthwise
 `[channels, 1, kh, kw]` to `[kh, kw, channels]`; any other difference of shape is refused as
 misshapen. Values are read as float32 and stored in the record's element type, float32 or
 float64.
+
+## `sushiai export`: a model as the files of another framework
+
+`sushiai export` is the other half of `import`. It writes a model file, its `.sushi` weights and
+its training file as the files of ONNX, Caffe or Darknet, and a `.sushi` file as a safetensors or
+PyTorch weight file. `sa export` forwards to it as `sa import` forwards to `sushiai import`.
+
+```bash
+sushiai export onnx model.json weights.sushi --output exported
+sushiai export darknet model.json weights.sushi --output exported --training train.json --name yolov3_tiny
+sushiai export weights torch model.json weights.sushi --output model.pth
+```
+
+| Argument | Meaning |
+| --- | --- |
+| `<format>` | The exporter to write with: `onnx` writes `<stem>.onnx`, `caffe` writes `<stem>.prototxt` and, with weights, `<stem>.caffemodel`, and `darknet` writes `<stem>.cfg` and, with weights, `<stem>.weights`. A format with no exporter is refused with the formats that have one |
+| `<model.json>` | The model file |
+| `<weights.sushi>` | Optional. The model-state records of the file become the weights; a run state in it is not read |
+| `--output`, `-o` | The directory that receives the files; it is created when absent |
+| `--training` | The training file, for a format that states a training recipe: Darknet writes its keys into the `[net]` and `[yolo]` sections |
+| `--name` | The stem of every written file, `model` when absent |
+| `--force` | Replace a file that is already there. Without it an existing file stops the export before anything is written |
+
+An exporter writes only the rows its importer reads back, so every exported file imports to the
+same model and the same tensors. A row the format cannot state stops the export, and the message
+names each such row by index and type. A value no file of the format holds, such as the task
+section in ONNX and Caffe or the training file of a format without a recipe, becomes a note,
+and the export goes on. The command prints the format, the inputs, the files written and the
+notes, and creates no engine.
+
+### `sushiai export weights`: a weight file for PyTorch
+
+```bash
+sushiai export weights safetensors model.json weights.sushi --output model.safetensors
+sushiai export weights torch model.json yolox_x.sushi --map yolox_map.json --output yolox_x.pth
+```
+
+The command writes each model-state record of the `.sushi` file, in its element type: float32,
+float64 or half. A convolution kernel goes back to PyTorch's layout, `[out, kh, kw, in]` to
+`[out, in, kh, kw]` and a depthwise `[kh, kw, channels]` to `[channels, 1, kh, kw]`; the model
+file says which records are kernels. `--map` takes the name map of `import weights` and applies
+each `rename` backwards, from `to` to `from`. Its `state_dict` names the key the PyTorch
+dictionary is written under, and a safetensors file ignores it. A `drop` entry names a tensor
+SushiAI has no record for, so it is not written and becomes a note, as does the
+`num_batches_tracked` counter of each normalisation: `load_state_dict(strict=False)` loads the
+file without it.
 
 ## `sushiai tokenize`: a vocabulary and a token file
 

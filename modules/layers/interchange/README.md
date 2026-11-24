@@ -95,6 +95,8 @@ The headers sit in `modules/layers/interchange/include/SushiAI/interchange/`.
 | --- | --- |
 | `tensor_bytes.hpp` | `TensorBytes` |
 | `onnx_graph.hpp` | `OnnxDataType`, `onnx_element_bytes`, `OnnxDimension`, `OnnxValueInfo`, `OnnxTensor`, `OnnxAttributeType`, `OnnxAttribute`, `OnnxNode`, `OnnxOpset`, `OnnxGraph`, `read_onnx_graph` |
-| `axis_translation.hpp` | `channels_last_axis`, `channels_last_axes`, `channels_last_permutation`, `channels_last_shape`, `channels_last_flatten_axis`, `AxisAttributeKind`, `axis_attribute_kind`, `translate_axis_attribute`, `filter_record_dimensions`, `filter_to_record_layout`, `flatten_weights_to_channels_last` |
+| `axis_translation.hpp` | `channels_last_axis`, `channels_last_axes`, `channels_last_permutation`, `channels_last_shape`, `channels_last_flatten_axis`, `AxisAttributeKind`, `axis_attribute_kind`, `translate_axis_attribute`, `filter_record_dimensions`, `filter_to_record_layout`, `flatten_weights_to_channels_last`, and the channel-first counterparts `channels_first_axis`, `channels_first_permutation`, `filter_to_source_layout`, `flatten_weights_to_channels_first` |
+| `onnx_writer.hpp` | `write_onnx_graph`, the inverse of `read_onnx_graph`: tensors as `raw_data`, value infos with their tensor type and shape |
+| `caffe_writer.hpp` | `write_caffe_prototxt`, `write_caffe_model`, the inverses of the two Caffe readers; every layer is written as a V2 `layer` |
 | `constant_folding.hpp` | `ConstantKind`, `ConstantValue`, `NamedConstant`, `FoldedGraph`, `fold_constants` |
 | `caffe_net.hpp` | `CaffeBlob`, `CaffeLayer`, `CaffeNet`, `read_caffe_prototxt`, `read_caffe_model`, `attach_caffe_weights` |

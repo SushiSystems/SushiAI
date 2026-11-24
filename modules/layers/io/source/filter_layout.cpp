@@ -63,5 +63,34 @@ namespace SushiAI
                     destination[t * channels + c] = source[c * taps + t];
             }
         }
+
+        void copy_kernel_first(const float* source, const FilterExtents& extents,
+                               float* destination) noexcept
+        {
+            const auto outputs = static_cast<std::size_t>(extents.outputs);
+            const auto inputs = static_cast<std::size_t>(extents.inputs);
+            const auto taps = static_cast<std::size_t>(extents.height * extents.width);
+            for (std::size_t o = 0; o < outputs; ++o)
+            {
+                for (std::size_t i = 0; i < inputs; ++i)
+                {
+                    for (std::size_t t = 0; t < taps; ++t)
+                        destination[(o * inputs + i) * taps + t] =
+                            source[(o * taps + t) * inputs + i];
+                }
+            }
+        }
+
+        void copy_depthwise_kernel_first(const float* source, const FilterExtents& extents,
+                                         float* destination) noexcept
+        {
+            const auto channels = static_cast<std::size_t>(extents.outputs);
+            const auto taps = static_cast<std::size_t>(extents.height * extents.width);
+            for (std::size_t c = 0; c < channels; ++c)
+            {
+                for (std::size_t t = 0; t < taps; ++t)
+                    destination[c * taps + t] = source[t * channels + c];
+            }
+        }
     } // namespace IO
 } // namespace SushiAI

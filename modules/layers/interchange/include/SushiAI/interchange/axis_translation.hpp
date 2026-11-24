@@ -23,7 +23,7 @@
 
 /**
  * @file axis_translation.hpp
- * @brief Declares the rewrite of axis attributes and filters to the channel-last layout.
+ * @brief Declares the axis and filter rewrites between channel-first and channel-last layouts.
  * @author Mustafa Garip
  * @see docs/design/MODEL_IMPORT/README.md
  */
@@ -147,5 +147,48 @@ namespace SushiAI
         flatten_weights_to_channels_last(SushiRuntime::span<const float> weights,
                                          std::int64_t units, std::int64_t channels,
                                          std::int64_t height, std::int64_t width);
+
+        /**
+         * @brief Returns the channel-first position of the channel-last axis @p axis, the
+         *        inverse of channels_last_axis.
+         * @param axis A position in [-rank, rank); a negative one counts from the end.
+         * @return The non-negative position; InvalidDescription for an axis out of range.
+         */
+        [[nodiscard]] Result<std::int64_t> channels_first_axis(std::int64_t axis,
+                                                               std::int64_t rank) noexcept;
+
+        /**
+         * @brief Rewrites a channel-last permutation to channel-first, the inverse of
+         *        channels_last_permutation.
+         * @return InvalidDescription when @p permutation is not a permutation of 0 to rank - 1.
+         */
+        [[nodiscard]] Result<std::vector<std::int64_t>>
+        channels_first_permutation(const std::vector<std::int64_t>& permutation);
+
+        /**
+         * @brief Permutes a convolution weight from the record layout back to the layout of
+         *        the source framework, the inverse of filter_to_record_layout.
+         * @param weights The floats, row-major over @p record_dimensions.
+         * @param record_dimensions [out, kh, kw, in], or [kh, kw, C] when @p depthwise.
+         * @return The floats [out, in, kh, kw], or [C, 1, kh, kw]; InvalidDescription for a
+         *         wrong rank, a non-positive extent or a count the extents do not give.
+         */
+        [[nodiscard]] Result<std::vector<float>>
+        filter_to_source_layout(SushiRuntime::span<const float> weights,
+                                const std::vector<std::int64_t>& record_dimensions,
+                                bool depthwise);
+
+        /**
+         * @brief Moves the inputs of every output row of an inner-product weight from the order
+         *        [H, W, C] of a flatten row to the order [C, H, W] of a channel-first blob, the
+         *        inverse of flatten_weights_to_channels_last.
+         * @param weights The floats, [units, height * width * channels], row-major.
+         * @return The floats in the [units, channels * height * width] order; InvalidDescription
+         *         for a non-positive extent or a count other than the extents give.
+         */
+        [[nodiscard]] Result<std::vector<float>>
+        flatten_weights_to_channels_first(SushiRuntime::span<const float> weights,
+                                          std::int64_t units, std::int64_t channels,
+                                          std::int64_t height, std::int64_t width);
     } // namespace Interchange
 } // namespace SushiAI
