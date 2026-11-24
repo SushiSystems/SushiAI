@@ -46,5 +46,5 @@ Each header is named by its include path under `include/`.
 ## Designs
 
 <!-- designs:begin -->
-- [LAYERED_EXECUTION](../../../docs/design/LAYERED_EXECUTION/README.md): SushiAI's share of the stack's layered execution: it stops using SushiBLAS's engine graph, and it trains one model over the owner's five machines through SushiRuntime's distributed...
+- [LAYERED_EXECUTION](../../../docs/design/LAYERED_EXECUTION/README.md): SushiAI's share of the stack's layered execution: it leaves SushiBLAS's engine graph and trains one model over the owner's five machines.
 <!-- designs:end -->

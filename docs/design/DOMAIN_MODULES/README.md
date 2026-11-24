@@ -1,7 +1,7 @@
 # Domain modules
 
 **Status:** Open — built; the build of the training parity tests is pending. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
-**About:** How SushiAI keeps what belongs to one field of use (vision today; language, physics and reinforcement learning later) apart from the library every field shares, so that a field can be...
+**About:** How SushiAI keeps each field of use apart from the library every field shares, so that a field can be added, built and removed without an edit to another.
 **Modules:** none
 
 ## Problem

@@ -4,7 +4,6 @@
 
 | ID | Pri | State | Title | Done when | Blocked by | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| RW-131 | P2 | open | Write the About line of each design topic by hand | each topic has an `**About:**` line of one sentence written for a cold reader |  |  | 2026-10-22 |
 | RW-140 | P2 | open | Route Darknet's assignment through `AssignmentRule` | `head_delta.cpp`'s assignment is a `best_shape` type behind `AssignmentRule`, the delta writing reads its records, and the Darknet parity suites pass unchanged |  | `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md` | 2026-10-25 |
 | RW-143 | P2 | open | Read the anchor-free loss terms from the step | the anchor-free step reports its box, class, distribution and L1 terms from the graph's own values, and the host evaluation runs only in tests |  | `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md` | 2026-10-26 |
 

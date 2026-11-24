@@ -1,7 +1,7 @@
 # Language
 
 **Status:** Open — phases 1 to 5 and 7 of 7 written, not yet built; phase 6 waits by the owner's ruling
-**About:** How SushiAI trains and runs a decoder-only transformer on text, and an encoder that answers typed questions in one forward pass: the second domain after vision, laid out as...
+**About:** How SushiAI trains and runs a decoder-only transformer on text and an encoder that answers typed questions, as the second domain after vision.
 **Modules:** none
 
 ## Problem
