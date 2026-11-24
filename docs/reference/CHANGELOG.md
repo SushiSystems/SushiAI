@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-24 — test_tree: Gave the 41 test folders that held sources and no README one, with each file and its brief (RW-118).
 - 2026-11-24 — documentation_architecture: Wrote the About line of the three design topics whose line the generator had cut (RW-131).
 - 2026-11-24 — test_tree: Split the page of `tests/layers/io` and described its eleven export writer tests on pages of their own (RW-196).
 - 2026-11-24 — model_import: Added `sushiai export` and `sa export`, which write a model as ONNX, Caffe or Darknet files, and `export weights` for safetensors and PyTorch (`applications/programs/README.md`).
