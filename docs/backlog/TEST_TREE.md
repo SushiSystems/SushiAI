@@ -13,6 +13,7 @@
 | RW-177 | P2 | open | Judge the time limits of a sanitizer run with a sanitizer factor | Under address-undefined and thread the time reader multiplies each limit by a factor its settings name, and the sanitizer jobs pass their time gate |  |  | 2026-11-14 |
 | RW-178 | P2 | open | Bring the cases that broke a limit on the CI runners within it | The two DetectAnchorReview cases, Yolov5nBiasInit LeavesTheBoxEntriesAtZero and DropoutMask TheKeptFraction run within their limits on CI |  | `tests/budget_exemptions.toml` | 2026-11-14 |
 | RW-193 | P2 | open | Bring medium shard 7of17 of the vision tests back under its 240 s timeout | No medium case of sushiai_vision_tests takes over 5 s after the fixture, and shard 7of17 passes inside its timeout in a parallel gating run |  | `cmake/SushiAITestProgram.cmake` | 2026-11-24 |
+| RW-197 | P2 | open | Bring the three Darknet one-batch overfit cases under 120 s | TheCostOfOneBatchFallsUnderATenth of YOLOv3, v4 and v7 each pass in a large run inside 120 s |  | `modules/vision/darknet_training_cases/source/darknet_training.cpp` | 2026-11-25 |
 
 ## Known issues
 
