@@ -15,4 +15,4 @@ sushiai_add_module(NAME training TIER language
         source/perplexity.cpp
         source/temperature_scaling.cpp
     PUBLIC_DEPENDS config data failure graph nn train
-    PRIVATE_DEPENDS dtype seam shape)
+    PRIVATE_DEPENDS allocation dtype seam shape)

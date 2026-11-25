@@ -410,7 +410,8 @@ namespace
                 target.role = std::string(role);
                 SA_TRY_ASSIGN(target.values,
                               allocate_tensor(backend.engine(), shape,
-                                              is_class ? DType::Int32 : DType::Float32));
+                                              is_class ? DType::Int32 : DType::Float32,
+                                              TensorAccess::Host));
                 SaTest::write_tensor(target.values,
                                      is_class ? classes_of(row.targets, row.width) : row.targets);
 

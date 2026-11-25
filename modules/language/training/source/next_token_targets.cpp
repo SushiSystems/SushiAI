@@ -31,9 +31,12 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <vector>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI::Language::Training
 {
@@ -78,12 +81,17 @@ namespace SushiAI::Language::Training
                    dtype_name(labels.dtype), dtype_name(targets.dtype),
                    dtype_name(DType::Int32));
 
-        return fill_next_token_targets(
+        SA_TRY_ASSIGN(std::vector<std::int32_t> staged,
+                      SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
+        {
+            return std::vector<std::int32_t>(static_cast<std::size_t>(targets.num_elements));
+        }));
+        SA_TRY(fill_next_token_targets(
             SushiRuntime::span<const std::int32_t>(labels.data_as<std::int32_t>(),
                                                    static_cast<std::size_t>(labels.num_elements)),
-            vocabulary,
-            SushiRuntime::span<std::int32_t>(targets.data_as<std::int32_t>(),
-                                             static_cast<std::size_t>(targets.num_elements)));
+            vocabulary, SushiRuntime::span<std::int32_t>(staged.data(), staged.size())));
+
+        return write_elements(targets, staged);
     }
 
 } // namespace SushiAI::Language::Training

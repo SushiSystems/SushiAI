@@ -34,8 +34,12 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {
@@ -46,15 +50,15 @@ namespace SushiAI
             /** @brief Holds the bytes the unwritten pattern repeats: the float32 NaN 0x7FC0DEAD. */
             constexpr std::array<std::uint8_t, 4> K_UNWRITTEN_BYTES = {0xAD, 0xDE, 0xC0, 0x7F};
 
-            /** @brief Returns the bytes of @p tensor the host holds, or null for no storage. */
-            [[nodiscard]] std::uint8_t* bytes_of(SushiBLAS::Tensor& tensor,
-                                                 std::size_t& count) noexcept
+            /** @brief Returns a zeroed host buffer as large as the elements of @p tensor. */
+            [[nodiscard]] Result<std::vector<std::uint8_t>> host_bytes(
+                const SushiBLAS::Tensor& tensor) noexcept
             {
-                count = static_cast<std::size_t>(tensor.num_elements) * dtype_size(tensor.dtype);
-                if (count == 0)
-                    return nullptr;
-
-                return static_cast<std::uint8_t*>(tensor.data_or_null());
+                return Detail::guard_value(Detail::SeamPhase::Allocate, [&tensor]()
+                {
+                    return std::vector<std::uint8_t>(static_cast<std::size_t>(tensor.num_elements)
+                                                     * dtype_size(tensor.dtype));
+                });
             }
 
             /** @brief Marks the absence of an unwritten element. */
@@ -86,19 +90,26 @@ namespace SushiAI
             }
         } // namespace
 
-        void mark_leaves_unwritten(const ObjectiveLeaves& leaves,
-                                   Graph::TensorPool& pool) noexcept
+        Status mark_leaves_unwritten(const ObjectiveLeaves& leaves,
+                                     Graph::TensorPool& pool) noexcept
         {
             for (const std::pair<std::string, Graph::ValueID>& leaf : leaves.all())
             {
                 if (!pool.is_bound(leaf.second))
                     continue;
 
-                std::size_t count = 0;
-                std::uint8_t* const bytes = bytes_of(pool.tensor(leaf.second), count);
-                for (std::size_t index = 0; bytes != nullptr && index < count; ++index)
+                const SushiBLAS::Tensor& tensor = pool.tensor(leaf.second);
+                if (tensor.num_elements == 0)
+                    continue;
+
+                SA_TRY_ASSIGN(std::vector<std::uint8_t> bytes, host_bytes(tensor));
+                for (std::size_t index = 0; index < bytes.size(); ++index)
                     bytes[index] = K_UNWRITTEN_BYTES[index % K_UNWRITTEN_BYTES.size()];
+                SA_TRY(copy_from_host(tensor, 0, tensor.num_elements, dtype_size(tensor.dtype),
+                                      bytes.data()));
             }
+
+            return Status();
         }
 
         Status require_leaves_written(const ObjectiveLeaves& leaves,
@@ -109,12 +120,15 @@ namespace SushiAI
                 if (!pool.is_bound(leaf.second))
                     continue;
 
-                SushiBLAS::Tensor& tensor = pool.tensor(leaf.second);
-                std::size_t count = 0;
-                const std::uint8_t* const bytes = bytes_of(tensor, count);
+                const SushiBLAS::Tensor& tensor = pool.tensor(leaf.second);
+                if (tensor.num_elements == 0)
+                    continue;
+
                 const std::size_t element_size = dtype_size(tensor.dtype);
+                SA_TRY_ASSIGN(std::vector<std::uint8_t> bytes, host_bytes(tensor));
+                SA_TRY(copy_to_host(tensor, 0, tensor.num_elements, element_size, bytes.data()));
                 const std::size_t unwritten =
-                    bytes == nullptr ? K_NONE : first_unwritten_element(bytes, count, element_size);
+                    first_unwritten_element(bytes.data(), bytes.size(), element_size);
 
                 SA_FAIL_IF(unwritten != K_NONE, StatusCode::InvalidDescription,
                            "The objective declared the leaf '{}' but its feed left element {} "

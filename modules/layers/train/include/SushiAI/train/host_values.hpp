@@ -23,7 +23,7 @@
 
 /**
  * @file host_values.hpp
- * @brief Declares the host read of one element of a float32 or float64 tensor.
+ * @brief Declares the checked host read of a float32 or float64 tensor.
  * @author Mustafa Garip
  */
 
@@ -31,7 +31,9 @@
 
 #include <cstdint>
 #include <string_view>
+#include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
@@ -48,11 +50,13 @@ namespace SushiAI
                                                 std::int64_t elements, std::string_view what) noexcept;
 
         /**
-         * @brief Returns element @p index of @p tensor as a double.
-         * @pre require_host_reals() accepted @p tensor and @p index is below its count.
+         * @brief Copies the @p elements values of @p tensor to the host, widened to double.
+         * @param what Names the tensor in the message, e.g. "the logits".
+         * @return The values, what require_host_reals() returns, or the failure of the copy.
          */
-        [[nodiscard]] double host_real(const SushiBLAS::Tensor& tensor,
-                                       std::int64_t index) noexcept;
+        [[nodiscard]] Result<std::vector<double>> read_host_reals(const SushiBLAS::Tensor& tensor,
+                                                                  std::int64_t elements,
+                                                                  std::string_view what) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

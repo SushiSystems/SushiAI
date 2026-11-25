@@ -82,7 +82,10 @@ TEST_P(Small_HostValues, AnElementIsReadAsTheDoubleItsTypeHolds)
 
     SA_EXPECT_OK(Train::require_host_reals(tensor, static_cast<std::int64_t>(row.values.size()),
                                            "the scores"));
-    EXPECT_EQ(Train::host_real(tensor, static_cast<std::int64_t>(row.index)), row.expected);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::vector<double> read,
+        Train::read_host_reals(tensor, static_cast<std::int64_t>(row.values.size()), "the scores"));
+    EXPECT_EQ(read[row.index], row.expected);
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -41,6 +41,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -452,9 +453,9 @@ namespace
                                             to.tensor(entry.name));
                     ASSERT_EQ(source->num_elements, target->num_elements) << entry.name;
                     ASSERT_EQ(source->dtype, DType::Float32) << entry.name;
-                    std::copy(source->data_as<float>(),
-                              source->data_as<float>() + source->num_elements,
-                              target->data_as<float>());
+                    SA_ASSERT_OK_AND_ASSIGN(const std::vector<float> values,
+                                            ::SushiAI::read_elements<float>(*source));
+                    SA_EXPECT_OK(::SushiAI::write_elements(*target, values));
                 }
             }
 
@@ -471,12 +472,18 @@ namespace
                 return generated;
             }
 
-            /** @brief Returns the [1, 1, V] logits @p step computed in its last run. */
-            const float* logits_of(const Train::EvaluationStep& step, const std::string& output)
+            /** @brief Returns a host copy of the logits @p step computed in its last run. */
+            std::vector<float> logits_of(const Train::EvaluationStep& step,
+                                         const std::string& output)
             {
                 const Result<const SushiBLAS::Tensor*> tensor = step.output(output);
                 EXPECT_TRUE(tensor.has_value());
-                return tensor.has_value() ? tensor.value()->data_as<float>() : nullptr;
+                if (!tensor.has_value())
+                    return {};
+
+                Result<std::vector<float>> values = ::SushiAI::read_elements<float>(*tensor.value());
+                EXPECT_TRUE(values.has_value());
+                return values.has_value() ? std::move(values).value() : std::vector<float>();
             }
 
             /** @brief Reports whether every entry of the state of @p model is a parameter named for no angle table. */
@@ -519,11 +526,12 @@ namespace
                     static_cast<void>(continue_with(*source.window, so_far, 1));
                     const std::size_t held = std::min(position + 1, length);
 
-                    const float* const whole = logits_of(*source.window_step, source.output);
-                    const float* const one = logits_of(*driven.step, source.output);
-                    ASSERT_NE(whole, nullptr);
-                    ASSERT_NE(one, nullptr);
-                    expect_logits_near(one, whole + (held - 1) * scores, scores);
+                    const std::vector<float> whole =
+                        logits_of(*source.window_step, source.output);
+                    const std::vector<float> one = logits_of(*driven.step, source.output);
+                    ASSERT_FALSE(whole.empty());
+                    ASSERT_FALSE(one.empty());
+                    expect_logits_near(one.data(), whole.data() + (held - 1) * scores, scores);
                 }
 
                 driven.release();
@@ -550,11 +558,11 @@ namespace
                     // A token is sampled once the text so far is all fed.
                     if (position + 1 >= text.size())
                     {
-                        const float* const row = logits_of(*wide.cached.step, wide.output);
-                        if (row == nullptr)
+                        const std::vector<float> row = logits_of(*wide.cached.step, wide.output);
+                        if (row.empty())
                             return made;
 
-                        made.push_back(sampler.sample(LogitSpan(row, scores), random));
+                        made.push_back(sampler.sample(LogitSpan(row.data(), scores), random));
                         text.push_back(made.back());
                     }
                 }
@@ -658,12 +666,12 @@ TEST_P(Medium_CachedGeneration, TheLogitsEqualThoseOfTheWindowAtTheLastPosition)
     static_cast<void>(continue_with(*decoder.cached.generator, prompt, 1));
 
     const std::size_t scores = static_cast<std::size_t>(SaTest::K_DECODER_VOCABULARY);
-    const float* const whole = logits_of(*decoder.window_step, decoder.output);
-    const float* const one = logits_of(*decoder.cached.step, decoder.output);
-    ASSERT_NE(whole, nullptr);
-    ASSERT_NE(one, nullptr);
+    const std::vector<float> whole = logits_of(*decoder.window_step, decoder.output);
+    const std::vector<float> one = logits_of(*decoder.cached.step, decoder.output);
+    ASSERT_FALSE(whole.empty());
+    ASSERT_FALSE(one.empty());
 
-    expect_logits_near(one, whole + (prompt.size() - 1) * scores, scores);
+    expect_logits_near(one.data(), whole.data() + (prompt.size() - 1) * scores, scores);
 }
 
 /** @brief Tests that a context that reaches the window and slides gives the window generator's tokens. */
@@ -771,11 +779,11 @@ TEST_F(Medium_CachedRing, ASlotWrittenTwiceHoldsTheSecondRow)
     once_fed.feed(last, K_WINDOW, 1);
 
     const std::size_t scores = static_cast<std::size_t>(SaTest::K_DECODER_VOCABULARY);
-    const float* const written = logits_of(*decoder.cached.step, decoder.output);
-    const float* const alone = logits_of(*once.step, decoder.output);
-    ASSERT_NE(written, nullptr);
-    ASSERT_NE(alone, nullptr);
-    expect_logits_near(written, alone, scores);
+    const std::vector<float> written = logits_of(*decoder.cached.step, decoder.output);
+    const std::vector<float> alone = logits_of(*once.step, decoder.output);
+    ASSERT_FALSE(written.empty());
+    ASSERT_FALSE(alone.empty());
+    expect_logits_near(written.data(), alone.data(), scores);
 
     once.release();
 }

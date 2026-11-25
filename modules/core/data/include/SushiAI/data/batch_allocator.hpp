@@ -65,8 +65,8 @@ namespace SushiAI
 
         /**
          * @class EngineBatchAllocator
-         * @brief Allocates each tensor with its own Storage on an engine, as allocate_tensor()
-         *        does.
+         * @brief Allocates each tensor with its own Storage on an engine, in memory the host
+         *        writes in place, as allocate_tensor() with TensorAccess::Host does.
          */
         class EngineBatchAllocator final : public BatchAllocator
         {

@@ -17,6 +17,7 @@ The test sources kept in this folder. The suite prefix of a case gives its ctest
 | `test_detection_reports.cpp` | Tests the anchor, anchor-free and YOLOX detection reports over a prepared inference. |
 | `test_domains.cpp` | Tests that each linked domain adds its rows beside the library's without a clash. |
 | `test_epoch_loop.cpp` | Tests run_epoch_loop, the loop the trainer run and the cluster run share. |
+| `test_host_readback.cpp` | Tests that a HostReadback refreshed over a device-resident tensor returns the values written into it. |
 | `test_image_input.cpp` | Tests the data block that reads one image file for `sushiai inference`. |
 | `test_in_memory_worker_watch.cpp` | Tests that InMemoryWorkerWatch keeps the WorkerWatch contract and moves its own clock. |
 | `test_inference_preparation.cpp` | Tests that prepare_inference() honours its two hooks and the weight file it names. |

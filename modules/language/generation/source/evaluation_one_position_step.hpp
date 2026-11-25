@@ -32,6 +32,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -60,7 +61,10 @@ namespace SushiAI::Language::Generation::Detail
             /** @brief Returns the facts of the output @p name, or the failure of the step. */
             [[nodiscard]] Result<LeafFacts> output(std::string_view name) const noexcept override;
 
-            /** @brief Returns the scores the last run computed under @p name. */
+            /**
+             * @brief Copies to the host the scores the last run computed under @p name; a
+             *        failed copy stops the process.
+             */
             [[nodiscard]] LogitSpan logits(std::string_view name) const noexcept override;
 
             /** @brief Resets the step. */
@@ -72,6 +76,9 @@ namespace SushiAI::Language::Generation::Detail
         private:
             /// @brief Runs the position; not owned.
             Train::EvaluationStep* step_;
+
+            /// @brief Holds the scores logits() last copied to the host.
+            mutable std::vector<float> scores_;
     };
 
     /** @brief Reads the shape and the type of @p tensor. */

@@ -29,7 +29,6 @@
 
 #include <SushiAI/vision/importers/darknet_store.hpp>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <set>
@@ -38,11 +37,13 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
 
 #include "darknet_weight_layout.hpp"
@@ -124,19 +125,32 @@ namespace SushiAI
                         return Status();
                     }
 
-                    /** @brief Copies every recorded vector into its tensor; cannot fail. */
-                    void apply() const
+                    /**
+                     * @brief Copies every recorded vector into its tensor.
+                     * @return Success, or the failure of the allocation or of a copy.
+                     */
+                    [[nodiscard]] Status apply() const
                     {
+                        std::vector<float> staged;
                         for (const Transfer& transfer : transfers_)
                         {
-                            float* destination = transfer.tensor->data_as<float>();
+                            const std::vector<float>* values = transfer.source;
                             if (transfer.kind == CopyKind::Weights)
-                                Detail::copy_kernel_last(*transfer.source, transfer.shape,
-                                                         destination);
-                            else
-                                std::copy(transfer.source->begin(), transfer.source->end(),
-                                          destination);
+                            {
+                                SA_TRY(SushiAI::Detail::guard(
+                                    SushiAI::Detail::SeamPhase::Allocate, [&]()
+                                {
+                                    staged.resize(transfer.source->size());
+                                    Detail::copy_kernel_last(*transfer.source, transfer.shape,
+                                                             staged.data());
+                                    return Status();
+                                }));
+                                values = &staged;
+                            }
+                            SA_TRY(write_elements(*transfer.tensor, *values));
                         }
+
+                        return Status();
                     }
 
                 private:
@@ -220,8 +234,7 @@ namespace SushiAI
                 SA_TRY(plan_convolution(weights.convolutions[i], shapes[i], targets[i], state,
                                         plan));
             }
-            plan.apply();
-            return Status();
+            return plan.apply();
         }
 
     } // namespace Vision::Importers

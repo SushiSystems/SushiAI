@@ -149,6 +149,9 @@ namespace SushiAI::Vision::Training
 
                 /// @brief Holds a view of each level's ports as the stage reads them.
                 std::vector<FreeLevelViews> views;
+
+                /// @brief Holds the values of each entry of ports, copied to the host.
+                std::vector<std::vector<float>> port_values;
             };
 
             /** @brief Takes the parts make() built; the tensor lists are filled by make(). */
@@ -179,8 +182,11 @@ namespace SushiAI::Vision::Training
              */
             [[nodiscard]] Status feed_leaves(const Detect::GroundTruthBatch& truth);
 
-            /** @brief Reads the loss and its terms the last replay left in the pool. */
-            [[nodiscard]] FreeLossTerms read_terms() const noexcept;
+            /**
+             * @brief Copies to the host the loss and its terms the last replay left in the pool.
+             * @return The terms, or the failure of a copy.
+             */
+            [[nodiscard]] Result<FreeLossTerms> read_terms() const noexcept;
 
             /// @brief Records and runs the copy of the input; not owned.
             ExecutionBackend* backend_;
@@ -208,6 +214,9 @@ namespace SushiAI::Vision::Training
 
             /// @brief Holds the weight of the one-to-many loss the next run() writes.
             float one_to_many_weight_ = 1.0f;
+
+            /// @brief Holds the values of the leaf feed_leaves() writes next, on the host.
+            std::vector<float> staged_;
 
             /// @brief Points at the `[1]` loss of the training graph; set by resolve_tensors().
             const SushiBLAS::Tensor* loss_ = nullptr;

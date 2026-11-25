@@ -32,8 +32,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/roles.hpp>
@@ -73,8 +75,9 @@ namespace SushiAI::Vision::Training
         SA_TRY_ASSIGN(Segment::ConfusionMatrix matrix,
                       Segment::ConfusionMatrix::make(static_cast<std::int32_t>(extents.classes)));
         const std::size_t count = static_cast<std::size_t>(pixels);
-        SA_TRY(matrix.add(SushiRuntime::span<const std::int64_t>(classes->data_as<std::int64_t>(),
-                                                                 count),
+        SA_TRY_ASSIGN(const std::vector<std::int64_t> predicted,
+                      read_elements<std::int64_t>(*classes));
+        SA_TRY(matrix.add(SushiRuntime::span<const std::int64_t>(predicted.data(), count),
                           SushiRuntime::span<const std::int32_t>(
                               mask->values.data_as<std::int32_t>(), count),
                           ignore_index));

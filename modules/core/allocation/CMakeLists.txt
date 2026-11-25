@@ -6,6 +6,7 @@
 sushiai_add_module(NAME allocation TIER core
     SOURCES
         source/allocation.cpp
+        source/host_copy.cpp
     PUBLIC_DEPENDS dtype failure shape
     PRIVATE_DEPENDS seam
     EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::core)

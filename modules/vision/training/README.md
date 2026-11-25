@@ -26,6 +26,7 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 - `data`, for `Batch`, `TargetDescription` and the role names.
 - `graph`, `nn`, `optim` and `failure`, `dtype`, `shape`, `seam`, `execution`, as `train` names
   them.
+- `allocation` (private), for the host copies of `host_copy.hpp`.
 
 ## Public entry points
 
@@ -154,8 +155,8 @@ differentiates.
 It returns `measure_cost` of the deltas it fed. `deltas()` returns them, and `output(name)`
 gives the tensor of any output the model published, the heads among them.
 
-The host stage reads the heads and writes the leaves through `Tensor::data_as<float>()`, so both
-must be float32 and host-addressable, as the loss and the logits `Train::Trainer` reads are.
+The host stage copies the heads to the host and its leaves back with `read_elements` and
+`write_elements`, so both must be float32, as the loss and the logits `Train::Trainer` reads are.
 
 ## The truth from roles
 

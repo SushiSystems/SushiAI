@@ -6,5 +6,5 @@
 # tensor_values: host reads and writes of the elements of a tensor.
 
 sushiai_add_module(NAME tensor_values TIER core INTERNAL
-    PUBLIC_DEPENDS dtype
+    PUBLIC_DEPENDS allocation dtype failure
     EXTERNAL_PUBLIC GTest::gtest SushiRuntime::core)

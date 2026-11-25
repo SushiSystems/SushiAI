@@ -43,6 +43,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -226,6 +227,18 @@ namespace
         return Status();
     }
 
+    /**
+     * @brief Copies the elements of @p tensor into a new entry of @p copies.
+     * @return A view of the entry, valid while @p copies holds it, or the failure of the copy.
+     */
+    Result<SushiRuntime::span<const float>> host_copy_of(const SushiBLAS::Tensor& tensor,
+                                                         std::vector<std::vector<float>>& copies)
+    {
+        SA_TRY_ASSIGN(std::vector<float> values, ::SushiAI::read_elements<float>(tensor));
+        copies.push_back(std::move(values));
+        return SushiRuntime::span<const float>(copies.back().data(), copies.back().size());
+    }
+
     Result<std::vector<Detection>> Large_UltralyticsDetections::detect(
         const std::filesystem::path& image)
     {
@@ -238,12 +251,14 @@ namespace
         SA_FAIL_IF(static_cast<std::size_t>(pixels.size().height) * pixels.size().width *
                            pixels.channels() != count,
                    StatusCode::Incompatible, "{} is not the model's input size", image.string());
-        float* const values = input.data_as<float>();
+        std::vector<float> values(count);
         for (std::size_t i = 0; i < count; ++i)
             values[i] = static_cast<float>(pixels.data()[i]) / 255.0f;
+        SA_TRY(::SushiAI::write_elements(input, values));
         SA_TRY(step_->run(input));
 
         std::vector<Vision::Training::FreeLevelLogits> levels;
+        std::vector<std::vector<float>> copies;
         for (const Vision::Training::FreeLevelFacts& level : facts_.levels)
         {
             Vision::Training::FreeLevelLogits bound;
@@ -251,10 +266,8 @@ namespace
                           step_->output(level.one_to_many.boxes));
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const scores,
                           step_->output(level.one_to_many.scores));
-            bound.boxes = SushiRuntime::span<const float>(
-                boxes->data_as<float>(), static_cast<std::size_t>(boxes->num_elements));
-            bound.scores = SushiRuntime::span<const float>(
-                scores->data_as<float>(), static_cast<std::size_t>(scores->num_elements));
+            SA_TRY_ASSIGN(bound.boxes, host_copy_of(*boxes, copies));
+            SA_TRY_ASSIGN(bound.scores, host_copy_of(*scores, copies));
             levels.push_back(bound);
         }
         const std::size_t anchors = static_cast<std::size_t>(decoder_->anchors());

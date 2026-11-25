@@ -30,7 +30,7 @@
 #include <SushiAI/vision/darknet_import_cases/darknet_import.hpp>
 
 #include <cstddef>
-#include <cstring>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -42,6 +42,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/model_writer.hpp>
@@ -108,6 +109,16 @@ namespace SushiAI
                 return Result<NN::ModelGraph>(std::move(graph));
             }
 
+            /** @brief Returns the bytes of @p tensor, copied to the host; a failed copy fails the test. */
+            std::vector<std::uint8_t> bytes_of(const SushiBLAS::Tensor& tensor)
+            {
+                const std::size_t width = dtype_size(tensor.dtype);
+                std::vector<std::uint8_t> bytes(static_cast<std::size_t>(tensor.num_elements) *
+                                                width);
+                SA_EXPECT_OK(copy_to_host(tensor, 0, tensor.num_elements, width, bytes.data()));
+                return bytes;
+            }
+
             /** @brief Checks that each entry of @p found holds the bytes of its twin. */
             void expect_same_state(NN::ModelState& found, NN::ModelState& wanted)
             {
@@ -123,9 +134,7 @@ namespace SushiAI
                                             wanted.tensor(entry.name));
                     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor* const actual,
                                             found.tensor(entry.name));
-                    const std::size_t bytes =
-                        static_cast<std::size_t>(expected->num_elements) * dtype_size(entry.dtype);
-                    EXPECT_EQ(std::memcmp(actual->data(), expected->data(), bytes), 0)
+                    EXPECT_EQ(bytes_of(*actual), bytes_of(*expected))
                         << entry.name << " differs between the imported and the direct state";
                 }
             }
@@ -195,8 +204,12 @@ namespace SushiAI
             SA_TRY(check_tensors_against_entries(tensors, state.entries()));
 
             for (const IO::ImportedTensor& tensor : tensors)
-                std::memcpy(state.tensor(tensor.record.name).value()->data(), tensor.payload.data(),
-                            tensor.payload.size());
+            {
+                const SushiBLAS::Tensor& target = *state.tensor(tensor.record.name).value();
+                SA_TRY(SA_ANNOTATE(copy_from_host(target, 0, target.num_elements,
+                                                  dtype_size(target.dtype), tensor.payload.data()),
+                                   "Imported tensor '{}': ", tensor.record.name));
+            }
 
             return Status();
         }

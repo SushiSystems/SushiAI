@@ -76,6 +76,6 @@ sushiai_add_module(NAME importers TIER vision
         source/ultralytics_module_upsample.cpp
         source/ultralytics_tensors.cpp
     PUBLIC_DEPENDS config failure interchange io nn shape vision/detect
-    PRIVATE_DEPENDS dtype optim seam
+    PRIVATE_DEPENDS allocation dtype optim seam
     EXTERNAL_PUBLIC SushiRuntime::core
     EXTERNAL_PRIVATE_LINKS SushiLog::text)

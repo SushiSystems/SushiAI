@@ -42,10 +42,11 @@ namespace SushiAI
          *
          * The pattern repeats the four bytes 0xAD 0xDE 0xC0 0x7F, the float32 NaN 0x7FC0DEAD.
          * An objective's feed has to overwrite it; require_leaves_written() tells whether it did.
-         * The fill costs one pass over the bytes of the leaves, which are the targets of one batch.
          * @pre No recorded task reads or writes a leaf; the host owns them between two steps.
+         * @return Success, or the failure of an allocation or a copy.
          */
-        void mark_leaves_unwritten(const ObjectiveLeaves& leaves, Graph::TensorPool& pool) noexcept;
+        [[nodiscard]] Status mark_leaves_unwritten(const ObjectiveLeaves& leaves,
+                                                   Graph::TensorPool& pool) noexcept;
 
         /**
          * @brief Returns InvalidDescription for the first leaf of @p leaves, bound in @p pool,

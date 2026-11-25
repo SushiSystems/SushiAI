@@ -29,10 +29,14 @@
 
 #include <SushiAI/train/in_memory_objective.hpp>
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {
@@ -40,31 +44,38 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Writes @p value, converted to Element, into @p count elements. */
+            /**
+             * @brief Writes @p value, converted to Element, into every element of @p tensor.
+             * @return Success, or the failure of the allocation or of the copy.
+             */
             template<typename Element>
-            void fill_elements(Element* elements, std::int64_t count, double value) noexcept
+            [[nodiscard]] Status fill_elements(const SushiBLAS::Tensor& tensor, double value)
             {
-                for (std::int64_t index = 0; index < count; ++index)
-                    elements[index] = static_cast<Element>(value);
+                SA_TRY_ASSIGN(const std::vector<Element> elements,
+                              Detail::guard_value(Detail::SeamPhase::Allocate, [&tensor, value]()
+                {
+                    return std::vector<Element>(static_cast<std::size_t>(tensor.num_elements),
+                                                static_cast<Element>(value));
+                }));
+
+                return write_elements(tensor, elements);
             }
 
             /**
              * @brief Writes @p value into every element of @p tensor.
-             * @return Unsupported for an element type other than float32, float64 and int32.
+             * @return Unsupported for an element type other than float32, float64 and int32, or
+             *         what fill_elements() returns.
              */
             [[nodiscard]] Status fill_tensor(SushiBLAS::Tensor& tensor, double value)
             {
                 switch (tensor.dtype)
                 {
                     case DType::Float32:
-                        fill_elements(tensor.data_as<float>(), tensor.num_elements, value);
-                        return Status();
+                        return fill_elements<float>(tensor, value);
                     case DType::Float64:
-                        fill_elements(tensor.data_as<double>(), tensor.num_elements, value);
-                        return Status();
+                        return fill_elements<double>(tensor, value);
                     case DType::Int32:
-                        fill_elements(tensor.data_as<std::int32_t>(), tensor.num_elements, value);
-                        return Status();
+                        return fill_elements<std::int32_t>(tensor, value);
                     default:
                         break;
                 }

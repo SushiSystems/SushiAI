@@ -115,7 +115,8 @@ namespace SushiAI
                 void set_max_norm(double max_norm) noexcept;
 
                 /**
-                 * @brief Reads from the host the factor the last replay applied.
+                 * @brief Copies to the host the factor the last replay applied; a failed copy
+                 *        stops the process.
                  * @pre The replay has been waited on; before the first one the factor is 1.
                  */
                 [[nodiscard]] double applied_scale() const noexcept;

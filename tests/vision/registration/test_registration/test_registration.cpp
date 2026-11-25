@@ -55,6 +55,7 @@
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -1411,7 +1412,10 @@ namespace
                        dtype_name(tensor->dtype), shape_of(*tensor).to_string());
             SA_FAIL_IF(!supplied.insert(target).second, StatusCode::Incompatible,
                        "'{}' supplies '{}' twice", path.string(), target);
-            SA_TRY(reader.read_payload(record, tensor->data()));
+            std::vector<std::uint8_t> payload(record.payload_bytes());
+            SA_TRY(reader.read_payload(record, payload.data()));
+            SA_TRY(copy_from_host(*tensor, 0, tensor->num_elements, dtype_size(tensor->dtype),
+                                  payload.data()));
         }
 
         for (const NN::StateEntry& entry : state.entries())
@@ -1446,16 +1450,15 @@ namespace
         SA_FAIL_IF(static_cast<std::size_t>(input.num_elements) != values.size(),
                    StatusCode::Incompatible, "the input holds {} values, but {} needs {}",
                    values.size(), batch_shape.to_string(), input.num_elements);
-        std::memcpy(input.data_as<float>(), values.data(), values.size() * sizeof(float));
+        SA_TRY(::SushiAI::write_elements(input, values));
         SA_TRY(step->run(input));
 
         ForwardOutputs outputs;
         for (const NN::ModelOutputs::Entry& published : traced.outputs.all())
         {
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor, step->output(published.first));
-            const float* const values = tensor->data_as<float>();
-            outputs.emplace(published.first,
-                            std::vector<float>(values, values + tensor->num_elements));
+            SA_TRY_ASSIGN(std::vector<float> values, ::SushiAI::read_elements<float>(*tensor));
+            outputs.emplace(published.first, std::move(values));
         }
 
         return Result<ForwardOutputs>(std::move(outputs));

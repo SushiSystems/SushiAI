@@ -46,6 +46,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -518,11 +519,11 @@ namespace
         return expected;
     }
 
-    /** @brief Writes @p values into the INT32 tensor @p tensor, element by element. */
+    /** @brief Copies @p values into the INT32 tensor @p tensor. */
     void write_int32(SushiBLAS::Tensor& tensor, const std::vector<std::int32_t>& values)
     {
         ASSERT_EQ(static_cast<std::size_t>(tensor.num_elements), values.size());
-        std::copy(values.begin(), values.end(), tensor.data_as<std::int32_t>());
+        SA_EXPECT_OK(write_elements(tensor, values));
     }
 
     /** @brief Expects @p found to equal @p expected element by element within @p tolerance. */
@@ -537,10 +538,11 @@ namespace
     /** @brief Fills the INT32 leaf @p targets from the labels @p labels. */
     Status fill_targets(const std::vector<std::int32_t>& labels, SushiBLAS::Tensor& targets)
     {
-        return Language::Training::fill_next_token_targets(
+        std::vector<std::int32_t> filled(static_cast<std::size_t>(targets.num_elements));
+        SA_TRY(Language::Training::fill_next_token_targets(
             SushiRuntime::span<const std::int32_t>(labels.data(), labels.size()), K_VOCABULARY,
-            SushiRuntime::span<std::int32_t>(targets.data_as<std::int32_t>(),
-                                             static_cast<std::size_t>(targets.num_elements)));
+            SushiRuntime::span<std::int32_t>(filled.data(), filled.size())));
+        return write_elements(targets, filled);
     }
 
     /** @brief Provides the engine the state and the step are built on. */
@@ -590,8 +592,8 @@ TEST_F(Medium_NextTokenObjective, TheLossAndItsGradientEqualTheHostComputation)
     SA_EXPECT_OK(step->run());
 
     const Expected expected = work_on_host(table);
-    EXPECT_NEAR(static_cast<double>(pool.tensor(built.spec.loss).data_as<float>()[0]),
-                expected.loss, K_TOLERANCE);
+    EXPECT_NEAR(SaTest::read_tensor(pool.tensor(built.spec.loss))[0], expected.loss,
+                K_TOLERANCE);
     expect_all_near(SaTest::read_tensor(gradient), expected.gradient, K_TOLERANCE);
 }
 
@@ -615,12 +617,14 @@ namespace
 
         Data::Batch batch;
         SA_TRY_ASSIGN(batch.inputs,
-                      allocate_tensor(engine, Shape{K_BATCH, K_LENGTH}, DType::Int32));
+                      allocate_tensor(engine, Shape{K_BATCH, K_LENGTH}, DType::Int32,
+                                      TensorAccess::Host));
         write_int32(batch.inputs, ids);
         Data::BatchTarget labels;
         labels.role = std::string(Data::K_ROLE_LABELS);
         SA_TRY_ASSIGN(labels.values,
-                      allocate_tensor(engine, Shape{K_BATCH, K_LENGTH}, DType::Int32));
+                      allocate_tensor(engine, Shape{K_BATCH, K_LENGTH}, DType::Int32,
+                                      TensorAccess::Host));
         write_int32(labels.values, std::vector<std::int32_t>(ids.size(), 0));
         batch.targets.push_back(std::move(labels));
 
@@ -1037,7 +1041,9 @@ namespace
         SushiBLAS::Tensor& inputs = pool.tensor(built.spec.inputs);
         SA_TRY(Train::check_feed(batch.inputs, inputs, "inputs"));
         const std::int32_t* const fed = batch.inputs.data_as<std::int32_t>();
-        std::copy(fed, fed + inputs.num_elements, inputs.data_as<std::int32_t>());
+        SA_TRY(write_elements(inputs, 0,
+                              SushiRuntime::span<const std::int32_t>(
+                                  fed, static_cast<std::size_t>(inputs.num_elements))));
 
         const Data::BatchTarget* const labels =
             Data::find_target(batch.targets, Data::K_ROLE_LABELS);
@@ -1061,8 +1067,9 @@ namespace
             Optim::apply_step_schedule(schedule, optimizer);
             SA_TRY(step.run());
 
-            result.last_loss =
-                static_cast<double>(pool.tensor(built.spec.loss).data_as<float>()[0]);
+            SA_TRY_ASSIGN(const std::vector<double> loss,
+                          read_reals(pool.tensor(built.spec.loss)));
+            result.last_loss = loss[0];
             SA_FAIL_IF(!std::isfinite(result.last_loss), StatusCode::DeviceFailed,
                        "The loss of update {} is not finite", update);
             if (update == 0)

@@ -74,14 +74,25 @@ TEST_F(Medium_Allocation, ATensorHasTheExtentsAndTypeItWasAskedFor)
     EXPECT_GE(tensor.storage->size_bytes(), 24u * SushiAI::dtype_size(DType::Float64));
 }
 
-/** @brief Tests that an allocated tensor lives in memory the host can address. */
-TEST_F(Medium_Allocation, AnAllocatedTensorIsAddressableByTheHost)
+/** @brief Tests that a tensor only kernels address is allocated in device memory. */
+TEST_F(Medium_Allocation, AKernelsTensorLivesInDeviceMemory)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor tensor,
                             SushiAI::allocate_tensor(*engine, Shape{4}, DType::Float32));
 
     ASSERT_TRUE(tensor.storage);
-    EXPECT_NE(tensor.storage->residency(), SushiRuntime::Residency::Device);
+    EXPECT_EQ(tensor.storage->residency(), SushiRuntime::Residency::Device);
+}
+
+/** @brief Tests that a tensor the host addresses is allocated in pinned host memory. */
+TEST_F(Medium_Allocation, AHostTensorLivesInPinnedHostMemory)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor tensor,
+                            SushiAI::allocate_tensor(*engine, Shape{4}, DType::Float32,
+                                                     SushiAI::TensorAccess::Host));
+
+    ASSERT_TRUE(tensor.storage);
+    EXPECT_EQ(tensor.storage->residency(), SushiRuntime::Residency::Host);
 }
 
 /** @brief Tests that an extent that is not positive is refused as InvalidDescription. */

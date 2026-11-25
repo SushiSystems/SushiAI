@@ -31,6 +31,8 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -68,15 +70,17 @@ namespace SushiAI::Language::Generation::Detail
 
         return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
         {
-            return std::unique_ptr<WindowLogits>(
-                new EvaluationWindowLogits(step, *logits, std::move(feed)));
+            std::vector<float> scores(static_cast<std::size_t>(logits->num_elements));
+            return std::unique_ptr<WindowLogits>(new EvaluationWindowLogits(
+                step, *logits, std::move(feed), std::move(scores)));
         });
     }
 
     EvaluationWindowLogits::EvaluationWindowLogits(Train::EvaluationStep& step,
                                                    const SushiBLAS::Tensor& logits,
-                                                   Data::Batch feed) noexcept
-        : step_(&step), logits_(&logits), feed_(std::move(feed))
+                                                   Data::Batch feed,
+                                                   std::vector<float> scores) noexcept
+        : step_(&step), logits_(&logits), feed_(std::move(feed)), scores_(std::move(scores))
     {
 
     }
@@ -94,13 +98,16 @@ namespace SushiAI::Language::Generation::Detail
     Status EvaluationWindowLogits::run(SushiRuntime::span<const Text::TokenID> ids)
     {
         std::copy(ids.begin(), ids.end(), feed_.inputs.data_as<Text::TokenID>());
-        return step_->run(feed_.inputs);
+        SA_TRY(step_->run(feed_.inputs));
+
+        return read_elements(*logits_, 0, SushiRuntime::span<float>(scores_.data(),
+                                                                     scores_.size()));
     }
 
     LogitSpan EvaluationWindowLogits::row(std::size_t position) const noexcept
     {
         const std::size_t scores = static_cast<std::size_t>(vocabulary());
-        return LogitSpan(logits_->data_as<float>() + position * scores, scores);
+        return LogitSpan(scores_.data() + position * scores, scores);
     }
 
 } // namespace SushiAI::Language::Generation::Detail

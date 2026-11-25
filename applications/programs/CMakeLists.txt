@@ -10,7 +10,7 @@
 
 if(SA_BUILD_VISION)
     set(SUSHIAI_PROGRAM_DOMAINS source/domains_vision.cpp source/image_input.cpp
-        source/detection_report.cpp source/detection_report_anchor.cpp
+        source/detection_report.cpp source/detection_report_anchor.cpp source/host_readback.cpp
         source/detection_report_free.cpp source/detection_report_yolox.cpp
         source/anchor_training_run.cpp source/free_training_run.cpp)
 else()

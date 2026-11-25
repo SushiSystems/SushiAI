@@ -41,6 +41,7 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/input.hpp>
@@ -349,17 +350,11 @@ namespace SushiAI
         double Trainer::current_loss() const noexcept
         {
             const SushiBLAS::Tensor& loss = pool_->tensor(binding_.loss);
+            Result<std::vector<double>> value = read_reals(loss);
+            SA_FATAL_IF(!value.has_value(), "The loss could not be read back: {}",
+                        value.status().message());
 
-            switch (loss.dtype)
-            {
-                case DType::Float32:
-                    return static_cast<double>(loss.data_as<float>()[0]);
-                case DType::Float64:
-                    return loss.data_as<double>()[0];
-                default:
-                    SA_FATAL("The loss is {}; only float32 and float64 can be read back",
-                             dtype_name(loss.dtype));
-            }
+            return value.value().front();
         }
 
         Result<StepMetrics> Trainer::run_step(const Data::Batch& batch) noexcept
@@ -371,7 +366,7 @@ namespace SushiAI
             // No task is recorded here, so the objective may write its leaves on the host.
             {
                 SA_ZONE("host", "feed");
-                mark_leaves_unwritten(binding_.leaves, *pool_);
+                SA_TRY(mark_leaves_unwritten(binding_.leaves, *pool_));
                 SA_TRY(objective_->feed(batch, binding_.leaves, *pool_));
                 SA_TRY(require_leaves_written(binding_.leaves, *pool_));
             }

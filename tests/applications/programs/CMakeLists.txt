@@ -57,6 +57,7 @@ sushiai_add_test_program(APPLICATION programs
         source/test_domains.cpp
         source/compile_programs_log_category.cpp
         source/test_epoch_loop.cpp
+        source/test_host_readback.cpp
         source/test_inference_run.cpp
         source/test_model_state_entries.cpp
         source/test_registries.cpp

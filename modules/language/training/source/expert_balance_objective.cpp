@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <utility>
+#include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -163,11 +164,12 @@ namespace SushiAI::Language::Training
                        "The expert_balance objective measures the output '{}', which the "
                        "step did not publish among its {}",
                        usage.name, step.outputs.size());
-            SA_TRY(Train::require_host_reals(*shares, usage.experts, "the usage of the experts"));
+            SA_TRY_ASSIGN(const std::vector<double> share_values,
+                          Train::read_host_reals(*shares, usage.experts,
+                                                 "the usage of the experts"));
 
-            for (std::int64_t expert = 0; expert < usage.experts; ++expert)
+            for (const double share : share_values)
             {
-                const double share = Train::host_real(*shares, expert);
                 smallest = std::min(smallest, share);
                 largest = std::max(largest, share);
             }

@@ -56,23 +56,42 @@ namespace SushiAI
         }
 
         /**
-         * @brief Allocates Storage of @p bytes, shared, as the storage of a vector of 4-byte words.
+         * @brief Returns the residency every allocation of this module gives a tensor that
+         *        @p access addresses.
+         * @param access Who addresses the elements.
+         * @return Device for TensorAccess::Kernels, Host for TensorAccess::Host.
+         * @see modules/core/allocation/README.md
+         */
+        [[nodiscard]] constexpr SushiRuntime::Residency residency_of(TensorAccess access) noexcept
+        {
+            switch (access)
+            {
+                case TensorAccess::Kernels: return SushiRuntime::Residency::Device;
+                case TensorAccess::Host:    return SushiRuntime::Residency::Host;
+            }
+            return SushiRuntime::Residency::Device;
+        }
+
+        /**
+         * @brief Allocates Storage of @p bytes as the storage of a vector of 4-byte words.
          * @param engine Engine whose tensor factory allocates.
          * @param bytes Byte count.
+         * @param access Who addresses the bytes, which decides the memory they live in.
          * @return The new storage, or the Status of what the allocator threw.
          */
         [[nodiscard]] Result<SushiRuntime::sushi_ptr<SushiBLAS::Storage>> reserve_storage(
             SushiBLAS::Engine& engine,
-            std::size_t bytes)
+            std::size_t bytes,
+            TensorAccess access)
         {
-            return Detail::guard_value(Detail::SeamPhase::Allocate, [&engine, bytes]()
+            return Detail::guard_value(Detail::SeamPhase::Allocate, [&engine, bytes, access]()
             {
                 constexpr std::size_t K_WORD_BYTES = 4;
                 const int64_t words[1] = {static_cast<int64_t>(
                     bytes / K_WORD_BYTES + (bytes % K_WORD_BYTES != 0 ? 1 : 0))};
                 return engine.tensor_factory().create(
                     SushiRuntime::span<const int64_t>(words, 1), SushiBLAS::Core::DataType::UInt32,
-                    SushiRuntime::Residency::Shared).storage;
+                    residency_of(access)).storage;
             });
         }
 
@@ -81,15 +100,17 @@ namespace SushiAI
          * @param engine Engine whose tensor factory allocates.
          * @param bytes Byte count.
          * @param dims Extents, named in the failure's message with @p dtype.
+         * @param access Who addresses the elements.
          * @return The new storage, or OutOfMemory annotated with the tensor's description.
          */
         [[nodiscard]] Result<SushiRuntime::sushi_ptr<SushiBLAS::Storage>> make_storage(
             SushiBLAS::Engine& engine,
             std::size_t bytes,
             SushiRuntime::span<const int64_t> dims,
-            DType dtype)
+            DType dtype,
+            TensorAccess access)
         {
-            auto outcome = reserve_storage(engine, bytes);
+            auto outcome = reserve_storage(engine, bytes, access);
             if (!outcome.has_value())
                 return SA_ANNOTATE(outcome.status(),
                                    "Could not allocate the {} tensor {} ({} bytes)",
@@ -121,7 +142,8 @@ namespace SushiAI
 
     Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
                                               SushiRuntime::span<const int64_t> dims,
-                                              DType dtype) noexcept
+                                              DType dtype,
+                                              TensorAccess access) noexcept
     {
         // check_tensor_extents validates positive extents and non-overflowing product.
         SA_TRY_ASSIGN(const int64_t elements, check_tensor_extents(dims));
@@ -134,7 +156,7 @@ namespace SushiAI
 
         SA_TRY_ASSIGN(auto storage,
                       make_storage(engine, static_cast<std::size_t>(elements) * dtype_size(dtype),
-                                   dims, dtype));
+                                   dims, dtype, access));
 
         return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
         {
@@ -144,15 +166,17 @@ namespace SushiAI
 
     Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
                                               const Shape& shape,
-                                              DType dtype) noexcept
+                                              DType dtype,
+                                              TensorAccess access) noexcept
     {
         const SushiRuntime::span<const int64_t> dims(shape.data(),
                                                      static_cast<std::size_t>(shape.rank()));
-        return allocate_tensor(engine, dims, dtype);
+        return allocate_tensor(engine, dims, dtype, access);
     }
 
     Result<SushiBLAS::Tensor> allocate_like(SushiBLAS::Engine& engine,
-                                            const SushiBLAS::Tensor& like) noexcept
+                                            const SushiBLAS::Tensor& like,
+                                            TensorAccess access) noexcept
     {
         SA_FATAL_IF(like.num_elements <= 0, "Cannot allocate a tensor shaped like an empty one");
 
@@ -163,7 +187,7 @@ namespace SushiAI
 
         const std::size_t bytes = static_cast<std::size_t>(elements) * dtype_size(like.dtype);
 
-        SA_TRY_ASSIGN(auto storage, make_storage(engine, bytes, dims, like.dtype));
+        SA_TRY_ASSIGN(auto storage, make_storage(engine, bytes, dims, like.dtype, access));
 
         return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
         {
@@ -179,7 +203,7 @@ namespace SushiAI
                     "An arena of zero bytes cannot be allocated; a plan that packs nothing "
                     "should ask for no arena at all");
 
-        auto outcome = reserve_storage(engine, bytes);
+        auto outcome = reserve_storage(engine, bytes, TensorAccess::Kernels);
         if (!outcome.has_value())
             return SA_ANNOTATE(outcome.status(), "Could not allocate a {} byte arena", bytes);
 

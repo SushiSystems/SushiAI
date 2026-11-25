@@ -37,6 +37,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -92,7 +93,7 @@ namespace
             Data::Batch make_batch(const std::vector<std::int32_t>& classes)
             {
                 Result<SushiBLAS::Tensor> made =
-                    allocate_tensor(*engine, Shape{1, 2, 2}, DType::Int32);
+                    allocate_tensor(*engine, Shape{1, 2, 2}, DType::Int32, TensorAccess::Host);
                 EXPECT_TRUE(made.status().is_ok());
                 for (std::size_t i = 0; i < classes.size(); ++i)
                     made.value().data_as<std::int32_t>()[i] = classes[i];
@@ -111,8 +112,7 @@ namespace
                     allocate_tensor(*engine, Shape{static_cast<std::int64_t>(classes.size())},
                                     DType::Int64);
                 EXPECT_TRUE(made.status().is_ok());
-                for (std::size_t i = 0; i < classes.size(); ++i)
-                    made.value().data_as<std::int64_t>()[i] = classes[i];
+                SA_EXPECT_OK(write_elements(made.value(), classes));
 
                 return std::move(made).value();
             }

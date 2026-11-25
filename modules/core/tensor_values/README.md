@@ -5,10 +5,9 @@ An internal module: only the test programs link it, its headers are never instal
 ## Owns
 
 The host reads and writes of the elements of a tensor. `round_to_float32` is the host rounding
-the float32 write applies, callable with no tensor. `write_tensor` and `read_tensor` go
-through the shared-USM pointer and not through a queue copy: every tensor a pool hands out is
-`Residency::Shared`, and a test waits before it reads. Reading this way also keeps a test from
-queueing work into the graph it is inspecting. Both hold FLOAT32, FLOAT64, INT32 and INT64
+the float32 write applies, callable with no tensor. `write_tensor` and `read_tensor` copy
+through `host_copy.hpp`, so they hold for a tensor in device memory as well as in host memory,
+and wait for the copy. Both hold FLOAT32, FLOAT64, INT32 and INT64
 tensors, widening an integer element to double (exact up to 2^53).
 
 `read_tensor_bytes` exists because `read_tensor` widens everything to double, which cannot tell
@@ -19,7 +18,8 @@ read with the same rows of the whole. `first_difference` gives the first byte wh
 
 ## Depends on
 
-`dtype`, for `DType` and `dtype_size`, and GTest.
+`allocation`, for the host copies, `dtype`, for `DType` and `dtype_size`, `failure`, for `Status`
+and `Result`, and GTest.
 
 ## Public entry points
 

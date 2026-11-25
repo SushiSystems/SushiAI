@@ -31,6 +31,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/roles.hpp>
@@ -115,17 +116,21 @@ namespace SushiAI
         Status BinaryCrossEntropyObjective::measure(const StepView& step, Metrics& metrics) const
         {
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, selection_.output.resolve(step));
-            SA_TRY(require_host_reals(*logits, batch_, "the logits"));
+            SA_TRY_ASSIGN(const std::vector<double> logit_values,
+                          read_host_reals(*logits, batch_, "the logits"));
 
             SA_TRY_ASSIGN(const Data::BatchTarget* const labels,
                           require_batch_role(step.batch,
                                              selection_.target.role_or(Data::K_ROLE_LABELS)));
-            SA_TRY(require_host_reals(labels->values, batch_, "the labels"));
+            SA_TRY_ASSIGN(const std::vector<double> label_values,
+                          read_host_reals(labels->values, batch_, "the labels"));
 
             SA_TRY_ASSIGN(const KeptRows kept, selection_.mask.kept_rows_of(step.batch, batch_));
 
             const BinaryConfusion counts = count_confusion(
-                *logits, labels->values, ColumnOfLogits{batch_, 1, 0}, logit_of(threshold_), kept);
+                SushiRuntime::span<const double>(logit_values.data(), logit_values.size()),
+                SushiRuntime::span<const double>(label_values.data(), label_values.size()),
+                ColumnOfLogits{batch_, 1, 0}, logit_of(threshold_), kept);
 
             SA_TRY(metrics.add(Metric{K_ACCURACY_METRIC, accuracy_of(counts), true}));
             SA_TRY(metrics.add(Metric{K_PRECISION_METRIC, precision_of(counts), true}));

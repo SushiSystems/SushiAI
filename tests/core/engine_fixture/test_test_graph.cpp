@@ -32,6 +32,7 @@
 #include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/engine_fixture/test_graph.hpp>
@@ -71,6 +72,6 @@ TEST_F(Medium_TestGraph, RunExecutesWhatTheRecorderRecorded)
     SA_EXPECT_OK(recording.run());
     flush();
 
-    const float* values = tensor.data_as<float>();
-    EXPECT_EQ(std::vector<float>(values, values + 4), std::vector<float>(4, K_FILL_VALUE));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<float> values, ::SushiAI::read_elements<float>(tensor));
+    EXPECT_EQ(values, std::vector<float>(4, K_FILL_VALUE));
 }

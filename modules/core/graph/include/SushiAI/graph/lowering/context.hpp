@@ -217,12 +217,13 @@ namespace SushiAI
                 /**
                  * @brief A scratch tensor private to this node and slot, reused across replays.
                  * @param slot The scratch slot of the node.
-                 * @param shape Extents of the tensor.
-                 * @param dtype Element data type.
-                 * @return A reference stable for the pool's lifetime, or the allocation failure.
+                 * @param access Host for a buffer the host writes in place before a replay.
+                 * @return A reference stable for the pool's lifetime, or what
+                 *         TensorPool::scratch() returns.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor&> scratch(int slot, const Shape& shape,
-                                                                 DType dtype) const noexcept;
+                [[nodiscard]] Result<SushiBLAS::Tensor&> scratch(
+                    int slot, const Shape& shape, DType dtype,
+                    TensorAccess access = TensorAccess::Kernels) const noexcept;
 
                 /**
                  * @brief A shared tensor filled with ones, reused across nodes.

@@ -30,7 +30,11 @@
 #include <SushiAI/train/dense_targets.hpp>
 
 #include <cstdint>
+#include <vector>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {
@@ -58,32 +62,30 @@ namespace SushiAI
                 return Status();
             }
 
-            /** @brief Writes the @p count elements of @p from into @p to as Real. */
-            template<typename Real>
-            void copy_values(const float* from, Real* to, std::int64_t count) noexcept
+            /**
+             * @brief Copies @p values into @p targets. @pre require_copyable() accepted them.
+             * @return Success, or the failure of the allocation or of the copy.
+             */
+            [[nodiscard]] Status copy_checked(const SushiBLAS::Tensor& values,
+                                              SushiBLAS::Tensor& targets) noexcept
             {
-                for (std::int64_t index = 0; index < count; ++index)
-                    to[index] = static_cast<Real>(from[index]);
-            }
+                const float* const from = values.data_as<float>();
+                SA_TRY_ASSIGN(const std::vector<double> widened,
+                              Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+                {
+                    return std::vector<double>(from, from + values.num_elements);
+                }));
 
-            /** @brief Copies @p values into @p targets. @pre require_copyable() accepted them. */
-            void copy_checked(const SushiBLAS::Tensor& values, SushiBLAS::Tensor& targets) noexcept
-            {
-                if (targets.dtype == DType::Float64)
-                    copy_values(values.data_as<float>(), targets.data_as<double>(),
-                                values.num_elements);
-                else
-                    copy_values(values.data_as<float>(), targets.data_as<float>(),
-                                values.num_elements);
+                return write_reals(targets, SushiRuntime::span<const double>(widened.data(),
+                                                                             widened.size()));
             }
         } // namespace
 
         Status fill_dense_targets(const SushiBLAS::Tensor& values, SushiBLAS::Tensor& targets) noexcept
         {
             SA_TRY(require_copyable(values, targets));
-            copy_checked(values, targets);
 
-            return Status();
+            return copy_checked(values, targets);
         }
 
         Status fill_binary_targets(const SushiBLAS::Tensor& labels, SushiBLAS::Tensor& targets) noexcept
@@ -100,9 +102,7 @@ namespace SushiAI
             }
 
             // Every label was checked, so a refused batch leaves the leaf as it was.
-            copy_checked(labels, targets);
-
-            return Status();
+            return copy_checked(labels, targets);
         }
 
     } // namespace Train

@@ -48,6 +48,7 @@
 #include <SushiAI/vision/training/free_model_facts.hpp>
 
 #include "detection_report.hpp"
+#include "host_readback.hpp"
 
 namespace SushiAI
 {
@@ -79,11 +80,10 @@ namespace SushiAI
 
             /** @brief Returns the values of the tensor @p run publishes under @p name. */
             [[nodiscard]] Result<SushiRuntime::span<const float>> published_values(
-                const PreparedInference& run, const std::string& name)
+                const PreparedInference& run, const std::string& name, HostReadback& readback)
             {
                 SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor, run.step.output(name));
-                return SushiRuntime::span<const float>(
-                    tensor->data_as<float>(), static_cast<std::size_t>(tensor->num_elements));
+                return readback.bind(*tensor);
             }
 
             /**
@@ -92,16 +92,17 @@ namespace SushiAI
              */
             [[nodiscard]] Result<std::vector<Vision::Training::FreeLevelLogits>>
             bind_free_levels(const Vision::Training::FreeModelFacts& facts,
-                             const PreparedInference& run)
+                             const PreparedInference& run, HostReadback& readback)
             {
                 std::vector<Vision::Training::FreeLevelLogits> levels;
                 levels.reserve(facts.levels.size());
                 for (const Vision::Training::FreeLevelFacts& level : facts.levels)
                 {
                     Vision::Training::FreeLevelLogits bound;
-                    SA_TRY_ASSIGN(bound.boxes, published_values(run, level.one_to_many.boxes));
+                    SA_TRY_ASSIGN(bound.boxes,
+                                  published_values(run, level.one_to_many.boxes, readback));
                     SA_TRY_ASSIGN(bound.scores,
-                                  published_values(run, level.one_to_many.scores));
+                                  published_values(run, level.one_to_many.scores, readback));
                     levels.push_back(bound);
                 }
 
@@ -121,8 +122,9 @@ namespace SushiAI
                           list_published_shapes(run));
             SA_TRY_ASSIGN(const Vision::Training::FreeModelFacts facts,
                           Vision::Training::derive_free_model_facts(input, shapes));
+            HostReadback readback;
             SA_TRY_ASSIGN(const std::vector<Vision::Training::FreeLevelLogits> levels,
-                          bind_free_levels(facts, run));
+                          bind_free_levels(facts, run, readback));
 
             const std::int64_t batch_size = run.dataset.batch_size();
             const std::size_t level_values = static_cast<std::size_t>(
@@ -168,6 +170,7 @@ namespace SushiAI
                 {
                     {
                         SA_ZONE("eval", "decode");
+                        SA_TRY(readback.refresh());
                         SA_TRY(decoder.decode(levels, boxes, scores));
                     }
 

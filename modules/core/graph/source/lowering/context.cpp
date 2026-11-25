@@ -241,9 +241,10 @@ namespace SushiAI
         }
 
         Result<SushiBLAS::Tensor&> LoweringContext::scratch(int slot, const Shape& shape,
-                                                            DType dtype) const noexcept
+                                                            DType dtype,
+                                                            TensorAccess access) const noexcept
         {
-            return pool_.scratch(id_, slot, shape, dtype);
+            return pool_.scratch(id_, slot, shape, dtype, access);
         }
 
         Result<SushiBLAS::Tensor&> LoweringContext::ones(const Shape& shape, DType dtype) const noexcept

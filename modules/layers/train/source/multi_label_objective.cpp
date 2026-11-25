@@ -31,6 +31,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/roles.hpp>
@@ -115,12 +116,14 @@ namespace SushiAI
         Status MultiLabelObjective::measure(const StepView& step, Metrics& metrics) const
         {
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, selection_.output.resolve(step));
-            SA_TRY(require_host_reals(*logits, batch_ * classes_, "the logits"));
+            SA_TRY_ASSIGN(const std::vector<double> logit_values,
+                          read_host_reals(*logits, batch_ * classes_, "the logits"));
 
             SA_TRY_ASSIGN(const Data::BatchTarget* const labels,
                           require_batch_role(step.batch,
                                              selection_.target.role_or(Data::K_ROLE_LABELS)));
-            SA_TRY(require_host_reals(labels->values, batch_ * classes_, "the labels"));
+            SA_TRY_ASSIGN(const std::vector<double> label_values,
+                          read_host_reals(labels->values, batch_ * classes_, "the labels"));
 
             SA_TRY_ASSIGN(const KeptRows kept, selection_.mask.kept_rows_of(step.batch, batch_));
 
@@ -128,9 +131,10 @@ namespace SushiAI
             double total = 0.0;
             for (std::int64_t column = 0; column < classes_; ++column)
             {
-                total += f1_of(count_confusion(*logits, labels->values,
-                                               ColumnOfLogits{batch_, classes_, column}, cut,
-                                               kept));
+                total += f1_of(count_confusion(
+                    SushiRuntime::span<const double>(logit_values.data(), logit_values.size()),
+                    SushiRuntime::span<const double>(label_values.data(), label_values.size()),
+                    ColumnOfLogits{batch_, classes_, column}, cut, kept));
             }
 
             return metrics.add(Metric{K_F1_METRIC, total / static_cast<double>(classes_), true});

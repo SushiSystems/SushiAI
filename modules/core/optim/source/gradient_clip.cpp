@@ -36,10 +36,12 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -74,13 +76,28 @@ namespace SushiAI
                 return max_norm > 0.0 && std::isfinite(max_norm);
             }
 
-            /** @brief Writes @p value into the one Float32 or Float64 element of @p tensor. */
-            void write_element(SushiBLAS::Tensor& tensor, double value) noexcept
+            /**
+             * @brief Writes a norm of 0 for each of @p gradient_count gradients and a factor of
+             *        1 behind them, over the whole of @p arena.
+             * @return Success, or the failure of the allocation or of the copy.
+             */
+            [[nodiscard]] Status clear_arena(
+                SushiBLAS::Engine& engine,
+                const SushiRuntime::sushi_ptr<SushiBLAS::Storage>& arena, DType dtype,
+                std::size_t gradient_count)
             {
-                if (tensor.dtype == DType::Float64)
-                    tensor.data_as<double>()[0] = value;
-                else
-                    tensor.data_as<float>()[0] = static_cast<float>(value);
+                SA_TRY_ASSIGN(const std::vector<double> start,
+                              Detail::guard_value(Detail::SeamPhase::Allocate, [gradient_count]()
+                {
+                    std::vector<double> values(gradient_count + 1, 0.0);
+                    values.back() = 1.0;
+                    return values;
+                }));
+                const SushiBLAS::Tensor whole = view_tensor(
+                    engine, arena, 0, Shape{static_cast<int64_t>(gradient_count + 1)}, dtype);
+
+                return write_reals(whole, SushiRuntime::span<const double>(start.data(),
+                                                                           start.size()));
             }
 
             /**
@@ -123,6 +140,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(auto norm_views,
                           carve_norm_views(engine, arena, dtype, gradient_count));
             SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, K_SCALAR_COUNT));
+            SA_TRY(clear_arena(engine, arena, dtype, gradient_count));
 
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
             {
@@ -130,11 +148,6 @@ namespace SushiAI
                     engine, arena, 0, Shape{static_cast<int64_t>(gradient_count)}, dtype);
                 SushiBLAS::Tensor scale =
                     view_tensor(engine, arena, gradient_count * element, Shape{1}, dtype);
-
-                // The arena is shared device memory; the host fills it before the first replay.
-                for (SushiBLAS::Tensor& view : norm_views)
-                    write_element(view, 0.0);
-                write_element(scale, 1.0);
 
                 return std::unique_ptr<GradientClip>(
                     new GradientClip(std::move(arena), std::move(norm_views), std::move(norms),
@@ -237,9 +250,10 @@ namespace SushiAI
 
         double GradientClip::applied_scale() const noexcept
         {
-            return scale_.dtype == DType::Float64
-                 ? scale_.data_as<double>()[0]
-                 : static_cast<double>(scale_.data_as<float>()[0]);
+            Result<std::vector<double>> scale = read_reals(scale_);
+            SA_FATAL_IF(!scale.has_value(), "The clip factor could not be read back: {}",
+                        scale.status().message());
+            return scale.value().front();
         }
 
     } // namespace Optim

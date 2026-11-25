@@ -30,6 +30,7 @@
 #include <utility>
 
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 #include <SushiAI/autograd/provenance.hpp>
@@ -204,7 +205,6 @@
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/exact_sum.hpp>
 #include <SushiAI/distribution/gradient_exchange.hpp>
-#include <SushiAI/distribution/host_access.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
@@ -228,6 +228,27 @@ namespace SushiAI
         noexcept(allocate_like(std::declval<SushiBLAS::Engine&>(),
                 std::declval<const SushiBLAS::Tensor&>())),
         "allocate_like is noexcept");
+    static_assert(
+        noexcept(allocate_tensor(std::declval<SushiBLAS::Engine&>(), std::declval<const Shape&>(),
+                std::declval<DType>(), std::declval<TensorAccess>())),
+        "allocate_tensor is noexcept");
+    static_assert(
+        noexcept(copy_to_host(std::declval<const SushiBLAS::Tensor&>(),
+                std::declval<std::int64_t>(), std::declval<std::int64_t>(),
+                std::declval<std::size_t>(), std::declval<void*>())),
+        "copy_to_host is noexcept");
+    static_assert(
+        noexcept(copy_from_host(std::declval<const SushiBLAS::Tensor&>(),
+                std::declval<std::int64_t>(), std::declval<std::int64_t>(),
+                std::declval<std::size_t>(), std::declval<const void*>())),
+        "copy_from_host is noexcept");
+    static_assert(
+        noexcept(read_reals(std::declval<const SushiBLAS::Tensor&>())),
+        "read_reals is noexcept");
+    static_assert(
+        noexcept(write_reals(std::declval<const SushiBLAS::Tensor&>(),
+                std::declval<SushiRuntime::span<const double>>())),
+        "write_reals is noexcept");
     static_assert(
         noexcept(allocate_arena(std::declval<SushiBLAS::Engine&>(), std::declval<std::size_t>())),
         "allocate_arena is noexcept");
@@ -3455,9 +3476,9 @@ namespace SushiAI::Train
 namespace SushiAI::Train
 {
     static_assert(
-        noexcept(count_confusion(std::declval<const SushiBLAS::Tensor&>(),
-                std::declval<const SushiBLAS::Tensor&>(), std::declval<const ColumnOfLogits&>(),
-                std::declval<double>())),
+        noexcept(count_confusion(std::declval<SushiRuntime::span<const double>>(),
+                std::declval<SushiRuntime::span<const double>>(),
+                std::declval<const ColumnOfLogits&>(), std::declval<double>())),
         "count_confusion is noexcept");
     static_assert(
         noexcept(accuracy_of(std::declval<const BinaryConfusion&>())),
@@ -3597,8 +3618,9 @@ namespace SushiAI::Train
                 std::declval<std::int64_t>(), std::declval<std::string_view>())),
         "require_host_reals is noexcept");
     static_assert(
-        noexcept(host_real(std::declval<const SushiBLAS::Tensor&>(), std::declval<std::int64_t>())),
-        "host_real is noexcept");
+        noexcept(read_host_reals(std::declval<const SushiBLAS::Tensor&>(),
+                std::declval<std::int64_t>(), std::declval<std::string_view>())),
+        "read_host_reals is noexcept");
 } // namespace SushiAI::Train
 
 namespace SushiAI::Train
@@ -3925,17 +3947,6 @@ namespace SushiAI::Distribution
     static_assert(
         noexcept(std::declval<GradientExchange&>().set_next_step(std::declval<std::uint64_t>())),
         "set_next_step is noexcept");
-} // namespace SushiAI::Distribution
-
-namespace SushiAI::Distribution
-{
-    static_assert(
-        noexcept(is_host_visible(std::declval<const SushiBLAS::Tensor&>())),
-        "is_host_visible is noexcept");
-    static_assert(
-        noexcept(require_host_visible(std::declval<const SushiBLAS::Tensor&>(),
-                std::declval<std::string_view>(), std::declval<std::size_t>())),
-        "require_host_visible is noexcept");
 } // namespace SushiAI::Distribution
 
 namespace SushiAI::Distribution

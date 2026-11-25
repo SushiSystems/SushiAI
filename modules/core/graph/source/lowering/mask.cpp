@@ -33,9 +33,11 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <vector>
 #include <SushiBLAS/broadcast/dispatch.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -43,6 +45,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 #include <SushiAI/ops/ops.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {
@@ -66,18 +69,29 @@ namespace SushiAI
              * @brief Writes one at each entry on or below the diagonal of a [length, length] table,
              *        and zero above it.
              * @tparam Element The host type whose bits are the tensor's element type.
-             * @param keep The table, host-addressable and dense.
+             * @param keep The table, dense.
              * @param one The bits of one in the element type.
+             * @return Success, or the failure of the allocation or of the copy.
              */
             template <typename Element>
-            void write_triangle(SushiBLAS::Tensor& keep, std::int64_t length, Element one)
+            [[nodiscard]] Status write_triangle(SushiBLAS::Tensor& keep, std::int64_t length,
+                                                Element one)
             {
-                Element* const entries = keep.data_as<Element>();
-                for (std::int64_t row = 0; row < length; ++row)
+                SA_TRY_ASSIGN(const std::vector<Element> entries,
+                              ::SushiAI::Detail::guard_value(
+                                  ::SushiAI::Detail::SeamPhase::Allocate, [length, one]()
                 {
-                    for (std::int64_t column = 0; column < length; ++column)
-                        entries[row * length + column] = column <= row ? one : Element(0);
-                }
+                    std::vector<Element> table(static_cast<std::size_t>(length * length));
+                    for (std::int64_t row = 0; row < length; ++row)
+                    {
+                        for (std::int64_t column = 0; column < length; ++column)
+                            table[static_cast<std::size_t>(row * length + column)] =
+                                column <= row ? one : Element(0);
+                    }
+                    return table;
+                }));
+
+                return write_elements(keep, entries);
             }
 
             /**
@@ -97,13 +111,13 @@ namespace SushiAI
                 switch (dtype)
                 {
                     case DType::Half:
-                        write_triangle<std::uint16_t>(keep, length, K_HALF_ONE);
+                        SA_TRY(write_triangle<std::uint16_t>(keep, length, K_HALF_ONE));
                         break;
                     case DType::Float32:
-                        write_triangle<float>(keep, length, 1.0f);
+                        SA_TRY(write_triangle<float>(keep, length, 1.0f));
                         break;
                     case DType::Float64:
-                        write_triangle<double>(keep, length, 1.0);
+                        SA_TRY(write_triangle<double>(keep, length, 1.0));
                         break;
                     default:
                         SA_FATAL_IF(true, "CAUSAL_MASK needs a floating-point operand; got {}",

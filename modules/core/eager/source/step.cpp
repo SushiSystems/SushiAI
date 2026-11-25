@@ -35,6 +35,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -292,9 +293,8 @@ namespace SushiAI
                        "Value {} is {}; read_scalar() reads float32 and float64", id,
                        dtype_name(tensor->dtype));
 
-            return tensor->dtype == DType::Float32
-                       ? static_cast<double>(tensor->data_as<float>()[0])
-                       : tensor->data_as<double>()[0];
+            SA_TRY_ASSIGN(const std::vector<double> values, read_reals(*tensor));
+            return values.front();
         }
 
         Status Step::finish() noexcept

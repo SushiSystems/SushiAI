@@ -80,6 +80,13 @@ The round trip through each view proves the addresses are usable as well as alig
 read through a mis-rounded start would come back as two halves of neighbouring values, not as
 the number written.
 
+## AHostScratchBufferThePlanPutInAnArenaIsRefused
+
+A plan built with one scratch request for slot 0 of the relu node of `Chain` places that buffer
+in an arena. The pool that adopted it refuses `scratch` for that slot with
+`TensorAccess::Host`, with `StatusCode::InvalidDescription` and a message naming the arena and
+the host.
+
 ## AdoptingASecondPlanIsRefused
 
 A `TensorPool` adopts one plan. Adopting a second is a fatal stop whose message contains "already

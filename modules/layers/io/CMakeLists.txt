@@ -43,6 +43,6 @@ sushiai_add_module(NAME io TIER layers
         source/zip_archive.cpp
         source/zip_writer.cpp
     PUBLIC_DEPENDS config dtype failure nn optim shape
-    PRIVATE_DEPENDS seam
+    PRIVATE_DEPENDS allocation seam
     EXTERNAL_PUBLIC SushiRuntime::core
     EXTERNAL_PRIVATE_LINKS SushiLog::text)

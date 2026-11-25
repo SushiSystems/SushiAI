@@ -37,6 +37,7 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -50,17 +51,15 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Writes each row's weight into the @p width elements of its row of @p to. */
-            template<typename Real>
-            void write_row_weights(const std::vector<double>& row_weight, std::int64_t width,
-                                   Real* to) noexcept
+            /** @brief Returns each row's weight repeated over the @p width elements of its row. */
+            [[nodiscard]] std::vector<double> spread_row_weights(
+                const std::vector<double>& row_weight, std::int64_t width)
             {
-                for (std::size_t row = 0; row < row_weight.size(); ++row)
-                {
-                    for (std::int64_t column = 0; column < width; ++column)
-                        to[static_cast<std::int64_t>(row) * width + column] =
-                            static_cast<Real>(row_weight[row]);
-                }
+                std::vector<double> spread;
+                spread.reserve(row_weight.size() * static_cast<std::size_t>(width));
+                for (const double weight : row_weight)
+                    spread.insert(spread.end(), static_cast<std::size_t>(width), weight);
+                return spread;
             }
         } // namespace
 
@@ -228,12 +227,15 @@ namespace SushiAI
             }));
 
             const std::int64_t width = weights->num_elements / rows;
-            if (weights->dtype == DType::Float64)
-                write_row_weights(row_weight, width, weights->data_as<double>());
-            else
-                write_row_weights(row_weight, width, weights->data_as<float>());
+            SA_TRY_ASSIGN(const std::vector<double> spread,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate,
+                                                       [&]()
+            {
+                return spread_row_weights(row_weight, width);
+            }));
 
-            return Status();
+            return write_reals(*weights,
+                               SushiRuntime::span<const double>(spread.data(), spread.size()));
         }
 
         Graph::Traced RowMask::emit_weighted(const Graph::GraphBuilder& builder,

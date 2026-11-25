@@ -193,6 +193,12 @@ A trailing `--profile`, a `--profile` followed by another flag and two `--profil
 each, fail with `InvalidDescription`, the first two with "needs the path" and the last with "given
 twice".
 
+## source/test_host_readback.cpp
+
+Suite: `Medium_HostReadback`. Its cases are described in
+[source/test_host_readback.md](source/test_host_readback.md). They read a device-resident tensor
+back through `HostReadback`.
+
 ## source/test_model_state_entries.cpp
 
 Suite: `Small_ModelStateEntries`. Its cases are described in

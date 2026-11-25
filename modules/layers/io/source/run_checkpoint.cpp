@@ -140,8 +140,7 @@ namespace SushiAI
 
                 for (Optim::StateTensor& held : run.tensors)
                 {
-                    SA_TRY(writer.write(Detail::record_for(held.name, held.tensor),
-                                        held.tensor.data()));
+                    SA_TRY(Detail::write_tensor_record(writer, held.name, held.tensor));
                 }
 
                 return Status();
@@ -215,7 +214,7 @@ namespace SushiAI
                            subject.file, record.name, record.shape.to_string(),
                            subject.optimizer, expected.to_string());
 
-                return reader.read_payload(record, tensor.data());
+                return Detail::read_tensor_payload(reader, record, tensor);
             }
 
             /**

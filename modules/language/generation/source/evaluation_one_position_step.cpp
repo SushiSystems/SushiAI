@@ -30,7 +30,10 @@
 #include "evaluation_one_position_step.hpp"
 
 #include <cstddef>
+#include <vector>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI::Language::Generation::Detail
 {
@@ -72,7 +75,19 @@ namespace SushiAI::Language::Generation::Detail
     LogitSpan EvaluationOnePositionStep::logits(std::string_view name) const noexcept
     {
         const SushiBLAS::Tensor* const tensor = step_->output(name).value();
-        return LogitSpan(tensor->data_as<float>(), static_cast<std::size_t>(tensor->shape[2]));
+        const Status sized = SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+        {
+            scores_.resize(static_cast<std::size_t>(tensor->shape[2]));
+            return Status();
+        });
+        SA_FATAL_IF(!sized.is_ok(), "The logits of '{}' found no host buffer: {}", name,
+                    sized.message());
+        const Status read = read_elements(*tensor, 0, SushiRuntime::span<float>(scores_.data(),
+                                                                                 scores_.size()));
+        SA_FATAL_IF(!read.is_ok(), "The logits of '{}' could not be read back: {}", name,
+                    read.message());
+
+        return LogitSpan(scores_.data(), scores_.size());
     }
 
     Status EvaluationOnePositionStep::reset()

@@ -115,7 +115,7 @@ namespace
                 SA_TRY_ASSIGN(labels.values,
                               allocate_tensor(backend.engine(),
                                               Shape{static_cast<int64_t>(values.size())},
-                                              DType::Int32));
+                                              DType::Int32, TensorAccess::Host));
                 for (std::size_t i = 0; i < values.size(); ++i)
                     labels.values.data_as<int32_t>()[i] = values[i];
 

@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/language/blocks/decision_heads.hpp>
@@ -50,12 +51,13 @@ namespace SushiAI::Language::DecisionModels
         [[nodiscard]] Status append_reals(const SushiBLAS::Tensor& tensor, std::int64_t count,
                                           std::string_view what, std::vector<float>& out) noexcept
         {
-            SA_TRY(Train::require_host_reals(tensor, count, what));
+            SA_TRY_ASSIGN(const std::vector<double> values,
+                          Train::read_host_reals(tensor, count, what));
 
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
             {
-                for (std::int64_t index = 0; index < count; ++index)
-                    out.push_back(static_cast<float>(Train::host_real(tensor, index)));
+                for (const double value : values)
+                    out.push_back(static_cast<float>(value));
 
                 return Status();
             });
@@ -91,10 +93,14 @@ namespace SushiAI::Language::DecisionModels
                        StatusCode::Incompatible,
                        "the batch holds {} choices of {}; the session reads {} of int32",
                        choice->values.num_elements, dtype_name(choice->values.dtype), rows);
-            SA_TRY(Train::require_host_reals(yes_no->values, rows, "the yes-or-no answers"));
-            SA_TRY(Train::require_host_reals(number->values, rows, "the numbers"));
-            SA_TRY(Train::require_host_reals(mask->values, rows * Datasets::K_DECISION_TYPES,
-                                             "the type mask"));
+            SA_TRY_ASSIGN(const std::vector<double> yes_no_values,
+                          Train::read_host_reals(yes_no->values, rows, "the yes-or-no answers"));
+            SA_TRY_ASSIGN(const std::vector<double> number_values,
+                          Train::read_host_reals(number->values, rows, "the numbers"));
+            SA_TRY_ASSIGN(const std::vector<double> mask_values,
+                          Train::read_host_reals(mask->values,
+                                                 rows * Datasets::K_DECISION_TYPES,
+                                                 "the type mask"));
 
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
             {
@@ -104,17 +110,18 @@ namespace SushiAI::Language::DecisionModels
                     float kinds[Datasets::K_DECISION_TYPES];
                     for (std::int64_t column = 0; column < Datasets::K_DECISION_TYPES; ++column)
                     {
-                        kinds[column] = static_cast<float>(Train::host_real(
-                            mask->values, row * Datasets::K_DECISION_TYPES + column));
+                        kinds[column] = static_cast<float>(mask_values[static_cast<std::size_t>(
+                            row * Datasets::K_DECISION_TYPES + column)]);
                     }
 
                     // A row answers with the role of its type; the other roles hold 0 there.
                     const Datasets::DecisionType type = type_of_row(kinds);
-                    const Data::BatchTarget* const answers =
-                        type == Datasets::DecisionType::Number ? number : yes_no;
+                    const std::vector<double>& answers =
+                        type == Datasets::DecisionType::Number ? number_values : yes_no_values;
 
                     out.labels.push_back(index[row]);
-                    out.values.push_back(static_cast<float>(Train::host_real(answers->values, row)));
+                    out.values.push_back(
+                        static_cast<float>(answers[static_cast<std::size_t>(row)]));
                     out.types.push_back(type);
                 }
 

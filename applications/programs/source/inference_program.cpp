@@ -37,6 +37,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
@@ -114,7 +115,9 @@ namespace SushiAI
                 const int32_t* const labels =
                     target != nullptr ? target->values.data_as<int32_t>() : nullptr;
 
-                const float* scores = scores_tensor->data_as<float>();
+                SA_TRY_ASSIGN(const std::vector<float> score_values,
+                              read_elements<float>(*scores_tensor));
+                const float* scores = score_values.data();
                 for (int64_t r = 0; r < rows; ++r)
                 {
                     const int64_t predicted = argmax_row(scores + r * outputs, outputs);

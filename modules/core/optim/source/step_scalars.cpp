@@ -58,9 +58,9 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor buffer,
                           allocate_tensor(engine, Shape{static_cast<int64_t>(count)},
-                                          DType::Float32));
+                                          DType::Float32, TensorAccess::Host));
 
-            // The buffer is shared device memory; zero it from the host before first use.
+            // The buffer is pinned host memory the kernels read; the host zeroes it in place.
             std::fill_n(buffer.data_as<float>(), count, 0.0f);
             return StepScalars(std::move(buffer), count);
         }

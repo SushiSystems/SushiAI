@@ -40,6 +40,7 @@
 #include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/input.hpp>
@@ -205,6 +206,7 @@ namespace SushiAI
                 random.normal(means, 0.0, 1.0);
                 return Status();
             }));
+            SA_TRY_ASSIGN(const std::vector<float> mean_values, read_elements<float>(means));
 
             const int64_t noise_dims[2] = {rows, features};
             SA_TRY_ASSIGN(SushiBLAS::Tensor noise,
@@ -227,8 +229,7 @@ namespace SushiAI
                     // Round-robin class assignment balances every batch evenly.
                     fill_round_robin_labels(b * rows, classes, labels);
                     copy_class_means(
-                        SushiRuntime::span<const float>(
-                            means.data_as<float>(), static_cast<std::size_t>(classes * features)),
+                        SushiRuntime::span<const float>(mean_values.data(), mean_values.size()),
                         features, labels,
                         SushiRuntime::span<float>(batch.inputs.data_as<float>(),
                                                   static_cast<std::size_t>(rows * features)));

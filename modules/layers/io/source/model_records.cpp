@@ -29,10 +29,13 @@
 
 #include "model_records.hpp"
 
+#include <cstddef>
 #include <string>
 #include <unordered_set>
+#include <vector>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -42,15 +45,55 @@
 
 namespace SushiAI::IO::Detail
 {
+    namespace
+    {
+        /** @brief Returns a zeroed host buffer as large as the elements of @p tensor. */
+        [[nodiscard]] Result<std::vector<unsigned char>> host_buffer(
+            const SushiBLAS::Tensor& tensor)
+        {
+            return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&tensor]()
+            {
+                return std::vector<unsigned char>(static_cast<std::size_t>(tensor.num_elements)
+                                                  * dtype_size(tensor.dtype));
+            });
+        }
+    } // namespace
+
+    Status write_tensor_record(CheckpointWriter& writer, const std::string& name,
+                               const SushiBLAS::Tensor& tensor)
+    {
+        SA_TRY_ASSIGN(std::vector<unsigned char> bytes, host_buffer(tensor));
+        // Work submitted to the tensor's queue ends before its bytes are read.
+        if (tensor.storage)
+        {
+            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Execute, [&tensor]()
+            {
+                tensor.storage->queue().wait();
+                return Status();
+            }));
+        }
+        SA_TRY(copy_to_host(tensor, 0, tensor.num_elements, dtype_size(tensor.dtype),
+                            bytes.data()));
+
+        return writer.write(record_for(name, tensor), bytes.data());
+    }
+
+    Status read_tensor_payload(CheckpointReader& reader, const TensorRecord& record,
+                               const SushiBLAS::Tensor& tensor)
+    {
+        SA_TRY_ASSIGN(std::vector<unsigned char> bytes, host_buffer(tensor));
+        SA_TRY(reader.read_payload(record, bytes.data()));
+
+        return copy_from_host(tensor, 0, tensor.num_elements, dtype_size(tensor.dtype),
+                              bytes.data());
+    }
+
     Status write_model_records(CheckpointWriter& writer, NN::ModelState& state)
     {
         for (const NN::StateEntry& entry : state.entries())
         {
             SA_TRY_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(entry.state));
-            // Work submitted to the tensor's queue ends before its bytes are read.
-            if (tensor->storage)
-                tensor->storage->queue().wait();
-            SA_TRY(writer.write(record_for(entry.name, *tensor), tensor->data()));
+            SA_TRY(write_tensor_record(writer, entry.name, *tensor));
         }
 
         return Status();
@@ -97,8 +140,7 @@ namespace SushiAI::IO::Detail
                        path.string(), record.name,
                        record.shape.to_string(), expected.to_string());
 
-            // Payloads are streamed directly into the state's own memory.
-            SA_TRY(reader.read_payload(record, tensor->data()));
+            SA_TRY(read_tensor_payload(reader, record, *tensor));
         }
 
         for (const NN::StateEntry& entry : state.entries())

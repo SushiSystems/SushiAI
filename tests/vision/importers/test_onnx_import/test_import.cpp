@@ -46,6 +46,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -179,19 +180,19 @@ namespace
                            weight.payload.size(),
                        StatusCode::Incompatible, "the weight '{}' does not fit its state entry",
                        weight.record.name);
-            std::memcpy(target->data_as<float>(), weight.payload.data(), weight.payload.size());
+            SA_TRY(::SushiAI::copy_from_host(*target, 0, target->num_elements, sizeof(float),
+                                            weight.payload.data()));
         }
 
         Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
                       Train::EvaluationStep::make(backend, traced, state, pool));
         SA_TRY_ASSIGN(SushiBLAS::Tensor image, allocate_tensor(engine, batch));
-        std::memcpy(image.data_as<float>(), input.data(), input.size() * sizeof(float));
+        SA_TRY(::SushiAI::write_elements(image, input));
         SA_TRY(step->run(image));
 
         SA_TRY_ASSIGN(const SushiBLAS::Tensor* const published, step->output("output"));
-        const float* const values = published->data_as<float>();
-        return std::vector<float>(values, values + published->num_elements);
+        return ::SushiAI::read_elements<float>(*published);
     }
 
     /** @brief Returns a float32 graph input of the stated extents. */

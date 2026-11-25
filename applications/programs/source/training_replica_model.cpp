@@ -273,7 +273,7 @@ namespace SushiAI
             const Train::TrainingGraph& built = setup_->built();
             {
                 SA_ZONE("host", "feed");
-                Train::mark_leaves_unwritten(built.leaves, setup_->pool());
+                SA_TRY(Train::mark_leaves_unwritten(built.leaves, setup_->pool()));
                 SA_TRY(setup_->objective().feed(part_, built.leaves, setup_->pool()));
                 SA_TRY(Train::require_leaves_written(built.leaves, setup_->pool()));
             }

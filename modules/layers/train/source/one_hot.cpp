@@ -29,13 +29,17 @@
 
 #include <SushiAI/train/one_hot.hpp>
 
-#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
 
 namespace SushiAI
@@ -45,16 +49,16 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief Zeroes @p rows rows of @p classes elements and sets one element per row.
+             * @brief Returns @p rows rows of @p classes values, one 1 per row and 0 elsewhere.
              * @pre Every label is in [0, classes).
              */
-            template<typename Real>
-            void write_rows(const int32_t* labels, Real* one_hot, int64_t rows, int64_t classes)
+            [[nodiscard]] std::vector<double> one_hot_rows(const int32_t* labels, int64_t rows,
+                                                           int64_t classes)
             {
-                std::fill(one_hot, one_hot + rows * classes, Real(0));
-
+                std::vector<double> values(static_cast<std::size_t>(rows * classes), 0.0);
                 for (int64_t row = 0; row < rows; ++row)
-                    one_hot[row * classes + labels[row]] = Real(1);
+                    values[static_cast<std::size_t>(row * classes + labels[row])] = 1.0;
+                return values;
             }
         } // namespace
 
@@ -90,12 +94,14 @@ namespace SushiAI
                            row, indices[row], classes);
             }
 
-            if (one_hot.dtype == DType::Float64)
-                write_rows(indices, one_hot.data_as<double>(), rows, classes);
-            else
-                write_rows(indices, one_hot.data_as<float>(), rows, classes);
+            SA_TRY_ASSIGN(const std::vector<double> values,
+                          Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                return one_hot_rows(indices, rows, classes);
+            }));
 
-            return Status();
+            return write_reals(one_hot,
+                               SushiRuntime::span<const double>(values.data(), values.size()));
         }
 
     } // namespace Train

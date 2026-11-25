@@ -201,7 +201,8 @@ namespace SushiAI
                     const std::vector<SushiBLAS::Tensor*>& gradients) noexcept;
 
                 /**
-                 * @brief Publishes current step scale into device memory before replay.
+                 * @brief Copies the current step scale into the factor before a replay; a failed
+                 *        copy stops the process.
                  */
                 void before_replay() noexcept;
 
@@ -221,7 +222,7 @@ namespace SushiAI
                 [[nodiscard]] Status restore(double scale, std::uint64_t good_steps) noexcept;
 
                 /**
-                 * @brief Returns pointer to device non-finite count buffer for gating.
+                 * @brief Returns the address of the non-finite counts, which only kernels read.
                  * @return Pointer to base element of count buffer.
                  */
                 const std::int64_t* gate() const noexcept { return counts_; }
@@ -256,20 +257,20 @@ namespace SushiAI
             private:
                 /**
                  * @brief Takes ownership of the device buffers and the state machine.
-                 * @param factor The scale tensor; moved in.
-                 * @param arena The storage the count views carve from; moved in.
-                 * @param count_views One int64 view per gradient, in slot order; moved in.
-                 * @param state The state machine; moved in.
+                 * @param host_counts A host vector as long as @p all_counts.
                  * @pre count_views is not empty; make() refuses a zero count first.
                  */
                 LossScaler(SushiBLAS::Tensor factor,
                            SushiRuntime::sushi_ptr<SushiBLAS::Storage> arena,
                            std::vector<SushiBLAS::Tensor> count_views,
+                           SushiBLAS::Tensor all_counts, std::vector<std::int64_t> host_counts,
                            LossScaleState state) noexcept;
 
                 SushiBLAS::Tensor factor_;
                 SushiRuntime::sushi_ptr<SushiBLAS::Storage> arena_;
                 std::vector<SushiBLAS::Tensor> count_views_;
+                SushiBLAS::Tensor all_counts_;
+                std::vector<std::int64_t> host_counts_;
                 std::int64_t* counts_ = nullptr;
                 std::size_t count_ = 0;
                 LossScaleState state_;

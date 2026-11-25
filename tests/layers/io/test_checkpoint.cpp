@@ -40,6 +40,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/nn/init.hpp>
@@ -142,7 +143,7 @@ namespace
                 NN::for_each_parameter(model_, [&](const std::string& name, NN::Parameter&)
                 {
                     const SushiBLAS::Tensor& tensor = tensor_named(name);
-                    const float* values = tensor.data_as<float>();
+                    const std::vector<float> values = ::SushiAI::read_elements<float>(tensor).value();
                     for (int64_t i = 0; i < tensor.num_elements; ++i)
                     {
                         std::uint32_t pattern = 0;
@@ -273,9 +274,10 @@ namespace
         for (const NN::StateEntry& entry : state.entries())
         {
             SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(entry.state));
-            float* values = tensor->data_as<float>();
-            for (int64_t i = 0; i < tensor->num_elements; ++i)
+            std::vector<float> values(static_cast<std::size_t>(tensor->num_elements));
+            for (std::size_t i = 0; i < values.size(); ++i)
                 values[i] = offset + 0.25f * static_cast<float>(i);
+            SA_EXPECT_OK(::SushiAI::write_elements(*tensor, values));
             offset += 1.0f;
         }
     }
@@ -287,7 +289,7 @@ namespace
         for (const NN::StateEntry& entry : state.entries())
         {
             SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(entry.state));
-            const float* values = tensor->data_as<float>();
+            SA_ASSERT_OK_AND_ASSIGN(const std::vector<float> values, ::SushiAI::read_elements<float>(*tensor));
             for (int64_t i = 0; i < tensor->num_elements; ++i)
             {
                 std::uint32_t pattern = 0;

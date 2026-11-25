@@ -31,6 +31,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -193,7 +194,8 @@ namespace SushiAI
         Status CrossEntropyObjective::measure(const StepView& step, Metrics& metrics) const
         {
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, selection_.output.resolve(step));
-            SA_TRY(require_host_reals(*logits, batch_ * classes_, "the logits"));
+            SA_TRY_ASSIGN(const std::vector<double> scores,
+                          read_host_reals(*logits, batch_ * classes_, "the logits"));
 
             const std::string_view role = selection_.target.role_or(Data::K_ROLE_LABELS);
             SA_TRY_ASSIGN(const Data::BatchTarget* const labels,
@@ -220,8 +222,8 @@ namespace SushiAI
                 int64_t best = 0;
                 for (int64_t column = 1; column < classes_; ++column)
                 {
-                    if (host_real(*logits, row * classes_ + column)
-                        > host_real(*logits, row * classes_ + best))
+                    if (scores[static_cast<std::size_t>(row * classes_ + column)]
+                        > scores[static_cast<std::size_t>(row * classes_ + best)])
                         best = column;
                 }
 

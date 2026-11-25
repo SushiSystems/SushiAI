@@ -40,6 +40,7 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/failure/check.hpp>
@@ -78,11 +79,37 @@ namespace SushiAI::Vision::Training
             return Status();
         }
 
-        /** @brief Returns the float32 values of @p tensor as a span. */
-        [[nodiscard]] SushiRuntime::span<const float> floats_of(const SushiBLAS::Tensor& tensor)
+        /**
+         * @brief Copies the float32 values of @p tensor into @p held, sized to fit.
+         * @return A view of @p held, or the failure of the copy.
+         */
+        [[nodiscard]] Result<SushiRuntime::span<const float>> floats_of(
+            const SushiBLAS::Tensor& tensor, std::vector<float>& held)
         {
-            return SushiRuntime::span<const float>(tensor.data_as<float>(),
-                                                   static_cast<std::size_t>(tensor.num_elements));
+            held.resize(static_cast<std::size_t>(tensor.num_elements));
+            SA_TRY(read_elements(tensor, 0, SushiRuntime::span<float>(held.data(), held.size())));
+
+            return SushiRuntime::span<const float>(held.data(), held.size());
+        }
+
+        /** @brief Copies @p value into the first element of @p tensor. */
+        [[nodiscard]] Status write_first(const SushiBLAS::Tensor& tensor, float value)
+        {
+            return write_elements(tensor, 0, SushiRuntime::span<const float>(&value, 1));
+        }
+
+        /**
+         * @brief Returns the first float32 element of @p tensor, or 0 for a null one.
+         * @return The value, or the failure of the copy.
+         */
+        [[nodiscard]] Result<double> first_of(const SushiBLAS::Tensor* tensor) noexcept
+        {
+            if (tensor == nullptr)
+                return 0.0;
+
+            float value = 0.0f;
+            SA_TRY(read_elements(*tensor, 0, SushiRuntime::span<float>(&value, 1)));
+            return static_cast<double>(value);
         }
     } // namespace
 
@@ -108,7 +135,7 @@ namespace SushiAI::Vision::Training
             SA_TRY_ASSIGN(FreeAssignmentStage stage,
                           FreeAssignmentStage::make(objective.facts(), objective.task(),
                                                     objective.batch(), kind));
-            branches.push_back(Branch{std::move(stage), {}, {}, {}, {}});
+            branches.push_back(Branch{std::move(stage), {}, {}, {}, {}, {}});
         }
         SushiBLAS::Tensor& input = training_pool.tensor(built.spec.inputs);
 
@@ -316,10 +343,15 @@ namespace SushiAI::Vision::Training
             {
                 {
                     SA_ZONE("host", "readback");
+                    branch.port_values.resize(branch.ports.size());
                     for (std::size_t level = 0; level < branch.views.size(); ++level)
                     {
-                        branch.views[level].boxes = floats_of(*branch.ports[level * 2]);
-                        branch.views[level].scores = floats_of(*branch.ports[level * 2 + 1]);
+                        SA_TRY_ASSIGN(branch.views[level].boxes,
+                                      floats_of(*branch.ports[level * 2],
+                                                branch.port_values[level * 2]));
+                        SA_TRY_ASSIGN(branch.views[level].scores,
+                                      floats_of(*branch.ports[level * 2 + 1],
+                                                branch.port_values[level * 2 + 1]));
                     }
                 }
                 SA_TRY(branch.stage.assign(SushiRuntime::span<const FreeLevelViews>(
@@ -332,44 +364,42 @@ namespace SushiAI::Vision::Training
                     SushiBLAS::Tensor* const tensor = branch.leaves[leaf];
                     if (tensor == nullptr)
                         continue;
-                    SA_TRY(branch.stage.write_leaf(leaf, SushiRuntime::span<float>(
-                                                             tensor->data_as<float>(),
-                                                             static_cast<std::size_t>(
-                                                                 tensor->num_elements))));
+                    staged_.resize(static_cast<std::size_t>(tensor->num_elements));
+                    SA_TRY(branch.stage.write_leaf(
+                        leaf, SushiRuntime::span<float>(staged_.data(), staged_.size())));
+                    SA_TRY(write_elements(*tensor, 0, SushiRuntime::span<const float>(
+                                                          staged_.data(), staged_.size())));
                 }
             }
 
             if (branch_weights_[0] != nullptr)
             {
-                branch_weights_[0]->data_as<float>()[0] = one_to_many_weight_;
-                branch_weights_[1]->data_as<float>()[0] = 1.0f - one_to_many_weight_;
+                SA_TRY(write_first(*branch_weights_[0], one_to_many_weight_));
+                SA_TRY(write_first(*branch_weights_[1], 1.0f - one_to_many_weight_));
             }
 
             // The projection is rewritten each run; the pool gives no promise to keep a leaf.
             if (projection_ != nullptr)
             {
-                Detect::Free::fill_distribution_projection(SushiRuntime::span<float>(
-                    projection_->data_as<float>(),
-                    static_cast<std::size_t>(projection_->num_elements)));
+                staged_.resize(static_cast<std::size_t>(projection_->num_elements));
+                Detect::Free::fill_distribution_projection(
+                    SushiRuntime::span<float>(staged_.data(), staged_.size()));
+                SA_TRY(write_elements(*projection_, 0, SushiRuntime::span<const float>(
+                                                           staged_.data(), staged_.size())));
             }
 
             return Status();
         });
     }
 
-    FreeLossTerms FreeTrainingStep::read_terms() const noexcept
+    Result<FreeLossTerms> FreeTrainingStep::read_terms() const noexcept
     {
-        const auto first_of = [](const SushiBLAS::Tensor* tensor) -> double
-        {
-            return tensor == nullptr ? 0.0 : static_cast<double>(tensor->data_as<float>()[0]);
-        };
-
         FreeLossTerms terms;
-        terms.total = first_of(loss_);
-        terms.box = first_of(terms_[0]);
-        terms.classes = first_of(terms_[1]);
-        terms.distribution = first_of(terms_[2]);
-        terms.l1 = first_of(terms_[3]);
+        SA_TRY_ASSIGN(terms.total, first_of(loss_));
+        SA_TRY_ASSIGN(terms.box, first_of(terms_[0]));
+        SA_TRY_ASSIGN(terms.classes, first_of(terms_[1]));
+        SA_TRY_ASSIGN(terms.distribution, first_of(terms_[2]));
+        SA_TRY_ASSIGN(terms.l1, first_of(terms_[3]));
         return terms;
     }
 

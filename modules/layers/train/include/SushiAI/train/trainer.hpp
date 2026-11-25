@@ -242,7 +242,7 @@ namespace SushiAI
                     return step_->step().restore_run_count(count);
                 }
 
-                /** @brief Reads the loss tensor's current value from the host. */
+                /** @brief Copies the loss to the host; a failed copy stops the process. */
                 [[nodiscard]] double current_loss() const noexcept;
 
                 /** @brief Returns the options in force. */

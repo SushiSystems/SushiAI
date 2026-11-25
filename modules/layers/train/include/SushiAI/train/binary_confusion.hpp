@@ -30,7 +30,7 @@
 #pragma once
 
 #include <cstdint>
-#include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/train/kept_rows.hpp>
 
 namespace SushiAI
@@ -58,10 +58,10 @@ namespace SushiAI
          * @brief Counts one column: 1 is predicted where the logit is at least @p cut.
          * @param truth Real values shaped like @p logits; above one half reads as 1.
          * @param kept The rows to count; a row it drops is not counted. The default keeps all.
-         * @pre Both tensors hold rows * columns float32 or float64 elements the host reads.
+         * @pre Both spans hold rows * columns values.
          */
-        [[nodiscard]] BinaryConfusion count_confusion(const SushiBLAS::Tensor& logits,
-                                                      const SushiBLAS::Tensor& truth,
+        [[nodiscard]] BinaryConfusion count_confusion(SushiRuntime::span<const double> logits,
+                                                      SushiRuntime::span<const double> truth,
                                                       const ColumnOfLogits& where, double cut,
                                                       const KeptRows& kept = KeptRows()) noexcept;
 

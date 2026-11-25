@@ -34,7 +34,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <initializer_list>
 #include <iostream>
 #include <memory>
@@ -49,6 +48,7 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -218,17 +218,15 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
                               Train::EvaluationStep::make(backend, traced, state, pool));
                 SA_TRY_ASSIGN(SushiBLAS::Tensor image, allocate_tensor(engine, batch_shape));
-                std::memcpy(image.data_as<float>(), input.values.data(),
-                            input.values.size() * sizeof(float));
+                SA_TRY(write_elements(image, input.values));
                 SA_TRY(step->run(image));
 
                 for (const NN::ModelOutputs::Entry& published : traced.outputs.all())
                 {
                     SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor,
                                   step->output(published.first));
-                    const float* const values = tensor->data_as<float>();
-                    run.outputs.emplace(published.first,
-                                        std::vector<float>(values, values + tensor->num_elements));
+                    SA_TRY_ASSIGN(std::vector<float> values, read_elements<float>(*tensor));
+                    run.outputs.emplace(published.first, std::move(values));
                 }
 
                 return Status();

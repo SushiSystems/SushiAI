@@ -35,7 +35,10 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -50,70 +53,55 @@ namespace SushiAI
             return rounded;
         }
 
-        /** @brief Writes host doubles into a FLOAT32, FLOAT64, INT32 or INT64 tensor's USM. */
-        inline void write_tensor(SushiBLAS::Tensor& tensor,
+        /** @brief Copies @p values, converted to Element, over every element of @p tensor. */
+        template<typename Element>
+        void write_converted(const SushiBLAS::Tensor& tensor,
+                             SushiRuntime::span<const double> values)
+        {
+            std::vector<Element> converted(values.size());
+            for (std::size_t i = 0; i < values.size(); ++i)
+                converted[i] = static_cast<Element>(values[i]);
+            const Status written = write_elements(tensor, converted);
+            EXPECT_TRUE(written.is_ok()) << written.message();
+        }
+
+        /** @brief Returns every element of @p tensor, read as Element, converted to double. */
+        template<typename Element>
+        std::vector<double> read_converted(const SushiBLAS::Tensor& tensor)
+        {
+            Result<std::vector<Element>> read = read_elements<Element>(tensor);
+            EXPECT_TRUE(read.has_value()) << read.status().message();
+            if (!read.has_value())
+                return std::vector<double>(static_cast<std::size_t>(tensor.num_elements), 0.0);
+            return std::vector<double>(read.value().begin(), read.value().end());
+        }
+
+        /** @brief Copies host doubles into a FLOAT32, FLOAT64, INT32 or INT64 tensor. */
+        inline void write_tensor(const SushiBLAS::Tensor& tensor,
                                  SushiRuntime::span<const double> values) noexcept
         {
             EXPECT_EQ(static_cast<std::size_t>(tensor.num_elements), values.size());
 
             if (tensor.dtype == DType::Float64)
-            {
-                double* data = tensor.data_as<double>();
-                for (std::size_t i = 0; i < values.size(); ++i) data[i] = values[i];
-                return;
-            }
-
-            if (tensor.dtype == DType::Int32)
-            {
-                std::int32_t* data = tensor.data_as<std::int32_t>();
-                for (std::size_t i = 0; i < values.size(); ++i)
-                    data[i] = static_cast<std::int32_t>(values[i]);
-                return;
-            }
-
-            if (tensor.dtype == DType::Int64)
-            {
-                std::int64_t* data = tensor.data_as<std::int64_t>();
-                for (std::size_t i = 0; i < values.size(); ++i)
-                    data[i] = static_cast<std::int64_t>(values[i]);
-                return;
-            }
-
-            const std::vector<float> rounded = round_to_float32(values);
-            float* data = tensor.data_as<float>();
-            for (std::size_t i = 0; i < rounded.size(); ++i) data[i] = rounded[i];
+                write_converted<double>(tensor, values);
+            else if (tensor.dtype == DType::Int32)
+                write_converted<std::int32_t>(tensor, values);
+            else if (tensor.dtype == DType::Int64)
+                write_converted<std::int64_t>(tensor, values);
+            else
+                write_converted<float>(tensor, values);
         }
 
-        /** @brief Reads a FLOAT32, FLOAT64, INT32 or INT64 tensor's USM back as host doubles. */
+        /** @brief Copies a FLOAT32, FLOAT64, INT32 or INT64 tensor to the host as doubles. */
         inline std::vector<double> read_tensor(const SushiBLAS::Tensor& tensor) noexcept
         {
-            const std::size_t count = static_cast<std::size_t>(tensor.num_elements);
-            std::vector<double> values(count);
-
             if (tensor.dtype == DType::Float64)
-            {
-                const double* data = tensor.data_as<double>();
-                for (std::size_t i = 0; i < count; ++i) values[i] = data[i];
-                return values;
-            }
-
+                return read_converted<double>(tensor);
             if (tensor.dtype == DType::Int32)
-            {
-                const std::int32_t* data = tensor.data_as<std::int32_t>();
-                for (std::size_t i = 0; i < count; ++i) values[i] = static_cast<double>(data[i]);
-                return values;
-            }
-
+                return read_converted<std::int32_t>(tensor);
             if (tensor.dtype == DType::Int64)
-            {
-                const std::int64_t* data = tensor.data_as<std::int64_t>();
-                for (std::size_t i = 0; i < count; ++i) values[i] = static_cast<double>(data[i]);
-                return values;
-            }
-
-            const float* data = tensor.data_as<float>();
-            for (std::size_t i = 0; i < count; ++i) values[i] = static_cast<double>(data[i]);
-            return values;
+                return read_converted<std::int64_t>(tensor);
+            return read_converted<float>(tensor);
         }
 
         /**
@@ -121,10 +109,13 @@ namespace SushiAI
          */
         inline std::vector<unsigned char> read_tensor_bytes(const SushiBLAS::Tensor& tensor) noexcept
         {
-            const std::size_t bytes = static_cast<std::size_t>(tensor.num_elements)
-                                    * dtype_size(tensor.dtype);
-            const auto* data = static_cast<const unsigned char*>(tensor.data());
-            return std::vector<unsigned char>(data, data + bytes);
+            const std::size_t element = dtype_size(tensor.dtype);
+            std::vector<unsigned char> bytes(static_cast<std::size_t>(tensor.num_elements)
+                                             * element);
+            const Status read = copy_to_host(tensor, 0, tensor.num_elements, element,
+                                             bytes.data());
+            EXPECT_TRUE(read.is_ok()) << read.message();
+            return bytes;
         }
 
         /**

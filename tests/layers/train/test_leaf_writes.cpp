@@ -35,6 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -126,7 +127,7 @@ TEST_P(Small_LeafWritesType, ALeafNoFeedWroteIsRefused)
                             allocate_tensor(backend.engine(), Shape{K_ROWS}, GetParam()));
     SA_EXPECT_OK(pool.bind(id, tensor));
 
-    Train::mark_leaves_unwritten(leaves, pool);
+    SA_EXPECT_OK(Train::mark_leaves_unwritten(leaves, pool));
 
     SA_EXPECT_FAILURE(Train::require_leaves_written(leaves, pool), StatusCode::InvalidDescription,
                       "'targets'", "element 0", "unwritten");
@@ -138,7 +139,7 @@ TEST_F(Small_LeafWrites, AStaleValueIsNotMistakenForAWrite)
     declare_bound("targets", DType::Float32);
     SaTest::write_tensor(pool.tensor(leaves.at("targets")), std::vector<double>{7.0, 7.0, 7.0});
 
-    Train::mark_leaves_unwritten(leaves, pool);
+    SA_EXPECT_OK(Train::mark_leaves_unwritten(leaves, pool));
 
     SA_EXPECT_FAILURE(Train::require_leaves_written(leaves, pool), StatusCode::InvalidDescription,
                       "'targets'");
@@ -148,7 +149,7 @@ TEST_F(Small_LeafWrites, AStaleValueIsNotMistakenForAWrite)
 TEST_F(Small_LeafWrites, ALeafAFeedWroteIsAccepted)
 {
     declare_bound("targets", DType::Float32);
-    Train::mark_leaves_unwritten(leaves, pool);
+    SA_EXPECT_OK(Train::mark_leaves_unwritten(leaves, pool));
 
     SaTest::write_tensor(pool.tensor(leaves.at("targets")), std::vector<double>{1.0, 0.0, 0.0});
 
@@ -160,7 +161,7 @@ TEST_F(Small_LeafWrites, OnlyTheSkippedLeafIsNamed)
 {
     declare_bound("targets", DType::Float32);
     declare_bound("weights", DType::Float32);
-    Train::mark_leaves_unwritten(leaves, pool);
+    SA_EXPECT_OK(Train::mark_leaves_unwritten(leaves, pool));
     write_all("targets");
 
     const Status status = Train::require_leaves_written(leaves, pool);
@@ -173,10 +174,10 @@ TEST_F(Small_LeafWrites, OnlyTheSkippedLeafIsNamed)
 TEST_F(Small_LeafWrites, ALeafWrittenInPartIsRefusedNamingTheElement)
 {
     declare_bound("targets", DType::Float32);
-    Train::mark_leaves_unwritten(leaves, pool);
-    float* const elements = pool.tensor(leaves.at("targets")).data_as<float>();
-    elements[0] = 1.0f;
-    elements[1] = 0.0f;
+    SA_EXPECT_OK(Train::mark_leaves_unwritten(leaves, pool));
+    const std::vector<float> written{1.0f, 0.0f};
+    SA_EXPECT_OK(write_elements(pool.tensor(leaves.at("targets")), 0,
+                                SushiRuntime::span<const float>(written.data(), written.size())));
 
     SA_EXPECT_FAILURE(Train::require_leaves_written(leaves, pool), StatusCode::InvalidDescription,
                       "'targets'", "element 2", "unwritten");
@@ -187,7 +188,7 @@ TEST_F(Small_LeafWrites, ALeafThePoolDoesNotBindIsSkipped)
 {
     declare_unbound("targets");
 
-    Train::mark_leaves_unwritten(leaves, pool);
+    SA_EXPECT_OK(Train::mark_leaves_unwritten(leaves, pool));
 
     SA_EXPECT_OK(Train::require_leaves_written(leaves, pool));
 }

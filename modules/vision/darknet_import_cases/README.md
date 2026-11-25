@@ -12,8 +12,8 @@ weights it stores and the model it rebuilds.
 - `failure`, `dtype`, `shape`, `io`, `nn`, `umbrella`, `vision/importers`, `engine_fixture` and
   `failure_expectations`
   (`PUBLIC_DEPENDS`). Of the core modules, `dtype` and `shape` are private (`PRIVATE_DEPENDS`).
-- `config`, `train`, `vision/detect`, `vision/darknet_forward_cases` and `darknet_reference`
-  (`PRIVATE_DEPENDS`).
+- `allocation`, for the host copies into and out of a state's tensors, `config`, `train`,
+  `vision/detect`, `vision/darknet_forward_cases` and `darknet_reference` (`PRIVATE_DEPENDS`).
 
 ## Public entry points
 

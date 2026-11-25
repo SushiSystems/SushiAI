@@ -37,6 +37,7 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -157,7 +158,7 @@ namespace SushiAI
         {
             for (const NN::HostTable& table : tables.tables())
             {
-                SushiBLAS::Tensor& leaf = pool.tensor(table.leaf);
+                const SushiBLAS::Tensor& leaf = pool.tensor(table.leaf);
                 const bool is_single = leaf.dtype == DType::Float32;
                 SA_FAIL_IF((!is_single && leaf.dtype != DType::Float64) ||
                                static_cast<std::size_t>(leaf.num_elements) != table.values.size(),
@@ -166,13 +167,8 @@ namespace SushiAI
                            "{} values for a float32 or a float64 leaf",
                            leaf.num_elements, dtype_name(leaf.dtype), table.values.size());
 
-                for (std::size_t at = 0; at < table.values.size(); ++at)
-                {
-                    if (is_single)
-                        leaf.data_as<float>()[at] = static_cast<float>(table.values[at]);
-                    else
-                        leaf.data_as<double>()[at] = table.values[at];
-                }
+                SA_TRY(write_reals(leaf, SushiRuntime::span<const double>(table.values.data(),
+                                                                          table.values.size())));
             }
 
             return Status();

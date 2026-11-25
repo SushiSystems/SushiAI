@@ -12,6 +12,16 @@ views `view_tensor` carves from an arena are covered by `tests/core/graph/test_a
 A float64 tensor of `Shape{2, 3, 4}` has rank 3, those extents, 24 elements and its own storage
 of at least 24 times `dtype_size(DType::Float64)` bytes.
 
+## AKernelsTensorLivesInDeviceMemory
+
+A float32 tensor allocated with the default `TensorAccess::Kernels` has a storage whose residency
+is `SushiRuntime::Residency::Device`.
+
+## AHostTensorLivesInPinnedHostMemory
+
+A float32 tensor allocated with `TensorAccess::Host` has a storage whose residency is
+`SushiRuntime::Residency::Host`.
+
 ## AnExtentThatIsNotPositiveIsRefused
 
 The extents 4 and 0, passed as a span to `check_tensor_extents`, are refused with

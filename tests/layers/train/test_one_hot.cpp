@@ -59,7 +59,7 @@ namespace
                 SA_TRY_ASSIGN(SushiBLAS::Tensor labels,
                               allocate_tensor(backend.engine(),
                                               Shape{static_cast<int64_t>(values.size())},
-                                              DType::Int32));
+                                              DType::Int32, TensorAccess::Host));
 
                 int32_t* data = labels.data_as<int32_t>();
                 for (std::size_t i = 0; i < values.size(); ++i)

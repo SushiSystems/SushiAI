@@ -4,7 +4,7 @@ Part of the [graph capabilities plan](README.md).
 
 ## R1. State and test that a replayed plan reads memory the host wrote between executions
 
-**Limit and evidence.** SushiAI writes Shared USM from the host with no task and expects the
+**Limit and evidence.** SushiAI writes memory from the host with no task and expects the
 kernels of the next execution to read it:
 
 - the row offsets of a row selection, once at lowering
@@ -14,9 +14,10 @@ kernels of the next execution to read it:
 - the optimizer's scalars, before every replay (`modules/core/optim/source/optimizer.cpp:174-177`,
   `modules/core/graph/source/compiled_step.cpp:116-120`).
 
-The memory is Shared: `TensorFactory::create` defaults to `Residency::Shared`
-(`sushiblas/modules/data/tensor/include/SushiBLAS/tensor/tensor_factory.hpp:103-107`) and
-`TensorPool::create` passes no residency (`modules/core/graph/source/tensor_pool.cpp:63-66`).
+A tensor the host writes before every replay is pinned host memory: `allocate_tensor` with
+`TensorAccess::Host` allocates `Residency::Host` (`residency_of` in
+`modules/core/allocation/source/allocation.cpp`). Every other tensor is device memory, which the
+host writes through the blocking copies of `SushiAI/allocation/host_copy.hpp`.
 `sushiruntime/docs/design/GRAPH_REPLAY/README.md` section D designs the same pattern for late-bound
 counts: a kernel reads a host-USM word the step machinery writes before each submission. No
 header states it as a contract of `SushiRuntime::Graph` and its plan, and no test replays a plan

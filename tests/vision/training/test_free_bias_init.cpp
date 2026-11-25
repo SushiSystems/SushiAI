@@ -40,6 +40,7 @@
 #include <gtest/gtest.h>
 
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -162,9 +163,9 @@ namespace
     void expect_bias(NN::ModelState& state, const std::string& name, double value)
     {
         SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* const tensor, state.tensor(name));
-        const float* const data = tensor->data_as<float>();
-        for (std::int64_t index = 0; index < tensor->num_elements; ++index)
-            EXPECT_NEAR(static_cast<double>(data[index]), value, K_TOLERANCE) << name;
+        SA_ASSERT_OK_AND_ASSIGN(const std::vector<float> data, ::SushiAI::read_elements<float>(*tensor));
+        for (const float element : data)
+            EXPECT_NEAR(static_cast<double>(element), value, K_TOLERANCE) << name;
     }
 
     /** @brief Names a level and whether the one-to-one copy's branch is the one read. */

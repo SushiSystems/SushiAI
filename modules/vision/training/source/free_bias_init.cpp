@@ -36,6 +36,8 @@
 
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/vision/detect/free/head_contract.hpp>
@@ -123,11 +125,17 @@ namespace SushiAI::Vision::Training
             }
         }
 
-        // Every entry was checked above, so the writes below change all of them or none.
+        // Every entry was checked above, so only a failed copy stops the writes below partway.
         for (const BiasWrite& write : writes)
         {
-            float* const data = write.tensor->data_as<float>();
-            std::fill(data, data + write.tensor->num_elements, write.value);
+            SA_TRY_ASSIGN(const std::vector<float> data,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate,
+                                                       [&write]()
+            {
+                return std::vector<float>(static_cast<std::size_t>(write.tensor->num_elements),
+                                          write.value);
+            }));
+            SA_TRY(write_elements(*write.tensor, data));
         }
         return Status();
     }

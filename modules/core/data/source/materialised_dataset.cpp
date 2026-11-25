@@ -138,7 +138,7 @@ namespace SushiAI
         Result<SushiBLAS::Tensor> EngineBatchAllocator::allocate(
             SushiRuntime::span<const int64_t> dims, DType dtype) noexcept
         {
-            return allocate_tensor(*engine_, dims, dtype);
+            return allocate_tensor(*engine_, dims, dtype, TensorAccess::Host);
         }
 
         Result<SushiBLAS::Tensor> InMemoryBatchAllocator::allocate(

@@ -337,9 +337,10 @@ CLI has one.
 
 ## B8. State and test host access to a Shared tensor between executions
 
-**Limit and evidence.** SushiAI reads and writes Shared tensors through `Tensor::data_as` on
-the host (the cases of R1; the loss and the heads a training step reads,
-`modules/vision/training/README.md:92-93`). `sushiblas/modules/README.md` documents the `IO`
+**Limit and evidence.** SushiAI reads and writes `TensorAccess::Host` tensors, pinned host
+memory, through `Tensor::data_as` on the host (the batches, and the optimizer's scalars of R1),
+and copies every other tensor, the loss and the heads a training step reads among them, through
+`SushiAI/allocation/host_copy.hpp`. `sushiblas/modules/README.md` documents the `IO`
 calls as the way to move elements, and says nothing of direct access.
 
 **Design.** No code changes. A paragraph under `Tensor::data` in `sushiblas/modules/README.md`:

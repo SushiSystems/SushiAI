@@ -37,6 +37,7 @@
 #include <unordered_map>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -109,13 +110,15 @@ namespace SushiAI
 
                 /**
                  * @brief Allocates an unmanaged standalone tensor.
-                 *
                  * @param shape Extents of the tensor.
                  * @param dtype Element data type.
+                 * @param access Who addresses the elements; a pool over a TensorSource, whose
+                 *        tensors hold no storage, ignores it.
                  * @return Newly allocated tensor instance, or the allocation failure.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor> create(const Shape& shape,
-                                                               DType dtype) const noexcept;
+                [[nodiscard]] Result<SushiBLAS::Tensor> create(
+                    const Shape& shape, DType dtype,
+                    TensorAccess access = TensorAccess::Kernels) const noexcept;
 
                 /**
                  * @brief Binds an externally owned tensor to the given value id.
@@ -183,14 +186,15 @@ namespace SushiAI
 
                 /**
                  * @brief Retrieves or creates a per-node scratch buffer.
-                 *
                  * Keyed by node and slot, reused across replays. A buffer the adopted plan
                  * placed is a view of its arena; any other keeps a Storage of its own.
-                 *
-                 * @return Stable reference to scratch tensor, or the allocation failure.
+                 * @param access Who addresses the elements; the plan places only Kernels.
+                 * @return Stable reference to scratch tensor, InvalidDescription for a Host
+                 *         buffer the plan placed, or the allocation failure.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor&> scratch(NodeID node, int slot,
-                                                                 const Shape& shape, DType dtype) noexcept;
+                [[nodiscard]] Result<SushiBLAS::Tensor&> scratch(
+                    NodeID node, int slot, const Shape& shape, DType dtype,
+                    TensorAccess access = TensorAccess::Kernels) noexcept;
 
                 /**
                  * @brief Queues @p tensor to be filled with @p value once.

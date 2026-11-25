@@ -43,6 +43,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -238,6 +239,18 @@ namespace
         return Status();
     }
 
+    /**
+     * @brief Copies the elements of @p tensor into a new entry of @p copies.
+     * @return A view of the entry, valid while @p copies holds it, or the failure of the copy.
+     */
+    Result<SushiRuntime::span<const float>> host_copy_of(const SushiBLAS::Tensor& tensor,
+                                                         std::vector<std::vector<float>>& copies)
+    {
+        SA_TRY_ASSIGN(std::vector<float> values, ::SushiAI::read_elements<float>(tensor));
+        copies.push_back(std::move(values));
+        return SushiRuntime::span<const float>(copies.back().data(), copies.back().size());
+    }
+
     Result<std::vector<Detection>> Large_YoloxOnnxDetections::detect(
         const std::filesystem::path& image, const Reference& reference)
     {
@@ -251,16 +264,18 @@ namespace
                            pixels.channels() !=
                        count,
                    StatusCode::Incompatible, "{} is not the model's input size", image.string());
-        float* const values = input.data_as<float>();
+        std::vector<float> values(count);
         for (std::size_t i = 0; i < count; ++i)
         {
             const std::size_t channel = i % K_CHANNELS;
             values[i] = (static_cast<float>(pixels.data()[i]) / 255.0f - reference.mean[channel]) /
                         reference.deviation[channel];
         }
+        SA_TRY(::SushiAI::write_elements(input, values));
         SA_TRY(step_->run(input));
 
         std::vector<Vision::Detect::Yolox::YoloxLevel> levels;
+        std::vector<std::vector<float>> copies;
         std::int64_t classes = 0;
         for (std::size_t level = 0; level < std::size(K_STRIDES); ++level)
         {
@@ -274,13 +289,9 @@ namespace
             bound.stride = static_cast<float>(K_STRIDES[level]);
             bound.height = batch_shape_[1] / K_STRIDES[level];
             bound.width = batch_shape_[2] / K_STRIDES[level];
-            bound.classes = SushiRuntime::span<const float>(
-                class_logits->data_as<float>(),
-                static_cast<std::size_t>(class_logits->num_elements));
-            bound.boxes = SushiRuntime::span<const float>(
-                boxes->data_as<float>(), static_cast<std::size_t>(boxes->num_elements));
-            bound.objectness = SushiRuntime::span<const float>(
-                objectness->data_as<float>(), static_cast<std::size_t>(objectness->num_elements));
+            SA_TRY_ASSIGN(bound.classes, host_copy_of(*class_logits, copies));
+            SA_TRY_ASSIGN(bound.boxes, host_copy_of(*boxes, copies));
+            SA_TRY_ASSIGN(bound.objectness, host_copy_of(*objectness, copies));
             levels.push_back(bound);
             classes = class_logits->num_elements / (bound.height * bound.width);
         }

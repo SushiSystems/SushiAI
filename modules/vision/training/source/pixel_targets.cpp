@@ -29,8 +29,9 @@
 
 #include <SushiAI/vision/training/pixel_targets.hpp>
 
-#include <algorithm>
-#include <type_traits>
+#include <cstddef>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/vision/training/pixel_labels.hpp>
 
@@ -63,19 +64,16 @@ namespace SushiAI::Vision::Training
             kept += label[pixel] != ignore_index ? 1 : 0;
 
         // Every label was checked, so a refused batch leaves both leaves as they were.
-        std::copy(label, label + pixels, labels.data_as<std::int32_t>());
+        SA_TRY(write_elements(labels, 0,
+                              SushiRuntime::span<const std::int32_t>(
+                                  label, static_cast<std::size_t>(pixels))));
 
         const double share = kept == 0 ? 0.0 : 1.0 / static_cast<double>(kept);
-        Detail::write_reals(weights, [&](auto* const weight)
+        return Detail::fill_reals(weights, [&](double* const weight)
         {
             for (std::int64_t pixel = 0; pixel < pixels; ++pixel)
-            {
-                const double value = label[pixel] != ignore_index ? share : 0.0;
-                weight[pixel] = static_cast<std::decay_t<decltype(*weight)>>(value);
-            }
+                weight[pixel] = label[pixel] != ignore_index ? share : 0.0;
         });
-
-        return Status();
     }
 
 } // namespace SushiAI::Vision::Training

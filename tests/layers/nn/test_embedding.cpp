@@ -37,6 +37,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -444,9 +445,7 @@ namespace
         ASSERT_EQ(tensor.dtype, DType::Int32);
         ASSERT_EQ(static_cast<std::size_t>(tensor.num_elements), indices.size());
 
-        std::int32_t* const data = tensor.data_as<std::int32_t>();
-        for (std::size_t i = 0; i < indices.size(); ++i)
-            data[i] = indices[i];
+        SA_EXPECT_OK(::SushiAI::write_elements(tensor, indices));
     }
 
     /** @brief Returns the rows of a [rows, width] @p table that @p indices names, in order. */

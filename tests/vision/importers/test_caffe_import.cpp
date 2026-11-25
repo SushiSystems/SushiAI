@@ -44,6 +44,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
@@ -944,13 +945,12 @@ namespace
                 SA_FAIL_IF(static_cast<std::size_t>(image.num_elements) != input.size(),
                            StatusCode::Incompatible, "the input holds {} values, the model needs {}",
                            input.size(), image.num_elements);
-                std::memcpy(image.data_as<float>(), input.data(), input.size() * sizeof(float));
+                SA_TRY(::SushiAI::write_elements(image, input));
                 SA_TRY(step->run(image));
 
                 SA_TRY_ASSIGN(const SushiBLAS::Tensor* const output,
                               step->output(std::string(name)));
-                const float* const values = output->data_as<float>();
-                return std::vector<float>(values, values + output->num_elements);
+                return ::SushiAI::read_elements<float>(*output);
             }
     };
 } // namespace

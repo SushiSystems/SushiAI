@@ -54,8 +54,8 @@ namespace SushiAI::Language::Training
      * @param labels INT32 token ids of any shape holding R elements, each in [0, vocabulary).
      * @param vocabulary V, the last extent of the logits.
      * @param targets The INT32 [R] leaf; element r becomes labels[r].
-     * @return Success, or Incompatible for another element type or count, a label outside
-     *         the vocabulary, naming its row, or a vocabulary below 1.
+     * @return Success, Incompatible for another element type or count, a label outside the
+     *         vocabulary or a vocabulary below 1, or the failure of the copy.
      */
     [[nodiscard]] Status fill_next_token_targets(const SushiBLAS::Tensor& labels,
                                                  std::int64_t vocabulary,

@@ -39,6 +39,7 @@
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -112,6 +113,7 @@ namespace SushiAI::Vision::Training
             made->leaves_.reserve(head_count);
             made->deltas_.resize(head_count);
             made->outputs_view_.resize(head_count);
+            made->outputs_host_.resize(head_count);
             return made;
         }));
 
@@ -141,6 +143,7 @@ namespace SushiAI::Vision::Training
           leaves_(),
           deltas_(),
           outputs_view_(),
+          outputs_host_(),
           cost_()
     {
 
@@ -222,8 +225,12 @@ namespace SushiAI::Vision::Training
                 for (std::size_t head = 0; head < heads.size(); ++head)
                 {
                     const SushiBLAS::Tensor& output = *heads_[head];
-                    outputs_view_[head] = SushiRuntime::span<const float>(
-                        output.data_as<float>(), static_cast<std::size_t>(output.num_elements));
+                    std::vector<float>& values = outputs_host_[head];
+                    values.resize(static_cast<std::size_t>(output.num_elements));
+                    SA_TRY(read_elements(output, 0,
+                                         SushiRuntime::span<float>(values.data(), values.size())));
+                    outputs_view_[head] =
+                        SushiRuntime::span<const float>(values.data(), values.size());
                 }
             }
 
@@ -244,8 +251,9 @@ namespace SushiAI::Vision::Training
                 SA_FATAL_IF(delta.delta.size() != elements,
                             "the delta of head '{}' holds {} values for a head of {}",
                             described.output, delta.delta.size(), elements);
-                std::copy(delta.delta.begin(), delta.delta.end(),
-                          leaves_[head]->data_as<float>());
+                SA_TRY(write_elements(*leaves_[head], 0,
+                                      SushiRuntime::span<const float>(delta.delta.data(),
+                                                                      delta.delta.size())));
             }
 
             return Status();

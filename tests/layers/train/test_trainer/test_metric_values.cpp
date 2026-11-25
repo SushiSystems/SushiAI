@@ -37,6 +37,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
@@ -224,11 +225,14 @@ namespace
                 SA_TRY_ASSIGN(const SushiBLAS::Tensor* const classes,
                               Train::named_value(step, K_CLASS_VALUE));
                 SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, Train::only_output(step));
+                SA_TRY_ASSIGN(const std::vector<float> all_scores, ::SushiAI::read_elements<float>(*logits));
+                SA_TRY_ASSIGN(const std::vector<std::int64_t> all_classes,
+                              ::SushiAI::read_elements<std::int64_t>(*classes));
 
                 for (std::int64_t row = 0; row < K_BATCH; ++row)
                 {
-                    const float* const scores = logits->data_as<float>() + row * K_CLASSES;
-                    device_classes.push_back(classes->data_as<std::int64_t>()[row]);
+                    const float* const scores = all_scores.data() + row * K_CLASSES;
+                    device_classes.push_back(all_classes[static_cast<std::size_t>(row)]);
                     host_classes.push_back(std::max_element(scores, scores + K_CLASSES) - scores);
                 }
 

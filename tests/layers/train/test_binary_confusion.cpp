@@ -36,6 +36,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -56,6 +57,12 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    /** @brief Returns a view of @p values. */
+    SushiRuntime::span<const double> reals(const std::vector<double>& values)
+    {
+        return SushiRuntime::span<const double>(values.data(), values.size());
+    }
+
     /**
      * @brief The rounded operations from the counts to a ratio: the sums of counts are exact
      *        integers and convert exactly, so the one quotient rounds.
@@ -130,14 +137,11 @@ namespace
 TEST_F(Small_BinaryConfusion, EachRowLandsInOneOfTheFourCounts)
 {
     // Rows: hit, false alarm, miss, correct rejection, hit at the cut itself.
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
-                            tensor_of(Shape{5, 1}, DType::Float32,
-                                      {2.0, 1.0, -1.0, -3.0, 0.0}));
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor truth,
-                            tensor_of(Shape{5}, DType::Float32, {1.0, 0.0, 1.0, 0.0, 1.0}));
+    const std::vector<double> logits{2.0, 1.0, -1.0, -3.0, 0.0};
+    const std::vector<double> truth{1.0, 0.0, 1.0, 0.0, 1.0};
 
     const BinaryConfusion counts = Train::count_confusion(
-        logits, truth, Train::ColumnOfLogits{5, 1, 0}, Train::logit_of(0.5));
+        reals(logits), reals(truth), Train::ColumnOfLogits{5, 1, 0}, Train::logit_of(0.5));
 
     EXPECT_EQ(counts.true_positives, 2);
     EXPECT_EQ(counts.false_positives, 1);
@@ -149,13 +153,12 @@ TEST_F(Small_BinaryConfusion, EachRowLandsInOneOfTheFourCounts)
 TEST_P(Small_BinaryConfusionColumn, AColumnIsCountedAlone)
 {
     const ColumnRow& row = GetParam();
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
-                            tensor_of(Shape{2, 2}, DType::Float64, {3.0, -3.0, 3.0, 3.0}));
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor truth,
-                            tensor_of(Shape{2, 2}, DType::Float32, {1.0, 1.0, 1.0, 0.0}));
+    const std::vector<double> logits{3.0, -3.0, 3.0, 3.0};
+    const std::vector<double> truth{1.0, 1.0, 1.0, 0.0};
 
     const BinaryConfusion counts =
-        Train::count_confusion(logits, truth, Train::ColumnOfLogits{2, 2, row.column}, 0.0);
+        Train::count_confusion(
+        reals(logits), reals(truth), Train::ColumnOfLogits{2, 2, row.column}, 0.0);
 
     EXPECT_EQ(counts.true_positives, row.true_positives);
     EXPECT_EQ(counts.false_positives, row.false_positives);
@@ -172,14 +175,13 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(Small_BinaryConfusionCut, TheThresholdMovesTheCut)
 {
     const CutRow& row = GetParam();
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
-                            tensor_of(Shape{1, 1}, DType::Float32, {1.0}));
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor truth,
-                            tensor_of(Shape{1}, DType::Float32, {1.0}));
+    const std::vector<double> logits{1.0};
+    const std::vector<double> truth{1.0};
 
     // sigmoid(1) is 0.731, between the two thresholds.
     const BinaryConfusion counts = Train::count_confusion(
-        logits, truth, Train::ColumnOfLogits{1, 1, 0}, Train::logit_of(row.probability));
+        reals(logits), reals(truth), Train::ColumnOfLogits{1, 1, 0},
+        Train::logit_of(row.probability));
 
     EXPECT_EQ(counts.true_positives, row.true_positives);
     EXPECT_EQ(counts.false_negatives, row.false_negatives);
@@ -337,7 +339,9 @@ TEST_F(Small_BinaryConfusion, TheHostReadAcceptsAFloatTensorOfTheAskedCount)
                             tensor_of(Shape{2, 2}, DType::Float64, {0.5, 1.5, 2.5, 3.5}));
 
     SA_EXPECT_OK(Train::require_host_reals(reals, 4, "the logits"));
-    EXPECT_EQ(Train::host_real(reals, 2), 2.5);
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> read,
+                            Train::read_host_reals(reals, 4, "the logits"));
+    EXPECT_EQ(read[2], 2.5);
 }
 
 /** @brief Tests that the host read refuses an integer tensor. */

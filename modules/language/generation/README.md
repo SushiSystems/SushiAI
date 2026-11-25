@@ -17,6 +17,7 @@ keys and the values of the positions before it. Everything is in namespace
   `Train::EvaluationStep`. Of the core modules, `dtype`, `shape` and `seam` are private
   (`PRIVATE_DEPENDS`).
 - `language/text` (`PUBLIC_DEPENDS`), for `Text::TokenID`.
+- `allocation` (`PRIVATE_DEPENDS`), for the host copies of `host_copy.hpp`.
 
 ## Public entry points
 

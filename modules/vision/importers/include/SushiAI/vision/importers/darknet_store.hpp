@@ -67,7 +67,8 @@ namespace SushiAI
          * @param weights The convolutions in file order; shapes and targets match them by index.
          * @param state The state written; it is left untouched when a refusal is returned.
          * @return Incompatible naming the layer for a missing or repeated entry, a dtype or shape
-         *         that differs, or a vector of another length; InvalidDescription for a shape.
+         *         that differs, or a vector of another length; InvalidDescription for a shape;
+         *         or the failure of a copy, which may leave earlier entries written.
          */
         [[nodiscard]] Status store_darknet_weights(
             const DarknetWeights& weights,

@@ -6,8 +6,8 @@ The optimizers and the state they keep across a training step. `Optimizer` is th
 It holds the `ParameterSlot`s of a model and is a `Graph::StepRecorder`, so it records its
 update into a step. `SGD`, with momentum, and `AdamW`, with decoupled weight decay, are the two
 implementations. `Optimizer::learning_rate` and `set_learning_rate` read and set the step size of
-either one through the base class. `StepScalars` holds the scalars that the update kernels read from device
-memory. `LossScaler` applies dynamic loss scaling for mixed precision, and `GradientClip`
+either one through the base class. `StepScalars` holds the scalars the update kernels read from pinned host
+memory, which the host writes before every replay. `LossScaler` applies dynamic loss scaling for mixed precision, and `GradientClip`
 clips a step's gradients to a global norm. `StepSchedule` and `CosineSchedule` give the rate
 of each update. `optimizer_registry` maps
 a configured type name to a factory through `K_OPTIMIZER_REGISTRY`.

@@ -30,6 +30,8 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
@@ -38,6 +40,22 @@
 
 namespace SushiAI::IO::Detail
 {
+    /**
+     * @brief Copies the elements of @p tensor to the host and writes them as record @p name.
+     * @pre Every graph that writes the tensor has run; the copy waits for its queue.
+     * @return Success, or the failure of the copy or of CheckpointWriter::write.
+     */
+    [[nodiscard]] Status write_tensor_record(CheckpointWriter& writer, const std::string& name,
+                                             const SushiBLAS::Tensor& tensor);
+
+    /**
+     * @brief Reads the payload of @p record on the host and copies it into @p tensor.
+     * @pre The record holds the tensor's dtype and shape.
+     * @return Success, or the failure of CheckpointReader::read_payload or of the copy.
+     */
+    [[nodiscard]] Status read_tensor_payload(CheckpointReader& reader, const TensorRecord& record,
+                                             const SushiBLAS::Tensor& tensor);
+
     /**
      * @brief Writes one record per entry of @p state, in the order the state lists them.
      * @pre Every graph that writes the state has run; the records wait for its queues.

@@ -29,7 +29,6 @@
 
 #include <SushiAI/train/binary_confusion.hpp>
 
-#include <SushiAI/train/host_values.hpp>
 
 namespace SushiAI
 {
@@ -47,8 +46,8 @@ namespace SushiAI
             }
         } // namespace
 
-        BinaryConfusion count_confusion(const SushiBLAS::Tensor& logits,
-                                        const SushiBLAS::Tensor& truth,
+        BinaryConfusion count_confusion(SushiRuntime::span<const double> logits,
+                                        SushiRuntime::span<const double> truth,
                                         const ColumnOfLogits& where, double cut,
                                         const KeptRows& kept) noexcept
         {
@@ -58,9 +57,9 @@ namespace SushiAI
                 if (!kept.keeps(row))
                     continue;
 
-                const std::int64_t index = row * where.columns + where.column;
-                const bool predicted = host_real(logits, index) >= cut;
-                const bool actual = host_real(truth, index) > K_TRUTH_CUT;
+                const auto index = static_cast<std::size_t>(row * where.columns + where.column);
+                const bool predicted = logits[index] >= cut;
+                const bool actual = truth[index] > K_TRUTH_CUT;
 
                 if (predicted && actual)
                     ++counts.true_positives;

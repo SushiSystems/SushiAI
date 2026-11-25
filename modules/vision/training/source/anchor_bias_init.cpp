@@ -33,9 +33,11 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 
@@ -172,19 +174,24 @@ namespace SushiAI::Vision::Training
             return Status();
         }
 
-        /** @brief Adds the biases of @p write to every slot of its tensor. */
-        void apply(const BiasWrite& write, std::int64_t classes)
+        /**
+         * @brief Adds the biases of @p write to every slot of its tensor.
+         * @return Success, or the failure of a copy.
+         */
+        [[nodiscard]] Status apply(const BiasWrite& write, std::int64_t classes)
         {
             const std::int64_t channels = Detect::Anchor::K_FIRST_CLASS_ENTRY + classes;
-            float* const data = write.tensor->data_as<float>();
+            SA_TRY_ASSIGN(std::vector<float> data, read_elements<float>(*write.tensor));
             for (std::int64_t slot = 0; slot < write.slots; ++slot)
             {
-                float* const entries = data + slot * channels;
+                float* const entries = data.data() + slot * channels;
                 entries[Detect::Anchor::K_OBJECTNESS_ENTRY] += write.objectness;
                 for (std::int64_t entry = Detect::Anchor::K_FIRST_CLASS_ENTRY; entry < channels;
                      ++entry)
                     entries[entry] += write.classes;
             }
+
+            return write_elements(*write.tensor, data);
         }
     } // namespace
 
@@ -247,9 +254,9 @@ namespace SushiAI::Vision::Training
                               task.num_classes, writes));
         }
 
-        // Every entry was checked above, so the writes below change all of them or none.
+        // Every entry was checked above, so only a failed copy stops the writes below partway.
         for (const BiasWrite& write : writes)
-            apply(write, task.num_classes);
+            SA_TRY(apply(write, task.num_classes));
         return Status();
     }
 

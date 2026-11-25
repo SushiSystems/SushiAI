@@ -32,6 +32,7 @@
 #include <cmath>
 #include <string>
 #include <utility>
+#include <vector>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/roles.hpp>
@@ -118,12 +119,14 @@ namespace SushiAI
             const std::int64_t elements = batch_ * width_;
 
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const predicted, selection_.output.resolve(step));
-            SA_TRY(require_host_reals(*predicted, elements, "the outputs"));
+            SA_TRY_ASSIGN(const std::vector<double> outputs,
+                          read_host_reals(*predicted, elements, "the outputs"));
 
             SA_TRY_ASSIGN(const Data::BatchTarget* const values,
                           require_batch_role(step.batch,
                                              selection_.target.role_or(Data::K_ROLE_VALUES)));
-            SA_TRY(require_host_reals(values->values, elements, "the values"));
+            SA_TRY_ASSIGN(const std::vector<double> truth,
+                          read_host_reals(values->values, elements, "the values"));
 
             SA_TRY_ASSIGN(const KeptRows kept, selection_.mask.kept_rows_of(step.batch, batch_));
 
@@ -136,7 +139,8 @@ namespace SushiAI
                     continue;
 
                 ++counted;
-                total += std::abs(host_real(*predicted, index) - host_real(values->values, index));
+                const auto at = static_cast<std::size_t>(index);
+                total += std::abs(outputs[at] - truth[at]);
             }
 
             const double mean = counted == 0 ? 0.0 : total / static_cast<double>(counted);

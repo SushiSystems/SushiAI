@@ -30,10 +30,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
+#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
@@ -304,6 +306,23 @@ TEST_F(Medium_Arena, MixedDtypesRoundTripTheirBytes)
 
     EXPECT_EQ(SaTest::read_tensor(as_float), (std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0}));
     EXPECT_EQ(SaTest::read_tensor(as_double), (std::vector<double>{-1.5, -2.5, -3.5}));
+}
+
+/** @brief Tests that a planned pool refuses a host-written scratch buffer its plan put in an arena. */
+TEST_F(Small_Arena, AHostScratchBufferThePlanPutInAnArenaIsRefused)
+{
+    const Chain chain;
+    const Graph::NodeID node = chain.graph.value(chain.a).producer;
+    const Graph::ScratchRequest requests[] = {{node, 0, Shape{16}, DType::Float32}};
+    SA_ASSERT_OK_AND_ASSIGN(
+        MemoryPlan plan,
+        MemoryPlan::build(chain.graph, PlanOptions{},
+                          SushiRuntime::span<const Graph::ScratchRequest>(requests, 1)));
+    Graph::TensorPool pool(backend.engine());
+    SA_EXPECT_OK(pool.adopt(std::move(plan)));
+
+    SA_EXPECT_FAILURE(pool.scratch(node, 0, Shape{16}, DType::Float32, TensorAccess::Host),
+                      StatusCode::InvalidDescription, "arena", "host");
 }
 
 /** @brief Tests that a pool that adopted a plan refuses a second one as fatal. */

@@ -21,6 +21,7 @@ layers tier; `tests/language/training/test_next_token_objective.cpp` does. A cal
   graph builder, the attributes a factory receives, `Data::Batch` and the role names,
   `NN::ModelOutputs`, and the `Objective` interface with its registry. Of the core modules, `dtype`,
   `shape` and `seam` are private (`PRIVATE_DEPENDS`).
+- `allocation` (`PRIVATE_DEPENDS`), for the host copies of `host_copy.hpp`.
 
 ## Public entry points
 

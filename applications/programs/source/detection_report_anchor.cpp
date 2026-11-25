@@ -48,6 +48,7 @@
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 
 #include "detection_report.hpp"
+#include "host_readback.hpp"
 
 namespace SushiAI
 {
@@ -58,8 +59,8 @@ namespace SushiAI
             /** @brief Holds one head of a task bound to the tensor the step publishes it in. */
             struct BoundHead
             {
-                /** @brief The published tensor, `[B, H, W, A * (5 + C)]`; the pool owns it. */
-                const SushiBLAS::Tensor* tensor = nullptr;
+                /** @brief The host copy of the published `[B, H, W, A * (5 + C)]` tensor. */
+                SushiRuntime::span<const float> values;
 
                 /** @brief The batch and the grid of the head. */
                 Vision::Detect::Anchor::HeadShape shape;
@@ -74,7 +75,8 @@ namespace SushiAI
              *         lookup; InvalidDescription for an output that is not a head of the task.
              */
             [[nodiscard]] Result<std::vector<BoundHead>> bind_heads(
-                const Vision::Detect::Anchor::AnchorTask& task, const PreparedInference& run)
+                const Vision::Detect::Anchor::AnchorTask& task, const PreparedInference& run,
+                HostReadback& readback)
             {
                 std::vector<BoundHead> heads;
                 heads.reserve(task.heads.size());
@@ -96,7 +98,7 @@ namespace SushiAI
                                run.model_path.string(), head.output, tensor->rank, k, channels);
 
                     BoundHead bound;
-                    bound.tensor = tensor;
+                    SA_TRY_ASSIGN(bound.values, readback.bind(*tensor));
                     bound.shape = Vision::Detect::Anchor::HeadShape{
                         tensor->shape[0], tensor->shape[1], tensor->shape[2]};
                     bound.rows = static_cast<std::size_t>(
@@ -132,10 +134,7 @@ namespace SushiAI
                     head_boxes.resize(batch * head.rows * K_BOX_ENTRIES);
                     head_scores.resize(batch * head.rows * classes);
                     Vision::Detect::Anchor::decode_head(
-                        SushiRuntime::span<const float>(
-                            head.tensor->data_as<float>(),
-                            static_cast<std::size_t>(head.tensor->num_elements)),
-                        head.shape, task.heads[k].options, task.layout,
+                        head.values, head.shape, task.heads[k].options, task.layout,
                         static_cast<std::int64_t>(k), head_boxes, head_scores);
 
                     for (std::size_t image = 0; image < batch; ++image)
@@ -170,7 +169,8 @@ namespace SushiAI
                 Vision::Detect::K_VALIDATION_CONFIDENCE);
             SA_TRY(check_score_floor(run, score_threshold, confidence_floor));
 
-            SA_TRY_ASSIGN(const std::vector<BoundHead> heads, bind_heads(task, run));
+            HostReadback readback;
+            SA_TRY_ASSIGN(const std::vector<BoundHead> heads, bind_heads(task, run, readback));
             std::size_t rows = 0;
             for (const BoundHead& head : heads)
                 rows += head.rows;
@@ -204,6 +204,7 @@ namespace SushiAI
                 {
                     {
                         SA_ZONE("eval", "decode");
+                        SA_TRY(readback.refresh());
                         decode_batch(task, heads, input, rows, boxes, scores);
                     }
 

@@ -64,12 +64,13 @@ namespace SushiAI
             }
         }
 
-        Result<SushiBLAS::Tensor> TensorPool::create(const Shape& shape, DType dtype) const noexcept
+        Result<SushiBLAS::Tensor> TensorPool::create(const Shape& shape, DType dtype,
+                                                     TensorAccess access) const noexcept
         {
             if (source_ != nullptr)
                 return source_->create(shape, dtype);
 
-            return allocate_tensor(*engine_, shape, dtype);
+            return allocate_tensor(*engine_, shape, dtype, access);
         }
 
         SushiBLAS::Engine& TensorPool::engine() const noexcept
@@ -267,7 +268,8 @@ namespace SushiAI
         }
 
         Result<SushiBLAS::Tensor&> TensorPool::scratch(NodeID node, int slot,
-                                                       const Shape& shape, DType dtype) noexcept
+                                                       const Shape& shape, DType dtype,
+                                                       TensorAccess access) noexcept
         {
             const ScratchKey key{node, slot};
 
@@ -276,6 +278,11 @@ namespace SushiAI
 
             if (arenas_.has_value() && arenas_->holds_scratch(node, slot))
             {
+                SA_FAIL_IF(access != TensorAccess::Kernels, StatusCode::InvalidDescription,
+                           "The plan placed scratch slot {} of node {} in an arena, which only "
+                           "kernels address, but its lowering writes it from the host",
+                           slot, node);
+
                 SA_TRY_ASSIGN(SushiBLAS::Tensor slice,
                               ::SushiAI::Detail::guard_value(
                                   ::SushiAI::Detail::SeamPhase::Allocate, [&]()
@@ -288,7 +295,7 @@ namespace SushiAI
                 return store_tensor(scratch_, key, std::move(slice));
             }
 
-            SA_TRY_ASSIGN(SushiBLAS::Tensor buffer, create(shape, dtype));
+            SA_TRY_ASSIGN(SushiBLAS::Tensor buffer, create(shape, dtype, access));
             note_standalone(bytes_.scratch, shape, dtype);
 
             return store_tensor(scratch_, key, std::move(buffer));

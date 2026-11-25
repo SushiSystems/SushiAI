@@ -54,6 +54,7 @@
 #include <SushiAI/vision/training/anchor_head.hpp>
 #include <SushiAI/vision/training/head_delta_rule.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -334,8 +335,9 @@ namespace
             if (!found.has_value())
                 return {};
 
-            const float* const values = found.value()->data_as<float>();
-            return std::vector<float>(values, values + found.value()->num_elements);
+            Result<std::vector<float>> values = ::SushiAI::read_elements<float>(*found.value());
+            SA_EXPECT_OK(values.status());
+            return values.has_value() ? std::move(values).value() : std::vector<float>();
         }
 
         /** @brief Returns the elements of the state entry @p name, or none when it is absent. */

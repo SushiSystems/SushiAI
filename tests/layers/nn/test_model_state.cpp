@@ -35,6 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
@@ -345,6 +346,9 @@ TEST_F(Medium_ModelState, TwoPoolsAttachedToOneStateShareStorage)
     SA_EXPECT_OK(state.attach(graph, second));
 
     const Graph::ValueID leaf = graph.state_leaves().front().second;
-    first.tensor(leaf).data_as<float>()[0] = 42.5f;
-    EXPECT_EQ(second.tensor(leaf).data_as<float>()[0], 42.5f);
+    const float written = 42.5f;
+    SA_EXPECT_OK(::SushiAI::write_elements(first.tensor(leaf), 0, SushiRuntime::span<const float>(&written, 1)));
+    float read = 0.0f;
+    SA_EXPECT_OK(::SushiAI::read_elements(second.tensor(leaf), 0, SushiRuntime::span<float>(&read, 1)));
+    EXPECT_EQ(read, written);
 }

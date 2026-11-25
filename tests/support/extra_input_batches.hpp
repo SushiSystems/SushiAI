@@ -75,18 +75,21 @@ namespace SushiAI::Test
         const std::vector<double>& offsets, const Shape& offset_extents)
     {
         Data::Batch batch;
-        SA_TRY_ASSIGN(batch.inputs, allocate_tensor(engine, extra_batch_extents(), DType::Float32));
+        SA_TRY_ASSIGN(batch.inputs, allocate_tensor(engine, extra_batch_extents(), DType::Float32,
+                                                    TensorAccess::Host));
         write_tensor(batch.inputs, inputs);
 
         Data::BatchTarget labels;
         labels.role = std::string(Data::K_ROLE_LABELS);
-        SA_TRY_ASSIGN(labels.values, allocate_tensor(engine, Shape{K_EXTRA_BATCH}, DType::Int32));
+        SA_TRY_ASSIGN(labels.values, allocate_tensor(engine, Shape{K_EXTRA_BATCH}, DType::Int32,
+                                                     TensorAccess::Host));
         write_tensor(labels.values, std::vector<double>{0.0, 1.0, 2.0, 1.0});
         batch.targets.push_back(std::move(labels));
 
         Data::BatchTarget offset;
         offset.role = std::string(K_EXTRA_INPUT_OFFSET);
-        SA_TRY_ASSIGN(offset.values, allocate_tensor(engine, offset_extents, DType::Float32));
+        SA_TRY_ASSIGN(offset.values, allocate_tensor(engine, offset_extents, DType::Float32,
+                                                     TensorAccess::Host));
         write_tensor(offset.values, offsets);
         batch.targets.push_back(std::move(offset));
 

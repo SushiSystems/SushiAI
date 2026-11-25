@@ -29,10 +29,13 @@
 
 #include <cmath>
 #include <utility>
+#include <vector>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>
 
@@ -62,6 +65,14 @@ namespace SushiAI
              * @param parameter_count Number of views to carve.
              * @return The views, or the failure of the allocation seam.
              */
+            /** @brief Writes @p scale into the one float32 element of @p factor. */
+            [[nodiscard]] Status write_factor(const SushiBLAS::Tensor& factor,
+                                              double scale) noexcept
+            {
+                const float value = static_cast<float>(scale);
+                return write_elements(factor, 0, SushiRuntime::span<const float>(&value, 1));
+            }
+
             Result<std::vector<SushiBLAS::Tensor>> carve_count_views(
                 SushiBLAS::Engine& engine,
                 const SushiRuntime::sushi_ptr<SushiBLAS::Storage>& arena,
@@ -194,29 +205,37 @@ namespace SushiAI
             SA_TRY_ASSIGN(auto arena,
                           allocate_arena(engine, parameter_count * dtype_size(DType::Int64)));
             SA_TRY_ASSIGN(auto count_views, carve_count_views(engine, arena, parameter_count));
+            SA_TRY_ASSIGN(SushiBLAS::Tensor all_counts,
+                          Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                return view_tensor(engine, arena, 0,
+                                   Shape{static_cast<int64_t>(parameter_count)}, DType::Int64);
+            }));
+            SA_TRY_ASSIGN(std::vector<std::int64_t> zeros,
+                          Detail::guard_value(Detail::SeamPhase::Allocate, [parameter_count]()
+            {
+                return std::vector<std::int64_t>(parameter_count, 0);
+            }));
+            SA_TRY(write_elements(all_counts, zeros));
+            SA_TRY(write_factor(factor, state.scale()));
 
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
             {
-                std::unique_ptr<LossScaler> scaler(new LossScaler(std::move(factor),
-                                                                  std::move(arena),
-                                                                  std::move(count_views),
-                                                                  std::move(state)));
-
-                // Initialize count buffer to zero before initial execution replay.
-                for (std::size_t i = 0; i < scaler->count_; ++i) scaler->counts_[i] = 0;
-
-                // Set initial loss scale factor before recording execution steps.
-                scaler->factor_.data_as<float>()[0] = static_cast<float>(scaler->state_.scale());
-                return scaler;
+                return std::unique_ptr<LossScaler>(new LossScaler(
+                    std::move(factor), std::move(arena), std::move(count_views),
+                    std::move(all_counts), std::move(zeros), std::move(state)));
             });
         }
 
         LossScaler::LossScaler(SushiBLAS::Tensor factor,
                                SushiRuntime::sushi_ptr<SushiBLAS::Storage> arena,
                                std::vector<SushiBLAS::Tensor> count_views,
+                               SushiBLAS::Tensor all_counts,
+                               std::vector<std::int64_t> host_counts,
                                LossScaleState state) noexcept
             : factor_(std::move(factor)), arena_(std::move(arena)),
-              count_views_(std::move(count_views)), count_(count_views_.size()),
+              count_views_(std::move(count_views)), all_counts_(std::move(all_counts)),
+              host_counts_(std::move(host_counts)), count_(count_views_.size()),
               state_(std::move(state))
         {
             counts_ = count_views_.front().data_as<std::int64_t>();
@@ -249,7 +268,9 @@ namespace SushiAI
 
         void LossScaler::before_replay() noexcept
         {
-            factor_.data_as<float>()[0] = static_cast<float>(state_.scale());
+            const Status written = write_factor(factor_, state_.scale());
+            SA_FATAL_IF(!written.is_ok(), "The loss scale could not be written: {}",
+                        written.message());
         }
 
         Status LossScaler::restore(double scale, std::uint64_t good_steps) noexcept
@@ -259,10 +280,15 @@ namespace SushiAI
 
         void LossScaler::after_replay() noexcept
         {
-            // Check global non-finite count across all screened parameter buffers.
+            const Status read = read_elements(
+                all_counts_, 0,
+                SushiRuntime::span<std::int64_t>(host_counts_.data(), host_counts_.size()));
+            SA_FATAL_IF(!read.is_ok(), "The non-finite counts could not be read back: {}",
+                        read.message());
+
             bool overflow = false;
-            for (std::size_t i = 0; i < count_; ++i)
-                if (counts_[i] != 0) { overflow = true; break; }
+            for (const std::int64_t count : host_counts_)
+                if (count != 0) { overflow = true; break; }
 
             state_.observe(overflow);
         }

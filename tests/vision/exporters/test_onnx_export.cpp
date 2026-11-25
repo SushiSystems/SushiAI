@@ -57,6 +57,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/io/exported_model_writer.hpp>
@@ -457,15 +458,16 @@ namespace
                 SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
                               Train::EvaluationStep::make(backend(), traced, state, pool));
                 SA_TRY_ASSIGN(SushiBLAS::Tensor image, allocate_tensor(engine, batch_shape));
-                float* const pixels = image.data_as<float>();
+                std::vector<float> pixels(static_cast<std::size_t>(image.num_elements));
                 for (std::int64_t at = 0; at < image.num_elements; ++at)
-                    pixels[at] = static_cast<float>((at * 7919) % 2001) / 1000.0f - 1.0f;
+                    pixels[static_cast<std::size_t>(at)] =
+                        static_cast<float>((at * 7919) % 2001) / 1000.0f - 1.0f;
+                SA_TRY(::SushiAI::write_elements(image, pixels));
                 SA_TRY(step->run(image));
 
                 SA_TRY_ASSIGN(const SushiBLAS::Tensor* const output,
                               step->output(imported.model.outputs[0].name));
-                const float* const values = output->data_as<float>();
-                return std::vector<float>(values, values + output->num_elements);
+                return ::SushiAI::read_elements<float>(*output);
             }
 
             /** @brief Expects @p files and their exported copy to give the same bits. */

@@ -46,7 +46,8 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/datasets/next_token_collator.hpp>
 #include <SushiAI/language/text/token.hpp>
-#include <SushiAI/layer_rows/minimal_case.hpp>
+#include <SushiAI/layer_rows/minimal_case.hpp>
+
 #include <support/test_names.hpp>
 
 using namespace SushiAI;
@@ -66,9 +67,10 @@ namespace
                 Data::Batch batch;
 
                 Result<SushiBLAS::Tensor> inputs =
-                    allocate_tensor(*engine, Shape{rows, length}, input_type);
+                    allocate_tensor(*engine, Shape{rows, length}, input_type, TensorAccess::Host);
                 Result<SushiBLAS::Tensor> labels =
-                    allocate_tensor(*engine, Shape{rows, length}, DType::Int32);
+                    allocate_tensor(*engine, Shape{rows, length}, DType::Int32,
+                                    TensorAccess::Host);
                 EXPECT_TRUE(inputs.status().is_ok());
                 EXPECT_TRUE(labels.status().is_ok());
 

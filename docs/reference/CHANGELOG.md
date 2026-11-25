@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-25 — allocation: Kept kernel-only tensors on the device and host-written ones in pinned memory, with `host_copy.hpp` for the rest; a YOLOv4 step fell from 4.52 s to 0.44 s (RW-102).
 - 2026-11-25 — test_tree: Opened the work of bringing the three Darknet overfit cases under the large limit (RW-197).
 - 2026-11-25 — test_tree: Ran the Darknet parity scenarios of the six models against the reference dumps: all pass but the three one-batch overfit cases, which exceed the 120 s limit (RW-116).
 - 2026-11-24 — language: Linked the two importer test files the page missed and described the shared check helpers of the three Darknet case modules (RW-97).

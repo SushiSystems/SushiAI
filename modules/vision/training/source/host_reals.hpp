@@ -29,9 +29,15 @@
 
 #pragma once
 
+#include <cstddef>
 #include <utility>
+#include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI::Vision::Training::Detail
 {
@@ -42,31 +48,24 @@ namespace SushiAI::Vision::Training::Detail
     }
 
     /**
-     * @brief Calls @p visit once with the elements of @p tensor as float* or as double*.
-     * @tparam Visit Callable with either pointer; a generic lambda is.
+     * @brief Calls @p fill once with a double* to as many host values as @p tensor holds, all
+     *        of which it writes, then copies them over the tensor.
      * @pre holds_reals(tensor), and no recorded task reads or writes the tensor.
+     * @return Success, or the failure of the allocation or of the copy.
      */
-    template<typename Visit>
-    void write_reals(SushiBLAS::Tensor& tensor, Visit&& visit)
+    template<typename Fill>
+    [[nodiscard]] Status fill_reals(const SushiBLAS::Tensor& tensor, Fill&& fill)
     {
-        if (tensor.dtype == DType::Float64)
-            std::forward<Visit>(visit)(tensor.data_as<double>());
-        else
-            std::forward<Visit>(visit)(tensor.data_as<float>());
-    }
+        SA_TRY_ASSIGN(std::vector<double> staged,
+                      ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Allocate,
+                                                     [&tensor]()
+        {
+            return std::vector<double>(static_cast<std::size_t>(tensor.num_elements), 0.0);
+        }));
+        std::forward<Fill>(fill)(staged.data());
 
-    /**
-     * @brief Calls @p visit once with the elements of @p tensor as const float* or const double*.
-     * @tparam Visit Callable with either pointer; a generic lambda is.
-     * @pre holds_reals(tensor), and no recorded task writes the tensor.
-     */
-    template<typename Visit>
-    auto read_reals(const SushiBLAS::Tensor& tensor, Visit&& visit)
-    {
-        if (tensor.dtype == DType::Float64)
-            return std::forward<Visit>(visit)(tensor.data_as<double>());
-
-        return std::forward<Visit>(visit)(tensor.data_as<float>());
+        return ::SushiAI::write_reals(
+            tensor, SushiRuntime::span<const double>(staged.data(), staged.size()));
     }
 
 } // namespace SushiAI::Vision::Training::Detail

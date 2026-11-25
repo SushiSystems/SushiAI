@@ -63,6 +63,8 @@ From `CMakeLists.txt`: `PUBLIC_DEPENDS config core data graph nn optim` and
 - `optim`: `Optim::Optimizer` and `Optim::ParameterSlot`.
 - `data`: `Data::Dataset`, `Data::Batch`, `Data::TargetDescription` and the role names.
 - `config`: `Config::Value`, the attributes an objective factory receives.
+- `allocation` (private): the host copies of `host_copy.hpp`, through which the sources read and
+  write device tensors.
 
 `autograd` is linked privately. Only `source/steps.cpp` includes it, through
 `autograd/backward.hpp`; no header under `include/` does, so a consumer does not link it. The
@@ -99,7 +101,7 @@ The headers sit in `modules/layers/train/include/SushiAI/train/`.
 | `metrics.hpp` | `Metric`, `Metrics`, `K_METRIC_CAPACITY`, `K_ACCURACY_METRIC`, `K_PRECISION_METRIC`, `K_RECALL_METRIC`, `K_F1_METRIC`, `K_MEAN_ABSOLUTE_ERROR_METRIC`, `describe_metric_value` |
 | `step_view.hpp` | `StepOutput`, `StepView`, `only_output` |
 | `batch_role.hpp` | `require_batch_role` |
-| `host_values.hpp` | `require_host_reals`, `host_real` |
+| `host_values.hpp` | `require_host_reals`, `read_host_reals` |
 | `leaf_writes.hpp` | `mark_leaves_unwritten`, `require_leaves_written` |
 | `binary_cross_entropy_objective.hpp` | `BinaryCrossEntropyObjective`, `make_binary_cross_entropy`, `K_BINARY_CROSS_ENTROPY_TYPE` |
 | `multi_label_objective.hpp` | `MultiLabelObjective`, `make_multi_label`, `K_MULTI_LABEL_TYPE` |
@@ -110,7 +112,7 @@ The headers sit in `modules/layers/train/include/SushiAI/train/`.
 | `kept_rows.hpp` | `KeptRows` |
 | `loss_trace.hpp` | `LossTrace` |
 | `dense_targets.hpp` | `fill_dense_targets`, `fill_binary_targets` |
-| `binary_confusion.hpp` | `BinaryConfusion`, `ColumnOfLogits`, `count_confusion` (over the rows of a `KeptRows`), `accuracy_of`, `precision_of`, `recall_of`, `f1_of` |
+| `binary_confusion.hpp` | `BinaryConfusion`, `ColumnOfLogits`, `count_confusion` (over spans of host doubles and the rows of a `KeptRows`), `accuracy_of`, `precision_of`, `recall_of`, `f1_of` |
 | `decision_threshold.hpp` | `K_THRESHOLD_KEY`, `K_DEFAULT_THRESHOLD`, `validate_threshold`, `read_threshold`, `logit_of` |
 | `objective_context.hpp` | `OutputShape`, `ObjectiveContext`, `list_output_shapes`, `find_output_shape` |
 | `objective_registry.hpp` | `ObjectiveFactory`, `ObjectiveEntry`, `ObjectiveRegistry`, `register_objectives`, `make_objective` |
@@ -240,9 +242,9 @@ declared with the NaN pattern `0x7FC0DEAD` (`mark_leaves_unwritten`) and afterwa
 `InvalidDescription` naming the leaf's role and the index of its first element, a leaf in
 which any element still holds it in every byte (`require_leaves_written`, RW-111): a feed
 that skips a leaf, or writes part of one, would otherwise leave the step reading what an
-earlier step wrote. The fill is one pass over the bytes of the leaves, the targets of one
-batch. The replica path of the training program, `TrainingReplicaModel::feed`, calls the
-same pair around its own `feed`. `fit` matches the dataset against
+earlier step wrote. The fill is one copy to the device per leaf, the targets of one batch,
+and the check one copy back per leaf. The replica path of the training program,
+`TrainingReplicaModel::feed`, calls the same pair around its own `feed`. `fit` matches the dataset against
 `leaves.required()`, the roles the objective declared.
 
 | Virtual | Default | Overridden by |

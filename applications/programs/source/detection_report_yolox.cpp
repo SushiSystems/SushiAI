@@ -48,6 +48,7 @@
 #include <SushiAI/vision/detect/yolox/yolox_task.hpp>
 
 #include "detection_report.hpp"
+#include "host_readback.hpp"
 
 namespace SushiAI
 {
@@ -81,13 +82,6 @@ namespace SushiAI
                 return tensor;
             }
 
-            /** @brief Returns the values of @p tensor as a span. */
-            [[nodiscard]] SushiRuntime::span<const float> values_of(const SushiBLAS::Tensor& tensor)
-            {
-                return SushiRuntime::span<const float>(
-                    tensor.data_as<float>(), static_cast<std::size_t>(tensor.num_elements));
-            }
-
             /**
              * @brief Binds the three ports of every level the model publishes.
              * @param classes Receives the class count of the levels.
@@ -98,7 +92,7 @@ namespace SushiAI
              */
             [[nodiscard]] Result<std::vector<Vision::Detect::Yolox::YoloxLevel>> bind_yolox_levels(
                 const PreparedInference& run, const Shape& input, std::int64_t& classes,
-                std::int64_t& batch)
+                std::int64_t& batch, HostReadback& readback)
             {
                 SA_FAIL_IF(run.outputs.empty()
                                || run.outputs.size() % K_YOLOX_PORTS_PER_LEVEL != 0,
@@ -147,9 +141,9 @@ namespace SushiAI
                     bound.height = height;
                     bound.width = width;
                     bound.stride = static_cast<float>(input[0] / height);
-                    bound.classes = values_of(*scores);
-                    bound.boxes = values_of(*boxes);
-                    bound.objectness = values_of(*objectness);
+                    SA_TRY_ASSIGN(bound.classes, readback.bind(*scores));
+                    SA_TRY_ASSIGN(bound.boxes, readback.bind(*boxes));
+                    SA_TRY_ASSIGN(bound.objectness, readback.bind(*objectness));
                     levels.push_back(bound);
                 }
 
@@ -175,8 +169,9 @@ namespace SushiAI
 
             std::int64_t classes = 0;
             std::int64_t batch_size = 0;
+            HostReadback readback;
             SA_TRY_ASSIGN(const std::vector<Vision::Detect::Yolox::YoloxLevel> levels,
-                          bind_yolox_levels(run, input, classes, batch_size));
+                          bind_yolox_levels(run, input, classes, batch_size, readback));
             SA_FAIL_IF(batch_size != run.dataset.batch_size(), StatusCode::InvalidDescription,
                        "'{}' publishes batches of {} images, but the data reads {}",
                        run.model_path.string(), batch_size, run.dataset.batch_size());
@@ -200,6 +195,7 @@ namespace SushiAI
                 run, plan,
                 [&](std::vector<std::vector<float>>& detections) -> Status
                 {
+                    SA_TRY(readback.refresh());
                     SA_ZONE("eval", "nms");
                     SA_TRY(Vision::Detect::Yolox::select_yolox_detections(
                         SushiRuntime::span<const Vision::Detect::Yolox::YoloxLevel>(

@@ -39,10 +39,10 @@ namespace SushiAI
         /**
          * @brief Writes one row per label into @p one_hot: 1 in the label's column, 0 elsewhere.
          * @param labels An [N] int32 tensor the host can read.
-         * @param one_hot An [N, C] float32 or float64 tensor the host can write.
+         * @param one_hot An [N, C] float32 or float64 tensor.
          * @pre No recorded task reads or writes either tensor.
-         * @return Success, or Incompatible, with @p one_hot unchanged, when a shape or an
-         *         element type is not the one stated or a label lies outside [0, C).
+         * @return Success, Incompatible (@p one_hot unchanged) for a wrong shape, element
+         *         type or a label outside [0, C), or the failure of the copy.
          */
         [[nodiscard]] Status fill_one_hot(const SushiBLAS::Tensor& labels,
                                           SushiBLAS::Tensor& one_hot) noexcept;

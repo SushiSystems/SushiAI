@@ -23,7 +23,7 @@
 
 /**
  * @file step_scalars.hpp
- * @brief Declares device-resident scalar buffer management for optimizer kernels.
+ * @brief Declares the pinned host scalar buffer that optimizer kernels read.
  * @author Mustafa Garip
  */
 
@@ -48,7 +48,7 @@ namespace SushiAI
 
         /**
          * @class StepScalars
-         * @brief A tiny device-resident float vector, rewritten from the host per step.
+         * @brief A tiny float vector in pinned host memory, rewritten from the host per step.
          *
          * Non-copyable: the whole point of the object is the stability of the
          * one address its kernels captured, and a copy would suggest there can
@@ -58,7 +58,7 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Allocates and zeroes the device buffer for step scalars.
+                 * @brief Allocates and zeroes the pinned host buffer for step scalars.
                  * @param engine Engine whose context owns the allocator.
                  * @param count Number of float scalars the buffer holds; must be positive.
                  * @return The buffer, or InvalidDescription for a zero count, or the failure

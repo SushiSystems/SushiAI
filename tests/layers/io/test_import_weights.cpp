@@ -42,6 +42,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -110,9 +111,19 @@ namespace
     void fill_tensor(NN::ModelState& state, std::string_view name, float base)
     {
         SushiBLAS::Tensor& tensor = tensor_of(state, name);
-        float* values = tensor.data_as<float>();
-        for (std::int64_t i = 0; i < tensor.num_elements; ++i)
+        std::vector<float> values(static_cast<std::size_t>(tensor.num_elements));
+        for (std::size_t i = 0; i < values.size(); ++i)
             values[i] = base + static_cast<float>(i) * 0.5f;
+        SA_EXPECT_OK(::SushiAI::write_elements(tensor, values));
+    }
+
+    /** @brief Writes the float32 elements of @p tensor through @p writer under @p record. */
+    void write_record(IO::CheckpointWriter& writer, const IO::TensorRecord& record,
+                      const SushiBLAS::Tensor& tensor)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(const std::vector<float> values,
+                                ::SushiAI::read_elements<float>(tensor));
+        SA_EXPECT_OK(writer.write(record, values.data()));
     }
 
     /** @brief Writes a checkpoint of @p sources to @p path, in the order given. */
@@ -124,7 +135,7 @@ namespace
                                 IO::CheckpointWriter::create(
                                     out, static_cast<std::uint32_t>(sources.size())));
         for (const Source& source : sources)
-            SA_EXPECT_OK(writer.write(source.record, source.tensor->data()));
+            write_record(writer, source.record, *source.tensor);
         writer.finish();
     }
 } // namespace
@@ -226,9 +237,8 @@ TEST_F(Medium_ImportWeights, BytesInMemoryLoadWhatTheFileOfTheSameBytesLoads)
 
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(IO::CheckpointWriter writer, IO::CheckpointWriter::create(out, 2));
-    SA_EXPECT_OK(writer.write(make_record("0.weight", Shape{2, 3}),
-                              tensor_of(source, "0.weight").data()));
-    SA_EXPECT_OK(writer.write(make_record("0.bias", Shape{3}), tensor_of(source, "0.bias").data()));
+    write_record(writer, make_record("0.weight", Shape{2, 3}), tensor_of(source, "0.weight"));
+    write_record(writer, make_record("0.bias", Shape{3}), tensor_of(source, "0.bias"));
     writer.finish();
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState target,

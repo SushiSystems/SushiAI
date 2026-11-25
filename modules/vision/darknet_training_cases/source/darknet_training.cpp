@@ -52,6 +52,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -599,11 +600,10 @@ namespace SushiAI
                 return names;
             }
 
-            /** @brief Returns the float32 elements of @p tensor. */
-            std::vector<float> read_elements(const SushiBLAS::Tensor& tensor)
+            /** @brief Copies the float32 elements of @p tensor to the host; a failed copy stops. */
+            std::vector<float> copy_floats(const SushiBLAS::Tensor& tensor)
             {
-                const float* const values = tensor.data_as<float>();
-                return std::vector<float>(values, values + tensor.num_elements);
+                return ::SushiAI::read_elements<float>(tensor).value();
             }
 
             /** @brief Returns @p values with every NaN replaced by 0. */
@@ -868,8 +868,7 @@ namespace SushiAI
                 SA_ASSERT_OK_AND_ASSIGN(run.inputs, allocate_tensor(engine, batch_shape));
                 ASSERT_EQ(static_cast<std::size_t>(run.inputs->num_elements),
                           input.values.size());
-                std::memcpy(run.inputs->data_as<float>(), input.values.data(),
-                            input.values.size() * sizeof(float));
+                ASSERT_TRUE(Test::status_is_ok(write_elements(*run.inputs, input.values)));
                 run.is_ready = true;
             }
 
@@ -1063,12 +1062,12 @@ namespace SushiAI
                 {
                     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor* const found,
                                             run.step->output(head.output));
-                    values.heads.push_back(read_elements(*found));
+                    values.heads.push_back(copy_floats(*found));
                 }
                 for (const HeadDelta& delta : run.step->deltas())
                     values.deltas.emplace_back(delta.delta.begin(), delta.delta.end());
                 for (const Optim::ParameterSlot& slot : run.slots)
-                    values.gradients.push_back(read_elements(slot.gradient));
+                    values.gradients.push_back(copy_floats(slot.gradient));
             }
 
             /** @brief Checks that @p packed and @p unpacked hold the same floats, bit for bit. */
@@ -1113,7 +1112,7 @@ namespace SushiAI
                     if (slot.name != name)
                         continue;
 
-                    std::vector<float> update = read_elements(slot.gradient);
+                    std::vector<float> update = copy_floats(slot.gradient);
                     for (float& value : update)
                         value = static_cast<float>(-static_cast<double>(run.batch) * value);
                     return update;
@@ -1128,7 +1127,7 @@ namespace SushiAI
             {
                 const Result<SushiBLAS::Tensor*> found = run.state->tensor(name);
                 SA_EXPECT_OK(found);
-                return found.has_value() ? read_elements(*found.value()) : std::vector<float>{};
+                return found.has_value() ? copy_floats(*found.value()) : std::vector<float>{};
             }
 
             /**
@@ -1257,7 +1256,7 @@ namespace SushiAI
                 SCOPED_TRACE(head.output);
                 SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor* const found,
                                         run.step->output(head.output));
-                const std::vector<float> computed = read_elements(*found);
+                const std::vector<float> computed = copy_floats(*found);
                 EXPECT_TRUE(within_tolerance(head.output + " under batch statistics", computed,
                                              run.dumps[k].input, stated.bounds.head_absolute,
                                              stated.bounds.head_relative));
@@ -1509,7 +1508,8 @@ namespace SushiAI
                            target.weight, weight.size(), filters, kernel, kernel, channels,
                            filters * kernel * kernel * channels);
 
-                const float* const pixels = input.data_as<float>();
+                SA_TRY_ASSIGN(const std::vector<float> pixel_values, read_elements<float>(input));
+                const float* const pixels = pixel_values.data();
                 const double momentum = NN::NormOptions{}.momentum;
                 HostRollingVariance result;
                 std::vector<float> output(static_cast<std::size_t>(count));

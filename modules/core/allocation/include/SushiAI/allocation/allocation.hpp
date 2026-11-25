@@ -23,7 +23,7 @@
 
 /**
  * @file allocation.hpp
- * @brief Declares tensor allocation and arena viewing functions.
+ * @brief Declares TensorAccess, tensor allocation and arena viewing functions.
  * @author Mustafa Garip
  */
 
@@ -40,6 +40,17 @@
 namespace SushiAI
 {
     /**
+     * @brief Names who addresses the elements of a tensor, from which the allocation picks the
+     *        memory it lives in.
+     * @see modules/core/allocation/README.md
+     */
+    enum class TensorAccess : std::uint8_t
+    {
+        Kernels, /**< Only kernels address the elements; the host copies through host_copy.hpp. */
+        Host,    /**< The host also reads and writes the elements in place, every step. */
+    };
+
+    /**
      * @brief Returns the element count of @p dims without allocating anything.
      * @param dims The extents, outermost first.
      * @return The product of the extents, or InvalidDescription for an extent that is not
@@ -52,41 +63,48 @@ namespace SushiAI
      * @param engine The engine whose context owns the allocator.
      * @param dims The extents, outermost first.
      * @param dtype The element type.
-     * @return The new tensor, or InvalidDescription for an extent that is not positive or a
-     *         size that overflows, or OutOfMemory when the allocator refuses the storage.
+     * @param access Who addresses the elements, which decides the memory they live in.
+     * @return The new tensor, InvalidDescription for a bad or overflowing size, or OutOfMemory.
      */
-    [[nodiscard]] Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
-                                                            SushiRuntime::span<const int64_t> dims,
-                                                            DType dtype = DType::Float32) noexcept;
+    [[nodiscard]] Result<SushiBLAS::Tensor> allocate_tensor(
+        SushiBLAS::Engine& engine,
+        SushiRuntime::span<const int64_t> dims,
+        DType dtype = DType::Float32,
+        TensorAccess access = TensorAccess::Kernels) noexcept;
 
     /**
      * @brief Allocates a tensor of @p shape with its own Storage.
      * @param engine The engine whose context owns the allocator.
      * @param shape The extents.
      * @param dtype The element type.
-     * @return The new tensor, or the failure the span overload returns; nothing else references
-     *         its Storage.
+     * @param access Who addresses the elements, which decides the memory they live in.
+     * @return The new tensor, or the failure the span overload returns.
      */
-    [[nodiscard]] Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
-                                                            const Shape& shape,
-                                                            DType dtype = DType::Float32) noexcept;
+    [[nodiscard]] Result<SushiBLAS::Tensor> allocate_tensor(
+        SushiBLAS::Engine& engine,
+        const Shape& shape,
+        DType dtype = DType::Float32,
+        TensorAccess access = TensorAccess::Kernels) noexcept;
 
     /**
      * @brief Allocates a tensor with @p like's extents, dtype, and layout.
      * @param engine The engine whose context owns the allocator.
      * @param like The tensor to copy the description from.
+     * @param access Who addresses the elements, which decides the memory they live in.
      * @pre @p like holds at least one element; an empty one stops the process.
-     * @return The new tensor, which shares nothing with @p like, or the failure the span
-     *         overload returns.
+     * @return The new tensor, or the failure the span overload returns.
      */
-    [[nodiscard]] Result<SushiBLAS::Tensor> allocate_like(SushiBLAS::Engine& engine,
-                                                          const SushiBLAS::Tensor& like) noexcept;
+    [[nodiscard]] Result<SushiBLAS::Tensor> allocate_like(
+        SushiBLAS::Engine& engine,
+        const SushiBLAS::Tensor& like,
+        TensorAccess access = TensorAccess::Kernels) noexcept;
 
     /**
      * @brief Allocates one arena buffer for memory planning.
      * @param engine The engine whose context owns the allocator.
      * @param bytes Number of bytes the arena holds; zero stops the process.
-     * @return The newly allocated storage, or OutOfMemory when the allocator refuses it.
+     * @return The newly allocated storage, which only kernels address, or OutOfMemory when the
+     *         allocator refuses it.
      */
     [[nodiscard]] Result<SushiRuntime::sushi_ptr<SushiBLAS::Storage>> allocate_arena(
         SushiBLAS::Engine& engine,

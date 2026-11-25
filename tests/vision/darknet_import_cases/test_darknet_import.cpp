@@ -36,6 +36,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
@@ -90,9 +91,7 @@ namespace
     /** @brief Returns the values of the entry @p name of @p state. */
     std::vector<float> values_of(NN::ModelState& state, const std::string& name)
     {
-        SushiBLAS::Tensor& tensor = *state.tensor(name).value();
-        const float* data = tensor.data_as<float>();
-        return std::vector<float>(data, data + tensor.num_elements);
+        return ::SushiAI::read_elements<float>(*state.tensor(name).value()).value();
     }
 } // namespace
 

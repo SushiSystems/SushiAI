@@ -29,6 +29,7 @@
 
 #include <SushiAI/train/host_values.hpp>
 
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 
 namespace SushiAI
@@ -51,11 +52,12 @@ namespace SushiAI
             return Status();
         }
 
-        double host_real(const SushiBLAS::Tensor& tensor, std::int64_t index) noexcept
+        Result<std::vector<double>> read_host_reals(const SushiBLAS::Tensor& tensor,
+                                                    std::int64_t elements,
+                                                    std::string_view what) noexcept
         {
-            return tensor.dtype == DType::Float64
-                 ? tensor.data_as<double>()[index]
-                 : static_cast<double>(tensor.data_as<float>()[index]);
+            SA_TRY(require_host_reals(tensor, elements, what));
+            return read_reals(tensor);
         }
 
     } // namespace Train

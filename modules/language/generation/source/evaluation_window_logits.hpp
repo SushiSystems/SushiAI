@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -65,7 +66,7 @@ namespace SushiAI::Language::Generation::Detail
             /** @brief Returns V. */
             [[nodiscard]] std::int64_t vocabulary() const noexcept override;
 
-            /** @brief Copies @p ids into the feed and runs the step. */
+            /** @brief Copies @p ids into the feed, runs the step and copies its logits back. */
             [[nodiscard]] Status run(SushiRuntime::span<const Text::TokenID> ids) override;
 
             /** @brief Returns the scores of @p position from the last run. */
@@ -74,7 +75,7 @@ namespace SushiAI::Language::Generation::Detail
         private:
             /** @brief Takes the parts make() built. */
             EvaluationWindowLogits(Train::EvaluationStep& step, const SushiBLAS::Tensor& logits,
-                                   Data::Batch feed) noexcept;
+                                   Data::Batch feed, std::vector<float> scores) noexcept;
 
             /// @brief Runs the forward pass; not owned.
             Train::EvaluationStep* step_;
@@ -84,6 +85,9 @@ namespace SushiAI::Language::Generation::Detail
 
             /// @brief Holds the [1, T] int32 window each run feeds.
             Data::Batch feed_;
+
+            /// @brief Holds the T * V logits of the last run on the host.
+            std::vector<float> scores_;
     };
 
 } // namespace SushiAI::Language::Generation::Detail

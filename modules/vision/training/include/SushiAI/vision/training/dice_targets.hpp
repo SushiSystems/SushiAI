@@ -49,7 +49,8 @@ namespace SushiAI::Vision::Training
      *        when a kept pixel holds it, and a mask with no kept pixel gives zeros.
      * @param leaves Four tensors, none null, of the element counts DiceLeaves states.
      * @return Success, or Incompatible, with the leaves unchanged, for what
-     *         validate_pixel_labels() refuses or a leaf that does not fit; OutOfMemory.
+     *         validate_pixel_labels() refuses or a leaf that does not fit; OutOfMemory, or
+     *         the failure of a copy.
      */
     [[nodiscard]] Status fill_dice_targets(const SushiBLAS::Tensor& mask, std::int64_t classes,
                                            std::int32_t ignore_index, const DiceLeaves& leaves) noexcept;

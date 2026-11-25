@@ -193,6 +193,9 @@ namespace SushiAI::Vision::Training
             /// @brief Holds a view of each head's values as the host stage reads them.
             std::vector<SushiRuntime::span<const float>> outputs_view_;
 
+            /// @brief Holds each head's values, copied to the host for the host stage.
+            std::vector<std::vector<float>> outputs_host_;
+
             /// @brief Holds the cost the objective's rule reported for the last deltas fed.
             Detect::Anchor::HeadCost cost_;
     };

@@ -39,10 +39,10 @@ namespace SushiAI
         /**
          * @brief Copies every element of @p values into @p targets, in order.
          * @param values A float32 tensor the host can read.
-         * @param targets A float32 or float64 tensor of as many elements the host can write.
+         * @param targets A float32 or float64 tensor of as many elements.
          * @pre No recorded task reads or writes either tensor.
-         * @return Success, or Incompatible, with @p targets unchanged, for another element
-         *         type or another element count.
+         * @return Success, Incompatible, with @p targets unchanged, for another element
+         *         type or another element count, or the failure of the copy.
          */
         [[nodiscard]] Status fill_dense_targets(const SushiBLAS::Tensor& values,
                                                 SushiBLAS::Tensor& targets) noexcept;
@@ -50,10 +50,10 @@ namespace SushiAI
         /**
          * @brief Copies @p labels into @p targets after checking that each is 0 or 1.
          * @param labels A float32 tensor the host can read.
-         * @param targets A float32 or float64 tensor of as many elements the host can write.
+         * @param targets A float32 or float64 tensor of as many elements.
          * @pre No recorded task reads or writes either tensor.
-         * @return Success, or Incompatible, with @p targets unchanged, for what
-         *         fill_dense_targets() refuses or for a label that is neither 0 nor 1.
+         * @return What fill_dense_targets() returns, or Incompatible, with @p targets
+         *         unchanged, for a label that is neither 0 nor 1.
          */
         [[nodiscard]] Status fill_binary_targets(const SushiBLAS::Tensor& labels,
                                                  SushiBLAS::Tensor& targets) noexcept;

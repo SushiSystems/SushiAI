@@ -26,5 +26,5 @@ sushiai_add_module(NAME generation TIER language
         source/weights.cpp
         source/window_generator.cpp
     PUBLIC_DEPENDS config data dtype failure shape train language/text
-    PRIVATE_DEPENDS seam
+    PRIVATE_DEPENDS allocation seam
     EXTERNAL_PUBLIC SushiRuntime::core)

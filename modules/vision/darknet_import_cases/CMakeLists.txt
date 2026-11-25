@@ -16,6 +16,7 @@ sushiai_add_module(NAME darknet_import_cases TIER vision INTERNAL
         nn
         vision/importers
     PRIVATE_DEPENDS
+        allocation
         config
         darknet_reference
         dtype

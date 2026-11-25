@@ -32,8 +32,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <string_view>
-#include <type_traits>
 #include <vector>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -72,39 +73,47 @@ namespace SushiAI::Vision::Training
             return Status();
         }
 
-        /** @brief Copies the label of every pixel, and writes a 1 into @p kept unless ignored. */
-        void mark_kept_pixels(const std::int32_t* label, std::int64_t pixels,
-                              std::int32_t ignore_index, const DiceLeaves& leaves)
+        /**
+         * @brief Copies the label of every pixel, and writes a 1 into @p kept unless ignored.
+         * @return Success, or the failure of a copy.
+         */
+        [[nodiscard]] Status mark_kept_pixels(const std::int32_t* label, std::int64_t pixels,
+                                              std::int32_t ignore_index, const DiceLeaves& leaves)
         {
             // An ignored pixel keeps the ignore index, outside [0, classes); both gathers skip it.
-            std::copy(label, label + pixels, leaves.labels->data_as<std::int32_t>());
+            SA_TRY(write_elements(*leaves.labels, 0,
+                                  SushiRuntime::span<const std::int32_t>(
+                                      label, static_cast<std::size_t>(pixels))));
 
-            Detail::write_reals(*leaves.kept, [&](auto* const out)
+            return Detail::fill_reals(*leaves.kept, [&](double* const out)
             {
                 for (std::int64_t pixel = 0; pixel < pixels; ++pixel)
-                    out[pixel] = label[pixel] != ignore_index ? 1 : 0;
+                    out[pixel] = label[pixel] != ignore_index ? 1.0 : 0.0;
             });
         }
 
-        /** @brief Writes the pixel count of each class and the weight of each present class. */
-        void write_class_leaves(const std::vector<std::int64_t>& counts, const DiceLeaves& leaves)
+        /**
+         * @brief Writes the pixel count of each class and the weight of each present class.
+         * @return Success, or the failure of a copy.
+         */
+        [[nodiscard]] Status write_class_leaves(const std::vector<std::int64_t>& counts,
+                                                const DiceLeaves& leaves)
         {
             std::int64_t present = 0;
             for (const std::int64_t count : counts)
                 present += count > 0 ? 1 : 0;
 
             const double share = present == 0 ? 0.0 : 1.0 / static_cast<double>(present);
-            Detail::write_reals(*leaves.class_pixels, [&counts](auto* const out)
+            SA_TRY(Detail::fill_reals(*leaves.class_pixels, [&counts](double* const out)
             {
-                using Real = std::remove_reference_t<decltype(*out)>;
                 for (std::size_t index = 0; index < counts.size(); ++index)
-                    out[index] = static_cast<Real>(counts[index]);
-            });
-            Detail::write_reals(*leaves.class_weights, [&counts, share](auto* const out)
+                    out[index] = static_cast<double>(counts[index]);
+            }));
+
+            return Detail::fill_reals(*leaves.class_weights, [&counts, share](double* const out)
             {
-                using Real = std::remove_reference_t<decltype(*out)>;
                 for (std::size_t index = 0; index < counts.size(); ++index)
-                    out[index] = static_cast<Real>(counts[index] > 0 ? share : 0.0);
+                    out[index] = counts[index] > 0 ? share : 0.0;
             });
         }
     } // namespace
@@ -140,10 +149,9 @@ namespace SushiAI::Vision::Training
         }));
 
         // Every label and every leaf was checked, so a refused batch leaves the leaves alone.
-        mark_kept_pixels(label, pixels, ignore_index, leaves);
-        write_class_leaves(counts, leaves);
+        SA_TRY(mark_kept_pixels(label, pixels, ignore_index, leaves));
 
-        return Status();
+        return write_class_leaves(counts, leaves);
     }
 
 } // namespace SushiAI::Vision::Training

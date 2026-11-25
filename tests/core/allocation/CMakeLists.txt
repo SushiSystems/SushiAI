@@ -7,5 +7,6 @@
 sushiai_add_test_program(OWNER allocation
     SOURCES
         test_allocation.cpp
+        test_host_copy.cpp
     DEPENDS
         failure_expectations)

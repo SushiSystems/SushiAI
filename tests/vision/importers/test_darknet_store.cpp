@@ -38,6 +38,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -137,18 +138,15 @@ namespace
     /** @brief Returns the values of the entry @p name in @p state, in memory order. */
     std::vector<float> values_of(NN::ModelState& state, std::string_view name)
     {
-        SushiBLAS::Tensor& tensor = *state.tensor(name).value();
-        const float* data = tensor.data_as<float>();
-        return std::vector<float>(data, data + tensor.num_elements);
+        return ::SushiAI::read_elements<float>(*state.tensor(name).value()).value();
     }
 
     /** @brief Writes @p value into every element of the entry @p name in @p state. */
     void fill(NN::ModelState& state, std::string_view name, float value)
     {
         SushiBLAS::Tensor& tensor = *state.tensor(name).value();
-        float* data = tensor.data_as<float>();
-        for (std::int64_t i = 0; i < tensor.num_elements; ++i)
-            data[i] = value;
+        SA_EXPECT_OK(::SushiAI::write_elements(tensor,
+                         std::vector<float>(static_cast<std::size_t>(tensor.num_elements), value)));
     }
 
     /** @brief Writes the sentinel into every entry of the model of model_entries(). */

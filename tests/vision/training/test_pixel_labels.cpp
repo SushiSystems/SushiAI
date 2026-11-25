@@ -60,7 +60,8 @@ namespace
             /** @brief Returns an INT32 tensor of @p shape holding @p values. */
             SushiBLAS::Tensor make_ids(const Shape& shape, const std::vector<std::int32_t>& values)
             {
-                Result<SushiBLAS::Tensor> made = allocate_tensor(backend.engine(), shape, DType::Int32);
+                Result<SushiBLAS::Tensor> made =
+                    allocate_tensor(backend.engine(), shape, DType::Int32, TensorAccess::Host);
                 EXPECT_TRUE(made.status().is_ok());
 
                 std::int32_t* const ids = made.value().data_as<std::int32_t>();

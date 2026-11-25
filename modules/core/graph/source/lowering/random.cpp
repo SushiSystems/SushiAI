@@ -132,7 +132,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor& position,
                           context.scratch(K_POSITION_SLOT,
                                           Shape{SushiBLAS::K_RNG_POSITION_ELEMENTS},
-                                          DType::Int64));
+                                          DType::Int64, TensorAccess::Host));
 
             SA_TRY(register_position_prelude(context, position,
                                              dropout_seed(context.node().attributes)));

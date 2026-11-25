@@ -35,6 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -71,7 +72,8 @@ namespace
             /** @brief Returns an INT32 tensor of @p shape holding @p values. */
             SushiBLAS::Tensor make_ids(const Shape& shape, const Classes& values)
             {
-                Result<SushiBLAS::Tensor> made = allocate_tensor(*engine, shape, DType::Int32);
+                Result<SushiBLAS::Tensor> made =
+                    allocate_tensor(*engine, shape, DType::Int32, TensorAccess::Host);
                 EXPECT_TRUE(made.status().is_ok());
 
                 std::int32_t* const ids = made.value().data_as<std::int32_t>();
@@ -97,9 +99,10 @@ namespace
             /** @brief Returns the elements of the INT32 tensor @p tensor. */
             static Classes read_ids(const SushiBLAS::Tensor& tensor)
             {
-                const std::int32_t* const ids = tensor.data_as<std::int32_t>();
+                Result<Classes> read = read_elements<std::int32_t>(tensor);
+                EXPECT_TRUE(read.has_value()) << read.status().message();
 
-                return Classes(ids, ids + tensor.num_elements);
+                return read.has_value() ? std::move(read).value() : Classes();
             }
 
             /** @brief Expects the elements of @p tensor to equal @p expected; all are exact. */

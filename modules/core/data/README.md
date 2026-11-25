@@ -205,18 +205,18 @@ builds its batches calls `prepare_batch` and so `allocate_tensor`, then writes t
 through the tensor's host pointer. Both are safe from any thread:
 
 - `allocate_tensor` (`modules/core/allocation/source/allocation.cpp`) builds a `SushiBLAS::Storage`
-  with `Residency::Shared` and reads `Engine::layout()`. It touches no recorder and no
+  with `TensorAccess::Host`, which is `Residency::Host`, pinned host USM, and reads
+  `Engine::layout()`. It touches no recorder and no
   graph of the engine.
 - `Storage` calls `Runtime::buffer` (sushiblas:
   `modules/data/tensor/include/SushiBLAS/tensor/storage.hpp`).
 - `Memory::USMAllocator` states "Every method may be called from any thread at any time"
   (sushiruntime: `modules/platform/memory/include/SushiRuntime/memory/usm_allocator.hpp`). Its
-  `allocate` calls `sycl::aligned_alloc_shared` and records the address in a `USMRegistry`
+  `allocate` calls `sycl::aligned_alloc_host` and records the address in a `USMRegistry`
   under a `std::mutex` (`usm_registry.hpp`).
 - The reference count of a `Storage` is a `std::atomic` (sushiruntime:
   `modules/foundation/core/include/SushiRuntime/core/ref_counted.hpp`).
-- Shared USM is host memory until a device kernel reads it, so a worker writes it as it writes
-  any buffer.
+- Pinned host USM is host memory, so a worker writes it as it writes any buffer.
 
 So the loader keeps no host staging buffer and adds no copy. This was read in the sources of
 the two sibling checkouts, not run: no test here calls `allocate_tensor` from two threads.
@@ -227,5 +227,5 @@ check either for concurrent use.
 A dataset whose `read` calls `record_and_run` is therefore not claimed safe behind a loader; no
 dataset of this repository records in `read`.
 
-A batch of 16 float32 images of 640 by 640 by 3 is 79 MB of shared USM, so `prefetch` 4 holds
+A batch of 16 float32 images of 640 by 640 by 3 is 79 MB of pinned host USM, so `prefetch` 4 holds
 about 315 MB beside the caller's batch.

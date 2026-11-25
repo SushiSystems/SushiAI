@@ -44,6 +44,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -236,7 +237,7 @@ namespace
         {
             Result<SushiBLAS::Tensor*> found = state.tensor(entry.state);
             SA_EXPECT_OK(found);
-            const float* values = found.value()->data_as<float>();
+            const std::vector<float> values = ::SushiAI::read_elements<float>(*found.value()).value();
             for (int64_t i = 0; i < found.value()->num_elements; ++i)
             {
                 std::uint32_t pattern = 0;
