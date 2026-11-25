@@ -71,9 +71,9 @@ Every fact below was read from SushiRuntime's source on 2026-10-19.
 - **A worker keeps what it pulled.** `WorkerBufferCache` holds buffers under a byte budget and
   asks only for a version it does not hold.
 - **Host-addressable memory only.** `Cluster::share()` stops the process for a device-resident
-  handle. SushiAI's `reserve_storage()` always allocates `Residency::Shared`
-  (`modules/core/allocation/source/allocation.cpp`), so every tensor of a step can be shared as
-  it is.
+  handle. SushiAI's `reserve_storage()` allocates `Residency::Device` for a tensor kernels address
+  (`modules/core/allocation/source/allocation.cpp`), so a tensor of a step crosses only through a
+  `TensorPack`, pinned `Residency::Host` memory its gather and scatter copy into and out of.
 - **A kernel is a function on a queue.** A registered kernel is
   `sycl::event(sycl::queue&, span<const BufferView> inputs, span<const BufferView> outputs,
   const NodeOptions&)`, and `NodeOptions` carries up to 8 `u64` parameters.

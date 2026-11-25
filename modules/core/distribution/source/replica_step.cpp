@@ -31,12 +31,12 @@
 
 #include <array>
 #include <cstddef>
-#include <cstring>
 #include <string_view>
 #include <utility>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/distribution/host_access.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
@@ -177,9 +177,10 @@ namespace SushiAI
 
                 // A bound pack is host memory: SushiRuntime borrows every view as Shared.
                 const SushiBLAS::PackSpan source = parameters.tensor(index);
-                SushiBLAS::Tensor target = targets[index];
-                require_host_visible(target, "Replica parameter", index);
-                std::memcpy(target.data(), source.data, entry.size_bytes);
+                const SushiBLAS::Tensor& target = targets[index];
+                SA_TRY(SA_ANNOTATE(copy_from_host(target, 0, target.num_elements,
+                                                  dtype_size(target.dtype), source.data),
+                                   "Replica parameter {}: ", index));
             }
 
             accumulator_->reset();
@@ -192,8 +193,7 @@ namespace SushiAI
             SA_TRY(step_->run_at(rows.draw_index));
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Execute, [this]()
             {
-                accumulator_->add(model_->results());
-                return Status();
+                return accumulator_->add(model_->results());
             });
         }
 

@@ -10,7 +10,6 @@ The test sources of `modules/core/distribution` kept in this folder. The suite p
 | `test_exact_sum.cpp` | Tests which types the replicas' results add as exact counts. |
 | `test_exchange_targets.cpp` | Tests the checks of the tensors a gradient exchange sums into, on shapes alone. |
 | `test_gradient_exchange.cpp` | Tests GradientExchange: two replicas against one machine, two pinned runs, every type. |
-| `test_host_access.cpp` | Tests which tensors the host copies of a replica may address. |
 | `test_in_memory_replica_model.cpp` | Tests that InMemoryReplicaModel holds the counts it was given and the rows it was fed. |
 | `test_in_memory_replica_model_factory.cpp` | Tests that InMemoryReplicaModelFactory keeps its calls and returns what its inner factory returns. |
 | `test_in_memory_replica_serve_observer.cpp` | Tests that InMemoryReplicaServeObserver keeps the promise of ReplicaServeObserver. |

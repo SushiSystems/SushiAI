@@ -58,11 +58,11 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Allocates the pack of @p layout, shares it through @p binding, which
-                 *        outlives the publish, and copies @p parameters into it on the host.
-                 * @param runtime The runtime the pack is allocated on.
-                 * @param parameters One host-addressable tensor per entry, on the pack's device.
-                 * @return The publish; InvalidDescription for a tensor unlike the layout; or a failure.
+                 * @brief Allocates the pack of @p layout on the device of @p parameters, shares
+                 *        it through @p binding, which outlives the publish, and copies them in.
+                 * @param parameters One contiguous tensor per entry, all on one device.
+                 * @return The publish; InvalidDescription for a tensor unlike the layout or on
+                 *         no device or another one; or the failure of the allocation or a copy.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<ParameterPublish>> make(
                     RuntimeAccess& runtime, SushiBLAS::ClusterBinding& binding,

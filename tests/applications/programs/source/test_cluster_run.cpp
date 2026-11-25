@@ -45,6 +45,7 @@
 #include <SushiRuntime/in_process_transport/in_process_transport.hpp>
 #include <SushiRuntime/distributed/kernel_registry.hpp>
 #include <SushiRuntime/distributed/worker_agent.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -83,18 +84,19 @@ namespace
     /** @brief Holds how long the master waits for the worker. */
     constexpr std::chrono::seconds K_WAIT{10};
 
-    /** @brief Returns the bytes of the parameter of every slot of @p slots, in order. */
+    /** @brief Returns the bytes of the parameter of every slot of @p slots, copied in order. */
     std::vector<std::vector<unsigned char>> bytes_of(
         const std::vector<Optim::ParameterSlot>& slots)
     {
         std::vector<std::vector<unsigned char>> bytes;
         for (const Optim::ParameterSlot& slot : slots)
         {
-            const std::size_t size = static_cast<std::size_t>(slot.parameter.num_elements)
-                                     * dtype_size(slot.parameter.dtype);
-            const unsigned char* const first =
-                static_cast<const unsigned char*>(slot.parameter.data());
-            bytes.emplace_back(first, first + size);
+            const std::size_t width = dtype_size(slot.parameter.dtype);
+            std::vector<unsigned char> copy(static_cast<std::size_t>(slot.parameter.num_elements)
+                                            * width);
+            SA_EXPECT_OK(copy_to_host(slot.parameter, 0, slot.parameter.num_elements, width,
+                                      copy.data()));
+            bytes.push_back(std::move(copy));
         }
         return bytes;
     }
@@ -155,14 +157,16 @@ namespace
             Distributed::WorkerAgent& agent_;
     };
 
-    /** @brief Returns every float32 element of the parameters of @p slots, in order. */
+    /** @brief Returns every float32 element of the parameters of @p slots, copied in order. */
     std::vector<float> values_of(const std::vector<Optim::ParameterSlot>& slots)
     {
         std::vector<float> values;
         for (const Optim::ParameterSlot& slot : slots)
         {
-            const float* const first = slot.parameter.data_as<float>();
-            values.insert(values.end(), first, first + slot.parameter.num_elements);
+            const Result<std::vector<float>> copied = read_elements<float>(slot.parameter);
+            SA_EXPECT_OK(copied);
+            if (copied.has_value())
+                values.insert(values.end(), copied.value().begin(), copied.value().end());
         }
         return values;
     }

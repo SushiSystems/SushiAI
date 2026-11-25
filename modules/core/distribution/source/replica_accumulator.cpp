@@ -36,7 +36,8 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiAI/distribution/exact_sum.hpp>
-#include <SushiAI/distribution/host_access.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
@@ -68,7 +69,8 @@ namespace SushiAI
         } // namespace
 
         ReplicaAccumulator::ReplicaAccumulator(SushiBLAS::PackLayout layout)
-            : layout_(std::move(layout)), sum_(layout_.size_bytes()),
+            : layout_(std::move(layout)), staging_(layout_.size_bytes()),
+              sum_(layout_.size_bytes()),
               half_sum_(layout_.segment(DataType::Half).element_count)
         {
 
@@ -79,7 +81,7 @@ namespace SushiAI
             count_ = 0;
         }
 
-        void ReplicaAccumulator::add(SushiRuntime::span<const SushiBLAS::Tensor> results)
+        Status ReplicaAccumulator::add(SushiRuntime::span<const SushiBLAS::Tensor> results)
         {
             SA_FATAL_IF(results.size() != layout_.entries().size(),
                         "ReplicaAccumulator::add: {} results for a layout of {}", results.size(),
@@ -93,17 +95,31 @@ namespace SushiAI
                             "ReplicaAccumulator::add: result {} is not the contiguous tensor its "
                             "layout entry names",
                             index);
-                if (layout_.entries()[index].size_bytes == 0)
+                const SushiBLAS::PackEntry& entry = layout_.entries()[index];
+                if (entry.size_bytes == 0)
                     continue;
 
-                require_host_visible(result, "Replica result", index);
+                SA_TRY(SA_ANNOTATE(copy_to_host(result, 0, result.num_elements,
+                                                dtype_size(result.dtype),
+                                                staging_.data() + entry.offset_bytes),
+                                   "Replica result {}: ", index));
+            }
+
+            for (std::size_t index = 0; index < results.size(); ++index)
+            {
+                const SushiBLAS::PackEntry& entry = layout_.entries()[index];
+                if (entry.size_bytes == 0)
+                    continue;
+
+                const std::byte* const staged = staging_.data() + entry.offset_bytes;
                 if (count_ == 0)
-                    copy_entry(index, result.data());
+                    copy_entry(index, staged);
                 else
-                    add_entry(index, result.data());
+                    add_entry(index, staged);
             }
 
             ++count_;
+            return Status();
         }
 
         Status ReplicaAccumulator::write_mean(const SushiBLAS::BoundPack& target) const

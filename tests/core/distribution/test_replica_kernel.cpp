@@ -176,7 +176,7 @@ namespace
             master_runtime,
             SushiBLAS::PackLayout::of(
                 SushiRuntime::span<const SushiBLAS::Tensor>(&position_words, 1)),
-            position_words.storage->device_index());
+            K_DEVICE);
         binding.share(position);
         const std::uint64_t named[3] = {0, batch_index, batch_index};
         std::memcpy(position.data(), named, K_REPLICA_POSITION_BYTES);

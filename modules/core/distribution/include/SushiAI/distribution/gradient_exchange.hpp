@@ -159,7 +159,7 @@ namespace SushiAI
                 /// @brief The operation and the run every replica node names.
                 ExchangeRun run_;
 
-                /// @brief The epoch, the batch and the step of the coming replay, as three Int64.
+                /// @brief The epoch, batch and step of the next replay, three Int64 in host memory.
                 SushiBLAS::Tensor position_;
 
                 /// @brief The pack position_ is gathered into, input 1 of every replica node.

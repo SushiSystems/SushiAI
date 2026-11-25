@@ -37,10 +37,10 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/distribution/gradient_exchange.hpp>
-#include <SushiAI/distribution/host_access.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
-#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/profile/profile.hpp>
@@ -55,13 +55,14 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Returns the one element of the summed loss, read on the host. */
+            /** @brief Returns the one element of the summed loss, copied to the host. */
             [[nodiscard]] double read_loss(const SushiBLAS::Tensor& loss) noexcept
             {
-                if (loss.dtype == DType::Float64)
-                    return *loss.data_as<double>();
+                const Result<std::vector<double>> value = read_reals(loss);
+                SA_FATAL_IF(!value.has_value(), "The cluster loss could not be read back: {}",
+                            value.status().message());
 
-                return static_cast<double>(*loss.data_as<float>());
+                return value.value().front();
             }
 
             /** @brief Holds the recorders of the master's step and the step that runs them. */
@@ -148,9 +149,7 @@ namespace SushiAI
                 static_cast<std::size_t>(prepared.start.step_runs)));
             built.exchange->set_next_step(prepared.start.epoch * batches + prepared.start.batch);
 
-            // The master's pool allocates Residency::Shared, so the host reads the loss.
             const SushiBLAS::Tensor& loss = tensors.results[tensors.parameters.size()];
-            Distribution::require_host_visible(loss, "Cluster loss", 0);
 
             // The replicas read their own rows, so the master's data enters no epoch.
             EpochSteps steps;

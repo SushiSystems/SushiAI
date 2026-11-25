@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-11-25 — distribution: Compiled the module again against the optional `device_index()` and moved its host reads and writes to copies (KI-26, `modules/core/distribution/README.md`).
+<<<<<<< Updated upstream
+=======
+- 2026-11-25 — memory_planning_speed: Recorded the device-resident step time against Darknet and opened RW-198 to RW-202 (RW-102).
+>>>>>>> Stashed changes
 - 2026-11-25 — allocation: Kept kernel-only tensors on the device and host-written ones in pinned memory, with `host_copy.hpp` for the rest; a YOLOv4 step fell from 4.52 s to 0.44 s (RW-102).
 - 2026-11-25 — test_tree: Opened the work of bringing the three Darknet overfit cases under the large limit (RW-197).
 - 2026-11-25 — test_tree: Ran the Darknet parity scenarios of the six models against the reference dumps: all pass but the three one-batch overfit cases, which exceed the 120 s limit (RW-116).

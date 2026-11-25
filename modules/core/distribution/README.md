@@ -19,8 +19,9 @@ SYCL header, so the machines that only need the split do not compile against the
 
 `ReplicaStep` and `ReplicaKernel` add `graph` as a public dependency, since their headers name
 `Graph::Graph`, `TensorPool` and `CompiledStep`, and `execution` as a private one, for
-`create_runtime()`. `GradientExchange` adds `allocation` as a private dependency, for the packs it
-allocates. They take SushiBLAS's `SushiBLAS::cluster` and SushiRuntime's
+`create_runtime()`. `GradientExchange`, `ParameterPublish`, `ReplicaStep` and the micro-batch sum
+add `allocation` as a private dependency, for the position tensor and the host copies of
+`host_copy.hpp`. They take SushiBLAS's `SushiBLAS::cluster` and SushiRuntime's
 `SushiRuntime::distributed` as external public dependencies, since their headers name
 `PackLayout`, `BoundPack`, `KernelRegistry` and `BufferView`. The module stays in the core tier: it reads a model only through `ReplicaModel`, so
 it includes nothing of `layers/train`.
@@ -37,7 +38,6 @@ Each header is named by its include path under `include/`.
 | `SushiAI/distribution/replica_draws.hpp` | `ReplicaDraws`, `replica_seed()` |
 | `SushiAI/distribution/replica_position.hpp` | `K_REPLICA_POSITION_BYTES`, `ReplicaPosition` |
 | `SushiAI/distribution/exact_sum.hpp` | `sums_exactly()`: Int32, Int64 and UInt32 results add as counts with weight 1 |
-| `SushiAI/distribution/host_access.hpp` | `is_host_visible()`, `require_host_visible()`: the check before a host copy of a replica's tensors |
 | `SushiAI/distribution/gradient_exchange.hpp` | `ExchangeRun`, `GradientExchange` |
 | `SushiAI/distribution/exchange_targets.hpp` | `check_exchange_targets()`, `check_exchange_dtypes()`: the checks of a gradient exchange's targets that read shape and type alone |
 | `SushiAI/distribution/parameter_publish.hpp` | `ParameterPublish` |
@@ -218,8 +218,11 @@ plus the number of filled segments.
 ## ParameterPublish
 
 `ParameterPublish` is a `Graph::StepRecorder` that `TrainingStep` runs after the optimizer. It
-owns the parameter pack the replica tasks read. `make()` allocates the pack of a layout, shares
-it through the binding and copies the parameters into it on the host. `record_into_step()`
+owns the parameter pack the replica tasks read. `make()` allocates the pack of a layout on the
+device of its parameters, shares it through the binding and copies the parameters into it with
+`copy_to_host`. It refuses a parameter unlike its entry, one with no storage, one the runtime
+places, which names no device, and one on another device than parameter 0, as
+`InvalidDescription`. `record_into_step()`
 records one task that gathers every parameter into the pack. The gather runs on the master, so
 it raises the pack's version and the replica tasks of the next replay pull the new parameters.
 `pack()` returns the pack.
@@ -245,11 +248,11 @@ refuses a nested run of that runtime (`docs/design/LAYERED_EXECUTION/README.md` 
 "What a training run over several machines needs"). The second runtime costs a second device context, a second scheduler
 pool of one thread, and one pool thread of the serving runtime held for the length of each task.
 
-`begin()` copies the parameter pack into the model's parameters on the host. `run_micro_batch()`
-feeds the rows, replays the step and adds its results. `finish()` writes the mean over the
-micro-batches into the result pack. Every copy goes through the host: the pack lives in memory of
-the serving runtime's context and the model in memory of the replica's, and both are
-host-addressable.
+`begin()` copies the parameter pack into the model's parameters with `copy_from_host`.
+`run_micro_batch()` feeds the rows, replays the step, copies its results to the host and adds
+them. `finish()` writes the mean over the micro-batches into the result pack. Every copy goes
+through the host: the pack lives in memory of the serving runtime's context and the model in
+memory of the replica's.
 
 ### The mean over micro-batches
 
@@ -297,12 +300,12 @@ split the sum over rows inside the matrix product, so that case compares within 
 ## Host copies
 
 `ReplicaStep::begin`, the replica's micro-batch sum and `ParameterPublish::make` copy between the
-packs and the model's tensors with host `memcpy`. Every side is host memory: SushiAI's pool
-allocates `Residency::Shared`, a `TensorPack` allocates pinned `Residency::Host` memory of the
-device its tensors live on (the publish's parameters, the exchange's parameter pack, the position
-tensor), and SushiRuntime borrows every view a worker's dispatch hands a kernel as
-`Residency::Shared`. The transport reads a pack while kernels run, which managed memory does not
-allow on CUDA on Windows; KI-17 in `docs/backlog/README.md` holds what remains of that
-limit.
-`require_host_visible()` stops the process at the copy, naming the tensor, if a model tensor
-ever lives in device memory.
+packs and the model's tensors through `copy_from_host` and `copy_to_host` of
+`SushiAI/allocation/host_copy.hpp`, which hold for every residency. The model's tensors are device
+memory. A `TensorPack` is pinned `Residency::Host` memory of the device its tensors live on, so
+the host addresses its bytes and `Cluster::share()`, which refuses memory the host cannot
+address, accepts it; its gather and scatter are queue copies. SushiRuntime borrows every view a
+worker's dispatch hands a kernel as `Residency::Shared`. The transport reads a pack while kernels
+run, which managed memory does not allow on CUDA on Windows; KI-17 in `docs/backlog/README.md`
+holds what remains of that limit. The position tensor of `GradientExchange` is allocated
+`TensorAccess::Host`, and `before_replay()` writes it in place.

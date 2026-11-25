@@ -91,7 +91,7 @@ namespace SushiAI
                 /**
                  * @brief Returns the parameters, in the order of the parameter pack.
                  *
-                 * Each is contiguous, and host-addressable memory of the step's engine.
+                 * Each is contiguous memory of the step's engine, in any residency.
                  */
                 [[nodiscard]] virtual SushiRuntime::span<const SushiBLAS::Tensor>
                 parameters() const noexcept = 0;
@@ -101,7 +101,7 @@ namespace SushiAI
                  *        gradients in the order of parameters(), the loss, then the batch
                  *        statistics.
                  *
-                 * Each is contiguous and host-addressable; a replay rewrites every one.
+                 * Each is contiguous, in any residency; a replay rewrites every one.
                  */
                 [[nodiscard]] virtual SushiRuntime::span<const SushiBLAS::Tensor>
                 results() const noexcept = 0;

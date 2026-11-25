@@ -28,6 +28,7 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -44,6 +45,7 @@
 #include <SushiRuntime/in_process_transport/in_process_transport.hpp>
 #include <SushiRuntime/distributed/kernel_registry.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
@@ -99,11 +101,12 @@ namespace
             void fill(float first)
             {
                 float value = first;
-                for (SushiBLAS::Tensor& parameter : parameters_)
+                for (const SushiBLAS::Tensor& parameter : parameters_)
                 {
-                    float* const elements = parameter.data_as<float>();
-                    for (std::int64_t index = 0; index < parameter.num_elements; ++index)
-                        elements[index] = value++;
+                    std::vector<float> elements(static_cast<std::size_t>(parameter.num_elements));
+                    for (float& element : elements)
+                        element = value++;
+                    SA_EXPECT_OK(write_elements(parameter, elements));
                 }
             }
 
@@ -134,8 +137,14 @@ namespace
                 ASSERT_EQ(entries.size(), parameters_.size());
                 for (std::size_t index = 0; index < entries.size(); ++index)
                 {
-                    EXPECT_EQ(std::memcmp(base + entries[index].offset_bytes,
-                                          parameters_[index].data(), entries[index].size_bytes),
+                    const SushiBLAS::Tensor& parameter = parameters_[index];
+                    std::vector<float> elements(static_cast<std::size_t>(parameter.num_elements));
+                    SA_EXPECT_OK(read_elements(parameter, 0,
+                                               SushiRuntime::span<float>(elements.data(),
+                                                                         elements.size())));
+                    ASSERT_EQ(elements.size() * sizeof(float), entries[index].size_bytes);
+                    EXPECT_EQ(std::memcmp(base + entries[index].offset_bytes, elements.data(),
+                                          entries[index].size_bytes),
                               0)
                         << "parameter " << index;
                 }
@@ -234,3 +243,16 @@ INSTANTIATE_TEST_SUITE_P(Lists, Medium_ParameterPublishRefusal, ::testing::Value
                          {
                              return ::SushiAI::Test::parameter_name(info.param.name);
                          });
+
+/** @brief Tests that make() refuses a runtime-placed parameter, which names no device. */
+TEST_F(Medium_ParameterPublish, MakeRefusesARuntimePlacedParameter)
+{
+    const std::int64_t extent[1] = {3};
+    const SushiBLAS::Tensor placed = engine->tensor_factory().planned(
+        SushiRuntime::span<const std::int64_t>(extent, 1), DType::Float32);
+    const SushiBLAS::PackLayout placed_layout =
+        SushiBLAS::PackLayout::of(SushiRuntime::span<const SushiBLAS::Tensor>(&placed, 1));
+
+    SA_EXPECT_FAILURE(ParameterPublish::make(backend(), *binding_, placed_layout, {placed}),
+                      StatusCode::InvalidDescription, "Parameter 0 is placed by the runtime");
+}

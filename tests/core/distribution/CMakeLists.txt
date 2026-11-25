@@ -11,7 +11,6 @@ sushiai_add_test_program(OWNER distribution
         test_exact_sum.cpp
         test_exchange_targets.cpp
         test_gradient_exchange.cpp
-        test_host_access.cpp
         test_in_memory_replica_model.cpp
         test_in_memory_replica_model_factory.cpp
         test_in_memory_replica_serve_observer.cpp

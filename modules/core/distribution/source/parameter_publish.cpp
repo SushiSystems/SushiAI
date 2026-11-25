@@ -29,13 +29,14 @@
 
 #include <SushiAI/distribution/parameter_publish.hpp>
 
-#include <cstring>
 #include <utility>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/distribution/host_access.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
+#include "storage_device.hpp"
 
 namespace SushiAI
 {
@@ -44,17 +45,19 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief Checks that @p tensors match the entries of @p layout one for one.
-             * @return Success, or InvalidDescription naming the first tensor that differs.
+             * @brief Checks that @p tensors match the entries of @p layout one for one, on one
+             *        device.
+             * @return That device, or InvalidDescription naming the first tensor that differs.
              */
-            [[nodiscard]] Status require_layout(const SushiBLAS::PackLayout& layout,
-                                                const std::vector<SushiBLAS::Tensor>& tensors)
+            [[nodiscard]] Result<std::size_t> require_layout(
+                const SushiBLAS::PackLayout& layout, const std::vector<SushiBLAS::Tensor>& tensors)
             {
                 const std::vector<SushiBLAS::PackEntry>& entries = layout.entries();
                 SA_FAIL_IF(tensors.size() != entries.size(), StatusCode::InvalidDescription,
                            "The parameter pack holds {} tensors and {} parameters were given",
                            entries.size(), tensors.size());
 
+                std::size_t device = 0;
                 for (std::size_t index = 0; index < tensors.size(); ++index)
                 {
                     SA_FAIL_IF(!SushiBLAS::PackLayout::matches(entries[index], tensors[index]),
@@ -65,25 +68,34 @@ namespace SushiAI
                     SA_FAIL_IF(!tensors[index].storage || !tensors[index].is_contiguous(),
                                StatusCode::InvalidDescription,
                                "Parameter {} has no storage or is not contiguous", index);
-                    SA_FAIL_IF(tensors[index].storage->device_index()
-                                   != tensors.front().storage->device_index(),
-                               StatusCode::InvalidDescription,
+                    SA_TRY_ASSIGN(const std::size_t placed,
+                                  require_pack_device(tensors[index], "Parameter", index));
+                    if (index == 0)
+                        device = placed;
+                    SA_FAIL_IF(placed != device, StatusCode::InvalidDescription,
                                "Parameter {} lives on device {} and parameter 0 on device {}",
-                               index, tensors[index].storage->device_index(),
-                               tensors.front().storage->device_index());
+                               index, placed, device);
                 }
-                return Status();
+                return device;
             }
 
             /**
-             * @brief Returns the device the tensors of a checked layout live on.
-             * @return The device of the first tensor, or 0, the engine's default, for none.
-             * @pre require_layout() accepted @p tensors.
+             * @brief Copies each of @p tensors into its place in @p pack's pinned host bytes.
+             * @return Success, or the failure of a copy.
+             * @pre require_layout() accepted @p tensors for the pack's layout.
              */
-            [[nodiscard]] std::size_t device_of(const std::vector<SushiBLAS::Tensor>& tensors)
-                noexcept
+            [[nodiscard]] Status copy_into(const SushiBLAS::TensorPack& pack,
+                                           const std::vector<SushiBLAS::Tensor>& tensors)
             {
-                return tensors.empty() ? 0 : tensors.front().storage->device_index();
+                unsigned char* const base = static_cast<unsigned char*>(pack.data());
+                const std::vector<SushiBLAS::PackEntry>& entries = pack.layout().entries();
+                for (std::size_t index = 0; index < entries.size(); ++index)
+                {
+                    SA_TRY(copy_to_host(tensors[index], 0, tensors[index].num_elements,
+                                        dtype_size(tensors[index].dtype),
+                                        base + entries[index].offset_bytes));
+                }
+                return Status();
             }
         } // namespace
 
@@ -98,25 +110,20 @@ namespace SushiAI
             RuntimeAccess& runtime, SushiBLAS::ClusterBinding& binding,
             const SushiBLAS::PackLayout& layout, std::vector<SushiBLAS::Tensor> parameters) noexcept
         {
-            SA_TRY(require_layout(layout, parameters));
+            SA_TRY_ASSIGN(const std::size_t device, require_layout(layout, parameters));
+
+            SA_TRY_ASSIGN(SushiBLAS::TensorPack pack,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate,
+                                                       [&]()
+            {
+                SushiBLAS::TensorPack shared(runtime.runtime(), layout, device);
+                binding.share(shared);
+                return shared;
+            }));
+            SA_TRY(copy_into(pack, parameters));
 
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                SushiBLAS::TensorPack pack(runtime.runtime(), layout, device_of(parameters));
-                binding.share(pack);
-
-                // A replay reads the pack before a gather; its Shared storage takes the host copy.
-                unsigned char* const base = static_cast<unsigned char*>(pack.data());
-                const std::vector<SushiBLAS::PackEntry>& entries = layout.entries();
-                for (std::size_t index = 0; index < entries.size(); ++index)
-                {
-                    if (entries[index].size_bytes == 0)
-                        continue;
-                    require_host_visible(parameters[index], "Published parameter", index);
-                    std::memcpy(base + entries[index].offset_bytes, parameters[index].data(),
-                                entries[index].size_bytes);
-                }
-
                 return std::unique_ptr<ParameterPublish>(
                     new ParameterPublish(std::move(pack), std::move(parameters)));
             });

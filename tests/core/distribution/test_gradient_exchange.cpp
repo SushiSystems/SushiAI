@@ -49,6 +49,7 @@
 #include <SushiRuntime/distributed/buffer_view.hpp>
 #include <SushiRuntime/distributed/kernel_registry.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/distribution/gradient_exchange.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
@@ -107,10 +108,11 @@ namespace
         ResultBytes bytes;
         for (const SushiBLAS::Tensor& tensor : tensors)
         {
-            const std::size_t size = static_cast<std::size_t>(tensor.num_elements)
-                                     * dtype_size(tensor.dtype);
-            const unsigned char* const first = static_cast<const unsigned char*>(tensor.data());
-            bytes.emplace_back(first, first + size);
+            std::vector<unsigned char> copy(static_cast<std::size_t>(tensor.num_elements)
+                                            * dtype_size(tensor.dtype));
+            SA_EXPECT_OK(copy_to_host(tensor, 0, tensor.num_elements, dtype_size(tensor.dtype),
+                                      copy.data()));
+            bytes.push_back(std::move(copy));
         }
         return bytes;
     }
@@ -167,7 +169,7 @@ namespace
         SushiAI::RuntimeExecutionBackend backend(machines.master_runtime(), engine);
         std::unique_ptr<ReplicaModel> built = LinearModel::make(engine, K_BATCH_ROWS).value();
         LinearModel& model = static_cast<LinearModel&>(*built);
-        model.fill_parameters();
+        SA_EXPECT_OK(model.fill_parameters());
 
         const SushiRuntime::span<const SushiBLAS::Tensor> parameters = model.parameters();
         const SushiRuntime::span<const SushiBLAS::Tensor> results = model.results();

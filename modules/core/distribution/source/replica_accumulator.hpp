@@ -58,11 +58,12 @@ namespace SushiAI
                 void reset() noexcept;
 
                 /**
-                 * @brief Adds one micro-batch's results.
+                 * @brief Copies one micro-batch's results to the host and adds them.
+                 * @return Success, or the failure of a copy; a failed copy adds nothing.
                  * @pre @p results matches the layout entry by entry, each contiguous, and no
                  *      replay that writes them is running.
                  */
-                void add(SushiRuntime::span<const SushiBLAS::Tensor> results);
+                [[nodiscard]] Status add(SushiRuntime::span<const SushiBLAS::Tensor> results);
 
                 /**
                  * @brief Writes the mean of the micro-batches added into @p target.
@@ -87,6 +88,9 @@ namespace SushiAI
 
                 /// @brief Where each result lies in the sum and in the result pack.
                 SushiBLAS::PackLayout layout_;
+
+                /// @brief The host copy of one micro-batch's results, in the pack's layout.
+                std::vector<std::byte> staging_;
 
                 /// @brief The sum in the pack's layout; a Half entry holds its first micro-batch.
                 std::vector<std::byte> sum_;

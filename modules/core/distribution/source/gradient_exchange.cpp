@@ -43,6 +43,7 @@
 #include <SushiAI/distribution/replica_position.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
+#include "storage_device.hpp"
 
 namespace SushiAI
 {
@@ -127,11 +128,12 @@ namespace SushiAI
                     SA_FAIL_IF(!targets[index].storage || !targets[index].is_contiguous(),
                                StatusCode::InvalidDescription,
                                "Target {} has no storage or is not contiguous", index);
-                    SA_FAIL_IF(targets[index].storage->device_index() != parameters.device_index(),
+                    SA_TRY_ASSIGN(const std::size_t device,
+                                  require_pack_device(targets[index], "Target", index));
+                    SA_FAIL_IF(device != parameters.device_index(),
                                StatusCode::InvalidDescription,
                                "Target {} lives on device {} and the parameter pack on device {}",
-                               index, targets[index].storage->device_index(),
-                               parameters.device_index());
+                               index, device, parameters.device_index());
                 }
                 return Status();
             }
@@ -153,7 +155,10 @@ namespace SushiAI
                           allocate_tensor(backend.engine(),
                                           SushiRuntime::span<const std::int64_t>(position_extent,
                                                                                  1),
-                                          SushiBLAS::Core::DataType::Int64));
+                                          SushiBLAS::Core::DataType::Int64,
+                                          TensorAccess::Host));
+            SA_TRY_ASSIGN(const std::size_t position_device,
+                          require_pack_device(parts.position, "Position tensor", 0));
 
             SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
@@ -163,8 +168,7 @@ namespace SushiAI
                 SA_FATAL_IF(position_layout.entries().front().offset_bytes != 0,
                             "GradientExchange: the position pack starts its words at byte {}",
                             position_layout.entries().front().offset_bytes);
-                parts.position_pack.emplace(backend.runtime(), position_layout,
-                                            parts.position.storage->device_index());
+                parts.position_pack.emplace(backend.runtime(), position_layout, position_device);
                 binding.share(*parts.position_pack);
 
                 parts.sum_pack.emplace(backend.runtime(), result_layout,
@@ -238,6 +242,7 @@ namespace SushiAI
         {
             const ReplicaPosition position =
                 ReplicaPosition::at_step(next_step_, run_.batches_per_epoch);
+            // make() allocates position_ with TensorAccess::Host, so the host writes it in place.
             std::int64_t* const words = position_.data_as<std::int64_t>();
             words[0] = static_cast<std::int64_t>(position.epoch);
             words[1] = static_cast<std::int64_t>(position.batch_index);

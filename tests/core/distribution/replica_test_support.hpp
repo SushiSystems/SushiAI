@@ -31,7 +31,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -39,6 +38,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/allocation/host_copy.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_model.hpp>
@@ -137,33 +137,40 @@ namespace SushiAI::Distribution::Support
                            StatusCode::InvalidDescription, "{} rows fed to a model of {}",
                            rows.rows.count, rows_);
 
-                float* const inputs = pool_.tensor(inputs_).data_as<float>();
-                float* const targets = pool_.tensor(targets_).data_as<float>();
+                std::vector<float> inputs(static_cast<std::size_t>(rows_ * K_FEATURES));
+                std::vector<float> targets(static_cast<std::size_t>(rows_ * K_CLASSES));
                 for (std::int64_t row = 0; row < rows_; ++row)
                 {
                     const std::uint64_t position =
                         rows.rows.first + static_cast<std::uint64_t>(row);
                     for (std::int64_t feature = 0; feature < K_FEATURES; ++feature)
-                        inputs[row * K_FEATURES + feature] = feature_value(position, feature);
+                        inputs[static_cast<std::size_t>(row * K_FEATURES + feature)] =
+                            feature_value(position, feature);
 
                     for (std::int64_t label = 0; label < K_CLASSES; ++label)
-                        targets[row * K_CLASSES + label] =
+                        targets[static_cast<std::size_t>(row * K_CLASSES + label)] =
                             static_cast<std::int64_t>(position % K_CLASSES) == label ? 1.0f
                                                                                      : 0.0f;
                 }
-                return Status();
+                SA_TRY(write_elements(pool_.tensor(inputs_), inputs));
+                return write_elements(pool_.tensor(targets_), targets);
             }
 
-            /** @brief Writes parameter_value() into every parameter, in pack order. */
-            void fill_parameters()
+            /**
+             * @brief Writes parameter_value() into every parameter, in pack order.
+             * @return Success, or the failure of a copy.
+             */
+            Status fill_parameters()
             {
                 std::size_t index = 0;
-                for (SushiBLAS::Tensor parameter : parameters_)
+                for (const SushiBLAS::Tensor& parameter : parameters_)
                 {
-                    float* const values = parameter.data_as<float>();
-                    for (std::int64_t element = 0; element < parameter.num_elements; ++element)
-                        values[element] = parameter_value(index++);
+                    std::vector<float> values(static_cast<std::size_t>(parameter.num_elements));
+                    for (float& value : values)
+                        value = parameter_value(index++);
+                    SA_TRY(write_elements(parameter, values));
                 }
+                return Status();
             }
 
         private:
@@ -263,7 +270,7 @@ namespace SushiAI::Distribution::Support
         {
             std::unique_ptr<ReplicaModel> built = LinearModel::make(backend.engine(), rows).value();
             LinearModel& model = static_cast<LinearModel&>(*built);
-            model.fill_parameters();
+            SA_EXPECT_OK(model.fill_parameters());
 
             std::unique_ptr<Graph::CompiledStep> step =
                 Graph::CompiledStep::compile(backend, model.graph(), model.pool()).value();
@@ -274,10 +281,10 @@ namespace SushiAI::Distribution::Support
 
             for (const SushiBLAS::Tensor& result : model.results())
             {
-                const std::size_t bytes = static_cast<std::size_t>(result.num_elements)
-                                          * sizeof(float);
-                std::vector<unsigned char> copy(bytes);
-                std::memcpy(copy.data(), result.data(), bytes);
+                std::vector<unsigned char> copy(static_cast<std::size_t>(result.num_elements)
+                                                * sizeof(float));
+                SA_EXPECT_OK(copy_to_host(result, 0, result.num_elements, sizeof(float),
+                                          copy.data()));
                 results.push_back(std::move(copy));
             }
         }

@@ -10,8 +10,10 @@
 | RW-103 | P2 | open | Make the one-batch overfit of YOLOv7 hold | `Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` passes, the cause of the instability found and the bound ruled by the owner |  |  | 2026-10-19 |
 | RW-104 | P2 | unmeasured | Measure where YOLOv3's training step leaves Darknet, layer by layer | a per-layer dump under batch statistics shows whether the difference grows over the 75 convolutions or enters at one |  |  | 2026-10-19 |
 | RW-105 | P2 | blocked | Feed a batch without two copies | a step writes the batch into the plan's input buffers without two `blas().copy()` calls | sushiruntime RW-59 |  | 2026-10-19 |
+| RW-202 | P2 | open | Measure the two copies per leaf that leaf_writes makes each step | the YOLOv4 step is profiled with and without the leaf check, and the check stays only if it costs under 1 % of the step |  | `modules/layers/train/source/leaf_writes.cpp` | 2026-11-25 |
 
 ## Known issues
 
 | ID | Origin | Symptom | Workaround | Fix | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- |
+| KI-27 | own | YOLOv4 release training fails with CUDA_ERROR_ILLEGAL_ADDRESS in epoch 2, 1 run of 6 | rerun | none, cause not yet found |  | 2026-11-25 |

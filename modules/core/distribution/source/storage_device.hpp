@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* host_access.hpp                                                        */
+/* storage_device.hpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,8 +22,8 @@
 /**************************************************************************/
 
 /**
- * @file host_access.hpp
- * @brief Declares the checks that a tensor the host copies is host-visible.
+ * @file storage_device.hpp
+ * @brief Declares the device check that places a distribution pack beside its tensors.
  * @author Mustafa Garip
  * @see modules/core/distribution/README.md
  */
@@ -31,34 +31,33 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string_view>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiRuntime/api/data/buffer.hpp>
-#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure/result.hpp>
 
 namespace SushiAI
 {
     namespace Distribution
     {
-        /** @brief Returns whether the host may address @p tensor's memory directly. */
-        [[nodiscard]] inline bool is_host_visible(const SushiBLAS::Tensor& tensor) noexcept
-        {
-            return tensor.storage
-                   && tensor.storage->residency() != SushiRuntime::Residency::Device;
-        }
-
         /**
-         * @brief Stops the process when the host may not address @p tensor's memory.
-         * @param what Names the tensor's role in the message, with @p index.
+         * @brief Returns the device a pack beside @p tensor is allocated on, its storage's device.
+         * @param what Names the tensor's role in a refusal, with @p index.
+         * @return The device, or InvalidDescription for a tensor with no storage or a
+         *         runtime-placed storage, which names no device.
          */
-        inline void require_host_visible(const SushiBLAS::Tensor& tensor, std::string_view what,
-                                         std::size_t index) noexcept
+        [[nodiscard]] inline Result<std::size_t> require_pack_device(
+            const SushiBLAS::Tensor& tensor, std::string_view what, std::size_t index)
         {
-            SA_FATAL_IF(!is_host_visible(tensor),
-                        "{} {} lives in device memory, which a host copy cannot address", what,
-                        index);
+            SA_FAIL_IF(!tensor.storage, StatusCode::InvalidDescription, "{} {} has no storage",
+                       what, index);
+            const std::optional<std::size_t> device = tensor.storage->device_index();
+            SA_FAIL_IF(!device, StatusCode::InvalidDescription,
+                       "{} {} is placed by the runtime, so it names no device for its pack",
+                       what, index);
+            return *device;
         }
-
     } // namespace Distribution
 } // namespace SushiAI
