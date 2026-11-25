@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-25 — memory_planning_speed: Measured the leaf checks at 0.01 ms of a 486 ms step and kept them in release builds (RW-202).
 - 2026-11-25 — rulings_carry_out: Declared the allocation and failure edges that train, vision and language include (RW-198, `37a340cd`).
 - 2026-11-25 — documentation: Brought the comment blocks over eight lines under the block ceiling (RW-199, `37a340cd`).
 - 2026-11-25 — test_tree: Added test_host_readback.cpp for Apps::HostReadback (RW-200, `37a340cd`).
