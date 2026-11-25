@@ -5,7 +5,6 @@
 | ID | Pri | State | Title | Done when | Blocked by | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | RW-114 | P2 | unmeasured | Compare the manual with the code | the numbers of `TUTORIAL.md`, sections 1 to 6 of `ARCHITECTURE.md` and the flag tables of `CLI_GUIDE.md` are checked against the code |  |  | 2026-10-19 |
-| RW-199 | P3 | open | Bring the comment blocks over eight lines under the block ceiling | python -m sushicore.tools check . reports no rule_block_ceiling line |  | `modules/core/allocation/include/SushiAI/allocation/allocation.hpp` | 2026-11-25 |
 
 ## Known issues
 

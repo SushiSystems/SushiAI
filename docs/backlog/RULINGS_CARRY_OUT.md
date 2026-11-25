@@ -9,7 +9,6 @@
 | RW-130 | P2 | open | Carry out layered execution across the stack | tasks A0 to A7 of `docs/design/LAYERED_EXECUTION/README.md` are closed, and with them `sushiruntime RW-65`, SushiBLAS's B1 to B13 and SushiEngine's E1 to E17 |  | `docs/design/LAYERED_EXECUTION/README.md` | 2026-10-20 |
 | RW-145 | P2 | open | Measure SushiAI on SushiProfiler | phases P1 to P6 of `docs/design/PROFILING/README.md` are built and the YOLOv5n write-up names the share of each group of a step and the kernels that bound it |  | `docs/design/PROFILING/README.md` | 2026-10-26 |
 | RW-146 | P2 | open | Move the project service of the CLI onto injected collaborators | `cli/sushiai/services/project.py` holds a `ProjectService` that takes its console, runner, driver and configuration through its constructor, as SushiBLAS's… |  | `cli/sushiai/services/project.py` | 2026-10-26 |
-| RW-198 | P2 | open | Declare the allocation and failure edges that train, vision and language include | python -m sushicore.tools check . reports no layering failure for allocation or failure |  | `modules/layers/train/CMakeLists.txt` | 2026-11-25 |
 
 ## Known issues
 

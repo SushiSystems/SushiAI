@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-11-25 — rulings_carry_out: Declared the allocation and failure edges that train, vision and language include (RW-198, `37a340cd`).
+- 2026-11-25 — documentation: Brought the comment blocks over eight lines under the block ceiling (RW-199, `37a340cd`).
+- 2026-11-25 — test_tree: Added test_host_readback.cpp for Apps::HostReadback (RW-200, `37a340cd`).
 - 2026-11-25 — distribution: Compiled the module again against the optional `device_index()` and moved its host reads and writes to copies (KI-26, `modules/core/distribution/README.md`).
 <<<<<<< Updated upstream
 =======
