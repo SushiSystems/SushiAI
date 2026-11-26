@@ -47,8 +47,18 @@ namespace SushiAI
             constexpr std::string_view K_TRAIN_KEYS[] = {
                 "sushiai_train", "model", "objective", "data", "optimizer",
                 "schedule", "epochs", "seed", "weights", "resume", "checkpoint", "cluster",
+                "deterministic", "checkpoint_every", "device_split",
+            };
+
+            /** @brief Every key a train document before K_TRAIN_DEVICE_SPLIT_VERSION may carry. */
+            constexpr std::string_view K_TRAIN_KEYS_BEFORE_DEVICE_SPLIT[] = {
+                "sushiai_train", "model", "objective", "data", "optimizer",
+                "schedule", "epochs", "seed", "weights", "resume", "checkpoint", "cluster",
                 "deterministic", "checkpoint_every",
             };
+
+            /** @brief Every key one share of the "device_split" list may carry. */
+            constexpr std::string_view K_DEVICE_SHARE_KEYS[] = {"device", "rows"};
 
             /** @brief Every key a train document before K_TRAIN_CHECKPOINT_EVERY_VERSION may carry. */
             constexpr std::string_view K_TRAIN_KEYS_BEFORE_CHECKPOINT_EVERY[] = {
@@ -268,7 +278,101 @@ namespace SushiAI
                 every.unit = epochs ? CheckpointUnit::Epochs : CheckpointUnit::Batches;
                 return every;
             }
+
+            /**
+             * @brief Reads how a training file spells a device class.
+             * @return The class; InvalidDescription for a spelling other than "gpu" and "cpu".
+             */
+            Result<DeviceClass> read_device_class(const std::string& spelled,
+                                                  const std::string& context) noexcept
+            {
+                const bool is_gpu = spelled == device_class_name(DeviceClass::GPU);
+                SA_FAIL_IF(!is_gpu && spelled != device_class_name(DeviceClass::CPU),
+                           StatusCode::InvalidDescription,
+                           "{}'s 'device' is '{}'; a share names \"gpu\" or \"cpu\"", context,
+                           spelled);
+                return is_gpu ? DeviceClass::GPU : DeviceClass::CPU;
+            }
+
+            /**
+             * @brief Reads one share of the "device_split" list.
+             * @param context Names the share in a diagnostic, such as "'train.json's
+             *        'device_split[1]'".
+             * @return The share; InvalidDescription for an unknown key, a device other than
+             *         "gpu" and "cpu", or rows that are absent or not positive.
+             */
+            Result<DeviceShare> read_device_share(const Value& entry, const std::string& context,
+                                                  std::string_view origin) noexcept
+            {
+                SA_FAIL_IF(entry.kind() != Kind::Object, StatusCode::InvalidDescription,
+                           "{} must be an object with 'device' and 'rows'", context);
+                SA_TRY(entry.reject_unknown_keys(origin, as_span(K_DEVICE_SHARE_KEYS)));
+                DeviceShare share;
+                SA_TRY_ASSIGN(const Value& device_value, entry.at("device", origin));
+                SA_TRY_ASSIGN(const std::string& device,
+                              device_value.as_string(context + "'s 'device'"));
+                SA_TRY_ASSIGN(share.device, read_device_class(device, context));
+                SA_TRY_ASSIGN(const Value& rows_value, entry.at("rows", origin));
+                SA_TRY_ASSIGN(share.rows, rows_value.as_int(context + "'s 'rows'"));
+                SA_FAIL_IF(share.rows <= 0, StatusCode::InvalidDescription,
+                           "{}'s 'rows' must be positive, but it is {}", context, share.rows);
+                return share;
+            }
+
+            /**
+             * @brief Reads the "device_split" list of @p root; an absent key means no split.
+             * @return The shares in file order; InvalidDescription for a list of fewer than two
+             *         shares, two shares of one class or a share read_device_share() refuses;
+             *         Unsupported for a file that also states "cluster".
+             */
+            Result<std::vector<DeviceShare>> read_device_split(const Value& root,
+                                                               std::string_view origin) noexcept
+            {
+                std::vector<DeviceShare> shares;
+                if (!root.has("device_split"))
+                    return shares;
+
+                SA_FAIL_IF(root.has("cluster"), StatusCode::Unsupported,
+                           "'{}' states 'device_split' and a 'cluster' section; a run splits its "
+                           "step across the devices of one machine or across the machines of a "
+                           "cluster, not both",
+                           origin);
+                const std::string list_name = "'" + std::string(origin) + "'s 'device_split'";
+                SA_TRY_ASSIGN(const Value& list, root.at("device_split", origin));
+                SA_TRY_ASSIGN(const std::vector<Value>& entries, list.as_array(list_name));
+                SA_FAIL_IF(entries.size() < 2, StatusCode::InvalidDescription,
+                           "{} holds {} share(s); a split names two shares or more", list_name,
+                           entries.size());
+                for (std::size_t index = 0; index < entries.size(); ++index)
+                {
+                    const std::string context = "'" + std::string(origin) + "'s 'device_split["
+                                              + std::to_string(index) + "]'";
+                    SA_TRY_ASSIGN(const DeviceShare share,
+                                  read_device_share(entries[index], context, origin));
+                    const bool repeated = std::any_of(
+                        shares.begin(), shares.end(), [&share](const DeviceShare& held)
+                    {
+                        return held.device == share.device;
+                    });
+                    SA_FAIL_IF(repeated, StatusCode::InvalidDescription,
+                               "{} names the class '{}' a second time; each share runs on a class "
+                               "of its own",
+                               context, device_class_name(share.device));
+                    shares.push_back(share);
+                }
+                return shares;
+            }
         } // namespace
+
+        const char* device_class_name(DeviceClass device) noexcept
+        {
+            switch (device)
+            {
+                case DeviceClass::GPU: return "gpu";
+                case DeviceClass::CPU: return "cpu";
+            }
+            return "unknown";
+        }
 
         Result<TrainSpec> parse_train(const Value& root, std::string_view origin,
                                       const std::filesystem::path& base) noexcept
@@ -288,6 +392,11 @@ namespace SushiAI
             {
                 SA_TRY(root.reject_unknown_keys(origin,
                                                 as_span(K_TRAIN_KEYS_BEFORE_CHECKPOINT_EVERY)));
+            }
+            else if (version < K_TRAIN_DEVICE_SPLIT_VERSION)
+            {
+                SA_TRY(root.reject_unknown_keys(origin,
+                                                as_span(K_TRAIN_KEYS_BEFORE_DEVICE_SPLIT)));
             }
             else
             {
@@ -342,6 +451,8 @@ namespace SushiAI
 
             // The section stays opaque here, as "schedule" does; an absent key leaves null.
             spec.cluster = root.at_or("cluster", Value());
+
+            SA_TRY_ASSIGN(spec.device_split, read_device_split(root, origin));
 
             // No key asks for an unordered path yet, so a true value refuses none.
             const Value ordered = Value::boolean(true);

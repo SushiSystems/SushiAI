@@ -60,6 +60,10 @@ the ones SushiRuntime's worker agent defines.
 | `image_input.hpp`, `image_input.cpp`, `image_input_none.cpp` | `is_image_path` and `image_data_document`: the data block that reads one image file with the `image_file` reader; the second file is compiled when `SA_BUILD_VISION` is off and refuses an image |
 | `inference_preparation.hpp`, `inference_preparation.cpp` | `prepare_inference`, `InferenceRequest`, `InferenceHooks` and `InferenceBuild`: build the data, the model, the evaluation graph, the state and the compiled forward pass of `sushiai inference` and the `PreparedInference` over them; `run_inference_file` calls it, and the detection tests call it with a fill hook that initialises the weights and a wrap hook that hides a role |
 | `run_preparation.hpp`, `run_preparation.cpp` | `prepare_run` and `RunBuild`: build the setup, the rate schedule and the optimizer of a training file, start the state as the file says and build the `PreparedRun` over them; `run_training_file` calls it, and the vision run tests call it |
+| `row_feed.hpp`, `row_feed.cpp` | `RowFeed`: reads rows of one batch into the leaves of a setup's training graph and copies the inputs; a replica and a share of a split step feed through it |
+| `share_runtime.hpp`, `share_runtime.cpp` | `narrow_to_class`, `narrow_to_split`, `check_share_device` and `first_device_name`: the runtime configuration of one device class and the check that a runtime's first device is of it; `train.cpp` narrows its runtime through `narrow_to_split` |
+| `share_step.hpp`, `share_step.cpp` | `ShareStep`: one share of a split step after the first, with its own runtime, engine, setup and compiled forward and backward |
+| `device_split_run.hpp`, `device_split_run.cpp` | `run_device_split`: trains a file with a `device_split` list; see "Splitting a step across devices" |
 | `inference_program.hpp`, `inference_program.cpp` | `run_inference_file` and the class-count report of a model without a task: what `sushiai inference` does once it holds the parsed files; `inference.cpp` and the anchor test call it |
 
 The sources in the table compile once, into the library `sushiai_program_shared`. The programs
@@ -253,6 +257,41 @@ itself.
 The epoch loop of that run calls `run_step` itself and does not call `fit()`, because it sets
 the scheduled rate before each step. The `anchor` run prints the cost `run_anchor_training`
 reports for each update.
+
+### Splitting a step across devices
+
+A training file of version 5 may state `device_split`, a list of shares such as
+`[{"device": "gpu", "rows": 12}, {"device": "cpu", "rows": 4}]`. Without the key nothing
+below runs: `narrow_to_split` returns the runtime configuration unchanged, `prepare_run`
+traces the data's batch, and the run table picks the run as before.
+
+With it, each batch is split by rows, and each share runs forward and backward over its rows
+on a device of its class. `train.cpp` opens its runtime on the first share's class alone, so
+that share's tensors sit on that device. `prepare_run` traces the setup over the first share's
+rows. `run_device_split` refuses rows that do not sum to the data's batch size, an objective
+with a run of its own (the `anchor` and `anchor_free` rows), and a runtime whose first device
+is of another class. Every other share is a `ShareStep`: a runtime narrowed to its class, an
+engine, a setup traced over its rows with the run's seed and a compiled forward and backward.
+
+One update runs in this order:
+
+1. Every other share starts on a thread of its own: it reads its rows and replays its step.
+2. The first share reads its rows and replays its step up to its host stage, which ends where
+   the last gradient and the loss are written.
+3. The host stage waits for the other shares and copies each of their gradients into a tensor
+   on the first share's device, through host memory.
+4. The rest of the step blends each copied gradient into the first share's
+   (`Graph::BufferUpdateRecorder`, weight rows of the share over the rows blended so far), so
+   the gradient is the mean over the whole batch, then applies the optimizer and the buffer
+   updates.
+5. The new parameters are copied into every other share, through host memory.
+
+The first share's runtime and a CUDA GPU share no memory with an OpenCL CPU, so every copy
+passes through the host: the gradients one way and the parameters the other, once per update.
+The progress line prints the loss of the whole batch, the mean of the shares' losses weighted
+by their rows. After `compiles:` the program prints one `share` line per share: its class, its
+device, its rows and its replays; `RunSummary::shares` holds the same. Running statistics are
+blended from the first share's rows only, and the other shares' buffers are not written.
 
 ### The compile-count line
 

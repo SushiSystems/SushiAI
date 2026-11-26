@@ -37,21 +37,14 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/blas/blas.hpp>
-#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
-#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
-#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/seam/seam.hpp>
-#include <SushiAI/train/extra_input_copy.hpp>
-#include <SushiAI/train/extra_inputs.hpp>
-#include <SushiAI/train/leaf_writes.hpp>
 
 #include "training_cluster_section.hpp"
 
@@ -188,8 +181,8 @@ namespace SushiAI
                                                    ExecutionBackend& backend,
                                                    std::unique_ptr<TrainingSetup> setup,
                                                    ReplicaTensors tensors) noexcept
-            : source_(std::move(source)), backend_(&backend), setup_(std::move(setup)),
-              tensors_(std::move(tensors))
+            : source_(std::move(source)), setup_(std::move(setup)),
+              tensors_(std::move(tensors)), rows_(backend, *setup_)
         {
 
         }
@@ -263,34 +256,7 @@ namespace SushiAI
             enter_epoch(rows.epoch);
             const Data::RowRange range{static_cast<std::int64_t>(rows.rows.first - first),
                                        static_cast<std::int64_t>(rows.rows.count)};
-            {
-                SA_ZONE("data", "read");
-                SA_TRY(dataset.read_rows(static_cast<std::size_t>(rows.batch_index), range,
-                                         part_));
-            }
-
-            // No task is recorded here, so the objective may write its leaves on the host.
-            const Train::TrainingGraph& built = setup_->built();
-            {
-                SA_ZONE("host", "feed");
-                SA_TRY(Train::mark_leaves_unwritten(built.leaves, setup_->pool()));
-                SA_TRY(setup_->objective().feed(part_, built.leaves, setup_->pool()));
-                SA_TRY(Train::require_leaves_written(built.leaves, setup_->pool()));
-            }
-
-            SushiBLAS::Tensor& inputs = setup_->pool().tensor(built.spec.inputs);
-            std::vector<Train::NamedFeed> extra_feeds;
-            SA_ZONE("copy", "input");
-            return SushiAI::Detail::record_and_run(*backend_,
-                                                   [&](SushiBLAS::TaskRecorder& recorder)
-            {
-                SushiBLAS::BLASOps blas(recorder);
-                blas.copy(part_.inputs, inputs);
-
-                // The extra inputs of the model are read from the part as the trainer reads them.
-                return Train::copy_extra_inputs(built.extra_inputs.leaves(), part_, setup_->pool(),
-                                                blas, extra_feeds);
-            });
+            return rows_.feed(static_cast<std::size_t>(rows.batch_index), range);
         }
 
     } // namespace Apps

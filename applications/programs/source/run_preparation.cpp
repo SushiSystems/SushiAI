@@ -70,8 +70,13 @@ namespace SushiAI
             std::unique_ptr<RunBuild> made(new RunBuild());
 
             SA_TRY_ASSIGN(const std::uint64_t seed, Config::read_run_seed(spec, origin));
+            // A split step traces this setup over the rows of its first share alone.
+            const std::optional<std::int64_t> rows =
+                spec.device_split.empty()
+                    ? std::nullopt
+                    : std::optional<std::int64_t>(spec.device_split.front().rows);
             SA_TRY_ASSIGN(made->setup_, TrainingSetup::make(registries, spec, model_spec, backend,
-                                                            seed, std::nullopt, scope));
+                                                            seed, rows, scope));
             SA_TRY_ASSIGN(made->schedule_,
                           Optim::read_rate_schedule(spec.schedule, spec.optimizer_attributes));
             SA_TRY_ASSIGN(made->optimizer_,

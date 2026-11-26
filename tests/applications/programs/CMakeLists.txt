@@ -55,6 +55,10 @@ endif()
 sushiai_add_test_program(APPLICATION programs
     SOURCES
         source/test_domains.cpp
+        source/test_device_split_run.cpp
+        source/test_share_runtime.cpp
+        source/test_row_feed.cpp
+        source/test_share_step.cpp
         source/compile_programs_log_category.cpp
         source/test_epoch_loop.cpp
         source/test_host_readback.cpp

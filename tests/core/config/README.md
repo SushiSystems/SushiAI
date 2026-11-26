@@ -505,6 +505,40 @@ A reader block whose `root` is `datasets/coco128`, parsed with the base `example
 
 `parse_data` with an empty base keeps the relative `root` `datasets/coco128`.
 
+### AFileWithoutDeviceSplitSplitsNothing
+
+A version 5 file without the `device_split` key parses with `spec.device_split` empty.
+
+### TheDeviceSplitReadsItsSharesInFileOrder
+
+`[{"device": "gpu", "rows": 12}, {"device": "cpu", "rows": 4}]` reads as two shares: GPU with
+12 rows, then CPU with 4.
+
+### AVersionFourFileRefusesDeviceSplit
+
+A version 4 file that states `device_split` returns `InvalidDescription` naming the key.
+
+### ASplitOfOneShareIsRefused
+
+A list of one share returns `InvalidDescription` naming `'device_split'` and "two shares".
+
+### TwoSharesOfOneClassAreRefused
+
+Two `gpu` shares return `InvalidDescription` naming `'device_split[1]'` and `'gpu'`.
+
+### AnUnknownDeviceClassIsRefused
+
+A share whose `device` is `fpga` returns `InvalidDescription` naming `'device_split[1]'` and
+`'fpga'`.
+
+### AShareOfNoRowsIsRefused
+
+A share of 0 rows returns `InvalidDescription` naming `'device_split[1]'` and "positive".
+
+### ADeviceSplitBesideAClusterIsRefused
+
+A file that states `cluster` and `device_split` returns `Unsupported` naming both keys.
+
 ## test_input_normalise.cpp and test_data_normalise.cpp
 
 The `normalise` object of a model's input and its hand-over to a data block, in

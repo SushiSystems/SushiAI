@@ -40,6 +40,7 @@
 #include "cluster_training.hpp"
 #include "profile_arguments.hpp"
 #include "profile_session.hpp"
+#include "share_runtime.hpp"
 #include "training_program.hpp"
 
 namespace sb = SushiBLAS;
@@ -62,7 +63,11 @@ namespace
         "\n"
         "  A file with a 'cluster' section makes this program the master: it trains over\n"
         "  the replicas the section names, each served by `sushiai_worker` on its machine.\n"
-        "  A build without `sa build --distributed` refuses such a file.\n";
+        "  A build without `sa build --distributed` refuses such a file.\n"
+        "\n"
+        "  A file with a 'device_split' list splits each batch across the device\n"
+        "  classes it names, a GPU and a CPU of this machine; the first share applies\n"
+        "  the update. A file without one runs as it did, on the runtime's devices.\n";
 
     /**
      * @brief Trains the model the configuration at `argv[1]` describes.
@@ -88,7 +93,9 @@ namespace
 
         SA_TRY_ASSIGN(const sr::RuntimeConfig runtime_config,
                       sa::Apps::training_runtime_config(spec));
-        SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime(runtime_config));
+        // A split step's first share runs on this runtime, so it drives that share's class only.
+        SA_TRY_ASSIGN(sr::Runtime runtime,
+                      sa::Detail::create_runtime(sa::Apps::narrow_to_split(runtime_config, spec)));
         sb::Engine engine(runtime);
         sa::RuntimeExecutionBackend backend(runtime, engine);
 

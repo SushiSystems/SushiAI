@@ -48,6 +48,7 @@
 
 #include "registries.hpp"
 #include "replica_tensors.hpp"
+#include "row_feed.hpp"
 #include "training_setup.hpp"
 
 namespace SushiAI
@@ -181,17 +182,14 @@ namespace SushiAI
                 /// @brief The files the model was built from; shared by every replica.
                 std::shared_ptr<const ReplicaSource> source_;
 
-                /// @brief The replica's backend, which the inputs are copied on; not owned.
-                ExecutionBackend* backend_;
-
                 /// @brief The data, the training graph, the state and the pool.
                 std::unique_ptr<TrainingSetup> setup_;
 
                 /// @brief The tensors of the two packs, in pack order.
                 ReplicaTensors tensors_;
 
-                /// @brief The rows the last feed read; reused by the next one.
-                Data::Batch part_;
+                /// @brief Reads the replica's rows into the leaves of its graph.
+                RowFeed rows_;
 
                 /// @brief Whether the dataset has entered an epoch.
                 bool entered_ = false;

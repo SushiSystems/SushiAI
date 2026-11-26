@@ -222,3 +222,51 @@ writers and that a refused export writes no file.
 Suite: `Small_ModelExport`, in a build with vision. Its cases are described in
 [source/test_model_export.md](source/test_model_export.md). They export one fixture per format
 through the composed registries and import the files back.
+
+## source/test_share_runtime.cpp
+
+Suite: `Small_ShareRuntime`. `narrow_to_split` over a configuration of 3 workers and no
+accelerator: a file without `device_split` leaves the filter and the worker count as they were;
+a split whose first share is `gpu` admits GPUs alone, and one whose first share is `cpu` admits
+CPUs alone.
+
+## source/test_device_split_run.cpp
+
+Suite: `Medium_DeviceSplitRun`. The suite opens a runtime narrowed to GPUs once and checks that a
+runtime narrowed to CPUs finds a CPU device; on a machine without both, every case is skipped.
+Each case trains the tiny run's model file over `rings` (batches of 8, two batches, two epochs,
+`adamw`) through `run_training_file` on the GPU backend.
+
+- `TheSplitStepRunsOnTheGpuAndOnTheCpu`: a split of 6 GPU rows and 2 CPU rows reports two shares,
+  GPU then CPU, each with its rows and 4 replays, and the optimizer takes 4 steps.
+- `TheSplitStepReachesTheGpuOnlyLoss`: the last printed loss of that split is within 1e-3 of the
+  last printed loss of the same file without a split. The CPU and the GPU sum in other orders, so
+  the two differ by rounding only.
+- `WithoutASplitTheRunReportsNoShare`: a file without `device_split` reports no share and prints
+  neither the `Devices` line nor a `share` line.
+- `SharesThatMissTheBatchSizeAreRefused`: 6 and 1 rows return `InvalidDescription` naming 7 rows
+  and batches of 8.
+
+## source/test_row_feed.cpp
+
+Suite: `Medium_RowFeed`, on the shared test engine. Each case builds the tiny run's setup traced
+over 2 rows and enters epoch 0 of its `rings` data.
+
+- `AFeedCopiesItsRowsIntoTheInputs`: a feed of rows 6 and 7 of batch 0 leaves the input leaf equal
+  to what the dataset reads for those rows.
+- `AFeedPastTheBatchIsRefused`: a feed of rows 7 to 9 of a batch of 8 returns
+  `InvalidDescription`.
+
+## source/test_share_step.cpp
+
+Suite: `Medium_ShareStep`. Each case builds a CPU share of the tiny run that takes the last 2 rows
+of each batch, on a runtime of its own; on a machine without a CPU device the case is skipped.
+
+- `AShareReplaysItsStepOncePerBatch`: after batches 0 and 1 the share reports the CPU class, 2
+  rows, 2 replays and a device name.
+- `AShareHoldsEveryParameterOfTheModel`: the share holds 4 parameters, a weight and a bias for each
+  linear layer.
+- `AShareRefusesABatchPastTheEpoch`: batch 2 of a file with two batches returns
+  `InvalidDescription`.
+
+The tiny run's training file the three split-step suites build is in `source/tiny_run_files.hpp`.

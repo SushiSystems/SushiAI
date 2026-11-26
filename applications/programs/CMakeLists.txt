@@ -51,6 +51,8 @@ set(SUSHIAI_PROGRAM_SHARED
     source/run_preparation.cpp source/inference_preparation.cpp
     source/profile_arguments.cpp source/model_state_entries.cpp source/weights_import.cpp
     source/model_export.cpp source/weights_export.cpp
+    source/row_feed.cpp source/share_runtime.cpp source/share_step.cpp
+    source/device_split_run.cpp
     ${SUSHIAI_PROGRAM_PROFILE}
     ${SUSHIAI_PROGRAM_CLUSTER} ${SUSHIAI_PROGRAM_DOMAINS})
 

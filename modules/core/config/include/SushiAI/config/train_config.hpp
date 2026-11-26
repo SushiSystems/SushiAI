@@ -34,6 +34,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -43,7 +44,7 @@ namespace SushiAI
     namespace Config
     {
         /** @brief The train-file version this build writes; it reads this one and every older. */
-        inline constexpr std::int64_t K_TRAIN_VERSION = 4;
+        inline constexpr std::int64_t K_TRAIN_VERSION = 5;
 
         /** @brief The first train-file version that may carry the "cluster" key. */
         inline constexpr std::int64_t K_TRAIN_CLUSTER_VERSION = 2;
@@ -53,6 +54,9 @@ namespace SushiAI
 
         /** @brief The first train-file version that may carry the "checkpoint_every" key. */
         inline constexpr std::int64_t K_TRAIN_CHECKPOINT_EVERY_VERSION = 4;
+
+        /** @brief The first train-file version that may carry the "device_split" key. */
+        inline constexpr std::int64_t K_TRAIN_DEVICE_SPLIT_VERSION = 5;
 
         /** @brief The standalone data-file version this build reads. */
         inline constexpr std::int64_t K_DATA_VERSION = 1;
@@ -127,6 +131,32 @@ namespace SushiAI
             std::int64_t count = 0;
         };
 
+        /** @brief Names the class of device a share of a split step runs on. */
+        enum class DeviceClass : std::uint8_t
+        {
+            GPU, /**< A GPU; the file spells it "gpu". */
+            CPU, /**< A CPU; the file spells it "cpu". */
+        };
+
+        /**
+         * @brief Returns how a training file spells @p device.
+         * @return A null-terminated literal owned by the library; never null.
+         */
+        [[nodiscard]] const char* device_class_name(DeviceClass device) noexcept;
+
+        /**
+         * @struct DeviceShare
+         * @brief One share of a step split across the devices of one machine.
+         */
+        struct DeviceShare
+        {
+            /** @brief The class of the one device the share runs on. */
+            DeviceClass device = DeviceClass::GPU;
+
+            /** @brief The rows of each batch the share takes; at least one. */
+            std::int64_t rows = 0;
+        };
+
         /**
          * @struct TrainSpec
          * @brief One training run, end to end.
@@ -191,6 +221,12 @@ namespace SushiAI
              * is read, naming the key. No key asks for one today.
              */
             bool deterministic = true;
+
+            /**
+             * @brief Holds the "device_split" list of the file in file order, empty when the file
+             *        has none; the first share runs the update.
+             */
+            std::vector<DeviceShare> device_split;
 
             /** @brief The directory the file's relative paths resolve against. */
             std::filesystem::path base;

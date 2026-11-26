@@ -453,11 +453,11 @@ TEST(Small_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
 TEST(Small_TrainConfig, AFutureTrainVersionIsAnError)
 {
     SA_EXPECT_FAILURE(train_from(R"({
-        "sushiai_train": 5, "model": "m.json",
+        "sushiai_train": 6, "model": "m.json",
         "objective": {"type": "cross_entropy"},
         "data": {"type": "rings"},
         "optimizer": {"type": "adamw"}
-    })"), StatusCode::InvalidFile, "version 5", "version 4");
+    })"), StatusCode::InvalidFile, "version 6", "version 5");
 }
 
 namespace
@@ -795,4 +795,83 @@ TEST(Medium_TrainConfig, LoadingAnAbsentFileNamesThePath)
 {
     SA_EXPECT_FAILURE(SushiAI::Config::load_train("no/such/train.json"),
                       StatusCode::FileNotFound, "no/such/train.json");
+}
+
+namespace
+{
+    /** @brief Parses a version @p version train file that states @p members after its optimizer. */
+    Result<TrainSpec> split_file(int version, const std::string& members)
+    {
+        return train_from("{\"sushiai_train\": " + std::to_string(version) + R"(, "model": "m.json",
+            "objective": {"type": "cross_entropy"}, "data": {"type": "rings"},
+            "optimizer": {"type": "adamw"})" + members + "}");
+    }
+} // namespace
+
+/** @brief Tests that a file without "device_split" asks for no split. */
+TEST(Small_TrainConfig, AFileWithoutDeviceSplitSplitsNothing)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, split_file(5, ""));
+
+    EXPECT_TRUE(spec.device_split.empty());
+}
+
+/** @brief Tests that the shares of "device_split" read back in file order. */
+TEST(Small_TrainConfig, TheDeviceSplitReadsItsSharesInFileOrder)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, split_file(5, R"(, "device_split": [
+        {"device": "gpu", "rows": 12}, {"device": "cpu", "rows": 4}])"));
+
+    ASSERT_EQ(spec.device_split.size(), 2u);
+    EXPECT_EQ(spec.device_split[0].device, Config::DeviceClass::GPU);
+    EXPECT_EQ(spec.device_split[0].rows, 12);
+    EXPECT_EQ(spec.device_split[1].device, Config::DeviceClass::CPU);
+    EXPECT_EQ(spec.device_split[1].rows, 4);
+}
+
+/** @brief Tests that a version 4 file that states "device_split" is refused, naming the key. */
+TEST(Small_TrainConfig, AVersionFourFileRefusesDeviceSplit)
+{
+    SA_EXPECT_FAILURE(split_file(4, R"(, "device_split": [
+        {"device": "gpu", "rows": 1}, {"device": "cpu", "rows": 1}])"),
+                      StatusCode::InvalidDescription, "'device_split'");
+}
+
+/** @brief Tests that a split of one share is refused. */
+TEST(Small_TrainConfig, ASplitOfOneShareIsRefused)
+{
+    SA_EXPECT_FAILURE(split_file(5, R"(, "device_split": [{"device": "gpu", "rows": 8}])"),
+                      StatusCode::InvalidDescription, "'device_split'", "two shares");
+}
+
+/** @brief Tests that two shares of one class are refused, naming the class. */
+TEST(Small_TrainConfig, TwoSharesOfOneClassAreRefused)
+{
+    SA_EXPECT_FAILURE(split_file(5, R"(, "device_split": [
+        {"device": "gpu", "rows": 4}, {"device": "gpu", "rows": 4}])"),
+                      StatusCode::InvalidDescription, "'device_split[1]'", "'gpu'");
+}
+
+/** @brief Tests that a device other than "gpu" and "cpu" is refused, naming it. */
+TEST(Small_TrainConfig, AnUnknownDeviceClassIsRefused)
+{
+    SA_EXPECT_FAILURE(split_file(5, R"(, "device_split": [
+        {"device": "gpu", "rows": 4}, {"device": "fpga", "rows": 4}])"),
+                      StatusCode::InvalidDescription, "'device_split[1]'", "'fpga'");
+}
+
+/** @brief Tests that a share of no rows is refused. */
+TEST(Small_TrainConfig, AShareOfNoRowsIsRefused)
+{
+    SA_EXPECT_FAILURE(split_file(5, R"(, "device_split": [
+        {"device": "gpu", "rows": 4}, {"device": "cpu", "rows": 0}])"),
+                      StatusCode::InvalidDescription, "'device_split[1]'", "positive");
+}
+
+/** @brief Tests that a split beside a cluster section is refused. */
+TEST(Small_TrainConfig, ADeviceSplitBesideAClusterIsRefused)
+{
+    SA_EXPECT_FAILURE(split_file(5, R"(, "cluster": {}, "device_split": [
+        {"device": "gpu", "rows": 4}, {"device": "cpu", "rows": 4}])"),
+                      StatusCode::Unsupported, "'device_split'", "'cluster'");
 }

@@ -39,6 +39,7 @@
 #include <string>
 #include <variant>
 #include <SushiAI/SushiAI.hpp>
+#include <SushiAI/execution/runtime_backend.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
 #include <SushiAI/optim/cosine_schedule.hpp>
 #include <SushiAI/optim/rate_schedule.hpp>
@@ -50,6 +51,7 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include "cluster_training.hpp"
+#include "device_split_run.hpp"
 #include "registries.hpp"
 #include "run_preparation.hpp"
 #include "run_start.hpp"
@@ -125,6 +127,39 @@ namespace SushiAI
 
         namespace
         {
+            /**
+             * @brief Trains a file with a "device_split" list on @p backend.
+             * @return Unsupported for a backend that reaches no runtime, else what
+             *         run_device_split() returns.
+             */
+            [[nodiscard]] Result<RunSummary> split_training(const Registries& registries,
+                                                            const Config::ModelSpec& model_spec,
+                                                            ExecutionBackend& backend,
+                                                            TrainingSetup& setup,
+                                                            PreparedRun& prepared)
+            {
+                RuntimeBackend* const runtime = dynamic_cast<RuntimeBackend*>(&backend);
+                SA_FAIL_IF(runtime == nullptr, StatusCode::Unsupported,
+                           "a step split across devices runs on a backend over a runtime, and "
+                           "this backend has none");
+                return run_device_split(registries, model_spec, *runtime, setup, prepared);
+            }
+
+            /** @brief Returns the header line of a split step's shares; "" for no split. */
+            [[nodiscard]] std::string describe_split(const Config::TrainSpec& spec)
+            {
+                if (spec.device_split.empty())
+                    return std::string();
+                std::string text = "Devices    :";
+                for (const Config::DeviceShare& share : spec.device_split)
+                {
+                    text += SushiLog::format_text(" {} {} rows",
+                                                  Config::device_class_name(share.device),
+                                                  share.rows);
+                }
+                return text + "\n";
+            }
+
             /** @brief Trains a file with a cluster section: what the runtime backend supplies. */
             using ClusterTraining = std::function<Result<RunSummary>(
                 PreparedRun&, SushiRuntime::span<const Optim::ParameterSlot>)>;
@@ -181,6 +216,7 @@ namespace SushiAI
                           << SushiLog::format_text(
                                  "Graph      : {} IR nodes over {} values\n",
                                  built.graph.node_count(), built.graph.value_count())
+                          << describe_split(spec)
                           << SushiLog::format_text("Seed       : {}\n", start.seed)
                           << SushiLog::format_text("Schedule   : {} epochs\n\n", spec.epochs);
 
@@ -194,10 +230,21 @@ namespace SushiAI
                 // A file with a cluster section trains over its replicas; see cluster_training.hpp.
                 const SushiRuntime::span<const Optim::ParameterSlot> slots(
                     setup.parameters().data(), setup.parameters().size());
-                SA_TRY_ASSIGN(const RunSummary summary,
-                              spec.cluster.is_null()
-                                  ? run_training(registries.runs, spec.objective_type, backend, prepared)
-                                  : cluster_training(prepared, slots));
+                // A file with a device split trains its shares at once; see device_split_run.hpp.
+                SA_TRY_ASSIGN(
+                    const RunSummary summary,
+                    !spec.device_split.empty()
+                        ? split_training(registries, model_spec, backend, setup, prepared)
+                    : spec.cluster.is_null()
+                        ? run_training(registries.runs, spec.objective_type, backend, prepared)
+                        : cluster_training(prepared, slots));
+                for (const ShareRun& share : summary.shares)
+                {
+                    std::cout << SushiLog::format_text(
+                        "share {} on {}: {} rows, {} steps\n",
+                        Config::device_class_name(share.device), share.device_name, share.rows,
+                        share.step_runs);
+                }
 
                 // CTest pins this line's shape, as in `sa demo mlp`; see the programs README.
                 std::cout << SushiLog::format_text("\ncompiles: {}\n", summary.compile_count);

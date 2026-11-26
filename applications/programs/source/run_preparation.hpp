@@ -97,7 +97,7 @@ namespace SushiAI
         /**
          * @brief Builds the setup, the schedule and the optimizer of a training file, puts the
          *        state where the file starts the run, and builds the PreparedRun over them.
-         * @param spec Outlives the build; the PreparedRun refers to it.
+         * @param spec Outlives the build; with "device_split", the setup traces its first share.
          * @param backend Outlives the build; its engine allocates the tensors.
          * @param scope What the pool of the setup holds memory for.
          * @return The build, or the first failure of a read, a build, a weight load or a bind.

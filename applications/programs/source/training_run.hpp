@@ -40,6 +40,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
@@ -102,6 +103,25 @@ namespace SushiAI
         };
 
         /**
+         * @struct ShareRun
+         * @brief Holds what one share of a step split across devices ran.
+         */
+        struct ShareRun
+        {
+            /** @brief The class of the device the share ran on. */
+            Config::DeviceClass device = Config::DeviceClass::GPU;
+
+            /** @brief The name the share's device reports. */
+            std::string device_name;
+
+            /** @brief The rows of each batch the share took. */
+            std::int64_t rows = 0;
+
+            /** @brief How many times the share's compiled step ran in this run. */
+            std::size_t step_runs = 0;
+        };
+
+        /**
          * @struct RunSummary
          * @brief Holds what a finished run reports back to the program.
          */
@@ -112,6 +132,9 @@ namespace SushiAI
 
             /** @brief Where the run stands, as the checkpoint of the run records it. */
             IO::RunProgress progress{};
+
+            /** @brief One entry per share of a split step in file order; empty without a split. */
+            std::vector<ShareRun> shares;
         };
 
         /**

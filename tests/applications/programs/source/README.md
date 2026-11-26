@@ -15,6 +15,7 @@ The test sources kept in this folder. The suite prefix of a case gives its ctest
 | `test_cluster_worker_watch.cpp` | Tests that ClusterWorkerWatch keeps the WorkerWatch contract over a real cluster. |
 | `test_detection_report.cpp` | Tests the batch loop, the printout and the checks every detection report shares. |
 | `test_detection_reports.cpp` | Tests the anchor, anchor-free and YOLOX detection reports over a prepared inference. |
+| `test_device_split_run.cpp` | Tests a training step split across a GPU and a CPU, and the run without a split. |
 | `test_domains.cpp` | Tests that each linked domain adds its rows beside the library's without a clash. |
 | `test_epoch_loop.cpp` | Tests run_epoch_loop, the loop the trainer run and the cluster run share. |
 | `test_host_readback.cpp` | Tests that a HostReadback refreshed over a device-resident tensor returns the values written into it. |
@@ -31,9 +32,12 @@ The test sources kept in this folder. The suite prefix of a case gives its ctest
 | `test_registries.cpp` | Tests that compose_registries fills the registries of an app with the library's rows. |
 | `test_replica_fallback_warning.cpp` | Tests ReplicaFallbackWarning: one WARN per replica and cause, none for the master. |
 | `test_replica_tensors.cpp` | Tests ReplicaTensors::list(), the order of the tensors of a replica's packs. |
+| `test_row_feed.cpp` | Tests that a row feed writes the rows of a batch into a setup's inputs. |
 | `test_run_preparation.cpp` | Tests that prepare_run() starts the run where the training file says. |
 | `test_run_start.cpp` | Tests that a run starts from what its file states. |
 | `test_served_kernel.cpp` | Tests make_served_kernel(), which builds the replica kernel one machine serves. |
+| `test_share_runtime.cpp` | Tests how a training file's device split narrows the runtime the run opens. |
+| `test_share_step.cpp` | Tests one share of a split step on a CPU runtime of its own. |
 | `test_trainer_run.cpp` | Tests that register_runs sets the fallback run once and adds no row. |
 | `test_training_cluster_section.cpp` | Tests read_training_cluster: a fallback to the master is refused under "deterministic". |
 | `test_training_program.cpp` | Tests run_training_file over the tiny_yolo fixture: the anchor row and its checkpoint. |
@@ -44,5 +48,6 @@ The test sources kept in this folder. The suite prefix of a case gives its ctest
 | `test_weights_export.cpp` | Tests the formats a weights export writes and that a refused export writes no file. |
 | `test_weights_import.cpp` | Tests the containers a weights import reads and that a failed import writes no file. |
 | `test_worker_arguments.cpp` | Tests read_worker_arguments, which sorts the command line of sushiai_worker. |
+| `tiny_run_files.hpp` | Declares the training file the split-step tests share over the tiny run's model. |
 | `tiny_yolo_files.hpp` | Declares the tiny_yolo files and runs the program tests share. |
 | `worker_watch_contract.hpp` | Declares WorkerWatchContract, the promises every WorkerWatch keeps. |

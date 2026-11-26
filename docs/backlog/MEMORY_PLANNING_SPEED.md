@@ -10,6 +10,7 @@
 | RW-103 | P2 | open | Make the one-batch overfit of YOLOv7 hold | `Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` passes, the cause of the instability found and the bound ruled by the owner |  |  | 2026-10-19 |
 | RW-104 | P2 | unmeasured | Measure where YOLOv3's training step leaves Darknet, layer by layer | a per-layer dump under batch statistics shows whether the difference grows over the 75 convolutions or enters at one |  |  | 2026-10-19 |
 | RW-105 | P2 | blocked | Feed a batch without two copies | a step writes the batch into the plan's input buffers without two `blas().copy()` calls | sushiruntime RW-59 |  | 2026-10-19 |
+| RW-203 | P2 | open | Split one training step by rows of the batch across a machine's device classes | a YOLOv4 run with device_split on the GPU and the CPU trains and gives the loss of an unsplit run within tolerance |  | `docs/agent/2026_11_25_HETEROGENEOUS_STEP/PLAN.md` | 2026-11-26 |
 
 ## Known issues
 

@@ -71,15 +71,15 @@ Each header is named by its include path under `include/`.
 | `SushiAI/config/input_normalise.hpp` | `K_CHANNELS_RGB`, `K_CHANNELS_BGR`, `K_NORMALISE_CHANNELS`, `K_DEFAULT_NORMALISE_SCALE`, `ChannelOrder`, `InputNormalise`, `parse_input_normalise`, `input_normalise_value` |
 | `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_FIT_DARKNET_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
 | `SushiAI/config/model_writer.hpp` | `write_model` |
-| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_TRAIN_CHECKPOINT_EVERY_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `CheckpointUnit`, `CheckpointEvery`, `DataSpec`, `DetectionSettings`, `DataDocument`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data`, `parse_data_document`, `load_data_document` |
+| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_TRAIN_CHECKPOINT_EVERY_VERSION`, `K_TRAIN_DEVICE_SPLIT_VERSION`, `DeviceClass`, `DeviceShare`, `device_class_name`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `CheckpointUnit`, `CheckpointEvery`, `DataSpec`, `DetectionSettings`, `DataDocument`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data`, `parse_data_document`, `load_data_document` |
 | `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events`, `read_json_stream_events`, `ChunkedTextBuffer`, `read_json_text_events` |
 | `SushiAI/config/registry.hpp` | `find_entry` |
 | `SushiAI/config/section_reader.hpp` | `KeySpan`, `member_of`, `entry_of`, `list_quoted`, `read_real`, `read_whole`, `read_float32`, `float32_value`, `read_string`, `read_array`, `SectionReader` |
 
 ## Training file versions
 
-`parse_train` reads versions 1 to 4 (`K_TRAIN_VERSION`) and writes none itself; the
-importer writes `K_TRAIN_VERSION`, which is 4. The `cluster` key is allowed from
+`parse_train` reads versions 1 to 5 (`K_TRAIN_VERSION`) and writes none itself; the
+importer writes `K_TRAIN_VERSION`, which is 5. The `cluster` key is allowed from
 `K_TRAIN_CLUSTER_VERSION`, 2, and is an error in a version 1 file. The `deterministic` key is
 allowed from `K_TRAIN_DETERMINISTIC_VERSION`, 3, and is an error in an older file. The
 `checkpoint_every` key is allowed from `K_TRAIN_CHECKPOINT_EVERY_VERSION`, 4. It is an object with
@@ -87,6 +87,13 @@ exactly one member, `epochs` or `batches`, a positive integer, and `TrainSpec::c
 holds it as a `CheckpointUnit` and a count, `None` and 0 when the file has no key. The key needs
 the file's `checkpoint` path and is `InvalidDescription` without one.
 `TrainSpec::cluster` holds the section as a `Value`, null when the file has none.
+The `device_split` key is allowed from `K_TRAIN_DEVICE_SPLIT_VERSION`, 5. It is a list of two
+shares or more, each an object with `device`, `"gpu"` or `"cpu"`, and `rows`, a positive
+integer; no class appears twice. `TrainSpec::device_split` holds the shares as `DeviceShare`
+values in file order, empty when the file has no key, and `device_class_name` spells a
+`DeviceClass` as the file does. A file that states both `device_split` and `cluster` is
+`Unsupported`. The programs read the list; see `applications/programs/README.md`, section
+"Splitting a step across devices".
 `TrainSpec::deterministic` is `true` when the file does not state the key, and the importer
 writes none. A key that asks for an unordered path is refused while it is `true`, naming the
 key; no such key exists today, so nothing is refused yet. `TrainSpec::base` is the directory relative
